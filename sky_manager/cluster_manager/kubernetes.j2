@@ -1,0 +1,37 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{name}}
+  labels: 
+    manager: sky_manager
+    cluster: {{cluster_name}}
+spec:
+  backoffLimit: 1  
+  template: 
+    spec:
+      restartPolicy: Never  
+      volumes: 
+      - name: dshm
+        emptyDir: 
+          medium: Memory
+      containers: 
+      - name: sleep
+        image: {{image}}
+        volumeMounts: 
+        - name: dshm
+          mountPath: /dev/shm
+        command: ["/bin/sh", "-c"]
+        args:
+        - |          
+          {{run}}
+        resources:
+          limits:
+            cpu: {{cpu}}
+            {% if gpu is not none and gpu != 0 %}
+            nvidia.com/gpu: {{ gpu }}
+            {% endif %}
+          requests:
+            cpu: {{cpu}}
+            {% if gpu is not none and gpu != 0 %}
+            nvidia.com/gpu: {{ gpu }}
+            {% endif %}

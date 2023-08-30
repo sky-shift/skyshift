@@ -1,0 +1,14 @@
+kind: Job
+
+metadata: 
+  name: hello-world
+  labels:
+    testing: hello
+
+spec:
+  image: gcr.io/sky-burst/skyburst:latest
+  resources:
+    cpu: 1
+    gpu: 0
+  run: |
+    echo hi; sleep 100; echo bye

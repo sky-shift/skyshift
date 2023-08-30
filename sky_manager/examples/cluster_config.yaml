@@ -1,0 +1,5 @@
+kind: Cluster
+
+metadata:
+  name: mluo-onprem
+  manager_type: kubernetes
