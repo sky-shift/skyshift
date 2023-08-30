@@ -1,6 +1,6 @@
 # Sky Manager - Sky as a Service
 
-Sky Manager is an implementation of a centralized broker. This is currently a prototype and currently supports scheduling across multiple clusters.
+Sky Manager is an implementation of a centralized broker. This is currently a prototype (~2k LOC) and currently supports scheduling across multiple clusters.
 
 ## Installing Sky Manager
 
