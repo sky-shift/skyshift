@@ -1,12 +1,6 @@
 import requests
-import json
-from multiprocessing import Process
-import time
-from threading import Lock
-
 from tabulate import tabulate
 
-from prettytable import PrettyTable
 from sky_manager import utils
 
 

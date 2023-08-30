@@ -1,5 +1,3 @@
-from starburst.types.job import Job
-
 from sky_manager.templates.cluster_template import Cluster
 
 
@@ -42,12 +40,12 @@ class Manager(object):
         })
         return dict(cluster_manager_obj)
 
-    def submit_job(self, job: Job):
+    def submit_job(self, job):
         raise NotImplementedError
 
     def get_job_status(self, job_name):
         raise NotImplementedError
 
     @staticmethod
-    def convert_yaml(job: Job):
+    def convert_yaml(job):
         raise NotImplementedError

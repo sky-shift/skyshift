@@ -61,7 +61,6 @@ class Informer(object):
         # Call List
         response = requests.get(self.list_url).json()
         response_type = response['kind']
-        print(response_type)
         if response_type in ['Cluster'
                              'Job']:
             cluster_name = response['metadata']['name']

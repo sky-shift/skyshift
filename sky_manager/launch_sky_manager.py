@@ -27,7 +27,6 @@ def launch_sky_manager():
     # time.sleep(3)
 
     # Launch SkyletController, which manages Skylets.
-
     print("Launching Skylet Controller Manager.")
     try:
         controllers = [c() for c in CONTROLLERS]

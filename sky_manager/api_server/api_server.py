@@ -138,7 +138,6 @@ class APIServer(object):
         if etcd_response is None:
             return jsonify(error=f'Job \'{job}\' not found."'), 404
         job_dict = json.loads(etcd_response[1])
-        print(job_dict)
         # Verify dict can be converted into Cluster object.
         job_obj = dict(Job.from_dict(job_dict))
         return jsonify(job_obj)
