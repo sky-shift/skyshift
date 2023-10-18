@@ -1,3 +1,4 @@
+from functools import partial
 import json
 
 from flask import Flask, jsonify, request, Response
@@ -5,12 +6,18 @@ from flask_sockets import Sockets
 import yaml
 
 from sky_manager import ETCDClient
-from sky_manager.templates.cluster_template import Cluster, ClusterList, ClusterCreateException
-from sky_manager.templates.job_template import Job, JobList, JobCreateException
+from sky_manager.templates import ObjectException
+from sky_manager.templates.cluster_template import Cluster, ClusterList, ClusterException
+from sky_manager.templates.job_template import Job, JobList, JobException
 from sky_manager.templates.event_template import WatchEvent
 from sky_manager.utils import ThreadSafeDict
 
 API_SERVICE_PORT = 50051
+
+SUPPORTED_OBJECTS = {
+    'clusters': Cluster,
+    'jobs': Job,
+}
 
 
 def launch_api_service(port=API_SERVICE_PORT, dry_run=True):
@@ -21,17 +28,28 @@ def launch_api_service(port=API_SERVICE_PORT, dry_run=True):
             open(
                 '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml',
                 "r"))
-        for i in range(5):
+        for i in range(3):
             api_server.etcd_client.write(
-                f'clusters/cluster{i}',
-                f'{{"kind": "Cluster", "metadata": {{"name": "cluster{i}", "manager_type": "kubernetes"}} }}'
+                f'clusters/cluster-{i}',
+                json.dumps(
+                    dict(
+                        Cluster(
+                            meta={'name': f'cluster-{i}'},
+                            spec={'manager': 'kubernetes'},
+                        ))),
             )
-            job_dict['metadata']['name'] = f'job{i}'
-            api_server.etcd_client.write(f'jobs/job{i}', json.dumps(job_dict))
+            job_dict['metadata']['name'] = f'job-{i}'
+            api_server.etcd_client.write(f'jobs/job-{i}', json.dumps(job_dict))
     api_server.run(port=port)
 
 
 class APIServer(object):
+    """
+    Defines the API server for the Sky Manager.
+
+    It maintains a connection to the ETCD server and provides a REST API for
+    interacting with Sky Manager objects.
+    """
 
     def __init__(self):
         self.etcd_client = ETCDClient()
@@ -45,108 +63,70 @@ class APIServer(object):
 
         self.watch_dict = ThreadSafeDict()
 
-    def create_cluster(self):
+    def create_object(self, object_type: str):
         content_type = request.headers['Content-Type']
         if content_type == 'application/json':
-            cluster_specs = request.json
+            object_specs = request.json
         elif content_type == 'application/yaml':
-            cluster_specs = yaml.safe_load(request.data)
+            object_specs = yaml.safe_load(request.data)
         else:
             return jsonify(error="Unsupported Content-Type"), 400
+
+        if object_type not in SUPPORTED_OBJECTS:
+            return jsonify(error=f"Invalid object type: {object_type}"), 400
+
+        object_class = SUPPORTED_OBJECTS[object_type]
         try:
-            cluster_template = Cluster.from_dict(cluster_specs)
-        except ClusterCreateException as e:
-            return jsonify(error=f"Invalid cluster template: {e}"), 400
-        response = dict(cluster_template)
-        self.etcd_client.write(
-            f'{self.cluster_prefix}/{cluster_template.name}',
-            json.dumps(response))
-        return jsonify(response), 200
+            object_template = object_class.from_dict(object_specs)
+        except ObjectException as e:
+            return jsonify(error=f"Invalid {object_type} template: {e}"), 400
 
-    def list_clusters(self):
-        """
-        Returns a list of all clusters (ClusterList object).
-        """
-        read_response = self.etcd_client.read_prefix(self.cluster_prefix)
-        cluster_list = []
-        if not isinstance(read_response, list):
-            read_response = [('', read_response)]
-        for read_tup in read_response:
-            cluster_dict = json.loads(read_tup[1])
-            cluster_list.append(Cluster.from_dict(cluster_dict))
-        cluster_list_obj = ClusterList(cluster_list)
-        response = dict(cluster_list_obj)
-        return jsonify(response), 200
-
-    def get_cluster(self, cluster: str):
-        """
-        Returns a specific cluster (Cluster object).
-        """
-        etcd_response = self.etcd_client.read(
-            f'{self.cluster_prefix}/{cluster}')
-        if etcd_response is None:
-            return jsonify(error=f'Cluster \'{cluster}\' not found."'), 404
-        cluster_dict = json.loads(etcd_response[1])
-        # Verify dict can be converted into Cluster object.
-        cluster_obj = dict(Cluster.from_dict(cluster_dict))
-        return jsonify(cluster_obj)
-
-    def delete_cluster(self, cluster: str):
-        etcd_response = self.etcd_client.delete(
-            f'{self.cluster_prefix}/{cluster}')
-        if etcd_response:
-            return jsonify(message=f'Deleted \'{cluster}\'.'), 200
-        return jsonify(error=f"Failed to delete \'{cluster}\'."), 404
-
-    def create_job(self):
-        content_type = request.headers['Content-Type']
-        if content_type == 'application/json':
-            job_specs = request.json
-        elif content_type == 'application/yaml':
-            job_specs = yaml.safe_load(request.data)
-        else:
-            return jsonify(error="Unsupported Content-Type"), 400
-        try:
-            job_template = Job.from_dict(job_specs)
-        except JobCreateException as e:
-            return jsonify(error=f"Invalid cluster template: {e}"), 400
-        response = dict(job_template)
-        self.etcd_client.write(f'{self.job_prefix}/{job_template.name}',
+        response = dict(object_template)
+        self.etcd_client.write(f'{object_type}/{object_template.meta.name}',
                                json.dumps(response))
         return jsonify(response), 200
 
-    def list_jobs(self):
+    def list_objects(self, object_type: str):
         """
-        Returns a list of all submitted jobs (JobList object).
+        Lists all objects of a given type.
         """
-        read_response = self.etcd_client.read_prefix(self.job_prefix)
-        job_list = []
-        if not isinstance(read_response, list):
-            read_response = [('', read_response)]
-        for read_tup in read_response:
-            job_dict = json.loads(read_tup[1])
-            job_list.append(Job.from_dict(job_dict))
-        job_list_obj = JobList(job_list)
-        response = dict(job_list_obj)
+        if object_type not in SUPPORTED_OBJECTS:
+            return jsonify(error=f"Invalid object type: {object_type}"), 400
+        object_class = SUPPORTED_OBJECTS[object_type]
+
+        object_list = []
+        read_response = self.etcd_client.read_prefix(object_type)
+        for _, read_value in read_response:
+            object_dict = json.loads(read_value)
+            object_list.append(object_class.from_dict(object_dict))
+        obj_list_cls = eval(object_class.__name__ + 'List')(object_list)
+        response = dict(obj_list_cls)
         return jsonify(response), 200
 
-    def get_job(self, job: str):
+    def get_object(self, object_type: str, object_name: str):
         """
-        Returns a specific job (Job object).
+        Returns a specific object, raises Error otherwise.
         """
-        etcd_response = self.etcd_client.read(f'{self.job_prefix}/{job}')
-        if etcd_response is None:
-            return jsonify(error=f'Job \'{job}\' not found."'), 404
-        job_dict = json.loads(etcd_response[1])
-        # Verify dict can be converted into Cluster object.
-        job_obj = dict(Job.from_dict(job_dict))
-        return jsonify(job_obj)
+        if object_type not in SUPPORTED_OBJECTS:
+            return jsonify(error=f"Invalid object type: {object_type}"), 400
+        object_class = SUPPORTED_OBJECTS[object_type]
 
-    def delete_job(self, job: str):
-        etcd_response = self.etcd_client.delete(f'{self.job_prefix}/{job}')
+        etcd_response = self.etcd_client.read(f'{object_type}/{object_name}')
+        if etcd_response is None:
+            return jsonify(
+                error=f'Object \'{object_type}/{object_name}\' not found.'
+            ), 404
+        obj_dict = json.loads(etcd_response[1])
+        cluster_obj = dict(object_class.from_dict(obj_dict))
+        return jsonify(cluster_obj)
+
+    def delete_object(self, object_type: str, object_name: str):
+        etcd_response = self.etcd_client.delete(f'{object_type}/{object_name}')
         if etcd_response:
-            return jsonify(message=f'Deleted \'{job}\'.'), 200
-        return jsonify(error=f"Failed to delete \'{job}\'."), 404
+            return jsonify(
+                message=f'Deleted \'{object_type}/{object_name}\'.'), 200
+        return jsonify(
+            error=f"Failed to delete \'{object_type}/{object_name}\'."), 404
 
     def watch(self, key):
         events_iterator, cancel = self.etcd_client.watch(key)
@@ -192,38 +172,24 @@ class APIServer(object):
                               methods=methods)
 
     def create_endpoints(self):
-        self.add_endpoint(endpoint="/clusters",
-                          endpoint_name="create_cluster",
-                          handler=self.create_cluster,
-                          methods=['POST'])
-        self.add_endpoint(endpoint="/clusters",
-                          endpoint_name="list_clusters",
-                          handler=self.list_clusters,
-                          methods=['GET'])
-        self.add_endpoint(endpoint="/clusters/<cluster>",
-                          endpoint_name="get_cluster",
-                          handler=self.get_cluster,
-                          methods=['GET'])
-        self.add_endpoint(endpoint="/clusters/<cluster>",
-                          endpoint_name="delete_cluster",
-                          handler=self.delete_cluster,
-                          methods=['DELETE'])
-        self.add_endpoint(endpoint="/jobs",
-                          endpoint_name="create_job",
-                          handler=self.create_job,
-                          methods=['POST'])
-        self.add_endpoint(endpoint="/jobs",
-                          endpoint_name="list_jobs",
-                          handler=self.list_jobs,
-                          methods=['GET'])
-        self.add_endpoint(endpoint="/jobs/<job>",
-                          endpoint_name="get_job",
-                          handler=self.get_job,
-                          methods=['GET'])
-        self.add_endpoint(endpoint="/jobs/<job>",
-                          endpoint_name="delete_job",
-                          handler=self.delete_job,
-                          methods=['DELETE'])
+        for object_type in SUPPORTED_OBJECTS.keys():
+            self.add_endpoint(endpoint=f"/{object_type}",
+                              endpoint_name=f"create_{object_type}",
+                              handler=partial(self.create_object, object_type),
+                              methods=['POST'])
+            self.add_endpoint(endpoint=f"/{object_type}",
+                              endpoint_name=f"list_{object_type}",
+                              handler=partial(self.list_objects, object_type),
+                              methods=['GET'])
+            self.add_endpoint(endpoint=f"/{object_type}/<object_name>",
+                              endpoint_name=f"get_{object_type}",
+                              handler=partial(self.get_object, object_type),
+                              methods=['GET'])
+            self.add_endpoint(endpoint=f"/{object_type}/<object_name>",
+                              endpoint_name=f"delete_{object_type}",
+                              handler=partial(self.delete_object, object_type),
+                              methods=['DELETE'])
+
         self.add_endpoint(endpoint="/watch/<key>",
                           endpoint_name="watch",
                           handler=self.watch,
@@ -233,8 +199,8 @@ class APIServer(object):
                           handler=self.cancel_watch,
                           methods=['DELETE'])
 
-    def run(self, port=API_SERVICE_PORT):
-        self.app.run(host=self.host, port=port, debug=True, threaded=True)
+    def run(self, port=API_SERVICE_PORT, debug=True):
+        self.app.run(host=self.host, port=port, debug=debug, threaded=True)
 
 
 if __name__ == '__main__':

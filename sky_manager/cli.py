@@ -33,7 +33,9 @@ def create_cluster(name: str, manager_type: str):
         'kind': 'Cluster',
         'metadata': {
             'name': name,
-            'manager_type': manager_type
+        },
+        'spec': {
+            'manager': manager_type
         }
     }
     api_response = cluster_api.CreateCluster(cluster_dictionary)
@@ -205,16 +207,20 @@ def print_cluster_table(cluster_list: List[dict]):
 
     for entry in cluster_list:
         name = entry['metadata']['name']
-        manager_type = entry['metadata']['manager_type']
+        manager_type = entry['spec']['manager']
 
-        resources = gather_resources(entry['spec']['resources'])
+        resources = gather_resources(entry['status']['capacity'])
         allocatable_resources = gather_resources(
-            entry['spec']['allocatable_resources'])
+            entry['status']['allocatable'])
         resources_str = ''
         for key in resources.keys():
-            resources_str += f'{key}: {allocatable_resources[key]}/{resources[key]}\n'
+            if key not in allocatable_resources:
+                available_resources = '???'
+            else:
+                available_resources = allocatable_resources[key]
+            resources_str += f'{key}: {available_resources}/{resources[key]}\n'
 
-        status = entry['spec']['status']
+        status = entry['status']['status']
         table_data.append([name, manager_type, resources_str, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
@@ -227,14 +233,14 @@ def print_job_table(job_list: List[dict]):
 
     for entry in job_list:
         name = entry['metadata']['name']
-        cluster_name = entry['spec']['cluster']
+        cluster_name = entry['status']['cluster']
 
         resources = entry['spec']['resources']
         resources_str = ''
         for key in resources.keys():
             resources_str += f'{key}: {resources[key]}\n'
 
-        status = entry['spec']['status']
+        status = entry['status']['status']
         table_data.append([name, cluster_name, resources_str, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")

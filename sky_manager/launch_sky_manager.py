@@ -13,23 +13,15 @@ from sky_manager.controllers.skylet_controller import SkyletController
 
 CONTROLLER_MANAGER_INTERVAL = 1
 
-# Servers as the Controller Manager.
-CONTROLLERS = [SkyletController, SchedulerController]
+# Servers as the Controller Manager, which runs two controllers.
+SKY_MANAGER_CONTROLLERS = [SkyletController, SchedulerController]
 
 
 def launch_sky_manager():
-    # # Launch API server with endpoint.
-    # print("Launching API Server.")
-    # api_server_process = Process(target=launch_api_service)
-    # api_server_process.start()
-
-    # # Give time for API server to boot up.
-    # time.sleep(3)
-
     # Launch SkyletController, which manages Skylets.
     print("Launching Skylet Controller Manager.")
     try:
-        controllers = [c() for c in CONTROLLERS]
+        controllers = [c() for c in SKY_MANAGER_CONTROLLERS]
     except Exception:
         print(traceback.format_exc())
         return

@@ -29,7 +29,6 @@ class SchedulerController(Controller):
         host, port = load_api_service()
         for event in merge_gens(WatchClusters(), WatchJobs()):
             try:
-                #print(event)
                 event_type = event['type']
                 object_value = list(event['object'].values())[0]
                 if event_type != 'Added':
@@ -38,7 +37,7 @@ class SchedulerController(Controller):
                 object_value = json.loads(object_value)
                 # Only add jobs that have new arrived or failed over from a prior cluster.
                 if object_value['kind'] == 'Job':
-                    if object_value['spec']['status'] in ['INIT']:
+                    if object_value['status']['status'] in ['INIT']:
                         self.queue.append(object_value)
                     else:
                         continue
@@ -56,8 +55,8 @@ class SchedulerController(Controller):
                         job, filtered_clusters)
                     if clusters:
                         # Fetch the top scoring cluster.
-                        job['spec']['cluster'] = ranked_clusters[0][0]
-                        job['spec']['status'] = 'SCHEDULED'
+                        job['status']['cluster'] = ranked_clusters[0][0]
+                        job['status']['status'] = 'SCHEDULED'
                         response = requests.post(f'http://{host}:{port}/jobs',
                                                  json=job)
                         print(response.json())
@@ -73,11 +72,11 @@ class SchedulerController(Controller):
         return clusters
 
     def rank_clusters(self, job, clusters):
-        # For now this policy is rank cluster by their availability". (most resources)
+        # For now this policy is rank cluster by their availability". (load-balancing)
         sum_clusters = []
         for cluster in clusters:
             cluster_name, cluster_dict = cluster
-            resources = cluster_dict['spec']['allocatable_resources']
+            resources = cluster_dict['status']['allocatable']
             sum_resources = {'cpu': 0, 'memory': 0, 'gpu': 0}
             if resources:
                 for _, node_resources in resources.items():

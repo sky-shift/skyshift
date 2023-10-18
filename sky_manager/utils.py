@@ -8,6 +8,7 @@ import time
 from threading import Lock
 
 from sky_manager.cluster_manager.kubernetes_manager import KubernetesManager
+from sky_manager.templates import Cluster
 
 
 class ThreadSafeDict:
@@ -106,9 +107,9 @@ class Informer(object):
         return self.object
 
 
-def setup_cluster_manager(cluster_config):
-    metadata = cluster_config['metadata']
-    cluster_type = metadata['manager_type']
+def setup_cluster_manager(cluster_obj: Cluster):
+    cluster_type = cluster_obj.spec.manager
+    cluster_name = cluster_obj.meta.name
 
     if cluster_type in ['k8', 'kubernetes']:
         cluster_manager_cls = KubernetesManager
@@ -122,6 +123,9 @@ def setup_cluster_manager(cluster_config):
                                                     co_argcount]
 
     # Filter the dictionary keys based on parameter names
-    args = {k: v for k, v in metadata.items() if k in class_params}
+    args = {
+        k: v
+        for k, v in dict(cluster_obj.meta).items() if k in class_params
+    }
     # Create an instance of the class with the extracted arguments.
     return cluster_manager_cls(**args)

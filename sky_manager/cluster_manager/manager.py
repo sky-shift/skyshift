@@ -1,4 +1,5 @@
-from sky_manager.templates.cluster_template import Cluster
+from sky_manager.templates.cluster_template import ClusterStatus, ClusterStatusEnum
+from sky_manager.templates.job_template import JobStatus, JobStatusEnum
 
 
 class Manager(object):
@@ -26,19 +27,17 @@ class Manager(object):
         """
         raise NotImplementedError
 
-    @property
-    def cluster_state(self):
-        """ Gets the cluster state. """
-        cluster_manager_obj = Cluster(self.name, manager_type='k8')
-        cluster_manager_obj.set_spec({
-            'status':
-            'READY',
-            'resources':
-            self.cluster_resources,
-            'allocatable_resources':
-            self.allocatable_resources
-        })
-        return dict(cluster_manager_obj)
+    def get_cluster_status(self):
+        """ Gets the cluster status. """
+        return ClusterStatus(
+            status=ClusterStatusEnum.READY.value,
+            capacity=self.cluster_resources,
+            allocatable_capacity=self.allocatable_resources,
+        )
+
+    def get_jobs_status(self):
+        """Gets the status for all jobs."""
+        return
 
     def submit_job(self, job):
         raise NotImplementedError

@@ -7,9 +7,15 @@ class Controller(object):
         pass
 
     def run(self):
+        """
+        Main control loop for the controller.
+        """
         raise NotImplementedError('Subclasses must implement this method.')
 
     def start(self):
+        """
+        Start controller process.
+        """
         self.controller_process = Process(target=self.run)
         self.controller_process.start()
 

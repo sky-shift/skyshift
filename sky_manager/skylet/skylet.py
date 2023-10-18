@@ -4,6 +4,7 @@ Each Skylet corresponds to a cluster.
 Skylet is a daemon process that runs in the background. It is responsible for updating the state of the cluster and jobs submitted.
 """
 import argparse
+from copy import deepcopy
 import yaml
 import os
 
@@ -22,11 +23,14 @@ def launch_skylet(cluster_config):
     print("Skylet Launched")
     controllers = []
     try:
-        controllers = [c(cluster_config) for c in CONTROLLERS]
+        controllers = []
+        for c in CONTROLLERS:
+            tmp_config = deepcopy(cluster_config)
+            controllers.append(c(tmp_config))
     except Exception as e:
         print(traceback.format_exc())
         print("Failed to initialize Skylet, check if cluster config is valid:"
-              f" {cluster_config}")
+              f" {tmp_config}")
     for c in controllers:
         c.start()
     for c in controllers:
@@ -39,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--config',
                         type=str,
                         required=True,
-                        help="Path to the YAML file.")
+                        help="Path to the Cluster YAML file.")
 
     args = parser.parse_args()
     yaml_file_path = args.config

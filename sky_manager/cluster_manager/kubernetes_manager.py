@@ -11,19 +11,10 @@ from kubernetes.client import models
 import yaml
 
 from sky_manager.cluster_manager import Manager
+from sky_manager.templates.job_template import Job, JobStatus, JobStatusEnum
 
 client.rest.logger.setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
-
-
-class JobStatus(Enum):
-    INIT = 'INIT'
-    SCHEDULED = 'SCHEDULED'
-    PENDING = 'PENDING'
-    # Includes both setup (such as containercreate/pull) and running.
-    RUNNING = 'RUNNING'
-    COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED'
 
 
 def parse_resource_cpu(resource_str):
@@ -168,7 +159,7 @@ class KubernetesManager(Manager):
                                 'nvidia.com/gpu', 0))
         return available_resources
 
-    def submit_job(self, job) -> None:
+    def submit_job(self, job: Job) -> None:
         """
         Submit a YAML which contains the Kubernetes Job declaration using the
         batch api.
@@ -182,8 +173,8 @@ class KubernetesManager(Manager):
             namespace=self.namespace, body=job_dict)
         return api_response
 
-    def delete_job(self, job) -> None:
-        job_name = job['metadata']['name']
+    def delete_job(self, job: Job) -> None:
+        job_name = job.meta.name
         self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.namespace,
@@ -192,7 +183,7 @@ class KubernetesManager(Manager):
                 grace_period_seconds=5  # Adjust as needed
             ))
 
-    def convert_yaml(self, job: Dict[str, Any]):
+    def convert_yaml(self, job: Job):
         """
         Serves as a compatibility layer to generate a Kubernetes-compatible
         YAML file from a job object.
@@ -200,6 +191,7 @@ class KubernetesManager(Manager):
         Args:
             job: Generic Job object.
         """
+        job = dict(job)
         dir_path = os.path.dirname(os.path.realpath(__file__))
         print(dir_path)
         jinja_env = Environment(loader=FileSystemLoader(
@@ -218,10 +210,9 @@ class KubernetesManager(Manager):
         kubernetes_job = yaml.safe_load(kubernetes_job)
         return kubernetes_job
 
-    @property
-    def job_state(self):
+    def get_jobs_status(self):
         """ Gets the jobs state. (Map from job name to status) """
-        # Filter jobs that are not submitted by Sky Manager.
+        # Filter jobs that that are submitted by Sky Manager.
         jobs = self.batch_v1.list_namespaced_job(
             namespace=self.namespace,
             label_selector='manager=sky_manager').items
@@ -233,21 +224,25 @@ class KubernetesManager(Manager):
             jobs_dict[job_name] = job_status
         return jobs_dict
 
-    def _process_job_status(self, job: models.v1_job.V1Job) -> Dict[str, Any]:
+    def _process_job_status(self,
+                            job: models.v1_job.V1Job) -> Dict[str, JobStatus]:
         active_pods = job.status.active or 0
         succeeded_pods = job.status.succeeded or 0
         failed_pods = job.status.failed or 0
         # Update job status
         if active_pods == 0 and succeeded_pods == 0:
             # When no pods have been scheduled.
-            job_status = JobStatus.PENDING.value
+            job_status = JobStatusEnum.PENDING.value
         elif succeeded_pods == job.spec.completions:
-            job_status = JobStatus.COMPLETED.value
+            job_status = JobStatusEnum.COMPLETED.value
         elif failed_pods >= job.spec.backoff_limit:
-            job_status = JobStatus.FAILED.value
+            job_status = JobStatusEnum.FAILED.value
         else:
-            job_status = JobStatus.RUNNING.value
-        return job_status
+            job_status = JobStatusEnum.RUNNING.value
+        return JobStatus(
+            status=job_status,
+            cluster=self.cluster_name,
+        )
 
 
 if __name__ == '__main__':
