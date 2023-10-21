@@ -7,12 +7,12 @@ from sky_manager.templates.object_template import Object, ObjectException, \
 from sky_manager.templates.resource_template import ResourceEnum
 
 DEFAULT_IMAGE = 'ubuntu:latest'
-
 DEFAULT_JOB_RESOURCES = {
     'cpu': 1,
     'gpu': 0,
     'memory': 128,
 }
+DEFAULT_NAMESPACE = 'default'
 
 
 class JobStatusEnum(Enum):
@@ -112,7 +112,35 @@ class JobStatus(ObjectStatus):
 
 
 class JobMeta(ObjectMeta):
-    pass
+
+    def __init__(self,
+                 name: str,
+                 labels: Dict[str, str] = {},
+                 annotations: Dict[str, str] = {},
+                 namespace: str = None):
+        super().__init__(name, labels, annotations)
+        if not namespace:
+            namespace = DEFAULT_NAMESPACE
+        self.namespace = namespace
+
+    @staticmethod
+    def from_dict(config):
+        name = config.pop('name', None)
+        labels = config.pop('labels', {})
+        annotations = config.pop('annotations', {})
+        namespace = config.pop('namespace', None)
+        return JobMeta(name=name,
+                       labels=labels,
+                       annotations=annotations,
+                       namespace=namespace)
+
+    def __iter__(self):
+        yield from {
+            'name': self.name,
+            'labels': self.labels,
+            'annotations': self.annotations,
+            'namespace': self.namespace,
+        }.items()
 
 
 class JobSpec(ObjectSpec):

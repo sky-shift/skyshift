@@ -41,9 +41,9 @@ class ObjectStatus(object):
 class ObjectMeta(object):
 
     def __init__(self,
-                 name=str,
-                 labels=Dict[str, str],
-                 annotations=Dict[str, str]):
+                 name: str,
+                 labels: Dict[str, str] = {},
+                 annotations: Dict[str, str] = {}):
         assert name is not None, "Object name cannot be None."
         self.name = name
         self.labels = labels
@@ -74,7 +74,7 @@ class ObjectSpec(object):
 
     @staticmethod
     def from_dict(config):
-        pass
+        return ObjectSpec()
 
     def __iter__(self):
         yield from {}.items()

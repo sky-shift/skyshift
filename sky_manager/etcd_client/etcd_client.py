@@ -3,7 +3,7 @@ import traceback
 import etcd3 as etcd
 
 ETCD_PORT = 2379
-DEFAULT_CLIENT_NAME = '/registry/default'
+DEFAULT_CLIENT_NAME = '/sky_registry'
 
 
 class ETCDClient(object):
@@ -31,8 +31,9 @@ class ETCDClient(object):
         with self.etcd_client.lock(key):
             try:
                 self.etcd_client.put(key, str(value))
-            except Exception:
+            except Exception as e:
                 print(traceback.format_exc())
+                raise e
 
     def read_prefix(self, key: str):
         """

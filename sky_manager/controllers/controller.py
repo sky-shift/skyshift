@@ -1,4 +1,4 @@
-from multiprocessing import Process
+import threading
 
 
 class Controller(object):
@@ -16,7 +16,7 @@ class Controller(object):
         """
         Start controller process.
         """
-        self.controller_process = Process(target=self.run)
+        self.controller_process = threading.Thread(target=self.run)
         self.controller_process.start()
 
     def join(self):

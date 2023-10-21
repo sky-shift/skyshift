@@ -11,7 +11,7 @@ class WatchEvent(object):
             "kind": "WatchEvent",
             'type': self.event_type,
             'object': {
-                self.key: self.value
+                self.key: dict(self.value)
             }
         }.items()
 

@@ -1,15 +1,14 @@
-import json
+from collections import OrderedDict
+from copy import deepcopy
+import logging
+import queue
 import time
 import traceback
-from copy import deepcopy
-
-from concurrent.futures import ThreadPoolExecutor, wait
-import requests
 
 from sky_manager.controllers import Controller
-from sky_manager.utils import Informer, load_api_service
-from sky_manager.api_client.job_api import WatchJobs
-from sky_manager.api_client.cluster_api import WatchClusters
+from sky_manager.utils import Informer
+from sky_manager.api_client import *
+from sky_manager.templates.job_template import Job
 
 
 class SchedulerController(Controller):
@@ -19,62 +18,149 @@ class SchedulerController(Controller):
 
     def __init__(self) -> None:
         super().__init__()
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger(f'Scheduler Controller')
+        self.logger.setLevel(logging.INFO)
+
+        #Thread safe queue for Informers to append events to.
+        self.worker_queue = queue.Queue()
+
+        def add_job_callback_fn(event):
+            event_object = event[1]
+            # Filter for jobs that are scheduled by the Scheduler Controller and
+            # are assigned to this cluster.
+            if event_object['status']['status'] == 'INIT':
+                self.worker_queue.put(event)
+
+        # Filtered Add events and Delete events are added to the worker queue.
+        self.job_informer = Informer('jobs')
+        self.job_informer.add_event_callbacks(
+            add_event_callback=add_job_callback_fn, delete_event_callback=None)
+        self.job_informer.start()
+
+        self.prev_alloc_capacity = {}
+
+        def add_cluster_callback_fn(event):
+            # Only add event when allocatable cluster resources have changed.
+            event_key = event[0]
+            event_object = event[1]
+            if event_object['status'][
+                    'allocatable'] != self.prev_alloc_capacity.get(
+                        event_key, None):
+                self.worker_queue.put(event)
+            self.prev_alloc_capacity[event_key] = event_object['status'][
+                'allocatable']
+
         self.cluster_informer = Informer('clusters')
+        self.cluster_informer.add_event_callbacks(
+            add_event_callback=add_cluster_callback_fn,
+            delete_event_callback=None)
         self.cluster_informer.start()
+
+        # self.cluster_informer = Informer('clusters')
+        # self.cluster_informer.start()
         # Assumed FIFO
-        self.queue = []
+        self.job_queue = []
 
     def run(self):
-        # Poll for jobs and execute/kill them depending on the job status.
-        host, port = load_api_service()
-        for event in merge_gens(WatchClusters(), WatchJobs()):
+        self.logger.info(
+            'Running Scheduler controller - Manages job submission over multiple clusters.'
+        )
+        self.job_api = JobAPI()
+        while True:
+            # Blocks until there is at least 1 element in the queue or until timeout.
+            event = self.worker_queue.get()
             try:
-                event_type = event['type']
-                object_value = list(event['object'].values())[0]
-                if event_type != 'Added':
-                    continue
+                event_object = event[1]
 
-                object_value = json.loads(object_value)
                 # Only add jobs that have new arrived or failed over from a prior cluster.
-                if object_value['kind'] == 'Job':
-                    if object_value['status']['status'] in ['INIT']:
-                        self.queue.append(object_value)
-                    else:
-                        continue
-                if len(self.queue) == 0:
+                if event_object['kind'] == 'Job' and event_object['status'][
+                        'status'] == 'INIT':
+                    self.job_queue.append(event_object)
+                else:
+                    self.worker_queue.task_done()
+                    continue
+                if len(self.job_queue) == 0:
+                    self.worker_queue.task_done()
                     continue
 
                 # Main Scheduling loop.
                 # Local cache of clusters for this scheduling loop.
-                clusters = deepcopy(self.cluster_informer.get_object())
-                clusters = tuple(clusters.items())
+                clusters = deepcopy(self.cluster_informer.get_cache())
+                clusters = dict(clusters.items())
                 sched_jobs = []
-                for job in self.queue:
+                idx_list = []
+                for job_idx, job in enumerate(self.job_queue):
                     filtered_clusters = self.filter_clusters(job, clusters)
                     ranked_clusters = self.rank_clusters(
                         job, filtered_clusters)
                     if clusters:
                         # Fetch the top scoring cluster.
-                        job['status']['cluster'] = ranked_clusters[0][0]
-                        job['status']['status'] = 'SCHEDULED'
-                        response = requests.post(f'http://{host}:{port}/jobs',
-                                                 json=job)
-                        print(response.json())
-                        sched_jobs.append(job)
-                for sched_job in sched_jobs:
-                    self.queue.remove(sched_job)
+                        top_cluster = ranked_clusters[0][0]
+                        job_obj = Job.from_dict(job)
+                        job_obj.status.update_cluster(top_cluster)
+                        job_obj.status.update_status('SCHEDULED')
+                        job_obj_dict = dict(job_obj)
+                        self.job_api.Update(config=job_obj_dict,
+                                            namespace=job_obj.meta.namespace)
+                        sched_jobs.append(job_obj_dict)
+                        idx_list.append(job_idx)
+                        self.logger.info(
+                            f'Sending job {job_obj.meta.name} to cluster {top_cluster}.'
+                        )
+                    else:
+                        self.logger.info(
+                            f'Unable to schedule job {job_obj.meta.name}. Marking it as failed.'
+                        )
+                    break
+
+                for job_idx in reversed(idx_list):
+                    del self.job_queue[job_idx]
             except:
                 print(traceback.format_exc())
                 time.sleep(1)
+            self.worker_queue.task_done()
 
-    def filter_clusters(self, job, clusters):
-        # For now there is NO filter.
+    def filter_clusters(self, job, clusters: dict):
+        # Filter for clusters.
+        filter_policy_api = FilterPolicyAPI()
+        all_policies = filter_policy_api.List()
+
+        # Find filter policies that have labels that are a subset of the job's labels.
+        filter_policies = []
+        for fp_dict in all_policies['items']:
+            fp_dict_labels = fp_dict['spec']['labelsSelector']
+            job_labels = job['metadata']['labels']
+            if fp_dict_labels:
+                is_subset = all(k in job_labels and job_labels[k] == v
+                                for k, v in fp_dict_labels.items())
+            else:
+                is_subset = False
+
+            if is_subset:
+                filter_policies.append(fp_dict)
+
+        # Filter for clusters that satisfy the filter policies.
+        for fp_dict in filter_policies:
+            include_list = fp_dict['spec']['clusterFilter']['include']
+            exclude_list = fp_dict['spec']['clusterFilter']['exclude']
+            cluster_keys = list(clusters.keys())
+            for c_name in cluster_keys:
+                if c_name not in include_list:
+                    del clusters[c_name]
+
+            for c_name in exclude_list:
+                if c_name in clusters:
+                    del clusters[c_name]
         return clusters
 
-    def rank_clusters(self, job, clusters):
+    def rank_clusters(self, job, clusters: dict):
         # For now this policy is rank cluster by their availability". (load-balancing)
         sum_clusters = []
-        for cluster in clusters:
+        for cluster in clusters.items():
             cluster_name, cluster_dict = cluster
             resources = cluster_dict['status']['allocatable']
             sum_resources = {'cpu': 0, 'memory': 0, 'gpu': 0}
@@ -89,27 +175,6 @@ class SchedulerController(Controller):
                           key=lambda x: x[1]['cpu'],
                           reverse=True)
         return clusters
-
-
-def merge_gens(gen1, gen2):
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        gen1_next = executor.submit(next, gen1, None)
-        gen2_next = executor.submit(next, gen2, None)
-
-        while True:
-            # Wait for one of the generators to produce a result
-            done, _ = wait([gen1_next, gen2_next],
-                           return_when='FIRST_COMPLETED')
-
-            for future in done:
-                result = future.result()
-                if result is not None:
-                    yield result
-                    # Re-submit the task for the generator(s) that have completed.
-                    if gen1_next in done:
-                        gen1_next = executor.submit(next, gen1, None)
-                    if gen2_next in done:
-                        gen2_next = executor.submit(next, gen2, None)
 
 
 # Testing Scheduler Controller.
