@@ -1,15 +1,12 @@
 from copy import deepcopy
 from queue import Queue
 import logging
-import json
 import traceback
 import time
-import requests
 
 from sky_manager.utils import Informer
 from sky_manager.controllers import Controller
-from sky_manager.utils import setup_cluster_manager, load_api_service
-from sky_manager.api_client.job_api import WatchJobs, DeleteJob
+from sky_manager.utils import setup_cluster_manager
 from sky_manager.templates.job_template import Job, JobStatusEnum
 from sky_manager.templates.cluster_template import Cluster
 from sky_manager.api_client import *
