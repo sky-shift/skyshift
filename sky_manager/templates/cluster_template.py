@@ -17,6 +17,11 @@ class ClusterStatusEnum(Enum):
     # not a valid cluster.
     ERROR = "ERROR"
 
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
 
 class ClusterException(ObjectException):
     """Raised when the cluster dict is invalid."""
@@ -162,6 +167,9 @@ class Cluster(Object):
         self.meta = ClusterMeta.from_dict(meta)
         self.spec = ClusterSpec.from_dict(spec)
         self.status = ClusterStatus.from_dict(status)
+
+    def get_status(self):
+        return self.status.curStatus
 
     @staticmethod
     def from_dict(config: dict):

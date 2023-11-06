@@ -1,4 +1,4 @@
-from enum import Enum
+import enum
 import time
 from typing import Any, Dict, List
 
@@ -15,7 +15,7 @@ DEFAULT_JOB_RESOURCES = {
 DEFAULT_NAMESPACE = 'default'
 
 
-class JobStatusEnum(Enum):
+class JobStatusEnum(enum.Enum):
     INIT = 'INIT'
     # When job has been binded to a cluster.
     SCHEDULED = 'SCHEDULED'

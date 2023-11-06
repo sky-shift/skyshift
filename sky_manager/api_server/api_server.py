@@ -4,7 +4,6 @@ import os
 import socket
 
 from flask import Flask, jsonify, request, Response
-from flask_sockets import Sockets
 import yaml
 
 from sky_manager.etcd_client.etcd_client import ETCD_PORT
@@ -76,6 +75,15 @@ def launch_api_service(host=API_SERVER_HOST,
                 '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml',
                 "r"))
         for i in range(3):
+            api_server.etcd_client.write(
+                f'clusters/cluster-{i}',
+                json.dumps(
+                    dict(
+                        Cluster(
+                            meta={'name': f'cluster-{i}'},
+                            spec={'manager': 'kubernetes'},
+                        ))),
+            )
             api_server.etcd_client.write(
                 f'clusters/cluster-{i}',
                 json.dumps(
@@ -275,21 +283,10 @@ class APIServer(object):
         def generate_events():
             try:
                 for event in events_iterator:
-                    event_type = str(type(event))
-                    if 'Put' in event_type:
-                        event_type = 'Added'
-                    elif 'Delete' in event_type:
-                        event_type = 'Deleted'
-                    else:
-                        event_type = 'Unknown'
-
-                    event_key = event.key.decode('utf-8')  #.split('/')[-1]
-                    if event.value:
-                        event_value = json.loads(event.value.decode('utf-8'))
-                    else:
-                        event_value = {}
+                    event_type, event_key, event_value = event   
+                    event_value = json.loads(event_value)
                     watch_event = WatchEvent(
-                        event_type,
+                        event_type.value,
                         event_key,
                         event_value,
                     )
@@ -366,17 +363,6 @@ class APIServer(object):
                                    object_type,
                                ),
                                methods=['GET'])
-            # Add special case where can list namespaced objects across
-            # all namespaces.
-            self._add_endpoint(
-                endpoint=f"/{object_type}",
-                endpoint_name=f"list_{object_type}_all_namespaces",
-                handler=partial(
-                    self.list_objects,
-                    object_type,
-                    namespace=None,
-                ),
-                methods=['GET'])
             self._add_endpoint(
                 endpoint=f"/<namespace>/{object_type}/<object_name>",
                 endpoint_name=f"get_{object_type}",
@@ -393,6 +379,17 @@ class APIServer(object):
                     object_type,
                 ),
                 methods=['DELETE'])
+            # Add special case where can list namespaced objects across
+            # all namespaces.
+            self._add_endpoint(
+                endpoint=f"/{object_type}",
+                endpoint_name=f"list_{object_type}_all_namespaces",
+                handler=partial(
+                    self.list_objects,
+                    object_type,
+                    namespace=None,
+                ),
+                methods=['GET'])
 
     def run(self, port, debug=True):
         self.app.run(host=self.host, port=port, debug=debug, threaded=True)

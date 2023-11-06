@@ -8,10 +8,11 @@ import time
 import requests
 import traceback
 
+from sky_manager.api_server.api_server import load_manager_config
 from sky_manager.controllers import Controller
 from sky_manager.templates.job_template import Job, JobStatusEnum
 from sky_manager.templates.cluster_template import Cluster, ClusterStatus, ClusterStatusEnum
-from sky_manager.utils import setup_cluster_manager, Informer, load_api_service
+from sky_manager.utils import setup_cluster_manager, Informer
 from sky_manager.api_client import *
 
 CLUSTER_HEARTBEAT_TIME = 5
@@ -82,7 +83,7 @@ class ClusterHeartbeatController(Controller):
                 time.sleep(CLUSTER_HEARTBEAT_TIME - (end - start))
 
     def _update_cluster_state(self, cluster_status: ClusterStatus):
-        host, port = load_api_service()
+        host, port = load_manager_config()
         api_server_url = f'http://{host}:{port}/clusters'
 
         cluster_exists = False

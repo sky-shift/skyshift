@@ -1,3 +1,7 @@
+"""Scheduler controller determines which cluster (or clusters) a job should be placed on.
+
+Unlike Kubernetes scheduler, this controller schedules batch jobs and deployments/services over clusters. This enables the scheduler to satisfy gang/coscheduling, colocation, and governance requiremnts.
+"""
 from collections import OrderedDict
 from copy import deepcopy
 import logging
@@ -12,13 +16,8 @@ from sky_manager.templates.job_template import Job
 
 
 class SchedulerController(Controller):
-    """
-    Figures out the best cluster to place a job on.
-    """
 
     def __init__(self) -> None:
-        super().__init__()
-
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,14 +25,20 @@ class SchedulerController(Controller):
         self.logger.setLevel(logging.INFO)
 
         #Thread safe queue for Informers to append events to.
-        self.worker_queue = queue.Queue()
+        self.event_queue = queue.Queue()
+        # Assumed FIFO
+        self.job_queue = []
+        self.job_api = JobAPI()
+        super().__init__()
+
+    def post_init_hook(self):
 
         def add_job_callback_fn(event):
             event_object = event[1]
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
             if event_object['status']['status'] == 'INIT':
-                self.worker_queue.put(event)
+                self.event_queue.put(event)
 
         # Filtered Add events and Delete events are added to the worker queue.
         self.job_informer = Informer('jobs')
@@ -50,7 +55,7 @@ class SchedulerController(Controller):
             if event_object['status'][
                     'allocatable'] != self.prev_alloc_capacity.get(
                         event_key, None):
-                self.worker_queue.put(event)
+                self.event_queue.put(event)
             self.prev_alloc_capacity[event_key] = event_object['status'][
                 'allocatable']
 
@@ -60,19 +65,13 @@ class SchedulerController(Controller):
             delete_event_callback=None)
         self.cluster_informer.start()
 
-        # self.cluster_informer = Informer('clusters')
-        # self.cluster_informer.start()
-        # Assumed FIFO
-        self.job_queue = []
-
     def run(self):
         self.logger.info(
             'Running Scheduler controller - Manages job submission over multiple clusters.'
         )
-        self.job_api = JobAPI()
         while True:
             # Blocks until there is at least 1 element in the queue or until timeout.
-            event = self.worker_queue.get()
+            event = self.event_queue.get()
             try:
                 event_object = event[1]
 
@@ -81,10 +80,10 @@ class SchedulerController(Controller):
                         'status'] == 'INIT':
                     self.job_queue.append(event_object)
                 else:
-                    self.worker_queue.task_done()
+                    self.event_queue.task_done()
                     continue
                 if len(self.job_queue) == 0:
-                    self.worker_queue.task_done()
+                    self.event_queue.task_done()
                     continue
 
                 # Main Scheduling loop.

@@ -16,12 +16,10 @@ CONTROLLER_RATE_LIMIT = 0.2
 
 class ExecutionController(Controller):
     """
-    Executes and deletes jobs on the cluster.
+    The Execution controller determines the flow of jobs in and out of the cluster.
     """
 
     def __init__(self, cluster_config) -> None:
-        super().__init__()
-
         self.cluster_obj = Cluster.from_dict(cluster_config)
         self.cluster_manager = setup_cluster_manager(self.cluster_obj)
         self.cluster_name = self.cluster_obj.meta.name
@@ -34,10 +32,23 @@ class ExecutionController(Controller):
             f'[{self.cluster_name}] Execution Controller')
         self.logger.setLevel(logging.INFO)
 
-        #Thread safe queue for Informers to append events to.
-        worker_queue = Queue()
-        self.worker_queue = worker_queue
-        self.informer = Informer('jobs')
+        self.worker_queue = Queue()
+
+        super().__init__()
+
+        # self.policy_informer = Informer('filterpolicies')
+
+        # def add_policy_callback_fn(event):
+        #     self.worker_queue.put(event)
+
+        # self.policy_informer.add_event_callbacks(
+        #     add_event_callback=add_policy_callback_fn,
+        #     delete_event_callback=None)
+        # self.policy_informer.start()
+
+    def post_init_hook(self):
+        # Python thread safe queue for Informers to append events to.
+        self.job_informer = Informer('jobs')
 
         def add_callback_fn(event):
             event_object = event[1]
@@ -51,21 +62,11 @@ class ExecutionController(Controller):
         def delete_callback_fn(event):
             self.worker_queue.put(event)
 
-        # Filtered Add events and Delete events are added to the worker queue.
-        self.informer.add_event_callbacks(
+        # Filtered add events and delete events are added to the worker queue.
+        self.job_informer.add_event_callbacks(
             add_event_callback=add_callback_fn,
             delete_event_callback=delete_callback_fn)
-        self.informer.start()
-
-        # self.policy_informer = Informer('filterpolicies')
-
-        # def add_policy_callback_fn(event):
-        #     self.worker_queue.put(event)
-
-        # self.policy_informer.add_event_callbacks(
-        #     add_event_callback=add_policy_callback_fn,
-        #     delete_event_callback=None)
-        # self.policy_informer.start()
+        self.job_informer.start()
 
     def run(self):
         # Poll for jobs and execute/kill them depending on the job status.
@@ -80,8 +81,7 @@ class ExecutionController(Controller):
             try:
                 event_key = event[0]
                 event_object = event[1]
-                cached_jobs = deepcopy(self.informer.get_cache())
-                print(event)
+                cached_jobs = deepcopy(self.job_informer.get_cache())
 
                 # Handler for changes in Policy
                 # if not event_object and event_object['kind'] == 'FilterPolicy':
