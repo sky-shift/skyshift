@@ -7,4 +7,5 @@ protobuf=3.20.0
 pytest
 pyyaml
 requests
+rich
 tabulate

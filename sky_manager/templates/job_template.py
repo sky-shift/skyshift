@@ -155,11 +155,14 @@ class JobSpec(ObjectSpec):
     def __init__(self,
                  image: str = DEFAULT_IMAGE,
                  resources: Dict[str, Any] = DEFAULT_JOB_RESOURCES,
-                 run: str = ""):
+                 replicas: int = 1,
+                 run: str = "",):
         super().__init__()
         self.image = image
         self.resources = resources
         self.run = run
+        self.replicas = replicas
+        assert self.replicas > 0, f'Invalid replicas: {self.replicas}.'
 
         self._verify_resources(self.resources)
 
@@ -175,6 +178,7 @@ class JobSpec(ObjectSpec):
             'image': self.image,
             'resources': dict(self.resources),
             'run': self.run,
+            'replicas': self.replicas,
         }.items()
 
     @staticmethod
@@ -182,8 +186,9 @@ class JobSpec(ObjectSpec):
         image = config.pop('image', DEFAULT_IMAGE)
         resources = config.pop('resources', DEFAULT_JOB_RESOURCES)
         run = config.pop('run', "")
+        replicas = config.pop('replicas', 1)
         assert not config, f'Config contains extra fields, {config}.'
-        return JobSpec(image=image, resources=resources, run=run)
+        return JobSpec(image=image, resources=resources, run=run, replicas=replicas)
 
 
 class Job(Object):

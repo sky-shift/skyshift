@@ -6,6 +6,8 @@ metadata:
     manager: sky_manager
     cluster: {{cluster_name}}
 spec:
+  parallelism: {{replicas}}
+  completions: {{replicas}}
   backoffLimit: 1  
   template: 
     spec:
@@ -15,7 +17,7 @@ spec:
         emptyDir: 
           medium: Memory
       containers: 
-      - name: sky-manager-job-container
+      - name: sky-manager-container
         image: {{image}}
         volumeMounts: 
         - name: dshm

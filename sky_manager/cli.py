@@ -153,7 +153,11 @@ def delete_cluster(name):
               type=str,
               default='sleep 10',
               help='Run command for the job.')
-def create_job(name, namespace, labels, image, resources, run):
+@click.option('--replicas',
+              type=int,
+              default=1,
+              help='Number of replicas to run job.')
+def create_job(name, namespace, labels, image, resources, run, replicas):
     """Adds a new job."""
     labels = dict(labels)
     resources = dict(resources)
@@ -169,6 +173,7 @@ def create_job(name, namespace, labels, image, resources, run):
             'image': image,
             'resources': resources,
             'run': run,
+            'replicas': replicas,
         }
     }
     job_api_obj = JobAPI(namespace=namespace)

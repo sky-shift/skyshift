@@ -1,0 +1,19 @@
+kind: FilterPolicy
+
+metadata:
+  name: filter-policy-0
+
+spec:
+  clusterFilter:
+    include:
+      - mluo-onprem
+      - cluster-0
+
+    exclude:
+      - cluster-0
+      - cluster-1
+      - cluster-2
+  
+  labelsSelector:
+    my: sky
+
