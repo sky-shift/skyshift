@@ -4,18 +4,19 @@ from typing import Any, Dict, List
 
 from sky_manager.templates.object_template import Object, ObjectException, \
     ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
+from sky_manager.templates.job_template import JobStatusEnum
 from sky_manager.templates.resource_template import ResourceEnum
 
-DEFAULT_IMAGE = 'ubuntu:latest'
+DEFAULT_IMAGE = 'nginx:1.14.2'
 DEFAULT_JOB_RESOURCES = {
-    'cpu': 1,
+    'cpu': 0.5,
     'gpu': 0,
     'memory': 128,
 }
 DEFAULT_NAMESPACE = 'default'
 
-
-class JobStatusEnum(enum.Enum):
+# Deployments share similar status as jobs.
+class DeploymentStatusEnum(enum.Enum):
     INIT = 'INIT'
     # When job has been scheduled to a cluster.
     SCHEDULED = 'SCHEDULED'
@@ -32,55 +33,51 @@ class JobStatusEnum(enum.Enum):
     # If has job is in a deletion phase.
     DELETED = 'DELETED'
 
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.value == other
-        return super().__eq__(other)
 
-class JobException(Exception):
-    "Raised when the job config is invalid."
+class DeploymentException(Exception):
+    "Raised when a deployment config is invalid."
     pass
 
 
-class JobStatus(ObjectStatus):
+class DeploymentStatus(ObjectStatus):
 
     def __init__(self,
                  conditions: List[Dict[str, str]] = [],
-                 status: str = JobStatusEnum.INIT.value,
-                 cluster: str = None):
+                 status: str = DeploymentStatusEnum.INIT.value,
+                 clusters: dict = {}):
         if not conditions:
             cur_time = time.time()
             conditions = [{
-                'status': JobStatusEnum.INIT.value,
+                'status': DeploymentStatusEnum.INIT.value,
                 'createTime': str(cur_time),
                 'updateTime': str(cur_time),
             }]
         if status is None:
-            status = JobStatusEnum.INIT.value
+            status = DeploymentStatusEnum.INIT.value
         super().__init__(conditions, status)
 
-        self.cluster = cluster
+        self.clusters = clusters
         self._verify_conditions(self.conditions)
         self._verify_status(self.curStatus)
 
     def _verify_conditions(self, conditions: List[Dict[str, str]]):
         if len(conditions) == 0:
-            raise JobException('Job status\'s condition field is empty.')
+            raise DeploymentException('Deployment status\'s condition field is empty.')
         for condition in conditions:
             if 'status' not in condition:
-                raise JobException(
-                    'Job status\'s condition field is missing status.')
+                raise DeploymentException(
+                    'Deployment status\'s condition field is missing status.')
 
     def _verify_status(self, status: str):
-        if status is None or status not in JobStatusEnum.__members__:
-            raise JobException(f'Invalid job status: {status}.')
+        if status is None or status not in DeploymentStatusEnum.__members__:
+            raise DeploymentException(f'Invalid deployment status: {status}.')
 
     def update_conditions(self, conditions):
         self._verify_conditions(conditions)
         self.conditions = conditions
 
-    def update_cluster(self, cluster: str):
-        self.cluster = cluster
+    def update_clusters(self, clusters: str):
+        self.clusters = clusters
 
     def update_status(self, status: str):
         self._verify_status(status)
@@ -102,13 +99,12 @@ class JobStatus(ObjectStatus):
     def from_dict(config: dict):
         conditions = config.pop('conditions', [])
         status = config.pop('status', None)
-        cluster = config.pop('cluster', None)
+        clusters = config.pop('clusters', {})
         assert not config, f'Config contains extra fields, {config}.'
 
-        job_status = JobStatus(conditions=conditions,
+        return DeploymentStatus(conditions=conditions,
                                status=status,
-                               cluster=cluster)
-        return job_status
+                               cluster=clusters)
 
     def __iter__(self):
         job_dict = dict(super().__iter__())
@@ -118,7 +114,7 @@ class JobStatus(ObjectStatus):
         yield from job_dict.items()
 
 
-class JobMeta(ObjectMeta):
+class DeploymentMeta(ObjectMeta):
 
     def __init__(self,
                  name: str,
@@ -136,7 +132,7 @@ class JobMeta(ObjectMeta):
         labels = config.pop('labels', {})
         annotations = config.pop('annotations', {})
         namespace = config.pop('namespace', None)
-        return JobMeta(name=name,
+        return DeploymentMeta(name=name,
                        labels=labels,
                        annotations=annotations,
                        namespace=namespace)
@@ -150,7 +146,7 @@ class JobMeta(ObjectMeta):
         }.items()
 
 
-class JobSpec(ObjectSpec):
+class DeploymentSpec(ObjectSpec):
 
     def __init__(self,
                  image: str = DEFAULT_IMAGE,
@@ -167,7 +163,7 @@ class JobSpec(ObjectSpec):
         res_emum_dict = {m.name: m.value for m in ResourceEnum}
         keys_in_enum = set(resources.keys()).issubset(res_emum_dict.values())
         if not keys_in_enum:
-            raise JobException(f'Invalid resource specification: {resources}. '
+            raise DeploymentException(f'Invalid resource specification: {resources}. '
                                'Please use ResourceEnum to specify resources.')
 
     def __iter__(self):
@@ -183,16 +179,16 @@ class JobSpec(ObjectSpec):
         resources = config.pop('resources', DEFAULT_JOB_RESOURCES)
         run = config.pop('run', "")
         assert not config, f'Config contains extra fields, {config}.'
-        return JobSpec(image=image, resources=resources, run=run)
+        return DeploymentSpec(image=image, resources=resources, run=run)
 
 
-class Job(Object):
+class Deployment(Object):
 
     def __init__(self, meta: dict = {}, spec: dict = {}, status: dict = {}):
         super().__init__(meta, spec, status)
-        self.meta = JobMeta.from_dict(meta)
-        self.spec = JobSpec.from_dict(spec)
-        self.status = JobStatus.from_dict(status)
+        self.meta = DeploymentMeta.from_dict(meta)
+        self.spec = DeploymentSpec.from_dict(spec)
+        self.status = DeploymentStatus.from_dict(status)
 
     def get_status(self):
         return self.status.curStatus
@@ -205,30 +201,29 @@ class Job(Object):
         spec = config.pop('spec', {})
         status = config.pop('status', {})
 
-        obj = Job(meta=meta, spec=spec, status=status)
-        return obj
+        return Deployment(meta=meta, spec=spec, status=status)
 
     def __iter__(self):
         yield from {
-            'kind': 'Job',
+            'kind': 'Deployment',
             'metadata': dict(self.meta),
             'spec': dict(self.spec),
             'status': dict(self.status),
         }.items()
 
 
-class JobList(ObjectList):
+class DeploymentList(ObjectList):
 
     def __iter__(self):
         list_dict = dict(super().__iter__())
-        list_dict['kind'] = 'JobList'
+        list_dict['kind'] = 'DeploymentList'
         yield from list_dict.items()
 
     @staticmethod
     def from_dict(config: dict):
-        assert config['kind'] == 'JobList', "Not a JobList object: {}".format(
+        assert config['kind'] == 'DeploymentList', "Not a JobList object: {}".format(
             config)
         job_list = []
         for job_dict in config['items']:
-            job_list.append(Job.from_dict(job_dict))
-        return JobList(job_list)
+            job_list.append(Deployment.from_dict(job_dict))
+        return DeploymentList(job_list)

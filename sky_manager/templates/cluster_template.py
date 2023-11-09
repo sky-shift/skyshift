@@ -13,8 +13,7 @@ class ClusterStatusEnum(Enum):
     # Cluster is ready to accept jobs.
     READY = "READY"
     # Cluster is in error state.
-    # This state is reached when the cluster fails several heartbeats or is
-    # not a valid cluster.
+    # This state is reached when the cluster fails several heartbeats or is not a valid cluster.
     ERROR = "ERROR"
 
     def __eq__(self, other):

@@ -1,46 +1,44 @@
 import requests
 
-from sky_manager import utils
-
-from sky_manager.api_server.api_server import load_manager_config
-
+from sky_manager.api_client.object_api import ObjectAPI
+from sky_manager.utils import utils
 
 def _verify_response(response):
     if 'error' in response:
         raise Exception(response['error'])
 
 
-class NamespaceAPI(object):
+class NamespaceAPI(ObjectAPI):
 
     def __init__(self):
-        self.host, self.port = load_manager_config()
+        super().__init__()
         self.namespace_url = f'http://{self.host}:{self.port}/namespaces'
 
-    def Create(self, config: dict):
+    def create(self, config: dict):
         response = requests.post(self.namespace_url, json=config).json()
         _verify_response(response)
         return response
 
-    def Update(self, config: dict):
+    def update(self, config: dict):
         response = requests.put(self.namespace_url, json=config).json()
         _verify_response(response)
         return response
 
-    def List(self):
+    def list(self):
         response = requests.get(self.namespace_url).json()
         _verify_response(response)
         return response
 
-    def Get(self, namespace: str):
-        response = requests.get(f'{self.namespace_url}/{namespace}').json()
+    def get(self, name: str):
+        response = requests.get(f'{self.namespace_url}/{name}').json()
         _verify_response(response)
         return response
 
-    def Delete(self, namespace: str):
-        response = requests.delete(f'{self.namespace_url}/{namespace}').json()
+    def delete(self, name: str):
+        response = requests.delete(f'{self.namespace_url}/{name}').json()
         _verify_response(response)
         return response
 
-    def Watch(self):
+    def watch(self):
         for data in utils.watch_events(f'{self.namespace_url}?watch=true'):
             yield data

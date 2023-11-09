@@ -1,8 +1,9 @@
 import requests
 from string import Template
 
-from sky_manager.api_server.api_server import DEFAULT_NAMESPACE, load_manager_config
-from sky_manager import utils
+from sky_manager.api_client import ObjectAPI
+from sky_manager.api_server.api_server import DEFAULT_NAMESPACE
+from sky_manager.utils import utils
 
 
 def _verify_response(response):
@@ -10,51 +11,58 @@ def _verify_response(response):
         raise Exception(response['error'])
 
 
-class JobAPI(object):
+class JobAPI(ObjectAPI):
 
-    def __init__(self):
-        self.host, self.port = load_manager_config()
+    def __init__(self, namespace: str = DEFAULT_NAMESPACE):
+        super().__init__()
+        self.namespace = namespace
         self.job_url = Template(
             f'http://{self.host}:{self.port}/$namespace/jobs')
 
-    def Create(self, config: dict, namespace: str = DEFAULT_NAMESPACE):
-        response = requests.post(self.job_url.substitute(namespace=namespace),
+    def create(self, config: dict):
+        assert self.namespace is not None, 'Create requires namespace.'
+        job_url = self.job_url.substitute(namespace=self.namespace)
+        response = requests.post(job_url,
                                  json=config).json()
         _verify_response(response)
         return response
 
-    def Update(self, config: dict, namespace: str = DEFAULT_NAMESPACE):
-        response = requests.put(self.job_url.substitute(namespace=namespace),
+    def update(self, config: dict):
+        assert self.namespace is not None, 'Update requires namespace.'
+        job_url = self.job_url.substitute(namespace=self.namespace)
+        response = requests.put(job_url,
                                 json=config).json()
         _verify_response(response)
         return response
 
-    def List(self, namespace: str = DEFAULT_NAMESPACE):
-        if namespace is None:
+    def list(self):
+        if self.namespace is None:
             job_url = f'http://{self.host}:{self.port}/jobs'
         else:
-            job_url = self.job_url.substitute(namespace=namespace)
+            job_url = self.job_url.substitute(namespace=self.namespace)
         response = requests.get(job_url).json()
         _verify_response(response)
         return response
 
-    def Get(self, job: str, namespace: str = DEFAULT_NAMESPACE):
-        job_url = f'{self.job_url.substitute(namespace=namespace)}/{job}'
+    def get(self, name: str):
+        assert self.namespace is not None, 'Get requires namespace.'
+        job_url = f'{self.job_url.substitute(namespace=self.namespace)}/{name}'
         response = requests.get(job_url).json()
         _verify_response(response)
         return response
 
-    def Delete(self, job: str, namespace: str = DEFAULT_NAMESPACE):
-        job_url = f'{self.job_url.substitute(namespace=namespace)}/{job}'
+    def delete(self, name: str):
+        assert self.namespace is not None, 'Delete requires namespace.'
+        job_url = f'{self.job_url.substitute(namespace=self.namespace)}/{name}'
         response = requests.delete(job_url).json()
         _verify_response(response)
         return response
 
-    def Watch(self, namespace: str = DEFAULT_NAMESPACE):
-        if namespace is None:
+    def watch(self):
+        if self.namespace is None:
             job_url = f'http://{self.host}:{self.port}/jobs'
         else:
-            job_url = self.job_url.substitute(namespace=namespace)
+            job_url = self.job_url.substitute(namespace=self.namespace)
         job_url = f'{job_url}?watch=true'
         for data in utils.watch_events(job_url):
             yield data

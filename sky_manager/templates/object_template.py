@@ -8,7 +8,7 @@ class ObjectException(Exception):
         super().__init__(self.message)
 
 
-class ObjectStatus(object):
+class ObjectStatus:
 
     def __init__(self,
                  conditions: List[Dict[str, str]] = [],
@@ -38,7 +38,7 @@ class ObjectStatus(object):
         return str(dict(self))
 
 
-class ObjectMeta(object):
+class ObjectMeta:
 
     def __init__(self,
                  name: str,
@@ -83,7 +83,7 @@ class ObjectSpec(object):
         return str(dict(self))
 
 
-class Object(object):
+class Object:
 
     def __init__(self, meta: dict = {}, spec: dict = {}, status: dict = {}):
         self.meta = meta

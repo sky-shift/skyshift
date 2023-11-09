@@ -22,7 +22,7 @@ class Controller(object):
     state to a desired state. This happens in the self.run() method.
     """
     def __init__(self) -> None:
-        self.post_init_hook()
+        pass
 
     def post_init_hook(self):
         """Hook that is called after the controller is initialized.
@@ -43,6 +43,8 @@ class Controller(object):
 
     def start(self):
         """Start controller thread."""
+        # Run post initialization hook.
+        self.post_init_hook()
         self.controller_process = threading.Thread(target=self.run)
         self.controller_process.start()
 

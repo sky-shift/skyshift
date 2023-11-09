@@ -8,29 +8,24 @@ from copy import deepcopy
 import yaml
 import os
 
-from sky_manager.controllers import ClusterHeartbeatController, JobHeartbeatController
-from sky_manager.controllers import ExecutionController
+from sky_manager.skylet import ClusterController, FlowController, JobController
 import traceback
 
 CONTROLLERS = [
-    ClusterHeartbeatController,
-    JobHeartbeatController,
-    ExecutionController,
+    ClusterController,
+    FlowController,
+    JobController,
 ]
 
-
-def launch_skylet(cluster_config):
-    print("Skylet Launched")
+def launch_skylet(cluster_id):
     controllers = []
     try:
         controllers = []
         for c in CONTROLLERS:
-            tmp_config = deepcopy(cluster_config)
-            controllers.append(c(tmp_config))
+            controllers.append(c(cluster_id))
     except Exception as e:
         print(traceback.format_exc())
-        print("Failed to initialize Skylet, check if cluster config is valid:"
-              f" {tmp_config}")
+        print("Failed to initialize Skylet, check if cluster {cluster_id} is valid.")
     for c in controllers:
         c.start()
     for c in controllers:

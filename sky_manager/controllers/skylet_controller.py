@@ -4,7 +4,6 @@ Manages launching and terminating Skylets for clusters. Each cluster corresponds
 If a new cluster is detected (e.g. in INIT state), a Skylet is launched to track and coordinate
 the cluster's state. If a cluster is deleted, the corresponding Skylet is terminated.
 """
-
 from contextlib import contextmanager
 import multiprocessing
 import logging
@@ -14,13 +13,18 @@ import requests
 import time
 import traceback
 
-from sky_manager.api_client import *
+from sky_manager.api_client import ClusterAPI
 from sky_manager.controllers.controller import Controller
 from sky_manager.skylet.skylet import launch_skylet
-from sky_manager.templates.cluster_template import Cluster, ClusterStatusEnum
-from sky_manager.utils import Informer
+from sky_manager.templates import Cluster, ClusterStatusEnum
+from sky_manager.templates.event_template import WatchEventEnum
+from sky_manager.structs import Informer
 
 SKYLET_CONTROLLER_INTERVAL = 0.5
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
 
 def terminate_process(pid):
@@ -40,7 +44,7 @@ def SkyletControllerErrorHandler(controller: Controller):
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
         controller.logger.error(
-            'Cannot connect to API server, trying again...')
+            'Cannot connect to API server. Retrying.')
     except Exception as e:
         controller.logger.error(traceback.format_exc())
 
@@ -48,23 +52,25 @@ def SkyletControllerErrorHandler(controller: Controller):
 class SkyletController(Controller):
 
     def __init__(self):
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        self.logger = logging.getLogger(f'Skylet Controller')
+        super().__init__()
+        self.logger = logging.getLogger(f'[Skylet Controller]')
         self.logger.setLevel(logging.INFO)
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
-        # Calls into post_init_hook.
-        super().__init__()
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
-        self.cluster_informer = Informer('clusters')
+        cluster_api = ClusterAPI()
+        self.cluster_informer = Informer(cluster_api)
 
         def add_callback_fn(event):
             self.event_queue.put(event)
+        
+        def update_callback_fn(event):
+            event_object = event.object
+            if event_object.get_status() == ClusterStatusEnum.ERROR:
+                self.event_queue.put(event)
 
         def delete_callback_fn(event):
             self.event_queue.put(event)
@@ -72,6 +78,7 @@ class SkyletController(Controller):
         # Add to event queue if cluster is added (or modified) or deleted.
         self.cluster_informer.add_event_callbacks(
             add_event_callback=add_callback_fn,
+            update_event_callback=update_callback_fn,
             delete_event_callback=delete_callback_fn)
         self.cluster_informer.start()
 
@@ -88,35 +95,35 @@ class SkyletController(Controller):
             time.sleep(SKYLET_CONTROLLER_INTERVAL)
     
     def controller_loop(self):
-        event = self.event_queue.get()
-        cluster_name = event[0]
-        cluster_obj = event[1]
-        # TODO(mluo): Fix bug, ETCD Delete Watch Event does not return deleted value.
-        if not event[1]:
-            # If Cluster has been deleted, terminate Skylet corresponding to the cluster.
-            self._terminate_skylet(cluster_name)
+        watch_event = self.event_queue.get()
+        event_type = watch_event.event_type
+        cluster_obj = watch_event.object
+        cluster_name = cluster_obj.meta.name
+        # Launch Skylet if it is a newly added cluster.
+        if event_type == WatchEventEnum.ADD:
+            self._launch_skylet(cluster_obj)
+            self.logger.info(
+                    f'Launched Skylet for cluster: {cluster_name}.')
+        elif event_type in [WatchEventEnum.DELETE, WatchEventEnum.UPDATE]:
+            # Terminate Skylet controllers if the cluster is deleted.
+            self._terminate_skylet(cluster_obj)
             self.logger.info(
                 f'Terminated Skylet for cluster: {cluster_name}.')
-        else:
-            cluster_obj = Cluster.from_dict(event[1])
-            if cluster_obj.get_status() == ClusterStatusEnum.INIT:
-                self._launch_skylet(cluster_obj)
-                self.logger.info(
-                    f'Launched Skylet for cluster: {cluster_name}.')
     
-    def _launch_skylet(self, cluster_obj):
+    def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
         cluster_name = cluster_obj.meta.name
         if cluster_name in self.skylets:
             return
         # Launch a Skylet to manage the cluster state.
         skylet_process = multiprocessing.Process(target=launch_skylet,
-                                                 args=(dict(cluster_obj), ))
+                                                 args=(cluster_name, ))
         skylet_process.start()
         self.skylets[cluster_name] = skylet_process
 
-    def _terminate_skylet(self, cluster_name):
+    def _terminate_skylet(self, cluster_obj: Cluster):
         """Hidden method that terminates Skylet."""
+        cluster_name = cluster_obj.meta.name
         if cluster_name not in self.skylets:
             return
         terminate_process(self.skylets[cluster_name].pid)
@@ -126,5 +133,5 @@ class SkyletController(Controller):
 
 # Testing purposes.
 if __name__ == '__main__':
-    a = SkyletController()
-    a.run()
+    cont = SkyletController()
+    cont.run()

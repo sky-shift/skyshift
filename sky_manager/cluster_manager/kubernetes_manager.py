@@ -32,39 +32,9 @@ def parse_resource_memory(resource_str):
     unit = resource_str[len(value):]
     return float(value) * unit_map.get(unit, 1) / (2**20)
 
-
-def get_nested_values(nested_dict, keys: List[str]):
-    """
-    Get nested values from a dictionary.
-    """
-    assert len(keys) >= 1, "Keys must be a non-empty list."
-    if keys[0] not in nested_dict:
-        return None
-    elif len(keys) == 1:
-        return nested_dict[keys[0]]
-    else:
-        return get_nested_values(nested_dict[keys[0]], keys[1:])
-
-
-def _plan_pod_allocation(pod, available_resources):
-    """
-    Plan pod allocation.
-
-    Args:
-        pod: Pod object.
-        available_resources: Available resources per node.
-    """
-    # Limited to single node pods for now.
-    cpu_resources = parse_resource_cpu(
-        pod.spec.containers[0].resources.requests.get("cpu", 0))
-    gpu_resources = float(pod.spec.containers[0].resources.requests.get(
-        "nvidia.com/gpu", 0))
-    for node_name, node_resources in available_resources.items():
-        if node_resources["cpu"] >= cpu_resources and node_resources[
-                "gpu"] >= gpu_resources:
-            return node_name
-    return None
-
+class K8ConnectionError(config.config_exception.ConfigException):
+    """ Raised when there is an error connecting to the Kubernetes cluster. """
+    pass
 
 # Pull based architecture
 class KubernetesManager(Manager):
@@ -75,9 +45,15 @@ class KubernetesManager(Manager):
         super().__init__(name)
         self.name = name
         self.namespace = namespace
-        # Load kubernetes config for the given context
-        config.load_kube_config(context=self.cluster_name)
-        # Create kubernetes client
+        # Load kubernetes config for the given context.
+        try:
+            config.load_kube_config(context=self.cluster_name)
+        except config.config_exception.ConfigException:
+            raise K8ConnectionError(
+                f"Could not connect to Kubernetes cluster {self.cluster_name}."
+            )
+
+        # If Kubeneretes context is identifies, create Kubernetes client.
         self.core_v1 = client.CoreV1Api()
         self.batch_v1 = client.BatchV1Api()
 
@@ -191,21 +167,20 @@ class KubernetesManager(Manager):
         Args:
             job: Generic Job object.
         """
-        job = dict(job)
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        print(dir_path)
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
                                 autoescape=select_autoescape())
         jinja_template = jinja_env.get_template('kubernetes.j2')
         jinja_dict = {
-            'name': job['metadata']['name'],
+            'name': job.meta.name,
             'cluster_name': self.cluster_name,
-            'image': job['spec']['image'],
-            'run': job['spec']['run'],
-            'cpu': get_nested_values(job['spec'], ['resources', 'cpu']),
-            'gpu': get_nested_values(job['spec'], ['resources', 'gpu']),
+            'image': job.spec.image,
+            'run': job.spec.run,
+            'cpu': job.spec.resources.get('cpu', 0),
+            'gpu': job.spec.resources.get('gpu', 0),
         }
+        print(jinja_dict)
         kubernetes_job = jinja_template.render(jinja_dict)
         kubernetes_job = yaml.safe_load(kubernetes_job)
         return kubernetes_job

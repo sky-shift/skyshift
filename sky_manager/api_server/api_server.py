@@ -1,18 +1,14 @@
 from functools import partial
 import json
-import os
-import socket
 
 from flask import Flask, jsonify, request, Response
 import yaml
 
-from sky_manager.etcd_client.etcd_client import ETCD_PORT
-
-from sky_manager import ETCDClient
+from sky_manager.etcd_client.etcd_client import ETCDClient, ETCD_PORT
 from sky_manager.templates import *
 from sky_manager.templates.event_template import WatchEvent
+from sky_manager.utils.utils import generate_manager_config
 
-API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
 API_SERVER_HOST = 'localhost'
 API_SERVER_PORT = 50051
 DEFAULT_NAMESPACE = 'default'
@@ -25,36 +21,6 @@ NON_NAMESPACED_OBJECTS = {
     'namespaces': Namespace,
 }
 SUPPORTED_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
-
-
-def generate_manager_config(host, port):
-    config_dict = {
-        'api_server': {
-            'host': host,
-            'port': port,
-        },
-    }
-    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
-    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-    with open(absolute_path, 'w') as config_file:
-        yaml.dump(config_dict, config_file)
-
-
-def load_manager_config():
-    # Read from Sky Manager config file.
-    try:
-        with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
-                  'r') as config_file:
-            config_dict = yaml.safe_load(config_file)
-        host = config_dict['api_server']['host']
-        port = config_dict['api_server']['port']
-    except FileNotFoundError as e:
-        raise Exception(
-            f'API server config file not found at {API_SERVER_CONFIG_PATH}.')
-    except KeyError as e:
-        raise Exception(
-            f'API server config file at {API_SERVER_CONFIG_PATH} is invalid.')
-    return host, port
 
 
 def launch_api_service(host=API_SERVER_HOST,
@@ -106,7 +72,6 @@ class APIServer(object):
     It maintains a connection to the ETCD server and provides a REST API for
     interacting with Sky Manager objects.
     """
-
     def __init__(self,
                  host: str = API_SERVER_HOST,
                  port=API_SERVER_PORT,
@@ -283,14 +248,10 @@ class APIServer(object):
         def generate_events():
             try:
                 for event in events_iterator:
-                    event_type, event_key, event_value = event   
+                    event_type, _, event_value = event   
                     event_value = json.loads(event_value)
-                    watch_event = WatchEvent(
-                        event_type.value,
-                        event_key,
-                        event_value,
-                    )
-                    watch_event = dict(watch_event)
+                    # Check and validate event type.
+                    watch_event = dict(WatchEvent(event_type.value, event_value))
                     watch_event_str = json.dumps(watch_event)
                     yield f"{watch_event_str}\n"
             finally:

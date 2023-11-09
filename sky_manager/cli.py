@@ -68,7 +68,7 @@ def create_cluster(name: str, manager: str):
         }
     }
     cluster_api_obj = ClusterAPI()
-    api_response = cluster_api_obj.Create(cluster_dictionary)
+    api_response = cluster_api_obj.create(cluster_dictionary)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -82,14 +82,14 @@ def list_clusters(watch: bool):
     """Lists all attached clusters."""
     cluster_api_obj = ClusterAPI()
     if watch:
-        api_response = cluster_api_obj.Watch()
+        api_response = cluster_api_obj.watch()
         for event in api_response:
             if 'error' in event:
                 click.echo(event['error'])
             else:
                 click.echo(event)
     else:
-        api_response = cluster_api_obj.List()
+        api_response = cluster_api_obj.list()
         if 'error' in api_response:
             click.echo(api_response['error'])
         else:
@@ -102,7 +102,7 @@ def list_clusters(watch: bool):
 def get_cluster(name):
     """Gets cluster."""
     cluster_api_obj = ClusterAPI()
-    api_response = cluster_api_obj.Get(cluster=name)
+    api_response = cluster_api_obj.get(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -115,7 +115,7 @@ def get_cluster(name):
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
     cluster_api_obj = ClusterAPI()
-    api_response = cluster_api_obj.Delete(cluster=name)
+    api_response = cluster_api_obj.delete(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -171,8 +171,8 @@ def create_job(name, namespace, labels, image, resources, run):
             'run': run,
         }
     }
-    job_api_obj = JobAPI()
-    api_response = job_api_obj.Create(job_dictionary)
+    job_api_obj = JobAPI(namespace=namespace)
+    api_response = job_api_obj.create(job_dictionary)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -188,16 +188,16 @@ def create_job(name, namespace, labels, image, resources, run):
 @click.option('--watch', default=False, is_flag=True, help='Performs a watch.')
 def list_jobs(namespace: str, watch: bool):
     """Lists all jobs across all clusters."""
-    job_api_obj = JobAPI()
+    job_api_obj = JobAPI(namespace=namespace)
     if watch:
-        api_response = job_api_obj.Watch(namespace=namespace)
+        api_response = job_api_obj.watch()
         for event in api_response:
             if 'error' in event:
                 click.echo(event['error'])
             else:
                 click.echo(event)
     else:
-        api_response = job_api_obj.List(namespace=namespace)
+        api_response = job_api_obj.list()
         if 'error' in api_response:
             click.echo(api_response['error'])
         else:
@@ -213,8 +213,8 @@ def list_jobs(namespace: str, watch: bool):
               help='Namespace corresponding to job\'s location.')
 def get_job(name: str, namespace: str):
     """Fetches a job."""
-    job_api_obj = JobAPI()
-    api_response = job_api_obj.Get(job=name, namespace=namespace)
+    job_api_obj = JobAPI(namespace=namespace)
+    api_response = job_api_obj.get(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -231,7 +231,7 @@ def get_job(name: str, namespace: str):
 def delete_job(name: str, namespace: str):
     """Deletes a job."""
     job_api_obj = JobAPI()
-    api_response = job_api_obj.Delete(job=name, namespace=namespace)
+    api_response = job_api_obj.delete(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -255,7 +255,7 @@ def create_namespace(name: str):
         },
     }
     namespace_api_obj = NamespaceAPI()
-    api_response = namespace_api_obj.Create(namespace_dictionary)
+    api_response = namespace_api_obj.create(namespace_dictionary)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -269,14 +269,14 @@ def list_namespaces(watch: bool):
     """Lists all attached clusters."""
     namespace_api_obj = NamespaceAPI()
     if watch:
-        api_response = namespace_api_obj.Watch()
+        api_response = namespace_api_obj.watch()
         for event in api_response:
             if 'error' in event:
                 click.echo(event['error'])
             else:
                 click.echo(event)
     else:
-        api_response = namespace_api_obj.List()
+        api_response = namespace_api_obj.list()
         if 'error' in api_response:
             click.echo(api_response['error'])
         else:
@@ -289,7 +289,7 @@ def list_namespaces(watch: bool):
 def get_namespace(name: str):
     """Gets cluster."""
     namespace_api_obj = NamespaceAPI()
-    api_response = namespace_api_obj.Get(namespace=name)
+    api_response = namespace_api_obj.get(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -302,7 +302,7 @@ def get_namespace(name: str):
 def delete_namespace(name: str):
     """Removes/detaches a cluster from Sky Manager."""
     namespace_api_obj = NamespaceAPI()
-    api_response = namespace_api_obj.Delete(namespace=name)
+    api_response = namespace_api_obj.delete(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -381,8 +381,8 @@ def create_filter_policy(name, namespace, labelselector, includecluster,
             'labelsSelector': labels
         }
     }
-    api_obj = FilterPolicyAPI()
-    api_response = api_obj.Create(obj_dictionary)
+    api_obj = FilterPolicyAPI(namespace=namespace)
+    api_response = api_obj.create(obj_dictionary)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -398,16 +398,16 @@ def create_filter_policy(name, namespace, labelselector, includecluster,
 @click.option('--watch', default=False, is_flag=True, help='Performs a watch.')
 def list_filter_policies(namespace: str, watch: bool):
     """Lists all jobs across all clusters."""
-    api_obj = FilterPolicyAPI()
+    api_obj = FilterPolicyAPI(namespace=namespace)
     if watch:
-        api_response = api_obj.Watch(namespace=namespace)
+        api_response = api_obj.watch()
         for event in api_response:
             if 'error' in event:
                 click.echo(event['error'])
             else:
                 click.echo(event)
     else:
-        api_response = api_obj.List(namespace=namespace)
+        api_response = api_obj.list()
         if 'error' in api_response:
             click.echo(api_response['error'])
         else:
@@ -423,8 +423,8 @@ def list_filter_policies(namespace: str, watch: bool):
               help='Namespace corresponding to policy\'s location.')
 def get_filter_policy(name: str, namespace: str):
     """Fetches a job."""
-    api_obj = FilterPolicyAPI()
-    api_response = api_obj.Get(policy=name, namespace=namespace)
+    api_obj = FilterPolicyAPI(namespace=namespace)
+    api_response = api_obj.get(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:
@@ -440,8 +440,8 @@ def get_filter_policy(name: str, namespace: str):
               help='Namespace corresponding to policy\'s location.')
 def delete_filter_policy(name: str, namespace: str):
     """Deletes a job."""
-    api_obj = FilterPolicyAPI()
-    api_response = api_obj.Delete(policy=name, namespace=namespace)
+    api_obj = FilterPolicyAPI(namespace=namespace)
+    api_response = api_obj.delete(name)
     if 'error' in api_response:
         click.echo(api_response['error'])
     else:

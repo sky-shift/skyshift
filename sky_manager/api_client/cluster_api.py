@@ -1,45 +1,43 @@
 import requests
 
-from sky_manager.api_server.api_server import load_manager_config
-from sky_manager import utils
-
+from sky_manager.api_client import ObjectAPI
+from sky_manager.utils import utils
 
 def _verify_response(response):
     if 'error' in response:
         raise Exception(response['error'])
 
-
-class ClusterAPI(object):
+class ClusterAPI(ObjectAPI):
 
     def __init__(self):
-        self.host, self.port = load_manager_config()
+        super().__init__()
         self.cluster_url = f'http://{self.host}:{self.port}/clusters'
 
-    def Create(self, config: dict):
+    def create(self, config: dict):
         response = requests.post(self.cluster_url, json=config).json()
         _verify_response(response)
         return response
 
-    def Update(self, config: dict):
+    def update(self, config: dict):
         response = requests.put(self.cluster_url, json=config).json()
         _verify_response(response)
         return response
 
-    def List(self):
+    def list(self):
         response = requests.get(self.cluster_url).json()
         _verify_response(response)
         return response
 
-    def Get(self, cluster: str):
-        response = requests.get(f'{self.cluster_url}/{cluster}').json()
+    def get(self, name: str):
+        response = requests.get(f'{self.cluster_url}/{name}').json()
         _verify_response(response)
         return response
 
-    def Delete(self, cluster: str):
-        response = requests.delete(f'{self.cluster_url}/{cluster}').json()
+    def delete(self, name: str):
+        response = requests.delete(f'{self.cluster_url}/{name}').json()
         _verify_response(response)
         return response
 
-    def Watch(self):
+    def watch(self):
         for data in utils.watch_events(f'{self.cluster_url}?watch=true'):
             yield data

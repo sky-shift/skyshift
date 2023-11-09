@@ -178,12 +178,3 @@ class ETCDClient(object):
                 raise ValueError(f'Unknown event type: {event.type}')
             key = remove_prefix(key)
             yield (event_type, key, value)
-    
-    
-
-if __name__ == '__main__':
-    test_client = ETCDClient()
-    test_client.delete_all()
-    test_client.write('a', 'b')
-    test_client.write('a/a', 'd')
-    iterator, cancel = test_client.watch('a')
