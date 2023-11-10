@@ -43,6 +43,7 @@ class FlowController(Controller):
         cluster_dict = ClusterAPI().get(name)
         cluster_obj = Cluster.from_dict(cluster_dict)
         self.manager_api = setup_cluster_manager(cluster_obj)
+        self.worker_queue = Queue()
 
         logging.basicConfig(
             level=logging.INFO,
@@ -52,18 +53,6 @@ class FlowController(Controller):
             f'[{self.name} - Flow Controller]')
         self.logger.setLevel(logging.INFO)
 
-        self.worker_queue = Queue()
-
-        # self.policy_informer = Informer('filterpolicies')
-
-        # def add_policy_callback_fn(event):
-        #     self.worker_queue.put(event)
-
-        # self.policy_informer.add_event_callbacks(
-        #     add_event_callback=add_policy_callback_fn,
-        #     delete_event_callback=None)
-        # self.policy_informer.start()
-
     def post_init_hook(self):
         # Python thread safe queue for Informers to append events to.
         self.job_informer = Informer(JobAPI(namespace=None))
@@ -72,17 +61,33 @@ class FlowController(Controller):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
-            if event_object.status.cluster == self.name and event_object.get_status() == JobStatusEnum.SCHEDULED:
+            if self.name in event_object.status.clusters and event_object.get_status() == JobStatusEnum.SCHEDULED:
                 self.worker_queue.put(event)
 
         def delete_callback_fn(event):
-            self.worker_queue.put(event)
+            event_object = event.object
+            if self.name in event_object.status.clusters:
+                self.worker_queue.put(event)
 
         # Filtered add events and delete events are added to the worker queue.
         self.job_informer.add_event_callbacks(
             update_event_callback=update_callback_fn,
             delete_event_callback=delete_callback_fn)
         self.job_informer.start()
+
+        # Define filter policy
+        # self.policy_informer = Informer(FilterPolicyAPI())
+
+        # def add_policy_callback_fn(event):
+        #     self.worker_queue.put(event)
+        
+        # def update_policy_callback_fn(event):
+        #     self.worker_queue.put(event)
+
+        # self.policy_informer.add_event_callbacks(
+        #     add_event_callback=add_policy_callback_fn,
+        #     update_event_callback=update_policy_callback_fn)
+        # self.policy_informer.start()
 
     def run(self):
         self.logger.info(

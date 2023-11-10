@@ -14,11 +14,13 @@ import time
 import traceback
 
 from sky_manager.api_client import ClusterAPI
+from sky_manager.cluster_lookup import lookup_kube_config
 from sky_manager.controllers.controller import Controller
 from sky_manager.skylet.skylet import launch_skylet
 from sky_manager.templates import Cluster, ClusterStatusEnum
 from sky_manager.templates.event_template import WatchEventEnum
 from sky_manager.structs import Informer
+from sky_manager.utils import generate_object
 
 SKYLET_CONTROLLER_INTERVAL = 0.5
 
@@ -82,11 +84,14 @@ class SkyletController(Controller):
             delete_event_callback=delete_callback_fn)
         self.cluster_informer.start()
 
+
+
     def run(self):
         # Establish a watch over added clusters.
         self.logger.info(
             'Executing Skylet controller - Manages launching and terminating Skylets for clusters.'
         )
+        self._load_clusters()
         while True:
             with SkyletControllerErrorHandler(self):
                 self.controller_loop()
@@ -109,6 +114,28 @@ class SkyletController(Controller):
             self._terminate_skylet(cluster_obj)
             self.logger.info(
                 f'Terminated Skylet for cluster: {cluster_name}.')
+    
+    def _load_clusters(self):
+        existing_clusters = lookup_kube_config()
+        print(existing_clusters)
+        for cluster_name in existing_clusters:
+            try:
+                cluster_dict = ClusterAPI().get(cluster_name)
+            except Exception as e:
+                cluster_dictionary = {
+                    'kind': 'Cluster',
+                    'metadata': {
+                        'name': cluster_name,
+                    },
+                    'spec': {
+                        'manager': 'k8',
+                    }
+                }
+                cluster_dict = ClusterAPI().create(config=cluster_dictionary)
+            cluster_obj = generate_object(cluster_dict)
+            self._launch_skylet(cluster_obj)
+
+
     
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""

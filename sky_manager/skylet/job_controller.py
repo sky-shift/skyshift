@@ -91,12 +91,13 @@ class JobController(Controller):
                 for k, v in informer_object.items()
             }
             for job_name, new_job_status in self.job_status.items():
+                # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
                 if job_name not in prev_status:
-                    temp_job = Job(meta={
-                        'name': job_name,
-                    })
-                    temp_job.status.update_status(new_job_status.curStatus)
-                    temp_job.status.update_cluster(self.name)
+                    # temp_job = Job(meta={
+                    #     'name': job_name,
+                    # })
+                    # temp_job.status.update_status(new_job_status.curStatus)
+                    # temp_job.status.update_clusters(self.name)
                     continue
                 # Save API calls.
                 if new_job_status.curStatus == JobStatusEnum.COMPLETED.value and prev_status[

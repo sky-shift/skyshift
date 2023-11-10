@@ -497,12 +497,12 @@ def print_cluster_table(cluster_list: List[dict]):
 
 
 def print_job_table(job_list: List[dict]):
-    field_names = ["Name", "Cluster", "Resources", "Namespace", "Status"]
+    field_names = ["Name", "Cluster", "Replicas", "Resources", "Namespace", "Status"]
     table_data = []
 
     for entry in job_list:
         name = entry['metadata']['name']
-        cluster_name = entry['status']['cluster']
+        clusters = entry['status']['clusters']
         namespace = entry['metadata']['namespace']
         resources = entry['spec']['resources']
         resources_str = ''
@@ -510,8 +510,12 @@ def print_job_table(job_list: List[dict]):
             resources_str += f'{key}: {resources[key]}\n'
 
         status = entry['status']['status']
-        table_data.append(
-            [name, cluster_name, resources_str, namespace, status])
+        if clusters:
+            for cluster_name, replica_count in clusters.items():
+                table_data.append(
+                    [name, cluster_name, replica_count, resources_str, namespace, status])
+        else:
+            table_data.append([name, '', 0, resources_str, namespace, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f'{table}\r')

@@ -171,7 +171,7 @@ class KubernetesManager(Manager):
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
                                 autoescape=select_autoescape())
-        jinja_template = jinja_env.get_template('kubernetes.j2')
+        jinja_template = jinja_env.get_template('k8_job.j2')
         jinja_dict = {
             'name': job.meta.name,
             'cluster_name': self.cluster_name,
@@ -179,8 +179,8 @@ class KubernetesManager(Manager):
             'run': job.spec.run,
             'cpu': job.spec.resources.get('cpu', 0),
             'gpu': job.spec.resources.get('gpu', 0),
+            'replicas': job.status.clusters[self.cluster_name],
         }
-        print(jinja_dict)
         kubernetes_job = jinja_template.render(jinja_dict)
         kubernetes_job = yaml.safe_load(kubernetes_job)
         return kubernetes_job
@@ -216,7 +216,7 @@ class KubernetesManager(Manager):
             job_status = JobStatusEnum.RUNNING.value
         return JobStatus(
             status=job_status,
-            cluster=self.cluster_name,
+            clusters = {},
         )
 
 

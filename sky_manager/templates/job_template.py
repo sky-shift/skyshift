@@ -47,7 +47,7 @@ class JobStatus(ObjectStatus):
     def __init__(self,
                  conditions: List[Dict[str, str]] = [],
                  status: str = JobStatusEnum.INIT.value,
-                 cluster: str = None):
+                 clusters: Dict[str, int] = {}):
         if not conditions:
             cur_time = time.time()
             conditions = [{
@@ -59,7 +59,7 @@ class JobStatus(ObjectStatus):
             status = JobStatusEnum.INIT.value
         super().__init__(conditions, status)
 
-        self.cluster = cluster
+        self.clusters = clusters
         self._verify_conditions(self.conditions)
         self._verify_status(self.curStatus)
 
@@ -79,8 +79,8 @@ class JobStatus(ObjectStatus):
         self._verify_conditions(conditions)
         self.conditions = conditions
 
-    def update_cluster(self, cluster: str):
-        self.cluster = cluster
+    def update_clusters(self, clusters: str):
+        self.clusters = clusters
 
     def update_status(self, status: str):
         self._verify_status(status)
@@ -102,18 +102,18 @@ class JobStatus(ObjectStatus):
     def from_dict(config: dict):
         conditions = config.pop('conditions', [])
         status = config.pop('status', None)
-        cluster = config.pop('cluster', None)
+        clusters = config.pop('clusters', None)
         assert not config, f'Config contains extra fields, {config}.'
 
         job_status = JobStatus(conditions=conditions,
                                status=status,
-                               cluster=cluster)
+                               clusters=clusters)
         return job_status
 
     def __iter__(self):
         job_dict = dict(super().__iter__())
         job_dict.update({
-            'cluster': self.cluster,
+            'clusters': self.clusters,
         })
         yield from job_dict.items()
 

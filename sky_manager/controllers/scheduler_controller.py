@@ -104,21 +104,24 @@ class SchedulerController(Controller):
             return
 
         # Main Scheduling loop.
-        clusters = deepcopy(self.cluster_informer.get_cache())
+        clusters = OrderedDict(deepcopy(self.cluster_informer.get_cache()))
         idx_list = []
         for job_idx, job in enumerate(self.workload_queue):
+            # Filter for valid clusters based on filter policies.
             filtered_clusters = self.filter_clusters(job, clusters)
+            # Rank clusters by their approximate availability.
             ranked_clusters = self.rank_clusters(job, filtered_clusters)
             if clusters:
                 # Fetch the top scoring cluster.
-                top_cluster = ranked_clusters[0][0]
-                job.status.update_cluster(top_cluster)
+                spread_replicas = self.compute_replicas_spread(job, ranked_clusters)
+
+                job.status.update_clusters(spread_replicas)
                 job.status.update_status(JobStatusEnum.SCHEDULED.value)
 
                 JobAPI(namespace=job.meta.namespace).update(config=dict(job))
                 idx_list.append(job_idx)
                 self.logger.info(
-                    f'Sending job {job.meta.name} to cluster {top_cluster}.'
+                    f'Sending job {job.meta.name} to clusters {spread_replicas}.'
                 )
             else:
                 self.logger.info(
@@ -128,6 +131,45 @@ class SchedulerController(Controller):
 
         for job_idx in reversed(idx_list):
             del self.workload_queue[job_idx]
+    
+    def compute_replicas_spread(self, job, ranked_clusters):
+        job_replicas = job.spec.replicas
+        job_clusters = {}
+
+        job_cpus = job.spec.resources.get('cpu', 0)
+        job_gpus = job.spec.resources.get('gpu', 0)
+        job_memory = job.spec.resources.get('memory', 0)
+        
+        ranked_clusters = list(ranked_clusters.items())
+        # Greedily assign clusters replicas.
+        total_cluster_replicas = 0
+        for cluster_name, cluster_obj in ranked_clusters:
+            cluster_replicas = 0
+            alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
+            for node_name, node_resource in alloc_capacity.items():
+                node_cpus = node_resource.get('cpu', 0)
+                node_gpus = node_resource.get('gpu', 0)
+                node_memory = node_resource.get('memory', 0)
+                while True:
+                    if total_cluster_replicas == job_replicas:
+                        break
+                    if job_cpus <= node_cpus and job_gpus <= node_gpus and job_memory <= node_memory:
+                        node_cpus -= job_cpus
+                        node_gpus -= job_gpus
+                        node_memory -= job_memory
+                        total_cluster_replicas+=1
+                        cluster_replicas +=1
+                    else:
+                        break
+            job_clusters[cluster_name] = cluster_replicas
+            if total_cluster_replicas == job_replicas:
+                break
+        
+        # Can't schedule job. Default place all replicas in top cluster. (Bad).
+        if total_cluster_replicas < job_replicas:
+            return {ranked_clusters[0][0]: job_replicas}
+        return job_clusters
+
 
     def filter_clusters(self, job, clusters: dict):
         # Filter for clusters.
@@ -166,8 +208,8 @@ class SchedulerController(Controller):
         # For now this policy is rank cluster by their availability. (load-balancing)
         sum_clusters = []
         for cluster in clusters.items():
-            cluster_name, cluster_dict = cluster
-            resources = cluster_dict.status.allocatable_capacity
+            cluster_name, cluster_obj = cluster
+            resources = cluster_obj.status.allocatable_capacity
             sum_resources = {'cpu': 0, 'memory': 0, 'gpu': 0}
             if resources:
                 for _, node_resources in resources.items():
@@ -176,10 +218,12 @@ class SchedulerController(Controller):
                     sum_resources['gpu'] += node_resources.get('gpu', 0)
             sum_clusters.append((cluster_name, sum_resources))
 
-        clusters = sorted(sum_clusters,
+        sum_clusters = sorted(sum_clusters,
                           key=lambda x: 10 * x[1]['gpu'] + x[1]['cpu'],
                           reverse=True)
-        return clusters
+        index_map = {value[0]: index for index, value in enumerate(sum_clusters)}
+        sorted_clusters = sorted(list(clusters.items()), key=lambda x:  index_map[x[0]])
+        return OrderedDict(sorted_clusters)
 
 
 # Testing Scheduler Controller.
