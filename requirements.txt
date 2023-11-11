@@ -9,3 +9,4 @@ pyyaml
 requests
 rich
 tabulate
+skypilot[aws,gcp,azure,ibm,oci,scp,lambda,kubernetes]
