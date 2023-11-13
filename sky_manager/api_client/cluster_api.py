@@ -4,8 +4,8 @@ from sky_manager.api_client import ObjectAPI
 from sky_manager.utils import utils
 
 def _verify_response(response):
-    if 'error' in response:
-        raise Exception(response['error'])
+    if 'detail' in response:
+        raise Exception(response['detail'])
 
 class ClusterAPI(ObjectAPI):
 

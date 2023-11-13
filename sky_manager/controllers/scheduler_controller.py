@@ -8,7 +8,6 @@ from copy import deepcopy
 import logging
 import queue
 import requests
-import time
 import traceback
 
 from sky_manager.controllers import Controller

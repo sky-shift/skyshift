@@ -1,7 +1,12 @@
+import argparse
+from asyncio import run
 from functools import partial
 import json
+import sys
 
-from flask import Flask, jsonify, request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Header, Body, Request
+from fastapi.responses import StreamingResponse
+import uvicorn
 import yaml
 
 from sky_manager.etcd_client.etcd_client import ETCDClient, ETCD_PORT
@@ -26,9 +31,12 @@ SUPPORTED_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
 def launch_api_service(host=API_SERVER_HOST,
                        port=API_SERVER_PORT,
                        dry_run=True):
+
+    fast_app = FastAPI()
     api_server = APIServer(host=host, port=port)
+    fast_app.include_router(api_server.router)
+    api_server.etcd_client.delete_all()
     if dry_run:
-        api_server.etcd_client.delete_all()
         filter_policy_dict = yaml.safe_load(
             open(
                 '/home/gcpuser/sky-manager/sky_manager/examples/filter_policy.yaml',
@@ -62,7 +70,18 @@ def launch_api_service(host=API_SERVER_HOST,
             job_dict['metadata']['name'] = f'job-{i}'
             api_server.etcd_client.write(f'jobs/{DEFAULT_NAMESPACE}/job-{i}',
                                          json.dumps(job_dict))
-    api_server.run(port=port)
+    
+    def receive_signal(signalNumber, frame):
+        print('Received:', signalNumber)
+        sys.exit()
+
+
+    @fast_app.on_event("startup")
+    async def startup_event():
+        import signal
+        signal.signal(signal.SIGINT, receive_signal)
+    uvicorn.run(fast_app, host=host, port=port)
+
 
 
 class APIServer(object):
@@ -77,33 +96,35 @@ class APIServer(object):
                  port=API_SERVER_PORT,
                  etcd_port=ETCD_PORT):
         self.etcd_client = ETCDClient(port=etcd_port)
-        self.app = Flask('Sky-Manager-API-Server')
         self.host = host
         self.port = port
+        self.router = APIRouter()
 
         generate_manager_config(self.host, self.port)
         self._create_endpoints()
 
     def create_object(self,
+                      request: Request,
                       object_type: str,
                       namespace: str = DEFAULT_NAMESPACE,
-                      is_namespaced: bool = True):
-        content_type = request.headers['Content-Type']
+                      is_namespaced: bool = True,):
+        content_type = request.headers.get("content-type", None)
+        body = run(request.body())
         if content_type == 'application/json':
-            object_specs = request.json
+            object_specs = json.loads(body.decode())
         elif content_type == 'application/yaml':
-            object_specs = yaml.safe_load(request.data)
+            object_specs = yaml.safe_load(body.decode())
         else:
-            return jsonify(error="Unsupported Content-Type"), 400
+            raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
 
         if object_type not in SUPPORTED_OBJECTS:
-            return jsonify(error=f"Invalid object type: {object_type}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
 
         object_class = SUPPORTED_OBJECTS[object_type]
         try:
             object_template = object_class.from_dict(object_specs)
         except ObjectException as e:
-            return jsonify(error=f"Invalid {object_type} template: {e}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid {object_type} template: {e}")
 
         object_name = object_template.meta.name
 
@@ -117,27 +138,23 @@ class APIServer(object):
         for obj_key, _ in list_response:
             temp_name = obj_key.split('/')[-1]
             if object_name == temp_name:
-                return jsonify(
-                    error=
-                    f"Object \'{link_header}/{object_name}\' already exists."
-                ), 400
+                raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' already exists.")
 
         response = dict(object_template)
         self.etcd_client.write(f'{link_header}/{object_name}',
                                json.dumps(response))
-        return jsonify(response), 200
+        return response
 
     def list_objects(self,
                      object_type: str,
                      namespace: str = DEFAULT_NAMESPACE,
-                     is_namespaced: bool = True):
+                     is_namespaced: bool = True,
+                     watch: bool = Query(False)):
         """
         Lists all objects of a given type.
         """
-        watch = request.args.get('watch', default='false').lower() == 'true'
-
         if object_type not in SUPPORTED_OBJECTS:
-            return jsonify(error=f"Invalid object type: {object_type}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
         object_class = SUPPORTED_OBJECTS[object_type]
 
         object_list = []
@@ -154,20 +171,19 @@ class APIServer(object):
             object_list.append(object_class.from_dict(object_dict))
         obj_list_cls = eval(object_class.__name__ + 'List')(object_list)
         response = dict(obj_list_cls)
-        return jsonify(response), 200
+        return response
 
     def get_object(self,
                    object_type: str,
                    object_name: str,
                    namespace: str = DEFAULT_NAMESPACE,
-                   is_namespaced: bool = True):
+                   is_namespaced: bool = True,
+                   watch: bool = Query(False)):
         """
         Returns a specific object, raises Error otherwise.
         """
-        watch = request.args.get('watch', default='false').lower() == 'true'
-
         if object_type not in SUPPORTED_OBJECTS:
-            return jsonify(error=f"Invalid object type: {object_type}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
         object_class = SUPPORTED_OBJECTS[object_type]
 
         if is_namespaced:
@@ -180,33 +196,33 @@ class APIServer(object):
 
         etcd_response = self.etcd_client.read(f'{link_header}/{object_name}')
         if etcd_response is None:
-            return jsonify(
-                error=f'Object \'{link_header}/{object_name}\' not found.'
-            ), 404
+            raise HTTPException(status_code=404, detail=f"Object \'{link_header}/{object_name}\' not found.") 
         obj_dict = json.loads(etcd_response[1])
         cluster_obj = dict(object_class.from_dict(obj_dict))
-        return jsonify(cluster_obj)
+        return cluster_obj
 
     def update_object(self,
+                      request: Request,
                       object_type: str,
                       namespace: str = DEFAULT_NAMESPACE,
                       is_namespaced: bool = True):
-        content_type = request.headers['Content-Type']
+        content_type = request.headers.get("content-type", None)
+        body = run(request.body())
         if content_type == 'application/json':
-            object_specs = request.json
+            object_specs = json.loads(body.decode())
         elif content_type == 'application/yaml':
-            object_specs = yaml.safe_load(request.data)
+            object_specs = yaml.safe_load(body.decode())
         else:
-            return jsonify(error="Unsupported Content-Type"), 400
+            raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
 
         if object_type not in SUPPORTED_OBJECTS:
-            return jsonify(error=f"Invalid object type: {object_type}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
 
         object_class = SUPPORTED_OBJECTS[object_type]
         try:
             object_template = object_class.from_dict(object_specs)
         except ObjectException as e:
-            return jsonify(error=f"Invalid {object_type} template: {e}"), 400
+            raise HTTPException(status_code=400, detail=f"Invalid {object_type} template: {e}")
 
         object_name = object_template.meta.name
         if is_namespaced:
@@ -221,10 +237,8 @@ class APIServer(object):
                 response = dict(object_template)
                 self.etcd_client.write(f'{link_header}/{object_name}',
                                        json.dumps(response))
-                return jsonify(response), 200
-        return jsonify(
-            error=f"Object \'{link_header}/{object_name}\' does not exist."
-        ), 400
+                return response
+        raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' does not exist.")
 
     def delete_object(self,
                       object_type: str,
@@ -237,10 +251,9 @@ class APIServer(object):
             link_header = f'{object_type}'
         etcd_response = self.etcd_client.delete(f'{link_header}/{object_name}')
         if etcd_response:
-            return jsonify(
-                message=f'Deleted \'{link_header}/{object_name}\'.'), 200
-        return jsonify(
-            error=f"Failed to delete \'{link_header}/{object_name}\'."), 400
+            obj_dict = json.loads(etcd_response[1])
+            return obj_dict
+        raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' does not exist.")
 
     def _watch_key(self, key: str):
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
@@ -257,87 +270,89 @@ class APIServer(object):
             finally:
                 cancel_watch_fn()
 
-        return Response(generate_events(), content_type='application/x-ndjson')
+        return StreamingResponse(generate_events(), media_type='application/x-ndjson')
 
     def _add_endpoint(self,
                       endpoint=None,
                       endpoint_name=None,
                       handler=None,
                       methods=None):
-        self.app.add_url_rule(endpoint,
-                              endpoint_name,
-                              handler,
-                              methods=methods)
+        self.router.add_api_route(
+            endpoint,
+            handler,
+            methods=methods,
+            name=endpoint_name,
+        )
 
     def _create_endpoints(self):
         for object_type in NON_NAMESPACED_OBJECTS.keys():
             self._add_endpoint(endpoint=f"/{object_type}",
                                endpoint_name=f"create_{object_type}",
                                handler=partial(self.create_object,
-                                               object_type,
+                                               object_type=object_type,
                                                is_namespaced=False),
                                methods=['POST'])
             self._add_endpoint(endpoint=f"/{object_type}",
                                endpoint_name=f"update_{object_type}",
                                handler=partial(self.update_object,
-                                               object_type,
+                                               object_type=object_type,
                                                is_namespaced=False),
                                methods=['PUT'])
             self._add_endpoint(endpoint=f"/{object_type}",
                                endpoint_name=f"list_{object_type}",
                                handler=partial(self.list_objects,
-                                               object_type,
+                                               object_type=object_type,
                                                is_namespaced=False),
                                methods=['GET'])
-            self._add_endpoint(endpoint=f"/{object_type}/<object_name>",
+            self._add_endpoint(endpoint=f"/{object_type}/{{object_name}}",
                                endpoint_name=f"get_{object_type}",
                                handler=partial(self.get_object,
-                                               object_type,
+                                               object_type=object_type,
                                                is_namespaced=False),
                                methods=['GET'])
-            self._add_endpoint(endpoint=f"/{object_type}/<object_name>",
+            self._add_endpoint(endpoint=f"/{object_type}/{{object_name}}",
                                endpoint_name=f"delete_{object_type}",
                                handler=partial(self.delete_object,
-                                               object_type,
+                                               object_type=object_type,
                                                is_namespaced=False),
                                methods=['DELETE'])
 
         for object_type in NAMESPACED_OBJECTS.keys():
-            self._add_endpoint(endpoint=f"/<namespace>/{object_type}",
+            self._add_endpoint(endpoint=f"/{{namespace}}/{{object_type}}",
                                endpoint_name=f"create_{object_type}",
                                handler=partial(
                                    self.create_object,
-                                   object_type,
+                                   object_type=object_type,
                                ),
                                methods=['POST'])
-            self._add_endpoint(endpoint=f"/<namespace>/{object_type}",
+            self._add_endpoint(endpoint=f"/{{namespace}}/{{object_type}}",
                                endpoint_name=f"update_{object_type}",
                                handler=partial(
                                    self.update_object,
-                                   object_type,
+                                   object_type=object_type,
                                ),
                                methods=['PUT'])
-            self._add_endpoint(endpoint=f"/<namespace>/{object_type}",
+            self._add_endpoint(endpoint=f"/{{namespace}}/{{object_type}}",
                                endpoint_name=f"list_{object_type}",
                                handler=partial(
-                                   self.list_objects,
-                                   object_type,
+                                    self.list_objects,
+                                    object_type=object_type,
                                ),
                                methods=['GET'])
             self._add_endpoint(
-                endpoint=f"/<namespace>/{object_type}/<object_name>",
+                endpoint=f"/{{namespace}}/{object_type}/{{object_name}}",
                 endpoint_name=f"get_{object_type}",
                 handler=partial(
                     self.get_object,
-                    object_type,
+                    object_type=object_type,
                 ),
                 methods=['GET'])
             self._add_endpoint(
-                endpoint=f"/<namespace>/{object_type}/<object_name>",
+                endpoint=f"/{{namespace}}/{object_type}/{{object_name}}",
                 endpoint_name=f"delete_{object_type}",
                 handler=partial(
                     self.delete_object,
-                    object_type,
+                    object_type=object_type,
                 ),
                 methods=['DELETE'])
             # Add special case where can list namespaced objects across
@@ -347,14 +362,25 @@ class APIServer(object):
                 endpoint_name=f"list_{object_type}_all_namespaces",
                 handler=partial(
                     self.list_objects,
-                    object_type,
+                    object_type=object_type,
                     namespace=None,
                 ),
                 methods=['GET'])
 
-    def run(self, port, debug=True):
-        self.app.run(host=self.host, port=port, debug=debug, threaded=True)
-
 
 if __name__ == '__main__':
-    launch_api_service()
+    # Create the parser
+    parser = argparse.ArgumentParser(description="Launch API Service for Sky Manager.")
+
+    # Add arguments
+    parser.add_argument("--host", type=str, default=API_SERVER_HOST,
+                        help="Host for the API server (default: %(default)s)")
+    parser.add_argument("--port", type=int, default=API_SERVER_PORT,
+                        help="Port for the API server (default: %(default)s)")
+    parser.add_argument("--dry-run", dest="dry_run", action="store_true",
+                        help="Run the server in dry-run mode (default: False)")
+
+    # Parse the arguments
+    args = parser.parse_args()
+    # Launch the API service with the parsed arguments
+    launch_api_service(host=args.host, port=args.port, dry_run=args.dry_run)
