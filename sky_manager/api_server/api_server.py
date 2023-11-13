@@ -1,4 +1,3 @@
-import argparse
 from asyncio import run
 from functools import partial
 import json
@@ -6,16 +5,12 @@ import sys
 
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Header, Body, Request
 from fastapi.responses import StreamingResponse
-import uvicorn
 import yaml
 
 from sky_manager.etcd_client.etcd_client import ETCDClient, ETCD_PORT
 from sky_manager.templates import *
 from sky_manager.templates.event_template import WatchEvent
-from sky_manager.utils.utils import generate_manager_config
 
-API_SERVER_HOST = 'localhost'
-API_SERVER_PORT = 50051
 DEFAULT_NAMESPACE = 'default'
 NAMESPACED_OBJECTS = {
     'jobs': Job,
@@ -28,15 +23,10 @@ NON_NAMESPACED_OBJECTS = {
 SUPPORTED_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
 
 
-def launch_api_service(host=API_SERVER_HOST,
-                       port=API_SERVER_PORT,
-                       dry_run=True):
-
-    fast_app = FastAPI()
-    api_server = APIServer(host=host, port=port)
-    fast_app.include_router(api_server.router)
-    api_server.etcd_client.delete_all()
+def launch_api_service(dry_run=True):
+    api_server = APIServer()
     if dry_run:
+        api_server.etcd_client.delete_all()
         filter_policy_dict = yaml.safe_load(
             open(
                 '/home/gcpuser/sky-manager/sky_manager/examples/filter_policy.yaml',
@@ -70,17 +60,7 @@ def launch_api_service(host=API_SERVER_HOST,
             job_dict['metadata']['name'] = f'job-{i}'
             api_server.etcd_client.write(f'jobs/{DEFAULT_NAMESPACE}/job-{i}',
                                          json.dumps(job_dict))
-    
-    def receive_signal(signalNumber, frame):
-        print('Received:', signalNumber)
-        sys.exit()
-
-
-    @fast_app.on_event("startup")
-    async def startup_event():
-        import signal
-        signal.signal(signal.SIGINT, receive_signal)
-    uvicorn.run(fast_app, host=host, port=port)
+    return api_server
 
 
 
@@ -92,15 +72,9 @@ class APIServer(object):
     interacting with Sky Manager objects.
     """
     def __init__(self,
-                 host: str = API_SERVER_HOST,
-                 port=API_SERVER_PORT,
                  etcd_port=ETCD_PORT):
         self.etcd_client = ETCDClient(port=etcd_port)
-        self.host = host
-        self.port = port
         self.router = APIRouter()
-
-        generate_manager_config(self.host, self.port)
         self._create_endpoints()
 
     def create_object(self,
@@ -367,20 +341,12 @@ class APIServer(object):
                 ),
                 methods=['GET'])
 
+app = FastAPI()
+# Launch the API service with the parsed arguments
+api_server = launch_api_service()
+app.include_router(api_server.router)
 
-if __name__ == '__main__':
-    # Create the parser
-    parser = argparse.ArgumentParser(description="Launch API Service for Sky Manager.")
-
-    # Add arguments
-    parser.add_argument("--host", type=str, default=API_SERVER_HOST,
-                        help="Host for the API server (default: %(default)s)")
-    parser.add_argument("--port", type=int, default=API_SERVER_PORT,
-                        help="Port for the API server (default: %(default)s)")
-    parser.add_argument("--dry-run", dest="dry_run", action="store_true",
-                        help="Run the server in dry-run mode (default: False)")
-
-    # Parse the arguments
-    args = parser.parse_args()
-    # Launch the API service with the parsed arguments
-    launch_api_service(host=args.host, port=args.port, dry_run=args.dry_run)
+@app.on_event("startup")
+async def startup_event():
+    import signal
+    signal.signal(signal.SIGINT, lambda x,y: sys.exit())

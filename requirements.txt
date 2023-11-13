@@ -1,7 +1,7 @@
 click
 etcd3
-flask
-flask_sockets
+fastapi
+uvicorn[standard]
 kubernetes
 protobuf=3.20.0
 pytest
