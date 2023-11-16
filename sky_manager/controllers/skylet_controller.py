@@ -20,7 +20,6 @@ from sky_manager.skylet.skylet import launch_skylet
 from sky_manager.templates import Cluster, ClusterStatusEnum
 from sky_manager.templates.event_template import WatchEventEnum
 from sky_manager.structs import Informer
-from sky_manager.utils import generate_object
 
 SKYLET_CONTROLLER_INTERVAL = 0.5
 
@@ -29,7 +28,7 @@ logging.basicConfig(
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
 
-def terminate_process(pid):
+def terminate_process(pid: int):
     """Terminates a process and all its children."""
     parent = psutil.Process(pid)
     for child in parent.children(recursive=True):
@@ -103,7 +102,7 @@ class SkyletController(Controller):
         watch_event = self.event_queue.get()
         event_type = watch_event.event_type
         cluster_obj = watch_event.object
-        cluster_name = cluster_obj.meta.name
+        cluster_name = cluster_obj.get_name()
         # Launch Skylet if it is a newly added cluster.
         if event_type == WatchEventEnum.ADD:
             self._launch_skylet(cluster_obj)
@@ -117,10 +116,9 @@ class SkyletController(Controller):
     
     def _load_clusters(self):
         existing_clusters = lookup_kube_config()
-        print(existing_clusters)
         for cluster_name in existing_clusters:
             try:
-                cluster_dict = ClusterAPI().get(cluster_name)
+                cluster_obj = ClusterAPI().get(cluster_name)
             except Exception as e:
                 cluster_dictionary = {
                     'kind': 'Cluster',
@@ -131,15 +129,14 @@ class SkyletController(Controller):
                         'manager': 'k8',
                     }
                 }
-                cluster_dict = ClusterAPI().create(config=cluster_dictionary)
-            cluster_obj = generate_object(cluster_dict)
+                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
             self._launch_skylet(cluster_obj)
 
 
     
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
-        cluster_name = cluster_obj.meta.name
+        cluster_name = cluster_obj.get_name()
         if cluster_name in self.skylets:
             return
         # Launch a Skylet to manage the cluster state.
@@ -150,7 +147,7 @@ class SkyletController(Controller):
 
     def _terminate_skylet(self, cluster_obj: Cluster):
         """Hidden method that terminates Skylet."""
-        cluster_name = cluster_obj.meta.name
+        cluster_name = cluster_obj.get_name()
         if cluster_name not in self.skylets:
             return
         terminate_process(self.skylets[cluster_name].pid)

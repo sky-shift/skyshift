@@ -70,7 +70,7 @@ class SchedulerController(Controller):
         def add_cluster_callback_fn(event):
             # Only add event when allocatable cluster resources have changed.
             event_object = event.object
-            cluster_name = event_object.meta.name
+            cluster_name = event_object.get_name()
             cluster_alloc = event_object.status.allocatable_capacity
             if cluster_alloc != self.prev_alloc_capacity.get(cluster_name, None):
                 self.event_queue.put(event)
@@ -113,18 +113,16 @@ class SchedulerController(Controller):
             if clusters:
                 # Fetch the top scoring cluster.
                 spread_replicas = self.compute_replicas_spread(job, ranked_clusters)
-
                 job.status.update_clusters(spread_replicas)
                 job.status.update_status(JobStatusEnum.SCHEDULED.value)
-
-                JobAPI(namespace=job.meta.namespace).update(config=dict(job))
+                JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
                 idx_list.append(job_idx)
                 self.logger.info(
-                    f'Sending job {job.meta.name} to clusters {spread_replicas}.'
+                    f'Sending job {job.get_name()} to clusters {spread_replicas}.'
                 )
             else:
                 self.logger.info(
-                    f'Unable to schedule job {job.meta.name}. Marking it as failed.'
+                    f'Unable to schedule job {job.get_name()}. Marking it as failed.'
                 )
             break
 
@@ -172,27 +170,25 @@ class SchedulerController(Controller):
 
     def filter_clusters(self, job, clusters: dict):
         # Filter for clusters.
-        filter_policy_api = FilterPolicyAPI(namespace=job.meta.namespace)
+        filter_policy_api = FilterPolicyAPI(namespace=job.get_namespace())
         all_policies = filter_policy_api.list()
 
         # Find filter policies that have labels that are a subset of the job's labels.
         filter_policies = []
-        for fp_dict in all_policies['items']:
-            fp_dict_labels = fp_dict['spec']['labelsSelector']
-            job_labels = job.meta.labels
+        for fp in all_policies.objects:
+            fp_dict_labels = fp.spec.labels_selector
+            job_labels = job.metadata.labels
+            is_subset = False
             if fp_dict_labels:
                 is_subset = all(k in job_labels and job_labels[k] == v
                                 for k, v in fp_dict_labels.items())
-            else:
-                is_subset = False
-
             if is_subset:
-                filter_policies.append(fp_dict)
+                filter_policies.append(fp)
 
         # Filter for clusters that satisfy the filter policies.
-        for fp_dict in filter_policies:
-            include_list = fp_dict['spec']['clusterFilter']['include']
-            exclude_list = fp_dict['spec']['clusterFilter']['exclude']
+        for fp in filter_policies:
+            include_list = fp.spec.cluster_filter.include
+            exclude_list = fp.spec.cluster_filter.exclude
             cluster_keys = list(clusters.keys())
             for c_name in cluster_keys:
                 if c_name not in include_list:

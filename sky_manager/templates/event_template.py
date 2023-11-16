@@ -1,7 +1,10 @@
 import enum
 
-from sky_manager.templates import Object
-from sky_manager.utils.utils import generate_object
+from pydantic import BaseModel, Field, field_validator, validator, model_validator, root_validator
+
+from typing import Dict, Set, Union
+from sky_manager.templates import *
+from sky_manager.utils.utils import load_object
 
 class WatchEventEnum(enum.Enum):
     # New object is added.
@@ -17,33 +20,21 @@ class WatchEventEnum(enum.Enum):
         return super().__eq__(other)
 
 
-class WatchEvent:
-
-    def __init__(self, event_type: str, object: Object):
-        self.event_type = event_type
-        self.object = object
-
-        self._verify_event_type(event_type)
+class WatchEvent(BaseModel):
+    kind: str = Field(default='WatchEvent')
+    event_type: str
+    object: Union[Cluster, Job, FilterPolicy, Namespace, Object]
     
-    def _verify_event_type(self, event_type: str):
+    @field_validator('event_type')
+    @classmethod    
+    def verify_event_type(cls, event_type: str):
         if not any(event_type == ev_enum.value for ev_enum in WatchEventEnum):
             raise ValueError(f'Invalid watch event type, {event_type}.')
+        return event_type
 
-    def __iter__(self):
-        yield from {
-            "kind": "WatchEvent",
-            'type': self.event_type,
-            'object': dict(self.object)
-        }.items()
-    
-    @staticmethod
-    def from_dict(config: dict):
-        assert config['kind'] == 'WatchEvent', f'Not a WatchEvent object: {config}'
+    @field_validator('object', mode='before')
+    def set_correct_object_type(cls, v):
+        if isinstance(v, dict):
+            return load_object(v)
+        return v
 
-        event_type = config.pop('type', None)
-        obj_dict = config.pop('object', None)
-        obj =  generate_object(obj_dict)
-        return WatchEvent(event_type, obj)
-
-    def __repr__(self):
-        return str(dict(self))

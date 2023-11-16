@@ -11,6 +11,7 @@ Typical usage example:
 import logging
 import requests
 import time
+import traceback
 
 from sky_manager.api_client import ObjectAPI
 from sky_manager.templates.event_template import WatchEvent
@@ -32,7 +33,7 @@ class Watcher:
         while True:
             try:
                 for watch_event in self.api.watch():
-                    yield WatchEvent.from_dict(watch_event)
+                    yield watch_event
             except requests.exceptions.ChunkedEncodingError:
                 retry += 1
                 logger.error('API server restarting. Reconnecting...')
@@ -43,6 +44,7 @@ class Watcher:
                 time.sleep(self.backoff_time)
             except Exception as e:
                 retry+=1
+                logger.error(traceback.format_exc())
                 logger.error('Encountered unusual error. Trying again.')
                 time.sleep(self.backoff_time)
             if retry >= self.retry_limit:

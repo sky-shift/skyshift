@@ -55,12 +55,12 @@ class ETCDClient(object):
         """
         if self.log_name not in key:
             key = f'{self.log_name}{key}'
-        with self.etcd_client.lock(key):
-            try:
-                self.etcd_client.put(key, str(value))
-            except Exception as e:
-                print(traceback.format_exc())
-                raise e
+        # with self.etcd_client.lock(key):
+        try:
+            self.etcd_client.put(key, str(value))
+        except Exception as e:
+            print(traceback.format_exc())
+            raise e
 
     def read_prefix(self, key: str):
         """
@@ -106,16 +106,16 @@ class ETCDClient(object):
         """
         if self.log_name not in key:
             key = f'{self.log_name}{key}'
-        with self.etcd_client.lock(key):
-            etcd_response = self.etcd_client.delete(key, prev_kv=True, return_response=True)
-            if etcd_response.deleted:
-                assert len(etcd_response.prev_kvs) == 1
-                kv = etcd_response.prev_kvs[0]
-                return (
-                    remove_prefix(kv.key.decode('utf-8')),
-                    kv.value.decode('utf-8'),
-                )
-            return None
+        # with self.etcd_client.lock(key):
+        etcd_response = self.etcd_client.delete(key, prev_kv=True, return_response=True)
+        if etcd_response.deleted:
+            assert len(etcd_response.prev_kvs) == 1
+            kv = etcd_response.prev_kvs[0]
+            return (
+                remove_prefix(kv.key.decode('utf-8')),
+                kv.value.decode('utf-8'),
+            )
+        return None
 
     def delete_prefix(self, key: str) -> List[Tuple[str, str]]:
         """

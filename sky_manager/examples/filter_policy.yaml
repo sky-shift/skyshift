@@ -4,7 +4,7 @@ metadata:
   name: filter-policy-0
 
 spec:
-  clusterFilter:
+  cluster_filter:
     include:
       - mluo-onprem
       - cluster-0
@@ -14,6 +14,6 @@ spec:
       - cluster-1
       - cluster-2
   
-  labelsSelector:
+  labels_selector:
     my: sky
 

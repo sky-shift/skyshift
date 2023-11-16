@@ -8,7 +8,7 @@ import time
 
 import traceback
 
-from sky_manager.utils import generate_object
+from sky_manager.utils import load_object
 from sky_manager.controllers import Controller
 from sky_manager.templates.job_template import Job, JobStatusEnum
 from sky_manager.templates.cluster_template import Cluster, ClusterStatus, ClusterStatusEnum
@@ -57,8 +57,7 @@ class ClusterController(Controller):
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
 
-        cluster_dict = ClusterAPI().get(name)
-        cluster_obj = Cluster.from_dict(cluster_dict)
+        cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
 
         self.logger = logging.getLogger(
@@ -85,36 +84,39 @@ class ClusterController(Controller):
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         cluster_api = ClusterAPI()
-        cluster_obj = generate_object(cluster_api.get(self.name))
+        cluster_obj = cluster_api.get(self.name)
         prev_cluster_status = cluster_obj.status
-        prev_cluster_status.update_status(cluster_status.curStatus)
+        prev_cluster_status.update_status(cluster_status.status)
         prev_cluster_status.update_capacity(cluster_status.capacity)
         prev_cluster_status.update_allocatable_capacity(
             cluster_status.allocatable_capacity)
-        cluster_api.update(dict(cluster_obj))
+        cluster_api.update(cluster_obj.model_dump(mode='json'))
     
     def update_unhealthy_cluster(self):
         # When the cluster is unhealthy, we need to update the cluster status to ERROR in the API server.
         cluster_api = ClusterAPI()
-        cluster_obj = generate_object(cluster_api.get(self.name))
+        cluster_obj = cluster_api.get(self.name)
         cluster_status = cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
-        cluster_api.update(dict(cluster_obj))        
+        cluster_api.update(cluster_obj.model_dump(mode='json'))        
 
 
 # Testing purposes.
 if __name__ == '__main__':
     cluster_api = ClusterAPI()
-    cluster_api.create(
-        {
-            "kind": "Cluster",
-            "metadata": {
-                "name": "mluo-onprem"
-            },
-            "spec": {
-                'manager': 'k8',
+    try:
+        cluster_api.create(
+            {
+                "kind": "Cluster",
+                "metadata": {
+                    "name": "mluo-onprem"
+                },
+                "spec": {
+                    'manager': 'k8',
+                }
             }
-        }
-    )
+        )
+    except:
+        pass
     hc = ClusterController('mluo-onprem')
     hc.run()

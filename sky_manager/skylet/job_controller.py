@@ -53,8 +53,7 @@ class JobController(Controller):
         self.retry_limit = retry_limit
 
 
-        cluster_dict = ClusterAPI().get(name)
-        cluster_obj = Cluster.from_dict(cluster_dict)
+        cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.job_status = self.manager_api.get_jobs_status()
@@ -84,7 +83,8 @@ class JobController(Controller):
 
     def controller_loop(self):
             self.job_status = self.manager_api.get_jobs_status()
-            # Copy Informer to get the current job statuses.
+
+            # Copy Informer cache to get the jobs stored in API server.
             informer_object = deepcopy(self.informer.get_cache())
             prev_status = {
                 k: v.get_status()
@@ -93,37 +93,40 @@ class JobController(Controller):
             for job_name, new_job_status in self.job_status.items():
                 # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
                 if job_name not in prev_status:
-                    # temp_job = Job(meta={
-                    #     'name': job_name,
-                    # })
-                    # temp_job.status.update_status(new_job_status.curStatus)
-                    # temp_job.status.update_clusters(self.name)
+                    temp_job = Job()
+                    temp_job.metadata.name = job_name
+                    temp_job.status.update_clusters({self.name:1})
                     continue
-                # Save API calls.
-                if new_job_status.curStatus == JobStatusEnum.COMPLETED.value and prev_status[
-                        job_name] == new_job_status.curStatus:
-                    continue
+                else:
+                    temp_job = informer_object[job_name]            
+                    # If the job is already completed, we do not need to update the status.
+                    if new_job_status.status == JobStatusEnum.COMPLETED.value and prev_status[
+                            job_name] == new_job_status.status:
+                        # Save API calls.
+                        continue
 
-                temp_job = informer_object[job_name]
-                temp_job.status.update_status(new_job_status.curStatus)
-                try:
-                    JobAPI(namespace=temp_job.meta.namespace).update(config=dict(temp_job))
-                except Exception as e:
-                    JobAPI(namespace=temp_job.meta.namespace).create(config=dict(temp_job))
+                temp_job.status.update_status(new_job_status.status)
+                if job_name in prev_status:
+                    JobAPI(namespace=temp_job.get_namespace()).update(config=temp_job.model_dump(mode='json'))
+                else:
+                    JobAPI(namespace=temp_job.get_namespace()).create(config=temp_job.model_dump(mode='json'))
 
 # Testing purposes.
 if __name__ == '__main__':
     cluster_api = ClusterAPI()
-    cluster_api.create(
-        {
-            "kind": "Cluster",
-            "metadata": {
-                "name": "mluo-onprem"
-            },
-            "spec": {
-                'manager': 'k8',
+    try:
+        cluster_api.create(
+            {
+                "kind": "Cluster",
+                "metadata": {
+                    "name": "mluo-onprem"
+                },
+                "spec": {
+                    'manager': 'k8',
+                }
             }
-        }
-    )
+        )
+    except:
+        pass
     jc = JobController('mluo-onprem')
     jc.start()

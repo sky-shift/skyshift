@@ -13,7 +13,7 @@ import queue
 import threading
 import time
 
-from sky_manager.utils import generate_object
+from sky_manager.utils import load_object
 from sky_manager.api_client import ObjectAPI
 from sky_manager.structs import Watcher
 from sky_manager.templates.event_template import WatchEventEnum
@@ -38,11 +38,10 @@ class Informer(object):
 
     def sync_cache(self):
         # Lists all available objects and populates the cache with such objects.
-        api_response = self.api.list()
-        api_object = generate_object(api_response)
+        api_object = self.api.list()
         self.cache = {}
         for obj in api_object.objects:
-            name = obj.meta.name
+            name = obj.metadata.name
             self.cache[name] = obj
 
     def start(self):
@@ -76,7 +75,7 @@ class Informer(object):
             watch_event = self.informer_queue.get()
             event_type = watch_event.event_type
             watch_obj = watch_event.object
-            obj_name = watch_obj.meta.name
+            obj_name = watch_obj.get_name()
 
             if event_type == WatchEventEnum.ADD:
                 with self.lock:

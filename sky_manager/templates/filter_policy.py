@@ -1,5 +1,8 @@
+import enum
 import time
 from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field, field_validator
 
 from sky_manager.templates.object_template import Object, ObjectException, \
     ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
@@ -8,175 +11,90 @@ DEFAULT_NAMESPACE = 'default'
 
 
 class FilterPolicyException(ObjectException):
-    "Raised when the job config is invalid."
+    "Raised when the filter policy is invalid."
     pass
+
+class FilterStatusEnum(enum.Enum):
+    # Status when Filter policy is active.
+    ACTIVE = "ACTIVE"
 
 
 class FilterPolicyStatus(ObjectStatus):
+    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
+    status: str = Field(default=FilterStatusEnum.ACTIVE.value, validate_default=True)
 
-    def __init__(self,
-                 conditions: List[Dict[str, str]] = [],
-                 status: str = 'READY'):
+    @field_validator('conditions')
+    @classmethod
+    def verify_conditions(cls, v: List[Dict[str, str]]):
+        conditions = v
         if not conditions:
-            cur_time = time.time()
             conditions = [{
-                'status': 'READY',
-                'createTime': str(cur_time),
-                'updateTime': str(cur_time),
+                'status': FilterStatusEnum.ACTIVE.value,
+                'transitionTime': str(time.time()),
             }]
-        if status is None:
-            status = 'READY'
-        super().__init__(conditions, status)
+        if len(conditions) == 0:
+            raise ValueError(
+                'Filter Policy status\'s condition field is empty.')
+        for condition in conditions:
+            if 'status' not in condition:
+                raise ValueError(
+                    'Filter Policy\'s condition field is missing status.')
+        return conditions
+
+    @field_validator('status')
+    @classmethod
+    def verify_status(cls, status: str):
+        if status is None or status not in FilterStatusEnum.__members__:
+            raise ValueError(f'Invalid Filter Policy status: {status}.')
+        return status
+
+    def update_conditions(self, conditions):
+        self.conditions = conditions
 
     def update_status(self, status: str):
-        self._verify_status(status)
-        self.curStatus = status
+        self.status = status
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
-        if previous_status['status'] == status:
-            previous_status['updateTime'] = time.time()
-        else:
+        if previous_status['status'] != status:
             cur_time = time.time()
             self.conditions.append({
                 'status': status,
-                'createTime': str(cur_time),
-                'updateTime': str(cur_time),
+                'transitionTime': str(cur_time),
             })
-            self.curStatus = status
-
-    @staticmethod
-    def from_dict(config: dict):
-        conditions = config.pop('conditions', [])
-        status = config.pop('status', None)
-        assert not config, f'Config contains extra fields, {config}.'
-
-        obj_status = FilterPolicyStatus(conditions=conditions, status=status)
-        return obj_status
-
 
 class FilterPolicyMeta(ObjectMeta):
+    namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
 
-    def __init__(self,
-                 name: str,
-                 labels: Dict[str, str] = {},
-                 annotations: Dict[str, str] = {},
-                 namespace: str = None):
-        super().__init__(name, labels, annotations)
-        if not namespace:
-            namespace = DEFAULT_NAMESPACE
-        self.namespace = namespace
-
-    @staticmethod
-    def from_dict(config):
-        name = config.pop('name', None)
-        labels = config.pop('labels', {})
-        annotations = config.pop('annotations', {})
-        namespace = config.pop('namespace', None)
-        return FilterPolicyMeta(name=name,
-                                labels=labels,
-                                annotations=annotations,
-                                namespace=namespace)
-
-    def __iter__(self):
-        yield from {
-            'name': self.name,
-            'labels': self.labels,
-            'annotations': self.annotations,
-            'namespace': self.namespace,
-        }.items()
+    @field_validator('namespace')
+    @classmethod
+    def verify_namespace(cls, v: str) -> str:
+        if not v:
+            raise ValueError('Namespace cannot be empty.')
+        return v
 
 
-class ClusterFilter(object):
-
-    def __init__(self, include: List[str] = [], exclude: List[str] = []):
-        self.include = []
-        self.exclude = []
-
-    def __iter__(self):
-        yield from {
-            'include': self.include,
-            'exclude': self.exclude,
-        }.items()
-
-    @staticmethod
-    def from_dict(config: dict):
-        include = config.pop('include', [])
-        exclude = config.pop('exclude', [])
-        assert not config, f'Config contains extra fields, {config}.'
-        return ClusterFilter(include=include, exclude=exclude)
-
+class ClusterFilter(BaseModel):
+    include: List[str] = Field(default=[])
+    exclude: List[str] = Field(default=[])
 
 class FilterPolicySpec(ObjectSpec):
-
-    def __init__(self,
-                 cluster_filter: ClusterFilter = None,
-                 labels_selector: Dict[str, str] = {}):
-        super().__init__()
-        if cluster_filter is None:
-            cluster_filter = ClusterFilter()
-        self.cluster_filter = cluster_filter
-        # Name, object_type, and labels are options.
-        # TODO(mluo): Make this into a class.
-        self.labels_selector = labels_selector
-
-    def __iter__(self):
-        yield from {
-            'clusterFilter': dict(self.cluster_filter),
-            'labelsSelector': self.labels_selector,
-        }.items()
-
-    @staticmethod
-    def from_dict(config: dict):
-        cluster_filter = config.pop('clusterFilter', dict(ClusterFilter()))
-        selector = config.pop('labelsSelector', {})
-        assert not config, f'Config contains extra fields, {config}.'
-        return FilterPolicySpec(cluster_filter=cluster_filter,
-                                labels_selector=selector)
+    cluster_filter: ClusterFilter = Field(default=ClusterFilter(), validate_default=True)
+    labels_selector: Dict[str, str] = Field(default={}, validate_default=True)
 
 
 class FilterPolicy(Object):
-
-    def __init__(self, meta: dict = {}, spec: dict = {}, status: dict = {}):
-        super().__init__(meta, spec, status)
-        self.meta = FilterPolicyMeta.from_dict(meta)
-        self.spec = FilterPolicySpec.from_dict(spec)
-        self.status = FilterPolicyStatus.from_dict(status)
-
-    @staticmethod
-    def from_dict(config: dict):
-        assert config[
-            'kind'] == 'FilterPolicy', 'Not a FilterPolicy object: {}'.format(
-                config)
-
-        meta = config.pop('metadata', {})
-        spec = config.pop('spec', {})
-        status = config.pop('status', {})
-
-        obj = FilterPolicy(meta=meta, spec=spec, status=status)
-        return obj
-
-    def __iter__(self):
-        yield from {
-            'kind': 'FilterPolicy',
-            'metadata': dict(self.meta),
-            'spec': dict(self.spec),
-            'status': dict(self.status),
-        }.items()
+    metadata: FilterPolicyMeta = Field(default=FilterPolicyMeta(), validate_default=True)
+    spec: FilterPolicySpec = Field(default=FilterPolicySpec(), validate_default=True)
+    status: FilterPolicyStatus = Field(default=FilterPolicyStatus(), validate_default=True)
+    
+    def get_namespace(self):
+        return self.metadata.namespace
 
 
 class FilterPolicyList(ObjectList):
+    objects: List[FilterPolicy] = Field(default=[])
 
-    def __iter__(self):
-        list_dict = dict(super().__iter__())
-        list_dict['kind'] = 'FilterPolicyList'
-        yield from list_dict.items()
 
-    @staticmethod
-    def from_dict(config: dict):
-        assert config[
-            'kind'] == 'FilterPolicyList', "Not a FilterPolicyList object: {}".format(
-                config)
-        obj_list = []
-        for obj_dict in config['items']:
-            obj_list.append(FilterPolicy.from_dict(obj_dict))
-        return FilterPolicyList(obj_list)
+if __name__ == '__main__':
+    print(FilterPolicy())
+    print(FilterPolicyList())

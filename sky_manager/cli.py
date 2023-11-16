@@ -4,8 +4,8 @@ import click
 from tabulate import tabulate
 
 from sky_manager.launch_sky_manager import launch_sky_manager
-from sky_manager.api_client import job_api
 from sky_manager.api_client import *
+from sky_manager.templates import Cluster, ClusterList, FilterPolicy, FilterPolicyList, Job, JobList, Namespace, NamespaceList
 
 
 @click.group()
@@ -67,12 +67,8 @@ def create_cluster(name: str, manager: str):
             'manager': manager
         }
     }
-    cluster_api_obj = ClusterAPI()
-    api_response = cluster_api_obj.create(cluster_dictionary)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Created cluster {name}.")
+    api_response = ClusterAPI().create(cluster_dictionary)
+    click.echo(f"Created cluster {name}.")
     return api_response
 
 
@@ -84,16 +80,10 @@ def list_clusters(watch: bool):
     if watch:
         api_response = cluster_api_obj.watch()
         for event in api_response:
-            if 'error' in event:
-                click.echo(event['error'])
-            else:
-                click.echo(event)
+            click.echo(event)
     else:
         api_response = cluster_api_obj.list()
-        if 'error' in api_response:
-            click.echo(api_response['error'])
-        else:
-            print_cluster_table(api_response['items'])
+        print_cluster_table(api_response.objects)
         return api_response
 
 
@@ -103,10 +93,7 @@ def get_cluster(name):
     """Gets cluster."""
     cluster_api_obj = ClusterAPI()
     api_response = cluster_api_obj.get(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        print_cluster_table([api_response])
+    print_cluster_table([api_response])
     return api_response
 
 
@@ -114,12 +101,8 @@ def get_cluster(name):
 @click.argument('name', required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
-    cluster_api_obj = ClusterAPI()
-    api_response = cluster_api_obj.delete(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Deleted cluster {name}.")
+    api_response = ClusterAPI().delete(name)
+    click.echo(f"Deleted cluster {name}.")
     return api_response
 
 
@@ -178,10 +161,7 @@ def create_job(name, namespace, labels, image, resources, run, replicas):
     }
     job_api_obj = JobAPI(namespace=namespace)
     api_response = job_api_obj.create(job_dictionary)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Created job {name}.")
+    click.echo(f"Created job {name}.")
     return api_response
 
 
@@ -197,16 +177,10 @@ def list_jobs(namespace: str, watch: bool):
     if watch:
         api_response = job_api_obj.watch()
         for event in api_response:
-            if 'error' in event:
-                click.echo(event['error'])
-            else:
                 click.echo(event)
     else:
         api_response = job_api_obj.list()
-        if 'error' in api_response:
-            click.echo(api_response['error'])
-        else:
-            print_job_table(api_response['items'])
+        print_job_table(api_response.objects)
         return api_response
 
 
@@ -220,10 +194,7 @@ def get_job(name: str, namespace: str):
     """Fetches a job."""
     job_api_obj = JobAPI(namespace=namespace)
     api_response = job_api_obj.get(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        print_job_table([api_response])
+    print_job_table([api_response])
     return api_response
 
 
@@ -237,10 +208,7 @@ def delete_job(name: str, namespace: str):
     """Deletes a job."""
     job_api_obj = JobAPI()
     api_response = job_api_obj.delete(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Deleted job {name}.")
+    click.echo(f"Deleted job {name}.")
     return api_response
 
 
@@ -261,10 +229,7 @@ def create_namespace(name: str):
     }
     namespace_api_obj = NamespaceAPI()
     api_response = namespace_api_obj.create(namespace_dictionary)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Created namespace {name}.")
+    click.echo(f"Created namespace {name}.")
     return api_response
 
 
@@ -276,16 +241,10 @@ def list_namespaces(watch: bool):
     if watch:
         api_response = namespace_api_obj.watch()
         for event in api_response:
-            if 'error' in event:
-                click.echo(event['error'])
-            else:
-                click.echo(event)
+            click.echo(event)
     else:
         api_response = namespace_api_obj.list()
-        if 'error' in api_response:
-            click.echo(api_response['error'])
-        else:
-            print_namespace_table(api_response['items'])
+        print_namespace_table(api_response.objects)
         return api_response
 
 
@@ -295,10 +254,7 @@ def get_namespace(name: str):
     """Gets cluster."""
     namespace_api_obj = NamespaceAPI()
     api_response = namespace_api_obj.get(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        print_namespace_table([api_response])
+    print_namespace_table([api_response])
     return api_response
 
 
@@ -308,39 +264,8 @@ def delete_namespace(name: str):
     """Removes/detaches a cluster from Sky Manager."""
     namespace_api_obj = NamespaceAPI()
     api_response = namespace_api_obj.delete(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Deleted namespace {name}.")
-    return api_response
-
-
-#==============================================================================
-
-
-# Admin server as CLI
-@cli.command()
-@click.option('--host',
-              default='localhost',
-              show_default=True,
-              help='IP Address of the Sky Manager controller.')
-@click.option(
-    '--api_server_port',
-    default=50051,
-    show_default=True,
-    help=
-    'API Server port for the API server running on the Sky Manager controller.'
-)
-def launch_controller(host: str, api_server_port: int):
-    """Lauches Sky Manager, including the Skylet controller and scheduler controller."""
-    click.echo(
-        f'Launching Sky Manager on {host}, API server on {host}:{api_server_port}.'
-    )
-    launch_sky_manager()
-
-
-#==============================================================================
-
+    click.echo(f"Deleted namespace {name}.")
+    return api_responseå
 
 # FilterPolicy API as CLI
 @create.command(name='filterPolicy')
@@ -388,10 +313,7 @@ def create_filter_policy(name, namespace, labelselector, includecluster,
     }
     api_obj = FilterPolicyAPI(namespace=namespace)
     api_response = api_obj.create(obj_dictionary)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Created filter policy {name}.")
+    click.echo(f"Created filter policy {name}.")
     return api_response
 
 
@@ -407,16 +329,10 @@ def list_filter_policies(namespace: str, watch: bool):
     if watch:
         api_response = api_obj.watch()
         for event in api_response:
-            if 'error' in event:
-                click.echo(event['error'])
-            else:
-                click.echo(event)
+            click.echo(event)
     else:
         api_response = api_obj.list()
-        if 'error' in api_response:
-            click.echo(api_response['error'])
-        else:
-            print_filter_table(api_response['items'])
+        print_filter_table(api_response.objects)
         return api_response
 
 
@@ -430,10 +346,7 @@ def get_filter_policy(name: str, namespace: str):
     """Fetches a job."""
     api_obj = FilterPolicyAPI(namespace=namespace)
     api_response = api_obj.get(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        print_filter_table([api_response])
+    print_filter_table([api_response])
     return api_response
 
 
@@ -447,17 +360,14 @@ def delete_filter_policy(name: str, namespace: str):
     """Deletes a job."""
     api_obj = FilterPolicyAPI(namespace=namespace)
     api_response = api_obj.delete(name)
-    if 'error' in api_response:
-        click.echo(api_response['error'])
-    else:
-        click.echo(f"Deleted filter policy {name}.")
+    click.echo(f"Deleted filter policy {name}.")
     return api_response
 
 
 #==============================================================================
 
 
-def print_cluster_table(cluster_list: List[dict]):
+def print_cluster_table(cluster_list: List[Cluster]):
     field_names = ["Name", "Manager", "Resources", "Status"]
     table_data = []
 
@@ -474,12 +384,12 @@ def print_cluster_table(cluster_list: List[dict]):
         return aggregated_data
 
     for entry in cluster_list:
-        name = entry['metadata']['name']
-        manager_type = entry['spec']['manager']
+        name = entry.get_name()
+        manager_type = entry.spec.manager
 
-        resources = gather_resources(entry['status']['capacity'])
+        resources = gather_resources(entry.status.capacity)
         allocatable_resources = gather_resources(
-            entry['status']['allocatable'])
+            entry.status.allocatable_capacity)
         resources_str = ''
         for key in resources.keys():
             if key not in allocatable_resources:
@@ -489,7 +399,7 @@ def print_cluster_table(cluster_list: List[dict]):
             resources_str += f'{key}: {available_resources}/{resources[key]}\n'
         if not resources_str:
             resources_str = '{}'
-        status = entry['status']['status']
+        status = entry.get_status()
         table_data.append([name, manager_type, resources_str, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
@@ -501,21 +411,21 @@ def print_job_table(job_list: List[dict]):
     table_data = []
 
     for entry in job_list:
-        name = entry['metadata']['name']
-        clusters = entry['status']['clusters']
-        namespace = entry['metadata']['namespace']
-        resources = entry['spec']['resources']
+        name = entry.get_name()
+        clusters = entry.status.clusters
+        namespace = entry.get_namespace()
+        resources = entry.spec.resources
         resources_str = ''
         for key in resources.keys():
             resources_str += f'{key}: {resources[key]}\n'
 
-        status = entry['status']['status']
+        status = entry.get_status()
         if clusters:
             for cluster_name, replica_count in clusters.items():
                 table_data.append(
                     [name, cluster_name, replica_count, resources_str, namespace, status])
         else:
-            table_data.append([name, '', 0, resources_str, namespace, status])
+            table_data.append([name, '', entry.spec.replicas, resources_str, namespace, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f'{table}\r')
@@ -526,8 +436,8 @@ def print_namespace_table(namespace_list: List[dict]):
     table_data = []
 
     for entry in namespace_list:
-        name = entry['metadata']['name']
-        status = entry['status']['status']
+        name = entry.get_name()
+        status = entry.get_status()
         table_data.append([name, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
@@ -541,12 +451,12 @@ def print_filter_table(job_list: List[dict]):
     table_data = []
 
     for entry in job_list:
-        name = entry['metadata']['name']
-        include = entry['spec']['clusterFilter']['include']
-        exclude = entry['spec']['clusterFilter']['exclude']
-        namespace = entry['metadata']['namespace']
-        labels = entry['spec']['labelsSelector']
-        status = entry['status']['status']
+        name = entry.get_name()
+        include = entry.spec.cluster_filter.include
+        exclude = entry.spec.cluster_filter.exclude
+        namespace = entry.get_namespace()
+        labels = entry.spec.labels_selector
+        status = entry.get_status()
         table_data.append([name, include, exclude, labels, namespace, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")

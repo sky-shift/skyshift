@@ -2,43 +2,35 @@ from enum import Enum
 import time
 from typing import Dict, List
 
+from pydantic import Field, field_validator
+
 from sky_manager.templates.object_template import Object, ObjectException, \
     ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
-from sky_manager.templates.resource_template import ResourceEnum
 
 
 class NamespaceEnum(Enum):
     # Namespace is active.
-    READY = "READY"
+    ACTIVE = "ACTIVE"
 
 
 class NamespaceException(ObjectException):
     """Raised when the namespace dict is invalid."""
-
-    def __init__(self, message: str = 'Failed to create namespace.'):
-        super().__init__(message)
+    pass
 
 
 class NamespaceStatus(ObjectStatus):
+    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
+    status: str = Field(default=NamespaceEnum.ACTIVE.value, validate_default=True)
 
-    def __init__(self,
-                 conditions: List[Dict[str, str]] = [],
-                 status: str = NamespaceEnum.READY.value):
+    @field_validator('conditions')
+    @classmethod
+    def verify_conditions(cls, v: List[Dict[str, str]]):
+        conditions = v
         if not conditions:
-            cur_time = time.time()
             conditions = [{
-                'status': NamespaceEnum.READY.value,
-                'createTime': str(cur_time),
-                'updateTime': str(cur_time),
+                'status': NamespaceEnum.ACTIVE.value,
+                'transitionTime': str(time.time()),
             }]
-        if not status:
-            status = NamespaceEnum.READY.value
-        super().__init__(conditions, status)
-
-        self._verify_conditions(self.conditions)
-        self._verify_status(self.curStatus)
-
-    def _verify_conditions(self, conditions: List[Dict[str, str]]):
         if len(conditions) == 0:
             raise NamespaceException(
                 'Namespace status\'s condition field is empty.')
@@ -46,89 +38,46 @@ class NamespaceStatus(ObjectStatus):
             if 'status' not in condition:
                 raise NamespaceException(
                     'Namespace status\'s condition field is missing status.')
+        return conditions
 
-    def _verify_status(self, status: str):
+    @field_validator('status')
+    @classmethod
+    def verify_status(cls, status: str):
         if status is None or status not in NamespaceEnum.__members__:
             raise NamespaceException(f'Invalid namespace status: {status}.')
+        return status
 
     def update_conditions(self, conditions):
-        self._verify_conditions(conditions)
         self.conditions = conditions
 
     def update_status(self, status: str):
-        self._verify_status(status)
-        self.curStatus = status
+        self.status = status
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
-        if previous_status['status'] == status:
-            previous_status['updateTime'] = time.time()
-        else:
+        if previous_status['status'] != status:
             cur_time = time.time()
             self.conditions.append({
                 'status': status,
-                'createTime': str(cur_time),
-                'updateTime': str(cur_time),
+                'transitionTime': str(cur_time),
             })
-            self.curStatus = status
-
-    @staticmethod
-    def from_dict(config: dict):
-        conditions = config.pop('conditions', [])
-        status = config.pop('status', None)
-        assert not config, f'Config contains extra fields, {config}.'
-
-        return NamespaceStatus(conditions=conditions, status=status)
 
 
 class NamespaceMeta(ObjectMeta):
     pass
-
 
 class NamespaceSpec(ObjectSpec):
     pass
 
 
 class Namespace(Object):
-
-    def __init__(self, meta: dict = {}, spec: dict = {}, status: dict = {}):
-        super().__init__(meta, spec, status)
-        self.meta = NamespaceMeta.from_dict(meta)
-        self.spec = NamespaceSpec.from_dict(spec)
-        self.status = NamespaceStatus.from_dict(status)
-
-    @staticmethod
-    def from_dict(config: dict):
-        assert config[
-            'kind'] == 'Namespace', 'Not a namespace object: {}'.format(config)
-
-        meta = config.pop('metadata', {})
-        spec = config.pop('spec', {})
-        status = config.pop('status', {})
-
-        return Namespace(meta=meta, spec=spec, status=status)
-
-    def __iter__(self):
-        yield from {
-            'kind': 'Namespace',
-            'metadata': dict(self.meta),
-            'spec': dict(self.spec),
-            'status': dict(self.status),
-        }.items()
+    metadata: NamespaceMeta = Field(default=NamespaceMeta())
+    spec: NamespaceSpec = Field(default=NamespaceSpec())
+    status: NamespaceStatus = Field(default=NamespaceStatus())
 
 
 class NamespaceList(ObjectList):
+    objects: List[Namespace] = Field(default=[])
 
-    def __iter__(self):
-        list_dict = dict(super().__iter__())
-        list_dict['kind'] = 'NamespaceList'
-        yield from list_dict.items()
 
-    @staticmethod
-    def from_dict(config: dict):
-        assert config[
-            'kind'] == 'NamespaceList', "Not a NamespaceList object: {}".format(
-                config)
-        obj_list = []
-        for obj_dict in config['items']:
-            obj_list.append(Namespace.from_dict(obj_dict))
-        return NamespaceList(obj_list)
+if __name__ == '__main__':
+    print(Namespace())

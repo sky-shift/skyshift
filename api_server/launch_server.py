@@ -7,7 +7,8 @@ from sky_manager.utils.utils import generate_manager_config
 
 API_SERVER_HOST = 'localhost'
 API_SERVER_PORT = 50051
-
+# Faster way to run API server:
+# `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker -b :50051 api_server.api_server:app`
 if __name__ == '__main__':
     # Create the parser
     parser = argparse.ArgumentParser(description="Launch API Service for Sky Manager.")
@@ -21,5 +22,5 @@ if __name__ == '__main__':
                         help="Run the server in dry-run mode (default: False)")
     # Parse the arguments
     args = parser.parse_args()
-    uvicorn.run('sky_manager.api_server.api_server:app', host=args.host, port=args.port, workers=multiprocessing.cpu_count())
+    uvicorn.run('api_server:app', host=args.host, port=args.port, workers=multiprocessing.cpu_count())
     generate_manager_config(args.host, args.port)

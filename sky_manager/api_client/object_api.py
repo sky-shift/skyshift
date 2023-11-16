@@ -1,4 +1,10 @@
 from sky_manager.utils.utils import load_manager_config
+from sky_manager.utils import load_object
+def verify_response(response):
+    if 'detail' in response:
+        raise Exception(response['detail'])
+    return load_object(response)
+
 
 class ObjectAPI(object):
 

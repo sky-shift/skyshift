@@ -1,11 +1,7 @@
 import requests
 
-from sky_manager.api_client import ObjectAPI
-from sky_manager.utils import utils
-
-def _verify_response(response):
-    if 'detail' in response:
-        raise Exception(response['detail'])
+from sky_manager.api_client import ObjectAPI, verify_response
+from sky_manager.utils import watch_events
 
 class ClusterAPI(ObjectAPI):
 
@@ -15,29 +11,29 @@ class ClusterAPI(ObjectAPI):
 
     def create(self, config: dict):
         response = requests.post(self.cluster_url, json=config).json()
-        _verify_response(response)
-        return response
+        obj = verify_response(response)
+        return obj
 
     def update(self, config: dict):
         response = requests.put(self.cluster_url, json=config).json()
-        _verify_response(response)
-        return response
+        obj = verify_response(response)
+        return obj
 
     def list(self):
         response = requests.get(self.cluster_url).json()
-        _verify_response(response)
-        return response
+        obj = verify_response(response)
+        return obj
 
     def get(self, name: str):
         response = requests.get(f'{self.cluster_url}/{name}').json()
-        _verify_response(response)
-        return response
+        obj = verify_response(response)
+        return obj
 
     def delete(self, name: str):
         response = requests.delete(f'{self.cluster_url}/{name}').json()
-        _verify_response(response)
-        return response
+        obj = verify_response(response)
+        return obj
 
     def watch(self):
-        for data in utils.watch_events(f'{self.cluster_url}?watch=true'):
-            yield data
+        for data in watch_events(f'{self.cluster_url}?watch=true'):
+            yield verify_response(data)

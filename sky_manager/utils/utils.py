@@ -9,12 +9,12 @@ from sky_manager.cluster_manager.kubernetes_manager import KubernetesManager
 from sky_manager.templates import Cluster
 
 API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
+OBJECT_TEMPLATES = importlib.import_module('sky_manager.templates')
 
-def generate_object(response: dict):
-    object_templates = importlib.import_module('sky_manager.templates')
+def load_object(response: dict):
     kind = response['kind']
-    object_class = getattr(object_templates, kind)
-    return object_class.from_dict(response)
+    object_class = getattr(OBJECT_TEMPLATES, kind)
+    return object_class(**response)
 
 def watch_events(url: str):
     response = requests.get(url, stream=True)
@@ -25,7 +25,7 @@ def watch_events(url: str):
 
 def setup_cluster_manager(cluster_obj: Cluster):
     cluster_type = cluster_obj.spec.manager
-    cluster_name = cluster_obj.meta.name
+    cluster_name = cluster_obj.get_name()
 
     if cluster_type in ['k8', 'kubernetes']:
         cluster_manager_cls = KubernetesManager
@@ -41,7 +41,7 @@ def setup_cluster_manager(cluster_obj: Cluster):
     # Filter the dictionary keys based on parameter names
     args = {
         k: v
-        for k, v in dict(cluster_obj.meta).items() if k in class_params
+        for k, v in dict(cluster_obj.metadata).items() if k in class_params
     }
     # Create an instance of the class with the extracted arguments.
     return cluster_manager_cls(**args)

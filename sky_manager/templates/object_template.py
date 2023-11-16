@@ -1,4 +1,7 @@
 from typing import Dict, List
+import uuid
+
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 class ObjectException(Exception):
@@ -8,121 +11,62 @@ class ObjectException(Exception):
         super().__init__(self.message)
 
 
-class ObjectStatus:
-
-    def __init__(self,
-                 conditions: List[Dict[str, str]] = [],
-                 status: str = None):
-        self.conditions = conditions
-        self.curStatus = status
+class ObjectStatus(BaseModel):
+    conditions: List[Dict[str, str]] = Field(default=[])
+    status: str = Field(default='INIT')
 
     def update_conditions(self, conditions):
         self.conditions = conditions
 
     def update_status(self, status: str):
-        self.curStatus = status
-
-    @staticmethod
-    def from_dict(config: dict):
-        conditions = config.pop('conditions', [])
-        status = config.pop('status', None)
-        return ObjectStatus(conditions, status)
-
-    def __iter__(self):
-        yield from {
-            'conditions': self.conditions,
-            'status': self.curStatus,
-        }.items()
-
-    def __repr__(self):
-        return str(dict(self))
-
-
-class ObjectMeta:
-
-    def __init__(self,
-                 name: str,
-                 labels: Dict[str, str] = {},
-                 annotations: Dict[str, str] = {}):
-        assert name is not None, "Object name cannot be None."
-        self.name = name
-        self.labels = labels
-        self.annotations = annotations
-
-    @staticmethod
-    def from_dict(config):
-        name = config.pop('name', None)
-        labels = config.pop('labels', {})
-        annotations = config.pop('annotations', {})
-        return ObjectMeta(name, labels, annotations)
-
-    def __iter__(self):
-        yield from {
-            'name': self.name,
-            'labels': self.labels,
-            'annotations': self.annotations,
-        }.items()
-
-    def __repr__(self):
-        return str(dict(self))
-
-
-class ObjectSpec(object):
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def from_dict(config):
-        return ObjectSpec()
-
-    def __iter__(self):
-        yield from {}.items()
-
-    def __repr__(self):
-        return str(dict(self))
-
-
-class Object:
-
-    def __init__(self, meta: dict = {}, spec: dict = {}, status: dict = {}):
-        self.meta = meta
-        self.spec = spec
         self.status = status
 
-    @staticmethod
-    def from_dict(config: dict):
-        meta = config.pop('metadata', {})
-        spec = config.pop('spec', {})
-        status = config.pop('status', {})
-        return Object(meta=meta, spec=spec, status=status)
 
-    def __iter__(self):
-        yield from {
-            'kind': 'Object',
-            'metadata': self.meta,
-            'spec': self.spec,
-            'status': self.status,
-        }.items()
+class ObjectMeta(BaseModel, validate_assignment=True):
+    name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
+    labels: Dict[str, str] = Field(default={})
+    annotations: Dict[str, str] = Field(default={})
 
-    def __repr__(self):
-        return str(dict(self))
+    @field_validator('name')
+    @classmethod
+    def verify_name(cls, v: str) -> str:
+        if not v:
+            raise ValueError('Object name cannot be empty.')
+        return v
 
 
-class ObjectList(object):
+class ObjectSpec(BaseModel):
+    pass
 
-    def __init__(self, objects=List[Object]):
-        self.objects = objects
 
-    def __iter__(self):
-        yield from {
-            'kind': 'ObjectList',
-            'items': [dict(j) for j in self.objects],
-        }.items()
+class Object(BaseModel):
+    kind: str
+    metadata: ObjectMeta = Field(default=ObjectMeta())
+    spec: ObjectSpec = Field(default=ObjectSpec())
+    status: ObjectStatus = Field(default=ObjectStatus())
+    
+    @model_validator(mode='before')
+    def set_kind(cls, values):
+        if isinstance(values, Object):
+            return values
+        values['kind'] = cls.__name__
+        return values
 
-    @staticmethod
-    def from_dict(config):
-        pass
+    def get_status(self):
+        return self.status.status
+    
+    def get_name(self):
+        return self.metadata.name
 
-    def __repr__(self):
-        return str(dict(self))
+
+class ObjectList(BaseModel):
+    kind: str = None
+    objects: List[Object] = Field(default=[])
+
+    @model_validator(mode='before')
+    def set_kind(cls, values):
+        values['kind'] = cls.__name__
+        return values
+    
+    def add_object(self, obj: Object):
+        self.objects.append(obj)

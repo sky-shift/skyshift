@@ -1,11 +1,5 @@
-from multiprocessing import Process
-import json
 import traceback
-import time
 
-from sky_manager.api_server import launch_api_service
-
-from sky_manager import utils
 
 from sky_manager.skylet.skylet import launch_skylet
 from sky_manager.controllers.scheduler_controller import SchedulerController

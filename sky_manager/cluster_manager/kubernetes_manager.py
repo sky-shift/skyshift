@@ -150,7 +150,7 @@ class KubernetesManager(Manager):
         return api_response
 
     def delete_job(self, job: Job) -> None:
-        job_name = job.meta.name
+        job_name = job.get_name()
         self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.namespace,
@@ -173,7 +173,7 @@ class KubernetesManager(Manager):
                                 autoescape=select_autoescape())
         jinja_template = jinja_env.get_template('k8_job.j2')
         jinja_dict = {
-            'name': job.meta.name,
+            'name': job.get_name(),
             'cluster_name': self.cluster_name,
             'image': job.spec.image,
             'run': job.spec.run,

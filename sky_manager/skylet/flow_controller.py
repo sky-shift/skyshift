@@ -40,8 +40,7 @@ class FlowController(Controller):
     def __init__(self, name) -> None:
         super().__init__()
         self.name = name
-        cluster_dict = ClusterAPI().get(name)
-        cluster_obj = Cluster.from_dict(cluster_dict)
+        cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue = Queue()
 
@@ -107,9 +106,9 @@ class FlowController(Controller):
         
         cached_jobs = deepcopy(self.job_informer.get_cache())
         # Handler for Job Events
-        if job_object.meta.name in cached_jobs:
+        if job_object.get_name() in cached_jobs:
             self.logger.info(
-                f'Submitting job \'{job_object.meta.name}\' to cluster \'{self.name}\'.'
+                f'Submitting job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
             )
             try:
                 self.manager_api.submit_job(job_object)
@@ -118,13 +117,13 @@ class FlowController(Controller):
             except:
                 self.logger.error(traceback.format_exc())
                 self.logger.error(
-                    f'Failed to submit job  \'{job_object.meta.name}\' to the cluster  \'{self.name}\'. Marking job as failed.'
+                    f'Failed to submit job  \'{job_object.get_name()}\' to the cluster  \'{self.name}\'. Marking job as failed.'
                 )
                 job_object.status.update_status(
                     JobStatusEnum.FAILED.value)
-                job_object.meta.annotations[
+                job_object.metadata.annotations[
                     self.name] = 'reason:job-submission-failure'
-            JobAPI(namespace=job_object.meta.namespace).update(config=dict(job_object))
+            JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
         else:
             # Delete Event (object is gone from Informer cache).
             self.manager_api.delete_job(job_object)
