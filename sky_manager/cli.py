@@ -412,7 +412,7 @@ def print_job_table(job_list: List[dict]):
 
     for entry in job_list:
         name = entry.get_name()
-        clusters = entry.status.clusters
+        clusters = entry.status.scheduled_clusters
         namespace = entry.get_namespace()
         resources = entry.spec.resources
         resources_str = ''

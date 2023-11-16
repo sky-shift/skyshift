@@ -45,10 +45,12 @@ class JobException(ObjectException):
 
 class JobStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
+    # The top-level status of the job.
     status: str = Field(default=JobStatusEnum.INIT.value, validate_default=True)
     # Maps clusters to # of replicas. Assigned by scheduler.
-    clusters: Dict[str, int] = Field(default={}, validate_default=True)
+    scheduled_clusters: Dict[str, int] = Field(default={}, validate_default=True)
     # Maps clusters to status of replicas.
+    replica_status: Dict[str, List[str]] = Field(default={}, validate_default=True)
     # Job-IDs for each set of replicas per cluster.
     job_ids: Dict[str, str] = Field(default={}, validate_default=True)
 
@@ -80,7 +82,7 @@ class JobStatus(ObjectStatus):
         self.conditions = conditions
 
     def update_clusters(self, clusters: str):
-        self.clusters = clusters
+        self.scheduled_clusters = clusters
 
     def update_status(self, status: str):
         self.status = status

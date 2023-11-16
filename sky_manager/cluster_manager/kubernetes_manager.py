@@ -3,7 +3,7 @@ from enum import Enum
 import logging
 import re
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from kubernetes import client, config
@@ -135,7 +135,7 @@ class KubernetesManager(Manager):
                                 'nvidia.com/gpu', 0))
         return available_resources
 
-    def submit_job(self, job: Job) -> None:
+    def submit_job(self, job: Job, job_name: str  = None) -> None:
         """
         Submit a YAML which contains the Kubernetes Job declaration using the
         batch api.
@@ -143,14 +143,17 @@ class KubernetesManager(Manager):
         Args:
             job: Job object containing the YAML file.
         """
+        if job_name is None:
+            job_name = job.get_name()
         # Parse the YAML file into a dictionary
-        job_dict = self.convert_yaml(job)
+        job_dict = self._convert_yaml(job, job_name)
         api_response = self.batch_v1.create_namespaced_job(
             namespace=self.namespace, body=job_dict)
         return api_response
 
-    def delete_job(self, job: Job) -> None:
-        job_name = job.get_name()
+    def delete_job(self, job: Job, job_name: str = None) -> None:
+        if job_name is None:
+            job_name = job.get_name()
         self.batch_v1.delete_namespaced_job(
             name=job_name,
             namespace=self.namespace,
@@ -159,7 +162,7 @@ class KubernetesManager(Manager):
                 grace_period_seconds=5  # Adjust as needed
             ))
 
-    def convert_yaml(self, job: Job):
+    def _convert_yaml(self, job: Job, job_name: str = None):
         """
         Serves as a compatibility layer to generate a Kubernetes-compatible
         YAML file from a job object.
@@ -173,19 +176,21 @@ class KubernetesManager(Manager):
                                 autoescape=select_autoescape())
         jinja_template = jinja_env.get_template('k8_job.j2')
         jinja_dict = {
-            'name': job.get_name(),
+            'k8_name': job_name,
+            'job_name': job.get_name(),
             'cluster_name': self.cluster_name,
             'image': job.spec.image,
             'run': job.spec.run,
             'cpu': job.spec.resources.get('cpu', 0),
             'gpu': job.spec.resources.get('gpu', 0),
-            'replicas': job.status.clusters[self.cluster_name],
+            'replicas': job.status.scheduled_clusters[self.cluster_name],
+            
         }
         kubernetes_job = jinja_template.render(jinja_dict)
         kubernetes_job = yaml.safe_load(kubernetes_job)
         return kubernetes_job
 
-    def get_jobs_status(self):
+    def get_jobs_status(self) -> Dict[str, Tuple[str, str]]:
         """ Gets the jobs state. (Map from job name to status) """
         # Filter jobs that that are submitted by Sky Manager.
         jobs = self.batch_v1.list_namespaced_job(
@@ -194,10 +199,29 @@ class KubernetesManager(Manager):
 
         jobs_dict = {}
         for job in jobs:
-            job_name = job.metadata.name
+            sky_job_name = job.metadata.labels['job_id']
             job_status = self._process_job_status(job)
-            jobs_dict[job_name] = job_status
+            jobs_dict[sky_job_name] = job_status
+            #pod_statuses = self._process_pod_status(job)
+            #jobs_dict[job_name] = pod_statuses
         return jobs_dict
+
+    def _process_pod_status(self, job: models.v1_job.V1Job):
+        job_name =  job.metadata.name
+        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector = f'job-name={job_name}')
+        pod_statuses = []
+        for pod in pods.items:
+            pod_status = pod.status.phase
+            if pod_status == 'Pending':
+                pod_statuses.append(JobStatusEnum.PENDING.value)
+            elif pod_status == 'Running':
+                pod_statuses.append(JobStatusEnum.RUNNING.value)
+            elif pod_status == 'Succeeded':
+                pod_statuses.append(JobStatusEnum.COMPLETED.value)
+            elif pod_statuses == 'Failed' or pod_status == 'Unknown':
+                pod_statuses.append(JobStatusEnum.FAILED.value)
+        return pod_statuses
+
 
     def _process_job_status(self,
                             job: models.v1_job.V1Job) -> Dict[str, JobStatus]:

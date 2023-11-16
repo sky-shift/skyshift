@@ -5,6 +5,7 @@ import logging
 import requests
 import traceback
 import time
+import uuid
 
 from sky_manager.structs import Informer
 from sky_manager.controllers import Controller
@@ -60,12 +61,12 @@ class FlowController(Controller):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
-            if self.name in event_object.status.clusters and event_object.get_status() == JobStatusEnum.SCHEDULED:
+            if self.name in event_object.status.scheduled_clusters and event_object.get_status() == JobStatusEnum.SCHEDULED:
                 self.worker_queue.put(event)
 
         def delete_callback_fn(event):
             event_object = event.object
-            if self.name in event_object.status.clusters:
+            if self.name in event_object.status.scheduled_clusters:
                 self.worker_queue.put(event)
 
         # Filtered add events and delete events are added to the worker queue.
@@ -114,9 +115,8 @@ class FlowController(Controller):
                     f'Submitting job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
                 )
                 try:
-                    self.manager_api.submit_job(job_object)
-                    job_object.status.update_status(
-                        JobStatusEnum.PENDING.value)
+                    self._submit_job(job_object)
+                    job_object.status.update_status(JobStatusEnum.PENDING.value)
                     self.logger.info(
                     f'Successfully submitted job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
                     )
@@ -130,10 +130,10 @@ class FlowController(Controller):
                 JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
             elif event_key == WatchEventEnum.DELETE:
                 # Delete Event (object is gone from Informer cache).
-                self.manager_api.delete_job(job_object)
+                self._delete_job(job_object)
             else:
                 self.logger.error(
-                    f'Invalid event type `{event_type}` for job {job_object.get_name()}.')
+                    f'Invalid event type `{event_key}` for job {job_object.get_name()}.')
         elif isinstance(event_object, FilterPolicy):
             # Handle when FilterPolicy changes.
             assert event_key in [WatchEventEnum.ADD, WatchEventEnum.UPDATE]
@@ -144,7 +144,7 @@ class FlowController(Controller):
             allowed_clusters = [f for f in include if f not in exclude]
             for c_job in cached_jobs.values():
                 # Filter for jobs that are assigned to this cluster and match the filter labels.
-                if self.name not in c_job.status.clusters:
+                if self.name not in c_job.status.scheduled_clusters:
                     continue
                 if not match_labels(c_job.metadata.labels, filter_labels):
                     continue
@@ -152,10 +152,28 @@ class FlowController(Controller):
                     # Evict the job from the cluster (also delete it from the cluster).
                     c_job.status.update_status(
                             JobStatusEnum.EVICTED.value)
-                    self.manager_api.delete_job(c_job)
+                    self._delete_job(c_job)
                     JobAPI(namespace=c_job.get_namespace()).update(config=c_job.model_dump(mode='json'))
+    
+    def _submit_job(self, job: Job):
+        job_status = job.status
+        name = job.get_name()
+        if self.name not in job_status.job_ids:
+            # To ensure no collision with prior jobs on the cluster.
+            job_status.job_ids[self.name] = name + '-' + uuid.uuid4().hex[:5]
+        self.manager_api.submit_job(job, job_name= job_status.job_ids[self.name])
+        
+    
+    def _delete_job(self, job: Job):
+        job_status =  job.status
+        del job_status.scheduled_clusters[self.name]
+        #del job_status.replica_status[self.name]
+        manager_job_name = job_status.job_ids[self.name]
+        del job_status.job_ids[self.name]
+        self.manager_api.delete_job(job, job_name=manager_job_name)
 
-
+    def _update_job(self, job: Job):
+        pass
 
 if __name__ == '__main__':
     cluster_api = ClusterAPI()

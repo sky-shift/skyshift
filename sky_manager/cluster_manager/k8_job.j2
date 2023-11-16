@@ -1,10 +1,11 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{name}}
+  name: {{k8_name}}
   labels: 
     manager: sky_manager
     cluster: {{cluster_name}}
+    job_id: {{job_name}}
 spec:
   parallelism: {{replicas}}
   completions: {{replicas}}
