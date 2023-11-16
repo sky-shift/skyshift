@@ -46,7 +46,11 @@ class JobException(ObjectException):
 class JobStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     status: str = Field(default=JobStatusEnum.INIT.value, validate_default=True)
+    # Maps clusters to # of replicas. Assigned by scheduler.
     clusters: Dict[str, int] = Field(default={}, validate_default=True)
+    # Maps clusters to status of replicas.
+    # Job-IDs for each set of replicas per cluster.
+    job_ids: Dict[str, str] = Field(default={}, validate_default=True)
 
     @field_validator('conditions')
     @classmethod

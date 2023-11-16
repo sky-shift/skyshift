@@ -23,6 +23,16 @@ def watch_events(url: str):
             data = json.loads(line.decode('utf-8'))
             yield data
 
+
+def match_labels(labels: dict, labels_selector: dict):
+    """Returns True if the labels match the label selector."""
+    if not labels_selector:
+        return True
+    for k, v in labels_selector.items():
+        if k not in labels or labels[k] != v:
+            return False
+    return True
+
 def setup_cluster_manager(cluster_obj: Cluster):
     cluster_type = cluster_obj.spec.manager
     cluster_name = cluster_obj.get_name()

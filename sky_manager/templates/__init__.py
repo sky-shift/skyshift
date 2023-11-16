@@ -6,7 +6,7 @@ from sky_manager.templates.object_template import Object, ObjectList, ObjectStat
     ObjectMeta, ObjectSpec, ObjectException
 from sky_manager.templates.filter_policy import FilterPolicyException, FilterPolicyList, FilterPolicy
 from sky_manager.templates.resource_template import ResourceEnum
-from sky_manager.templates.event_template import WatchEvent
+from sky_manager.templates.event_template import WatchEvent, WatchEventEnum
 
 __all__ = [
     'Cluster',
@@ -34,4 +34,5 @@ __all__ = [
     'ObjectSpec',
     'ObjectStatus',
     'WatchEvent',
+    'WatchEventEnum',
 ]
