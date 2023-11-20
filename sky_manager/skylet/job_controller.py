@@ -90,26 +90,21 @@ class JobController(Controller):
                 k: v.get_status()
                 for k, v in informer_object.items()
             }
-            for job_name, new_job_status in self.job_status.items():
+            for job_name, fetched_status in self.job_status.items():
                 # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
                 if job_name not in prev_status:
-                    temp_job = Job()
-                    temp_job.metadata.name = job_name
-                    temp_job.status.update_clusters({self.name:1})
+                    # temp_job = Job()
+                    # temp_job.metadata.name = job_name
+                    # temp_job.status.update_clusters({self.name:1})
                     continue
                 else:
-                    temp_job = informer_object[job_name]            
-                    # If the job is already completed, we do not need to update the status.
-                    if new_job_status.status == JobStatusEnum.COMPLETED.value and prev_status[
-                            job_name] == new_job_status.status:
-                        # Save API calls.
-                        continue
-
-                temp_job.status.update_status(new_job_status.status)
+                    cached_job = informer_object[job_name]            
+                # Update the status of all replicas
+                cached_job.status.replica_status[self.name] = fetched_status
                 if job_name in prev_status:
-                    JobAPI(namespace=temp_job.get_namespace()).update(config=temp_job.model_dump(mode='json'))
+                    JobAPI(namespace=cached_job.get_namespace()).update(config=cached_job.model_dump(mode='json'))
                 else:
-                    JobAPI(namespace=temp_job.get_namespace()).create(config=temp_job.model_dump(mode='json'))
+                    JobAPI(namespace=cached_job.get_namespace()).create(config=cached_job.model_dump(mode='json'))
 
 # Testing purposes.
 if __name__ == '__main__':

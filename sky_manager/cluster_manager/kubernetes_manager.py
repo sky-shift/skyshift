@@ -1,5 +1,4 @@
-import copy
-from enum import Enum
+from collections import Counter
 import logging
 import re
 import os
@@ -177,7 +176,7 @@ class KubernetesManager(Manager):
         jinja_template = jinja_env.get_template('k8_job.j2')
         jinja_dict = {
             'k8_name': job_name,
-            'job_name': job.get_name(),
+            'job_id': job.get_name(),
             'cluster_name': self.cluster_name,
             'image': job.spec.image,
             'run': job.spec.run,
@@ -188,6 +187,7 @@ class KubernetesManager(Manager):
         }
         kubernetes_job = jinja_template.render(jinja_dict)
         kubernetes_job = yaml.safe_load(kubernetes_job)
+        print(kubernetes_job)
         return kubernetes_job
 
     def get_jobs_status(self) -> Dict[str, Tuple[str, str]]:
@@ -200,10 +200,10 @@ class KubernetesManager(Manager):
         jobs_dict = {}
         for job in jobs:
             sky_job_name = job.metadata.labels['job_id']
-            job_status = self._process_job_status(job)
-            jobs_dict[sky_job_name] = job_status
-            #pod_statuses = self._process_pod_status(job)
-            #jobs_dict[job_name] = pod_statuses
+            #job_status = self._process_job_status(job)
+            #jobs_dict[sky_job_name] = job_status
+            pod_statuses = self._process_pod_status(job)
+            jobs_dict[sky_job_name] = dict(Counter(pod_statuses))
         return jobs_dict
 
     def _process_pod_status(self, job: models.v1_job.V1Job):

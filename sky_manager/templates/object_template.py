@@ -26,6 +26,8 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
     labels: Dict[str, str] = Field(default={})
     annotations: Dict[str, str] = Field(default={})
+    # ETCD resource version for an object.
+    resource_version: int = Field(default=-1)
 
     @field_validator('name')
     @classmethod

@@ -61,7 +61,7 @@ class FlowController(Controller):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
-            if self.name in event_object.status.scheduled_clusters and event_object.get_status() == JobStatusEnum.SCHEDULED:
+            if self.name in event_object.status.scheduled_clusters and event_object.get_status() == JobStatusEnum.SCHEDULED and self.name not in event_object.status.replica_status:
                 self.worker_queue.put(event)
 
         def delete_callback_fn(event):
@@ -114,9 +114,15 @@ class FlowController(Controller):
                 self.logger.info(
                     f'Submitting job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
                 )
+
+                job_object.status.replica_status[self.name] = {JobStatusEnum.PENDING.value: job_object.spec.replicas}
+                job_name = job_object.get_name()
+                if self.name not in job_object.status.job_ids:
+                    # To ensure no collision with prior jobs on the cluster.
+                    job_object.status.job_ids[self.name] = job_name + '-' + uuid.uuid4().hex[:5]
+                JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
                 try:
                     self._submit_job(job_object)
-                    job_object.status.update_status(JobStatusEnum.PENDING.value)
                     self.logger.info(
                     f'Successfully submitted job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
                     )
@@ -125,12 +131,13 @@ class FlowController(Controller):
                     self.logger.error(
                         f'Failed to submit job  \'{job_object.get_name()}\' to the cluster  \'{self.name}\'. Marking job as failed.'
                     )
-                    job_object.status.update_status(
-                        JobStatusEnum.FAILED.value)
-                JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
+                    job_object.status.replica_status[self.name] = {JobStatusEnum.FAILED.value: job_object.spec.replicas}
+                    JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
             elif event_key == WatchEventEnum.DELETE:
                 # Delete Event (object is gone from Informer cache).
-                self._delete_job(job_object)
+                if job_object.get_name() not in cached_jobs:
+                    # If the job is not in the cache, it has already been deleted.
+                    self._delete_job(job_object)
             else:
                 self.logger.error(
                     f'Invalid event type `{event_key}` for job {job_object.get_name()}.')
@@ -150,24 +157,18 @@ class FlowController(Controller):
                     continue
                 if self.name not in allowed_clusters:
                     # Evict the job from the cluster (also delete it from the cluster).
-                    c_job.status.update_status(
-                            JobStatusEnum.EVICTED.value)
                     self._delete_job(c_job)
+                    c_job.status.replica_status[self.name] = {JobStatusEnum.EVICTED.value: job_object.spec.replicas}
                     JobAPI(namespace=c_job.get_namespace()).update(config=c_job.model_dump(mode='json'))
     
     def _submit_job(self, job: Job):
-        job_status = job.status
-        name = job.get_name()
-        if self.name not in job_status.job_ids:
-            # To ensure no collision with prior jobs on the cluster.
-            job_status.job_ids[self.name] = name + '-' + uuid.uuid4().hex[:5]
-        self.manager_api.submit_job(job, job_name= job_status.job_ids[self.name])
+        self.manager_api.submit_job(job, job_name= job.status.job_ids[self.name])
         
     
     def _delete_job(self, job: Job):
         job_status =  job.status
         del job_status.scheduled_clusters[self.name]
-        #del job_status.replica_status[self.name]
+        del job_status.replica_status[self.name]
         manager_job_name = job_status.job_ids[self.name]
         del job_status.job_ids[self.name]
         self.manager_api.delete_job(job, job_name=manager_job_name)
@@ -190,37 +191,3 @@ if __name__ == '__main__':
     )
     jc = FlowController('mluo-onprem')
     jc.start()
-
-
-# Handler for changes in Policy
-# if not event_object and event_object['kind'] == 'FilterPolicy':
-#     fp_namespace = event_object['metadata']['namespace']
-#     fp_labels = event_object['spec']['labelsSelector']
-#     fp_include = event_object['spec']['clusterFilter'][
-#         'include']
-#     fp_exclude = event_object['spec']['clusterFilter'][
-#         'exclude']
-#     for job_dict in cached_jobs.values():
-#         if job_dict['status']['cluster'] != self.cluster_name:
-#             continue
-#         job_labels = job_dict['metadata']['labels']
-#         is_subset = all(k in job_labels and job_labels[k] == v
-#                         for k, v in fp_labels.items())
-#         if is_subset and job_dict['status']['status'] in [
-#                 'PENDING', 'RUNNING'
-#         ] and fp_namespace == job_dict['metadata'][
-#                 'namespace'] and job_dict['status'][
-#                     'cluster'] not in fp_include and job_dict[
-#                         'status']['cluster'] in fp_exclude:
-#             job_object = Job.from_dict(job_dict)
-#             job_object.status.update_status(
-#                 JobStatusEnum.INIT.value)
-#             job_object.meta.annotations[
-#                 self.
-#                 cluster_name] = 'reason:filter-policy-change'
-#             job_object.status.update_cluster(None)
-#             job_api_object.Update(
-#                 config=dict(job_object),
-#                 namespace=job_object.meta.namespace)
-#     self.worker_queue.task_done()
-#     continue

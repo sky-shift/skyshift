@@ -14,10 +14,12 @@ Typical usage example:
     # Returns [('a', 'b'), ('a/c', 'd')]
     >> test_client.read_prefix('a')
 """
+import json
 import traceback
 from typing import List, Tuple
 
 from etcd3.client import Etcd3Client
+from etcd3.exceptions import RevisionCompactedError
 
 from sky_manager.etcd_client.monkey_patch import delete_prefix
 from sky_manager.templates.event_template import WatchEventEnum
@@ -33,6 +35,30 @@ def remove_prefix(input_string: str, prefix: str = DEFAULT_CLIENT_NAME):
         input_string = input_string[len(prefix):]  # Remove the prefix
     return input_string
 
+def convert_to_json(etcd_value: bytes) -> dict:
+    etcd_value =  json.loads(etcd_value.decode('utf-8'))
+    if isinstance(etcd_value, str):
+        etcd_value = json.loads(etcd_value)
+    return etcd_value
+
+def get_resource_version(etcd_value: dict,) -> dict:
+    if 'metadata' not in etcd_value:
+        return None
+    return etcd_value['metadata'].get('resource_version', None)
+
+def update_resource_version(etcd_value: dict, resource_version: int) -> dict:
+    if 'metadata' not in etcd_value:
+        etcd_value['metadata'] = {}
+    etcd_value['metadata']['resource_version'] = resource_version
+    return etcd_value
+
+class ConflictError(Exception):
+    def __init__(self, msg: str, resource_version: int = None):
+        self.msg = msg
+        self.resource_version = resource_version
+        super().__init__(self.msg)
+    pass
+
 
 class ETCDClient(object):
     """ETCD client for Sky Manager, managed by the API server."""
@@ -42,7 +68,7 @@ class ETCDClient(object):
         self.port = port
         self.etcd_client = Etcd3Client(port=port)
 
-    def write(self, key: str, value: str):
+    def write(self, key: str, value: dict):
         """
         Write a key-value pairs to the etcd store.
 
@@ -55,12 +81,46 @@ class ETCDClient(object):
         """
         if self.log_name not in key:
             key = f'{self.log_name}{key}'
-        # with self.etcd_client.lock(key):
         try:
-            self.etcd_client.put(key, str(value))
+            self.etcd_client.put(key, json.dumps(value))
         except Exception as e:
             print(traceback.format_exc())
             raise e
+    
+    def update(self, key: str, value: dict, resource_version: int = None):
+        """
+        Update a key-value pair in the etcd store.
+
+        Args:
+            key (str): The key to update.
+            value (str): The value to update the key with.
+        """
+        if not resource_version:
+            resource_version = get_resource_version(value)
+        if self.log_name not in key:
+            key = f'{self.log_name}{key}'
+        try:
+            if not resource_version:
+                # Override the prior value, this is ok.
+                self.etcd_client.put(key, json.dumps(value))
+                success = True
+            else:
+                success, _ = self.etcd_client.transaction(
+                    compare = [
+                        self.etcd_client.transactions.mod(key) == resource_version
+                    ],
+                    success = [
+                        self.etcd_client.transactions.put(key, json.dumps(value))                
+                    ],
+                    failure = [ 
+                    ]
+                )
+        except Exception as e:
+            print(traceback.format_exc())
+            raise e
+        
+        if not success:
+            raise ConflictError(msg=f"Failed to update key `{key}` - resource version {resource_version} is outdated.", resource_version=resource_version,)
 
     def read_prefix(self, key: str):
         """
@@ -75,9 +135,10 @@ class ETCDClient(object):
         read_list = []
         # If there are multiple descends from key.
         for kv_tuple in kv_gen:
-            value = kv_tuple[0].decode('utf-8')
-            key_name = remove_prefix(kv_tuple[1].key.decode('utf-8'))
-            read_list.append((key_name, value))
+            etcd_value = convert_to_json(kv_tuple[0])
+            version_id = kv_tuple[1].mod_revision
+            etcd_value = update_resource_version(etcd_value, version_id)
+            read_list.append(etcd_value)
         return read_list
 
     def read(self, key: str):
@@ -92,9 +153,12 @@ class ETCDClient(object):
         kv_tuple = self.etcd_client.get(key)
         if kv_tuple[0] is None:
             return None
-        key_name = remove_prefix(kv_tuple[1].key.decode('utf-8'))
-        value = kv_tuple[0].decode('utf-8')
-        return (key_name, value)
+        # Returns a json dictionary.
+        etcd_value = convert_to_json(kv_tuple[0])
+        version_id = kv_tuple[1].mod_revision
+        # Adds resourve_version to the metadata.
+        etcd_value = update_resource_version(etcd_value, version_id)
+        return etcd_value
 
     def delete(self, key: str):
         """
@@ -106,15 +170,13 @@ class ETCDClient(object):
         """
         if self.log_name not in key:
             key = f'{self.log_name}{key}'
-        # with self.etcd_client.lock(key):
         etcd_response = self.etcd_client.delete(key, prev_kv=True, return_response=True)
         if etcd_response.deleted:
             assert len(etcd_response.prev_kvs) == 1
             kv = etcd_response.prev_kvs[0]
-            return (
-                remove_prefix(kv.key.decode('utf-8')),
-                kv.value.decode('utf-8'),
-            )
+            etcd_value = convert_to_json(kv.value)
+            etcd_value = update_resource_version(etcd_value, kv.mod_revision)
+            return etcd_value
         return None
 
     def delete_prefix(self, key: str) -> List[Tuple[str, str]]:
@@ -127,12 +189,14 @@ class ETCDClient(object):
         if self.log_name not in key:
             key = f'{self.log_name}{key}'
         etcd_response =  self.etcd_client.delete_prefix(key, prev_kv=True)
-        if etcd_response.deleted == 0:
-            return None
-        return [(
-                    remove_prefix(kv.key.decode('utf-8')),
-                    kv.value.decode('utf-8'),
-                ) for kv in etcd_response.prev_kvs]
+        if etcd_response.deleted:
+            delete_list = []
+            for kv in etcd_response.prev_kvs:
+                etcd_value = convert_to_json(kv.value)
+                etcd_value = update_resource_version(etcd_value, kv.mod_revision)
+                delete_list.append(etcd_value)
+            return delete_list
+        return None
 
     def delete_all(self) -> List[Tuple[str, str]]:
         """
@@ -167,14 +231,24 @@ class ETCDClient(object):
                      event_type = WatchEventEnum.UPDATE
                 else:
                     raise ValueError(f'Invalid version: {version}')
-                key = grpc_event.kv.key.decode('utf-8')
-                value = grpc_event.kv.value.decode('utf-8')
+                kv = grpc_event.kv
             elif grpc_event.type == 1:
                 # DELETE event
                 event_type = WatchEventEnum.DELETE
-                key = grpc_event.prev_kv.key.decode('utf-8')
-                value = grpc_event.prev_kv.value.decode('utf-8')
+                kv = grpc_event.prev_kv
             else:
                 raise ValueError(f'Unknown event type: {event.type}')
-            key = remove_prefix(key)
-            yield (event_type, key, value)
+            etcd_value = convert_to_json(kv.value)
+            etcd_value = update_resource_version(etcd_value, kv.mod_revision)
+            yield (event_type, etcd_value)
+
+if __name__ == '__main__':
+    etcd_client = ETCDClient()
+    new_value = {"b": 3}
+    etcd_client.write("a", {"a":2})
+    original_value = etcd_client.read("a")
+    print(original_value)
+    etcd_client.update("a", new_value)
+    etcd_client.update("a", new_value, resource_version = 1)
+    new_value = etcd_client.read("a")
+    print(new_value)

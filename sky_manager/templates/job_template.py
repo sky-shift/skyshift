@@ -1,3 +1,4 @@
+from collections import Counter
 import enum
 import time
 from typing import Any, Dict, List
@@ -19,11 +20,16 @@ DEFAULT_NAMESPACE = 'default'
 
 class JobStatusEnum(enum.Enum):
     INIT = 'INIT'
-    # When job has been scheduled to a cluster.
+    # When job has been scheduled to a set of clusters.
     SCHEDULED = 'SCHEDULED'
-    # When job has been binded to cluster but not scheduled on cluster node yet.
+
+    # When job is active over a set of clusters.
+    ACTIVE = 'ACTIVE'
+    
+    # When job has been binded to cluster but not running on cluster yet.
+    # Note that some replicas may be RUNNING while some replicas are PENDING.
     PENDING = 'PENDING'
-    # Includes both setup (such as containercreate/pull) and running.
+    # All job replicas are running.
     RUNNING = 'RUNNING'
     # If job has completed.
     COMPLETED = 'COMPLETED'
@@ -39,6 +45,7 @@ class JobStatusEnum(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+
 class JobException(ObjectException):
     """Raised when the job template is invalid."""
     pass
@@ -50,7 +57,7 @@ class JobStatus(ObjectStatus):
     # Maps clusters to # of replicas. Assigned by scheduler.
     scheduled_clusters: Dict[str, int] = Field(default={}, validate_default=True)
     # Maps clusters to status of replicas.
-    replica_status: Dict[str, List[str]] = Field(default={}, validate_default=True)
+    replica_status: Dict[str, Dict[str, int]] = Field(default={}, validate_default=True)
     # Job-IDs for each set of replicas per cluster.
     job_ids: Dict[str, str] = Field(default={}, validate_default=True)
 
@@ -96,6 +103,7 @@ class JobStatus(ObjectStatus):
             })
 
 
+
 class JobMeta(ObjectMeta):
     namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
 
@@ -137,6 +145,9 @@ class Job(Object):
     
     def get_namespace(self):
         return self.metadata.namespace
+    
+    def get_status(self):
+        return self.status.status
 
 
 class JobList(ObjectList):

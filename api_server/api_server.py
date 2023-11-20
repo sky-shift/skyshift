@@ -39,7 +39,7 @@ def launch_api_service(dry_run=True):
                 "r"))
         api_server.etcd_client.write(
             f'filterpolicies/{DEFAULT_NAMESPACE}/filter-policy-0',
-            json.dumps(filter_policy_dict))
+            filter_policy_dict)
         job_dict = yaml.safe_load(
             open(
                 '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml',
@@ -49,16 +49,15 @@ def launch_api_service(dry_run=True):
                             metadata=ClusterMeta(name=f'cluster-{i}'),
                             spec=ClusterSpec(manager='kubernetes'),
                         ).model_dump(mode='json')
-            json_str = json.dumps(json_dict)
             api_server.etcd_client.write(
                 f'clusters/cluster-{i}',
-                json_str)
+                json_dict)
             api_server.etcd_client.write(
                 f'clusters/cluster-{i}',
-                json_str),
+                json_dict),
             job_dict['metadata']['name'] = f'job-{i}'
             api_server.etcd_client.write(f'jobs/{DEFAULT_NAMESPACE}/job-{i}',
-                                         json.dumps(job_dict))
+                                         job_dict)
     return api_server
 
 
@@ -104,11 +103,11 @@ class APIServer(object):
                 link_header = object_type
 
             list_response = self.etcd_client.read_prefix(link_header)
-            for obj_key, _ in list_response:
-                temp_name = obj_key.split('/')[-1]
+            for obj_dict in list_response:
+                temp_name = obj_dict['metadata']['name']
                 if object_name == temp_name:
                     raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' already exists.")
-            self.etcd_client.write(f'{link_header}/{object_name}', object.json())
+            self.etcd_client.write(f'{link_header}/{object_name}', object.model_dump(mode='json'))
             return object
         return _create_object
 
@@ -133,8 +132,7 @@ class APIServer(object):
         if watch:
             return self._watch_key(link_header)
         read_response = self.etcd_client.read_prefix(link_header)
-        for _, read_value in read_response:
-            object_dict = json.loads(read_value)
+        for object_dict in read_response:
             object_list.append(object_class(**object_dict))
         obj_list_cls = eval(object_class.__name__ + 'List')(objects=object_list)
         return obj_list_cls
@@ -159,15 +157,14 @@ class APIServer(object):
 
         if watch:
             return self._watch_key(f'{link_header}/{object_name}')
-        etcd_response = self.etcd_client.read(f'{link_header}/{object_name}')
-        if etcd_response is None:
+        obj_dict = self.etcd_client.read(f'{link_header}/{object_name}')
+        if obj_dict is None:
             raise HTTPException(status_code=404, detail=f"Object \'{link_header}/{object_name}\' not found.") 
-        obj_dict = json.loads(etcd_response[1])
         obj = object_class(**obj_dict)
         return obj
 
-    def update_object(self, object_type: str):
-        async def _update_object(request: Request, namespace: str = DEFAULT_NAMESPACE):        
+    def update_object(self, object_type: str,):
+        async def _update_object(request: Request, namespace: str = DEFAULT_NAMESPACE, resource_version: int = Query(None)):        
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == 'application/json':
@@ -194,10 +191,13 @@ class APIServer(object):
                 link_header = object_type
 
             list_response = self.etcd_client.read_prefix(link_header)
-            for obj_key, _ in list_response:
-                temp_name = obj_key.split('/')[-1]
+            for obj_dict in list_response:
+                temp_name =  obj_dict['metadata']['name']
                 if object_name == temp_name:
-                    self.etcd_client.write(f'{link_header}/{object_name}', object.json())
+                    try:
+                        self.etcd_client.update(f'{link_header}/{object_name}', object.model_dump(mode='json'))
+                    except Exception as e:
+                        raise HTTPException(status_code=409, detail=f"Conflict Error: Object \'{link_header}/{object_name}\' is out of date.")
                     return object
             raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' does not exist.")
         return _update_object
@@ -211,9 +211,8 @@ class APIServer(object):
             link_header = f'{object_type}/{namespace}'
         else:
             link_header = f'{object_type}'
-        etcd_response = self.etcd_client.delete(f'{link_header}/{object_name}')
-        if etcd_response:
-            obj_dict = json.loads(etcd_response[1])
+        obj_dict = self.etcd_client.delete(f'{link_header}/{object_name}')
+        if obj_dict:
             return obj_dict
         raise HTTPException(status_code=400, detail=f"Object \'{link_header}/{object_name}\' does not exist.")
 
@@ -222,8 +221,7 @@ class APIServer(object):
         def generate_events():
             try:
                 for event in events_iterator:
-                    event_type, _, event_value = event   
-                    event_value = json.loads(event_value)
+                    event_type, event_value = event
                     event_value = load_object(event_value)
                     # Check and validate event type.
                     watch_event = WatchEvent(event_type = event_type.value, object = event_value)

@@ -58,7 +58,7 @@ class SchedulerController(Controller):
             event_object = event.object
             event_status = event_object.get_status()
             # Filter for new jobs and evicted jobs.
-            if event_status == JobStatusEnum.EVICTED:
+            if JobStatusEnum.EVICTED.value in event_object.status.replica_status:
                 self.event_queue.put(event)
 
         self.job_informer = Informer(JobAPI(namespace=None))
@@ -143,7 +143,8 @@ class SchedulerController(Controller):
         for cluster_name, cluster_obj in ranked_clusters:
             cluster_replicas = 0
             alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
-            for node_name, node_resource in alloc_capacity.items():
+            # Predict how many replicas can fit onto each node for each cluster.
+            for _, node_resource in alloc_capacity.items():
                 node_cpus = node_resource.get('cpu', 0)
                 node_gpus = node_resource.get('gpu', 0)
                 node_memory = node_resource.get('memory', 0)
@@ -161,7 +162,6 @@ class SchedulerController(Controller):
             job_clusters[cluster_name] = cluster_replicas
             if total_cluster_replicas == job_replicas:
                 break
-        
         # Can't schedule job. Default place all replicas in top cluster. (Bad).
         if total_cluster_replicas < job_replicas:
             return {ranked_clusters[0][0]: job_replicas}

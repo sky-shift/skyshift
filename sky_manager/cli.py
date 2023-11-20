@@ -5,7 +5,7 @@ from tabulate import tabulate
 
 from sky_manager.launch_sky_manager import launch_sky_manager
 from sky_manager.api_client import *
-from sky_manager.templates import Cluster, ClusterList, FilterPolicy, FilterPolicyList, Job, JobList, Namespace, NamespaceList
+from sky_manager.templates import Cluster, ClusterList, FilterPolicy, FilterPolicyList, Job, JobList, JobStatusEnum, Namespace, NamespaceList
 
 
 @click.group()
@@ -422,10 +422,34 @@ def print_job_table(job_list: List[dict]):
         status = entry.get_status()
         if clusters:
             for cluster_name, replica_count in clusters.items():
+                active_count = 0
+                cluster_replica_status = entry.status.replica_status[cluster_name]
+                if JobStatusEnum.RUNNING.value in cluster_replica_status:
+                    active_count += cluster_replica_status[JobStatusEnum.RUNNING.value]
+                
+                if JobStatusEnum.COMPLETED.value in cluster_replica_status:
+                    active_count += cluster_replica_status[JobStatusEnum.COMPLETED.value]
+                
+                if active_count == 0:
+                    if JobStatusEnum.FAILED.value in cluster_replica_status:
+                        status = JobStatusEnum.FAILED.value
+                    elif JobStatusEnum.EVICTED.value in cluster_replica_status:
+                        status = JobStatusEnum.EVICTED.value
+                    else:
+                        status = JobStatusEnum.PENDING.value
+                elif active_count != replica_count:
+                    status = JobStatusEnum.RUNNING.value
+                else:
+                    is_single_specific_key = len(cluster_replica_status) == 1 and JobStatusEnum.COMPLETED.value in cluster_replica_status
+                    if is_single_specific_key:
+                        status = JobStatusEnum.COMPLETED.value
+                    else:
+                        status = JobStatusEnum.RUNNING.value
+
                 table_data.append(
-                    [name, cluster_name, replica_count, resources_str, namespace, status])
+                    [name, cluster_name, f'{active_count}/{replica_count}', resources_str, namespace, status])
         else:
-            table_data.append([name, '', entry.spec.replicas, resources_str, namespace, status])
+            table_data.append([name, '', f'0/{entry.spec.replicas}', resources_str, namespace, status])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f'{table}\r')
