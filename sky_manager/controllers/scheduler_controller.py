@@ -9,15 +9,27 @@ import logging
 import queue
 import requests
 import traceback
+from typing import Dict
 
 from sky_manager.controllers import Controller
 from sky_manager.structs import Informer
 from sky_manager.api_client import *
-from sky_manager.templates import Job, JobStatusEnum
+from sky_manager.templates import Job, JobStatusEnum, TaskStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+
+def aggregate_job_status(replica_status: Dict[str, Dict[str, int]]):
+    """Merges the status of replicas across clusters."""
+    merged_status = {}
+    for status in replica_status.values():
+        for task_status, count in status.items():
+            if task_status not in merged_status:
+                merged_status[task_status] = 0
+            merged_status[task_status] += count
+    return merged_status
+
 
 @contextmanager
 def SchedulerErrorHandler(controller: Controller):
@@ -49,16 +61,16 @@ class SchedulerController(Controller):
     def post_init_hook(self):
         def add_job_callback_fn(event):
             event_object = event.object
-            event_status = event_object.get_status()
-            # Filter for new jobs and evicted jobs.
-            if event_status == JobStatusEnum.INIT:
+            event_status = event_object.status
+            # Filter for newly created jobs (jobs without replica status field).
+            if not event_status.replica_status:
                 self.event_queue.put(event)
         
         def update_job_callback_fn(event):
             event_object = event.object
-            event_status = event_object.get_status()
-            # Filter for new jobs and evicted jobs.
-            if JobStatusEnum.EVICTED.value in event_object.status.replica_status:
+            replica_status = event_object.status.replica_status
+            # Filter for evicted tasks in a job.
+            if TaskStatusEnum.EVICTED.value in aggregate_job_status(replica_status):
                 self.event_queue.put(event)
 
         self.job_informer = Informer(JobAPI(namespace=None))
@@ -110,12 +122,12 @@ class SchedulerController(Controller):
             filtered_clusters = self.filter_clusters(job, clusters)
             # Rank clusters by their approximate availability.
             ranked_clusters = self.rank_clusters(job, filtered_clusters)
-            if clusters:
-                # Fetch the top scoring cluster.
-                spread_replicas = self.compute_replicas_spread(job, ranked_clusters)
-                job.status.update_clusters(spread_replicas)
-                job.status.update_status(JobStatusEnum.SCHEDULED.value)
-                JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
+            # Compute replica spread across clusters. Default policy is best-fit bin-packing.
+            # Place as many replicas on the fullest clusters.
+            spread_replicas = self.compute_replicas_spread(job, ranked_clusters)
+            if spread_replicas:
+                job.status.update_replica_status({c_name : {TaskStatusEnum.INIT.value: replicas} for c_name, replicas in spread_replicas.items()})
+                job.status.update_status(JobStatusEnum.ACTIVE.value)
                 idx_list.append(job_idx)
                 self.logger.info(
                     f'Sending job {job.get_name()} to clusters {spread_replicas}.'
@@ -124,6 +136,9 @@ class SchedulerController(Controller):
                 self.logger.info(
                     f'Unable to schedule job {job.get_name()}. Marking it as failed.'
                 )
+                idx_list.append(job_idx)
+                job.status.update_status(JobStatusEnum.FAILED.value)
+            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
             break
 
         for job_idx in reversed(idx_list):
@@ -162,9 +177,9 @@ class SchedulerController(Controller):
             job_clusters[cluster_name] = cluster_replicas
             if total_cluster_replicas == job_replicas:
                 break
-        # Can't schedule job. Default place all replicas in top cluster. (Bad).
+        # Can't schedule job. Returns a null dict.
         if total_cluster_replicas < job_replicas:
-            return {ranked_clusters[0][0]: job_replicas}
+            return {}
         return job_clusters
 
 

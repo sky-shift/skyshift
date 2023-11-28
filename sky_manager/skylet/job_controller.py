@@ -86,13 +86,10 @@ class JobController(Controller):
 
             # Copy Informer cache to get the jobs stored in API server.
             informer_object = deepcopy(self.informer.get_cache())
-            prev_status = {
-                k: v.get_status()
-                for k, v in informer_object.items()
-            }
+            prev_jobs = list(informer_object.keys())
             for job_name, fetched_status in self.job_status.items():
                 # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
-                if job_name not in prev_status:
+                if job_name not in prev_jobs:
                     # temp_job = Job()
                     # temp_job.metadata.name = job_name
                     # temp_job.status.update_clusters({self.name:1})
@@ -101,7 +98,7 @@ class JobController(Controller):
                     cached_job = informer_object[job_name]            
                 # Update the status of all replicas
                 cached_job.status.replica_status[self.name] = fetched_status
-                if job_name in prev_status:
+                if job_name in prev_jobs:
                     JobAPI(namespace=cached_job.get_namespace()).update(config=cached_job.model_dump(mode='json'))
                 else:
                     JobAPI(namespace=cached_job.get_namespace()).create(config=cached_job.model_dump(mode='json'))

@@ -5,7 +5,7 @@ from tabulate import tabulate
 
 from sky_manager.launch_sky_manager import launch_sky_manager
 from sky_manager.api_client import *
-from sky_manager.templates import Cluster, ClusterList, FilterPolicy, FilterPolicyList, Job, JobList, JobStatusEnum, Namespace, NamespaceList
+from sky_manager.templates import Cluster, JobStatusEnum, TaskStatusEnum
 
 
 @click.group()
@@ -412,39 +412,39 @@ def print_job_table(job_list: List[dict]):
 
     for entry in job_list:
         name = entry.get_name()
-        clusters = entry.status.scheduled_clusters
+        clusters = entry.status.replica_status
         namespace = entry.get_namespace()
         resources = entry.spec.resources
         resources_str = ''
         for key in resources.keys():
             resources_str += f'{key}: {resources[key]}\n'
 
-        status = entry.get_status()
+        status = entry.status.conditions[-1]['type']
         if clusters:
-            for cluster_name, replica_count in clusters.items():
+            for cluster_name, cluster_replica_status in clusters.items():
+                replica_count = sum(cluster_replica_status.values())
                 active_count = 0
-                cluster_replica_status = entry.status.replica_status[cluster_name]
-                if JobStatusEnum.RUNNING.value in cluster_replica_status:
-                    active_count += cluster_replica_status[JobStatusEnum.RUNNING.value]
+                if TaskStatusEnum.RUNNING.value in cluster_replica_status:
+                    active_count += cluster_replica_status[TaskStatusEnum.RUNNING.value]
                 
-                if JobStatusEnum.COMPLETED.value in cluster_replica_status:
-                    active_count += cluster_replica_status[JobStatusEnum.COMPLETED.value]
+                if TaskStatusEnum.COMPLETED.value in cluster_replica_status:
+                    active_count += cluster_replica_status[TaskStatusEnum.COMPLETED.value]
                 
                 if active_count == 0:
-                    if JobStatusEnum.FAILED.value in cluster_replica_status:
-                        status = JobStatusEnum.FAILED.value
-                    elif JobStatusEnum.EVICTED.value in cluster_replica_status:
-                        status = JobStatusEnum.EVICTED.value
+                    if TaskStatusEnum.FAILED.value in cluster_replica_status:
+                        status = TaskStatusEnum.FAILED.value
+                    elif TaskStatusEnum.EVICTED.value in cluster_replica_status:
+                        status = TaskStatusEnum.EVICTED.value
                     else:
-                        status = JobStatusEnum.PENDING.value
+                        status = TaskStatusEnum.PENDING.value
                 elif active_count != replica_count:
-                    status = JobStatusEnum.RUNNING.value
+                    status = TaskStatusEnum.RUNNING.value
                 else:
-                    is_single_specific_key = len(cluster_replica_status) == 1 and JobStatusEnum.COMPLETED.value in cluster_replica_status
+                    is_single_specific_key = len(cluster_replica_status) == 1 and TaskStatusEnum.COMPLETED.value in cluster_replica_status
                     if is_single_specific_key:
-                        status = JobStatusEnum.COMPLETED.value
+                        status = TaskStatusEnum.COMPLETED.value
                     else:
-                        status = JobStatusEnum.RUNNING.value
+                        status = TaskStatusEnum.RUNNING.value
 
                 table_data.append(
                     [name, cluster_name, f'{active_count}/{replica_count}', resources_str, namespace, status])

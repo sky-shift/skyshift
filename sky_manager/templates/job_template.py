@@ -1,6 +1,6 @@
 from collections import Counter
+import datetime
 import enum
-import time
 from typing import Any, Dict, List
 
 from pydantic import Field, field_validator
@@ -19,25 +19,36 @@ DEFAULT_NAMESPACE = 'default'
 
 
 class JobStatusEnum(enum.Enum):
+    """Represents the aggregate status of a job."""
+    # When job is first created.
     INIT = 'INIT'
-    # When job has been scheduled to a set of clusters.
-    SCHEDULED = 'SCHEDULED'
-
-    # When job is active over a set of clusters.
+    # When job is currently running.
     ACTIVE = 'ACTIVE'
-    
-    # When job has been binded to cluster but not running on cluster yet.
-    # Note that some replicas may be RUNNING while some replicas are PENDING.
-    PENDING = 'PENDING'
-    # All job replicas are running.
-    RUNNING = 'RUNNING'
-    # If job has completed.
-    COMPLETED = 'COMPLETED'
-    # If job has failed execution on a cluster.
+    # When job is complete.
+    COMPLETE = 'COMPLETE'
+    # When a job has failed.
     FAILED = 'FAILED'
-    # If a job has been evicted from the cluster (by the JobExecutionController).
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
+class TaskStatusEnum(enum.Enum):
+    """A job consists of many tasks. This enum represents the status of a task."""
+    # When a task is first created.
+    INIT = 'INIT'
+    # When a task is pending (not yet scheduled to a cluster).
+    PENDING = 'PENDING'
+    # When a task is running.
+    RUNNING = 'RUNNING'
+    # When a task has completed.
+    COMPLETED = 'COMPLETED'
+    # When a task has failed execution on the cluster.
+    FAILED = 'FAILED'
+    # When a task has been evicted from the cluster (either by cluster manager or Flowcontroller).
     EVICTED = 'EVICTED'
-    # If has job is in a deletion phase.
+    # When a task is in a deletion phase.
     DELETED = 'DELETED'
 
     def __eq__(self, other):
@@ -52,10 +63,6 @@ class JobException(ObjectException):
 
 class JobStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
-    # The top-level status of the job.
-    status: str = Field(default=JobStatusEnum.INIT.value, validate_default=True)
-    # Maps clusters to # of replicas. Assigned by scheduler.
-    scheduled_clusters: Dict[str, int] = Field(default={}, validate_default=True)
     # Maps clusters to status of replicas.
     replica_status: Dict[str, Dict[str, int]] = Field(default={}, validate_default=True)
     # Job-IDs for each set of replicas per cluster.
@@ -65,43 +72,37 @@ class JobStatus(ObjectStatus):
     @classmethod
     def verify_conditions(cls, conditions: List[Dict[str, str]]):
         if not conditions:
+            time_str = datetime.datetime.utcnow().isoformat()
             conditions = [{
-                'status': JobStatusEnum.INIT.value,
-                'transitionTime': str(time.time()),
+                'type': JobStatusEnum.INIT.value,
+                'transition_time': datetime.datetime.utcnow().isoformat(),
+                'update_time': time_str,
             }]
         if len(conditions) == 0:
             raise JobException('Job status\'s condition field is empty.')
         for condition in conditions:
-            if 'status' not in condition:
+            if 'type' not in condition:
                 raise JobException(
                     'Job status\'s condition field is missing status.')
         return conditions
-
-
-    @field_validator('status')
-    @classmethod
-    def verify_status(cls, status: str):
-        if status is None or status not in JobStatusEnum.__members__:
-            raise JobException(f'Invalid job status: {status}.')
-        return status
-
-    def update_conditions(self, conditions):
-        self.conditions = conditions
-
-    def update_clusters(self, clusters: str):
-        self.scheduled_clusters = clusters
+    
+    def update_replica_status(self, replica_status: Dict[str, Dict[str, int]]):
+        self.replica_status = replica_status
 
     def update_status(self, status: str):
-        self.status = status
+        if status is None or status not in JobStatusEnum.__members__:
+            raise JobException(f'Invalid job status: {status}.')
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
-        if previous_status['status'] != status:
-            cur_time = time.time()
+        if previous_status['type'] != status:
+            time_str = datetime.datetime.utcnow().isoformat()
             self.conditions.append({
-                'status': status,
-                'transitionTime': str(cur_time),
+                'type': status,
+                'transition_time': time_str,
+                'update_time': time_str,
             })
-
+        else:
+            previous_status['update_time'] = datetime.datetime.utcnow().isoformat()
 
 
 class JobMeta(ObjectMeta):
@@ -145,9 +146,6 @@ class Job(Object):
     
     def get_namespace(self):
         return self.metadata.namespace
-    
-    def get_status(self):
-        return self.status.status
 
 
 class JobList(ObjectList):

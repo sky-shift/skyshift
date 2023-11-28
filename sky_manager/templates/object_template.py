@@ -13,13 +13,9 @@ class ObjectException(Exception):
 
 class ObjectStatus(BaseModel):
     conditions: List[Dict[str, str]] = Field(default=[])
-    status: str = Field(default='INIT')
 
     def update_conditions(self, conditions):
         self.conditions = conditions
-
-    def update_status(self, status: str):
-        self.status = status
 
 
 class ObjectMeta(BaseModel, validate_assignment=True):

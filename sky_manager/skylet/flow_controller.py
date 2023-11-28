@@ -10,7 +10,7 @@ import uuid
 from sky_manager.structs import Informer
 from sky_manager.controllers import Controller
 from sky_manager.utils.utils import setup_cluster_manager
-from sky_manager.templates import FilterPolicy, Job, JobStatusEnum, WatchEventEnum
+from sky_manager.templates import FilterPolicy, Job, JobStatusEnum, WatchEventEnum, TaskStatusEnum
 from sky_manager.api_client import *
 from sky_manager.utils import match_labels
 
@@ -61,12 +61,14 @@ class FlowController(Controller):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
-            if self.name in event_object.status.scheduled_clusters and event_object.get_status() == JobStatusEnum.SCHEDULED and self.name not in event_object.status.replica_status:
-                self.worker_queue.put(event)
+            if self.name in event_object.status.replica_status:
+                cluster_replica_status = event_object.status.replica_status[self.name]
+                if TaskStatusEnum.INIT.value in cluster_replica_status:
+                    self.worker_queue.put(event)
 
         def delete_callback_fn(event):
             event_object = event.object
-            if self.name in event_object.status.scheduled_clusters:
+            if self.name in event_object.status.replica_status:
                 self.worker_queue.put(event)
 
         # Filtered add events and delete events are added to the worker queue.
@@ -115,7 +117,7 @@ class FlowController(Controller):
                     f'Submitting job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
                 )
 
-                job_object.status.replica_status[self.name] = {JobStatusEnum.PENDING.value: job_object.spec.replicas}
+                job_object.status.replica_status[self.name] = {TaskStatusEnum.PENDING.value: job_object.status.replica_status[self.name][TaskStatusEnum.INIT.value]}
                 job_name = job_object.get_name()
                 if self.name not in job_object.status.job_ids:
                     # To ensure no collision with prior jobs on the cluster.
@@ -131,7 +133,7 @@ class FlowController(Controller):
                     self.logger.error(
                         f'Failed to submit job  \'{job_object.get_name()}\' to the cluster  \'{self.name}\'. Marking job as failed.'
                     )
-                    job_object.status.replica_status[self.name] = {JobStatusEnum.FAILED.value: job_object.spec.replicas}
+                    job_object.status.replica_status[self.name] = {TaskStatusEnum.FAILED.value: job_object.spec.replicas}
                     JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
             elif event_key == WatchEventEnum.DELETE:
                 # Delete Event (object is gone from Informer cache).
@@ -158,7 +160,7 @@ class FlowController(Controller):
                 if self.name not in allowed_clusters:
                     # Evict the job from the cluster (also delete it from the cluster).
                     self._delete_job(c_job)
-                    c_job.status.replica_status[self.name] = {JobStatusEnum.EVICTED.value: job_object.spec.replicas}
+                    c_job.status.replica_status[self.name] = {TaskStatusEnum.EVICTED.value: job_object.spec.replicas}
                     JobAPI(namespace=c_job.get_namespace()).update(config=c_job.model_dump(mode='json'))
     
     def _submit_job(self, job: Job):
@@ -167,7 +169,6 @@ class FlowController(Controller):
     
     def _delete_job(self, job: Job):
         job_status =  job.status
-        del job_status.scheduled_clusters[self.name]
         del job_status.replica_status[self.name]
         manager_job_name = job_status.job_ids[self.name]
         del job_status.job_ids[self.name]

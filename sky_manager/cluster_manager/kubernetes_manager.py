@@ -10,7 +10,7 @@ from kubernetes.client import models
 import yaml
 
 from sky_manager.cluster_manager import Manager
-from sky_manager.templates.job_template import Job, JobStatus, JobStatusEnum
+from sky_manager.templates.job_template import Job, JobStatus, TaskStatusEnum
 
 client.rest.logger.setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -182,7 +182,7 @@ class KubernetesManager(Manager):
             'run': job.spec.run,
             'cpu': job.spec.resources.get('cpu', 0),
             'gpu': job.spec.resources.get('gpu', 0),
-            'replicas': job.status.scheduled_clusters[self.cluster_name],
+            'replicas': sum(job.status.replica_status[self.cluster_name].values()),
             
         }
         kubernetes_job = jinja_template.render(jinja_dict)
@@ -200,8 +200,6 @@ class KubernetesManager(Manager):
         jobs_dict = {}
         for job in jobs:
             sky_job_name = job.metadata.labels['job_id']
-            #job_status = self._process_job_status(job)
-            #jobs_dict[sky_job_name] = job_status
             pod_statuses = self._process_pod_status(job)
             jobs_dict[sky_job_name] = dict(Counter(pod_statuses))
         return jobs_dict
@@ -213,35 +211,14 @@ class KubernetesManager(Manager):
         for pod in pods.items:
             pod_status = pod.status.phase
             if pod_status == 'Pending':
-                pod_statuses.append(JobStatusEnum.PENDING.value)
+                pod_statuses.append(TaskStatusEnum.PENDING.value)
             elif pod_status == 'Running':
-                pod_statuses.append(JobStatusEnum.RUNNING.value)
+                pod_statuses.append(TaskStatusEnum.RUNNING.value)
             elif pod_status == 'Succeeded':
-                pod_statuses.append(JobStatusEnum.COMPLETED.value)
+                pod_statuses.append(TaskStatusEnum.COMPLETED.value)
             elif pod_statuses == 'Failed' or pod_status == 'Unknown':
-                pod_statuses.append(JobStatusEnum.FAILED.value)
+                pod_statuses.append(TaskStatusEnum.FAILED.value)
         return pod_statuses
-
-
-    def _process_job_status(self,
-                            job: models.v1_job.V1Job) -> Dict[str, JobStatus]:
-        active_pods = job.status.active or 0
-        succeeded_pods = job.status.succeeded or 0
-        failed_pods = job.status.failed or 0
-        # Update job status
-        if active_pods == 0 and succeeded_pods == 0:
-            # When no pods have been scheduled.
-            job_status = JobStatusEnum.PENDING.value
-        elif succeeded_pods == job.spec.completions:
-            job_status = JobStatusEnum.COMPLETED.value
-        elif failed_pods >= job.spec.backoff_limit:
-            job_status = JobStatusEnum.FAILED.value
-        else:
-            job_status = JobStatusEnum.RUNNING.value
-        return JobStatus(
-            status=job_status,
-            clusters = {},
-        )
 
 
 if __name__ == '__main__':
