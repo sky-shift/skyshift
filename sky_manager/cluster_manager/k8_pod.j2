@@ -19,11 +19,19 @@ spec:
       env:
         - name: POD_RANK
           value: "{{pod_rank}}"
+        {% if env_vars is none %}
+        # No environment variables
+        {% else %}
+        {% for key, value in env_vars.items() %}
+        - name: {{ key }}
+          value: "{{ value }}"
+        {% endfor %}
+        {% endif %}
       command:
         - "/bin/sh"
         - "-c"
       args:
-        - |          
+        - |         
           {{run}}
       resources:
         limits:

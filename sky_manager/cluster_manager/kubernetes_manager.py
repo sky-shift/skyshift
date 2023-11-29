@@ -201,6 +201,7 @@ class KubernetesManager(Manager):
                 'restart_policy': 'Never',
                 'image': job.spec.image,
                 'pod_rank': f"{rank_id}",
+                'env_vars': job.spec.envs,
                 'port': '80',
                 'run': job.spec.run,
                 'cpu': job.spec.resources.get('cpu', 0),
@@ -240,10 +241,3 @@ class KubernetesManager(Manager):
         elif pod_status == 'Failed' or pod_status == 'Unknown':
             status = TaskStatusEnum.FAILED.value
         return status
-
-
-if __name__ == '__main__':
-    cur_job_state = KubernetesManager('mluo-onprem')
-    lol = yaml.safe_load(
-        open(
-            '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml'))

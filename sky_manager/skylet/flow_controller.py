@@ -112,7 +112,6 @@ class FlowController(Controller):
             if event_key == WatchEventEnum.UPDATE:
                 job_name = job_object.get_name()
                 try:
-                    print(job_object)
                     self._submit_job(job_object)
                     self.logger.info(
                     f'Successfully submitted job \'{job_name}\' to cluster \'{self.name}\'.'
