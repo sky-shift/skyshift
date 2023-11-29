@@ -119,7 +119,17 @@ class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
     resources: Dict[str, Any] = Field(default=DEFAULT_JOB_RESOURCES, validate_default=True)
     run: str = Field(default="", validate_default=True)
+    envs: Dict[str, str] = Field(default={}, validate_default=True)
+    ports: List[int] = Field(default=[], validate_default=True)
     replicas: int = Field(default=1, validate_default=True)
+
+    @field_validator('ports')
+    @classmethod
+    def verify_ports(cls, ports: List[int]) -> List[int]:
+        for port in ports:
+            if port <= 0 or port > 65535:
+                raise ValueError(f'Invalid port: {port}.')
+        return ports
 
     @field_validator('replicas')
     @classmethod

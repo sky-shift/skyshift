@@ -14,8 +14,12 @@ spec:
       volumeMounts: 
         - name: scratch-space
           mountPath: /scratch
+      {% if ports %}
       ports:
-        - containerPort: {{port}}
+      {% for port in ports %}
+      - containerPort: {{port}}
+      {% endfor %}
+      {% endif %}
       env:
         - name: POD_RANK
           value: "{{pod_rank}}"
