@@ -18,8 +18,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
-CONTROLLER_RATE_LIMIT = 0.2
-
 @contextmanager
 def FlowErrorHandler(controller: Controller):
     """Handles different types of errors from the Skylet Controller."""
@@ -62,8 +60,8 @@ class FlowController(Controller):
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
             if self.name in event_object.status.replica_status:
-                cluster_replica_status = event_object.status.replica_status[self.name]
-                if TaskStatusEnum.INIT.value in cluster_replica_status:
+                job_ids = event_object.status.job_ids
+                if self.name not in job_ids:
                     self.worker_queue.put(event)
 
         def delete_callback_fn(event):
@@ -98,7 +96,6 @@ class FlowController(Controller):
         while True:
             with FlowErrorHandler(self):
                 self.controller_loop()
-            time.sleep(CONTROLLER_RATE_LIMIT)
 
     def controller_loop(self):
         # Poll for jobs and execute/kill them depending on the job status.
@@ -113,33 +110,23 @@ class FlowController(Controller):
             # Handler for Job Events
             job_object = event_object
             if event_key == WatchEventEnum.UPDATE:
-                self.logger.info(
-                    f'Submitting job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
-                )
-
-                job_object.status.replica_status[self.name] = {TaskStatusEnum.PENDING.value: job_object.status.replica_status[self.name][TaskStatusEnum.INIT.value]}
                 job_name = job_object.get_name()
-                if self.name not in job_object.status.job_ids:
-                    # To ensure no collision with prior jobs on the cluster.
-                    job_object.status.job_ids[self.name] = job_name + '-' + uuid.uuid4().hex[:5]
-                JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
                 try:
+                    print(job_object)
                     self._submit_job(job_object)
                     self.logger.info(
-                    f'Successfully submitted job \'{job_object.get_name()}\' to cluster \'{self.name}\'.'
+                    f'Successfully submitted job \'{job_name}\' to cluster \'{self.name}\'.'
                     )
                 except:
                     self.logger.error(traceback.format_exc())
                     self.logger.error(
-                        f'Failed to submit job  \'{job_object.get_name()}\' to the cluster  \'{self.name}\'. Marking job as failed.'
+                        f'Failed to submit job  \'{job_name}\' to the cluster  \'{self.name}\'. Marking job as failed.'
                     )
-                    job_object.status.replica_status[self.name] = {TaskStatusEnum.FAILED.value: job_object.spec.replicas}
-                    JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
+                    job_object.status.replica_status[self.name] = {TaskStatusEnum.FAILED.value: sum(job_object.status.replica_status[self.name].values())}
+                JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
             elif event_key == WatchEventEnum.DELETE:
-                # Delete Event (object is gone from Informer cache).
-                if job_object.get_name() not in cached_jobs:
-                    # If the job is not in the cache, it has already been deleted.
-                    self._delete_job(job_object)
+                # If the job is not in the cache, it has already been deleted.
+                self._delete_job(job_object)
             else:
                 self.logger.error(
                     f'Invalid event type `{event_key}` for job {job_object.get_name()}.')
@@ -160,22 +147,19 @@ class FlowController(Controller):
                 if self.name not in allowed_clusters:
                     # Evict the job from the cluster (also delete it from the cluster).
                     self._delete_job(c_job)
-                    c_job.status.replica_status[self.name] = {TaskStatusEnum.EVICTED.value: job_object.spec.replicas}
+                    c_job.status.replica_status[self.name] = {TaskStatusEnum.EVICTED.value: sum(job_object.status.replica_status[self.name].values())}
                     JobAPI(namespace=c_job.get_namespace()).update(config=c_job.model_dump(mode='json'))
     
     def _submit_job(self, job: Job):
-        self.manager_api.submit_job(job, job_name= job.status.job_ids[self.name])
+        manager_response = self.manager_api.submit_job(job)
+        job.status.job_ids[self.name] = manager_response['manager_job_id']
         
     
     def _delete_job(self, job: Job):
         job_status =  job.status
         del job_status.replica_status[self.name]
-        manager_job_name = job_status.job_ids[self.name]
         del job_status.job_ids[self.name]
-        self.manager_api.delete_job(job, job_name=manager_job_name)
-
-    def _update_job(self, job: Job):
-        pass
+        self.manager_api.delete_job(job)
 
 if __name__ == '__main__':
     cluster_api = ClusterAPI()

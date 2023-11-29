@@ -3,6 +3,7 @@ import logging
 import re
 import os
 from typing import Any, Dict, List, Tuple
+import uuid
 
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from kubernetes import client, config
@@ -51,13 +52,9 @@ class KubernetesManager(Manager):
             raise K8ConnectionError(
                 f"Could not connect to Kubernetes cluster {self.cluster_name}."
             )
-
-        # If Kubeneretes context is identifies, create Kubernetes client.
+        # If Kubeneretes context is identified, create Kubernetes client.
         self.core_v1 = client.CoreV1Api()
-        self.batch_v1 = client.BatchV1Api()
-
         self._cluster_state = {}
-        self._job_state = {}
 
     @property
     def cluster_resources(self):
@@ -104,6 +101,7 @@ class KubernetesManager(Manager):
                 'memory': node_memory,
                 'gpu': node_gpu
             }
+
         pods, _, _ = self.core_v1.list_pod_for_all_namespaces_with_http_info(
             limit=limit, _continue=continue_token)
         pods = pods.items
@@ -134,91 +132,114 @@ class KubernetesManager(Manager):
                                 'nvidia.com/gpu', 0))
         return available_resources
 
-    def submit_job(self, job: Job, job_name: str  = None) -> None:
+    def submit_job(self, job: Job) -> None:
         """
-        Submit a YAML which contains the Kubernetes Job declaration using the
-        batch api.
+        Submit a job to the cluster, represented as a group of pods.
+
+        This method is idempotent. If the job has already been submitted, it does nothing.
 
         Args:
             job: Job object containing the YAML file.
         """
-        if job_name is None:
-            job_name = job.get_name()
-        # Parse the YAML file into a dictionary
-        job_dict = self._convert_yaml(job, job_name)
-        api_response = self.batch_v1.create_namespaced_job(
-            namespace=self.namespace, body=job_dict)
-        return api_response
+        # List all the pods in the namespace with the given label.
+        job_name = job.get_name()
+        
+        # Check if the job has already been submitted.
+        label_selector = f'manager=sky_manager,sky_job_id={job_name}'
+        matching_pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector)
+        if matching_pods.items:
+            # Job has already been submitted.
+            rank_0_pod = matching_pods.items[0]
+            k8_job_name = rank_0_pod.metadata.name
+            last_hyphen_idx = k8_job_name.rfind('-')
+            if last_hyphen_idx != -1:
+                k8_job_name = k8_job_name[:last_hyphen_idx]
+            return {
+                'manager_job_id': k8_job_name
+            }
+        # Unique job name to prevent job name collisions.
+        k8_job_name = f'{job_name}-{uuid.uuid4().hex[:8]}'
+        pod_dicts = self._convert_to_pod_yaml(job, k8_job_name)
+        api_responses = []
+        for pod_dict in pod_dicts:
+            api_responses.append(self.core_v1.create_namespaced_pod(
+                namespace=self.namespace, body=pod_dict))
+        return {
+            'manager_job_id': k8_job_name,
+            'api_responses': api_responses,
+        }
 
-    def delete_job(self, job: Job, job_name: str = None) -> None:
-        if job_name is None:
-            job_name = job.get_name()
-        self.batch_v1.delete_namespaced_job(
-            name=job_name,
-            namespace=self.namespace,
-            body=client.V1DeleteOptions(
-                propagation_policy="Foreground",
-                grace_period_seconds=5  # Adjust as needed
-            ))
+    def delete_job(self, job: Job) -> None:
+        # List all the pods in the namespace with the given label
+        label_selector = f'manager=sky_manager,sky_job_id={job.get_name()}'
+        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector)
+     
+        # Loop through the found pods and delete them
+        for pod in pods.items:
+            self.core_v1.delete_namespaced_pod(name=pod.metadata.name, namespace=self.namespace)
 
-    def _convert_yaml(self, job: Job, job_name: str = None):
+    def _convert_to_pod_yaml(self, job: Job, job_name: str = None):
         """
-        Serves as a compatibility layer to generate a Kubernetes-compatible
-        YAML file from a job object.
+        Serves as a compatibility layer to generate Pod yamls from
+        Sky Manager's job specifciations.
 
         Args:
             job: Generic Job object.
         """
         dir_path = os.path.dirname(os.path.realpath(__file__))
+        replicas = sum(job.status.replica_status[self.name].values())
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
-                                autoescape=select_autoescape())
-        jinja_template = jinja_env.get_template('k8_job.j2')
-        jinja_dict = {
-            'k8_name': job_name,
-            'job_id': job.get_name(),
-            'cluster_name': self.cluster_name,
-            'image': job.spec.image,
-            'run': job.spec.run,
-            'cpu': job.spec.resources.get('cpu', 0),
-            'gpu': job.spec.resources.get('gpu', 0),
-            'replicas': sum(job.status.replica_status[self.cluster_name].values()),
-            
-        }
-        kubernetes_job = jinja_template.render(jinja_dict)
-        kubernetes_job = yaml.safe_load(kubernetes_job)
-        print(kubernetes_job)
-        return kubernetes_job
+            autoescape=select_autoescape())
+        pod_jinja_template = jinja_env.get_template('k8_pod.j2')
+        pod_dicts = []
+        for rank_id in range(replicas):
+            jinja_dict = {
+                'pod_name': f'{job_name}-{rank_id}',
+                'cluster_name': self.cluster_name,
+                'sky_job_id': job.get_name(),
+                'restart_policy': 'Never',
+                'image': job.spec.image,
+                'pod_rank': f"{rank_id}",
+                'port': '80',
+                'run': job.spec.run,
+                'cpu': job.spec.resources.get('cpu', 0),
+                'gpu': job.spec.resources.get('gpu', 0),
+            }
+            pod_dict = pod_jinja_template.render(jinja_dict)
+            pod_dict = yaml.safe_load(pod_dict)
+            pod_dicts.append(pod_dict)
+        return pod_dicts
 
     def get_jobs_status(self) -> Dict[str, Tuple[str, str]]:
         """ Gets the jobs state. (Map from job name to status) """
+        # TODO(mluo): Minimize K8 API calls by doing a List and Watch over
+        # Sky Manager pods
         # Filter jobs that that are submitted by Sky Manager.
-        jobs = self.batch_v1.list_namespaced_job(
-            namespace=self.namespace,
-            label_selector='manager=sky_manager').items
-
+        sky_manager_pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector='manager=sky_manager')
         jobs_dict = {}
-        for job in jobs:
-            sky_job_name = job.metadata.labels['job_id']
-            pod_statuses = self._process_pod_status(job)
-            jobs_dict[sky_job_name] = dict(Counter(pod_statuses))
+        for pod in sky_manager_pods.items:
+            sky_job_name = pod.metadata.labels['sky_job_id']
+            pod_status = self._process_pod_status(pod)
+            if sky_job_name not in jobs_dict:
+                jobs_dict[sky_job_name] = {}
+            if pod_status not in jobs_dict[sky_job_name]:
+                jobs_dict[sky_job_name][pod_status] = 0
+            jobs_dict[sky_job_name][pod_status] += 1
         return jobs_dict
 
-    def _process_pod_status(self, job: models.v1_job.V1Job):
-        job_name =  job.metadata.name
-        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector = f'job-name={job_name}')
-        pod_statuses = []
-        for pod in pods.items:
-            pod_status = pod.status.phase
-            if pod_status == 'Pending':
-                pod_statuses.append(TaskStatusEnum.PENDING.value)
-            elif pod_status == 'Running':
-                pod_statuses.append(TaskStatusEnum.RUNNING.value)
-            elif pod_status == 'Succeeded':
-                pod_statuses.append(TaskStatusEnum.COMPLETED.value)
-            elif pod_statuses == 'Failed' or pod_status == 'Unknown':
-                pod_statuses.append(TaskStatusEnum.FAILED.value)
-        return pod_statuses
+    def _process_pod_status(self, pod):
+        pod_status = pod.status.phase
+        status = None
+        if pod_status == 'Pending':
+            status = TaskStatusEnum.PENDING.value
+        elif pod_status == 'Running':
+            status = TaskStatusEnum.RUNNING.value
+        elif pod_status == 'Succeeded':
+            status = TaskStatusEnum.COMPLETED.value
+        elif pod_status == 'Failed' or pod_status == 'Unknown':
+            status = TaskStatusEnum.FAILED.value
+        return status
 
 
 if __name__ == '__main__':

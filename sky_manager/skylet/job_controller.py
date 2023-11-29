@@ -36,11 +36,11 @@ def HeartbeatErrorHandler(controller: Controller):
     except Exception as e:
         controller.logger.error(traceback.format_exc())
         controller.logger.error('Encountered unusual error. Trying again.')
+        time.sleep(0.5)
         controller.retry_counter += 1
     
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(f'Retry limit exceeded. Marking pending/running jobs in ERROR state.')
-        controller.update_unhealthy_cluster()
 
 
 class JobController(Controller):
@@ -90,18 +90,21 @@ class JobController(Controller):
             for job_name, fetched_status in self.job_status.items():
                 # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
                 if job_name not in prev_jobs:
-                    # temp_job = Job()
-                    # temp_job.metadata.name = job_name
-                    # temp_job.status.update_clusters({self.name:1})
                     continue
                 else:
-                    cached_job = informer_object[job_name]            
-                # Update the status of all replicas
-                cached_job.status.replica_status[self.name] = fetched_status
-                if job_name in prev_jobs:
-                    JobAPI(namespace=cached_job.get_namespace()).update(config=cached_job.model_dump(mode='json'))
-                else:
-                    JobAPI(namespace=cached_job.get_namespace()).create(config=cached_job.model_dump(mode='json'))
+                    cached_job = informer_object[job_name]  
+
+                self.update_job(cached_job, fetched_status)          
+    
+    def update_job(self, job: Job, status: dict):
+        try:
+            job.status.replica_status[self.name] = status
+            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
+        except:
+            job = JobAPI(namespace=job.get_namespace()).get(name=job.get_name())
+            job.status.replica_status[self.name] = status
+            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
+            
 
 # Testing purposes.
 if __name__ == '__main__':
