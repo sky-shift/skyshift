@@ -45,16 +45,6 @@ def launch_api_service(dry_run=True):
                 '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml',
                 "r"))
         for i in range(3):
-            json_dict = Cluster(
-                            metadata=ClusterMeta(name=f'cluster-{i}'),
-                            spec=ClusterSpec(manager='kubernetes'),
-                        ).model_dump(mode='json')
-            api_server.etcd_client.write(
-                f'clusters/cluster-{i}',
-                json_dict)
-            api_server.etcd_client.write(
-                f'clusters/cluster-{i}',
-                json_dict),
             job_dict['metadata']['name'] = f'job-{i}'
             api_server.etcd_client.write(f'jobs/{DEFAULT_NAMESPACE}/job-{i}',
                                          job_dict)

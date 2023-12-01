@@ -1,17 +1,15 @@
-from collections import Counter
 import logging
 import re
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Dict, Tuple
 import uuid
 
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from kubernetes import client, config
-from kubernetes.client import models
 import yaml
 
 from sky_manager.cluster_manager import Manager
-from sky_manager.templates.job_template import Job, JobStatus, TaskStatusEnum
+from sky_manager.templates import Job, TaskStatusEnum, AcceleratorEnum, ResourceEnum
 
 client.rest.logger.setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -50,11 +48,26 @@ class KubernetesManager(Manager):
             config.load_kube_config(context=self.cluster_name)
         except config.config_exception.ConfigException:
             raise K8ConnectionError(
-                f"Could not connect to Kubernetes cluster {self.cluster_name}."
+                f"Could not connect to Kubernetes cluster {self.cluster_name}. Check your kubeconfig."
             )
         # If Kubeneretes context is identified, create Kubernetes client.
         self.core_v1 = client.CoreV1Api()
-        self._cluster_state = {}
+        self.accelerator_types = None
+    
+
+    def get_accelerator_types(self):
+        # For now overfit to GKE cluster. TODO: Replace with a more general solution.
+        accelerator_types = {}
+        node_list = self.core_v1.list_node()
+        for node in node_list.items:
+            node_name = node.metadata.name
+            node_accelerator_type = node.metadata.labels.get(
+                'cloud.google.com/gke-accelerator', None)
+            if node_accelerator_type is None:
+                continue
+            node_accelerator_type = node_accelerator_type.split('-')[-1].upper()
+            accelerator_types[node_name] = node_accelerator_type
+        return accelerator_types
 
     @property
     def cluster_resources(self):
@@ -71,13 +84,23 @@ class KubernetesManager(Manager):
             name = node.metadata.name
             node_cpu = parse_resource_cpu(node.status.capacity['cpu'])
             node_memory = parse_resource_memory(node.status.capacity['memory'])
-            node_gpu = int(node.status.capacity.get('nvidia.com/gpu', 0))
+            node_gpu = int(node.status.allocatable.get('nvidia.com/gpu', 0))
             cluster_resources[name] = {
-                'cpu': node_cpu,
-                'memory': node_memory,  # MB
-                'gpu': node_gpu
+                ResourceEnum.CPU.value: node_cpu,
+                ResourceEnum.MEMORY.value: node_memory,  # MB
+                ResourceEnum.GPU.value: node_gpu
             }
-        return cluster_resources
+
+        return self._process_gpu_resources(cluster_resources)
+
+    def _process_gpu_resources(self, resources: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, int]]:
+        # Refetch node accelerator types if the nodes have changed (such as in cluster autoscaling or admin adds/removes nodes from the cluster).
+        if not self.accelerator_types or not set(self.accelerator_types).issubset(set(resources.keys())):
+            self.accelerator_types = self.get_accelerator_types()
+        
+        for node_name, accelerator_type in self.accelerator_types.items():
+            resources[node_name][accelerator_type] = resources[node_name].pop(ResourceEnum.GPU.value)
+        return resources
 
     @property
     def allocatable_resources(self) -> Dict[str, Dict[str, int]]:
@@ -97,9 +120,9 @@ class KubernetesManager(Manager):
                 node.status.allocatable['memory'])
             node_gpu = int(node.status.allocatable.get('nvidia.com/gpu', 0))
             available_resources[node_name] = {
-                'cpu': node_cpu,
-                'memory': node_memory,
-                'gpu': node_gpu
+                ResourceEnum.CPU.value: node_cpu,
+                ResourceEnum.MEMORY.value: node_memory,
+                ResourceEnum.GPU.value: node_gpu
             }
 
         pods, _, _ = self.core_v1.list_pod_for_all_namespaces_with_http_info(
@@ -121,16 +144,16 @@ class KubernetesManager(Manager):
                 for container in pod.spec.containers:
                     if container.resources.requests:
                         available_resources[node_name][
-                            'cpu'] -= parse_resource_cpu(
+                            ResourceEnum.CPU.value] -= parse_resource_cpu(
                                 container.resources.requests.get('cpu', '0m'))
                         available_resources[node_name][
-                            'memory'] -= parse_resource_memory(
+                            ResourceEnum.MEMORY.value] -= parse_resource_memory(
                                 container.resources.requests.get(
                                     'memory', '0Mi'))
-                        available_resources[node_name]['gpu'] -= int(
+                        available_resources[node_name][ResourceEnum.GPU.value] -= int(
                             container.resources.requests.get(
                                 'nvidia.com/gpu', 0))
-        return available_resources
+        return self._process_gpu_resources(available_resources)
 
     def submit_job(self, job: Job) -> None:
         """
@@ -193,6 +216,22 @@ class KubernetesManager(Manager):
             autoescape=select_autoescape())
         pod_jinja_template = jinja_env.get_template('k8_pod.j2')
         pod_dicts = []
+        node_set = []
+
+        # Accelerator type for job. (Assumption: Job can only specify one accelerator type).
+        gpus = job.spec.resources.get(ResourceEnum.GPU.value, 0)
+        accelerator_values = [m.value for m in AcceleratorEnum]
+        if gpus ==0:
+            job_resource_dict = {k:v for k,v in job.spec.resources.items() if k in accelerator_values}
+            if len(job_resource_dict) !=0:
+                assert len(job_resource_dict) == 1, "Job can only specify one accelerator type."
+                accelerator_type = list(job_resource_dict.keys())[0]
+                gpus = job_resource_dict[accelerator_type]
+                cluster_acc_types = self.get_accelerator_types()
+                for node_name, acc_type in cluster_acc_types.items():
+                    if acc_type == accelerator_type:
+                        node_set.append(node_name)
+
         for rank_id in range(replicas):
             jinja_dict = {
                 'pod_name': f'{job_name}-{rank_id}',
@@ -204,10 +243,12 @@ class KubernetesManager(Manager):
                 'env_vars': job.spec.envs,
                 'ports': job.spec.ports,
                 'run': job.spec.run,
-                'cpu': job.spec.resources.get('cpu', 0),
-                'gpu': job.spec.resources.get('gpu', 0),
+                'cpu': job.spec.resources.get(ResourceEnum.CPU.value, 0),
+                'gpu': gpus,
+                'node_set': node_set,
             }
             pod_dict = pod_jinja_template.render(jinja_dict)
+            print(pod_dict)
             pod_dict = yaml.safe_load(pod_dict)
             pod_dicts.append(pod_dict)
         return pod_dicts

@@ -1,4 +1,4 @@
-from collections import Counter
+from copy import deepcopy
 import datetime
 import enum
 from typing import Any, Dict, List
@@ -7,13 +7,12 @@ from pydantic import Field, field_validator
 
 from sky_manager.templates.object_template import Object, ObjectException, \
     ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
-from sky_manager.templates.resource_template import ResourceEnum
+from sky_manager.templates.resource_template import ResourceEnum, AcceleratorEnum
 
 DEFAULT_IMAGE = 'ubuntu:latest'
 DEFAULT_JOB_RESOURCES = {
-    'cpu': 1,
-    'gpu': 0,
-    'memory': 128,
+    ResourceEnum.CPU.value: 1,
+    ResourceEnum.MEMORY.value: 0,
 }
 DEFAULT_NAMESPACE = 'default'
 
@@ -117,7 +116,7 @@ class JobMeta(ObjectMeta):
 
 class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
-    resources: Dict[str, Any] = Field(default=DEFAULT_JOB_RESOURCES, validate_default=True)
+    resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES, validate_default=True)
     run: str = Field(default="", validate_default=True)
     envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
@@ -140,12 +139,18 @@ class JobSpec(ObjectSpec):
 
     @field_validator('resources')
     @classmethod
-    def verify_resources(cls, resources: Dict[str, Any]):
-        res_emum_dict = {m.name: m.value for m in ResourceEnum}
-        keys_in_enum = set(resources.keys()).issubset(res_emum_dict.values())
-        if not keys_in_enum:
-            raise ValueError(f'Invalid spec resource specification: {resources}. '
-                               'Please use ResourceEnum to specify resources.')
+    def verify_resources(cls, resources: Dict[str, float]):
+        resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
+        resource_enums = [member.value for member in ResourceEnum]
+        acc_enums = [member.value for member in AcceleratorEnum]
+        for resource_type, resource_value in resources.items():
+            if resource_type not in resource_enums:
+                if resource_type not in acc_enums:
+                    raise ValueError(f'Invalid resource type: {resource_type}.')
+                elif ResourceEnum.GPU.value in list(resources.keys()):
+                    raise ValueError(f'Cannot specify both GPU and accelerator type {resource_type}.')
+            if resource_value < 0:
+                raise ValueError(f'Invalid resource value: {resource_value}.')
         return resources
 
 

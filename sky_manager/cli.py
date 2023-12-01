@@ -5,7 +5,7 @@ from tabulate import tabulate
 
 from sky_manager.launch_sky_manager import launch_sky_manager
 from sky_manager.api_client import *
-from sky_manager.templates import Cluster, JobStatusEnum, TaskStatusEnum
+from sky_manager.templates import Cluster, TaskStatusEnum, ResourceEnum
 
 
 @click.group()
@@ -130,7 +130,7 @@ def delete_cluster(name):
               '-r',
               type=(str, int),
               multiple=True,
-              default=[('cpu', 1)],
+              default=[(ResourceEnum.CPU.value, 1)],
               help='Resources required for the job.')
 @click.option('--run',
               type=str,
@@ -154,13 +154,15 @@ def create_job(name, namespace, labels, image, resources, run, replicas):
         },
         'spec': {
             'image': image,
-            'resources': resources,
+            'resources': dict(resources),
             'run': run,
             'replicas': replicas,
         }
     }
     job_api_obj = JobAPI(namespace=namespace)
+    print(job_dictionary)
     api_response = job_api_obj.create(job_dictionary)
+    print(api_response)
     click.echo(f"Created job {name}.")
     return api_response
 
@@ -387,11 +389,15 @@ def print_cluster_table(cluster_list: List[Cluster]):
         name = entry.get_name()
         manager_type = entry.spec.manager
 
-        resources = gather_resources(entry.status.capacity)
-        allocatable_resources = gather_resources(
-            entry.status.allocatable_capacity)
+
+        resources = entry.status.capacity
+        allocatable_resources = entry.status.allocatable_capacity
+        resources = gather_resources(resources)
+        allocatable_resources = gather_resources(allocatable_resources)
         resources_str = ''
         for key in resources.keys():
+            if resources[key] == 0:
+                continue
             if key not in allocatable_resources:
                 available_resources = '???'
             else:
@@ -417,6 +423,8 @@ def print_job_table(job_list: List[dict]):
         resources = entry.spec.resources
         resources_str = ''
         for key in resources.keys():
+            if resources[key] == 0:
+                continue
             resources_str += f'{key}: {resources[key]}\n'
 
         status = entry.status.conditions[-1]['type']

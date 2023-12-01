@@ -22,7 +22,7 @@ logging.basicConfig(
 
 
 DEFAULT_HEARTBEAT_TIME = 5
-DEFAULT_RETRY_LIMIT = 3
+DEFAULT_RETRY_LIMIT = 5
 
 @contextmanager
 def HeartbeatErrorHandler(controller: Controller):
@@ -58,11 +58,19 @@ class ClusterController(Controller):
         self.retry_limit = retry_limit
 
         cluster_obj = ClusterAPI().get(name)
+        # The Compataibility layer that interfaces with the underlying cluster manager.
+        # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
+
+
+        # Fetch the accelerator types on the cluster.
+        # This is used to determine node affinity for jobs that request specific accelerators such as T4 GPU.
+        self.accelerator_types = self.manager_api.get_accelerator_types()
 
         self.logger = logging.getLogger(
             f'[{self.name} - Cluster Controller]')
         self.logger.setLevel(logging.INFO)
+
 
 
     def run(self):
@@ -120,3 +128,8 @@ if __name__ == '__main__':
         pass
     hc = ClusterController('mluo-onprem')
     hc.run()
+
+
+# for node, accelerator_type in self.accelerator_types.items():
+#     cluster_status.capacity[node][accelerator_type] = cluster_status.capacity[node].pop('gpu')
+#     cluster_status.allocatable_capacity[node][accelerator_type] = cluster_status.allocatable_capacity[node].pop('gpu')

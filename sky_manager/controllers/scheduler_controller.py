@@ -1,6 +1,6 @@
 """Scheduler controller determines which cluster (or clusters) a job should be placed on.
 
-Unlike Kubernetes scheduler, this controller schedules batch jobs and deployments/services over clusters. This enables the scheduler to satisfy gang/coscheduling, colocation, and governance requiremnts.
+This controller does not schedule tasks/pods, but instead schedules at a higher level of abstraction - jobs (groups of tasks/pods). This enables the scheduler to satisfy gang/coscheduling, colocation, and governance requirements that are not possible with the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 from contextlib import contextmanager
 from collections import OrderedDict
@@ -14,7 +14,7 @@ from typing import Dict
 from sky_manager.controllers import Controller
 from sky_manager.structs import Informer
 from sky_manager.api_client import *
-from sky_manager.templates import Job, JobStatusEnum, TaskStatusEnum
+from sky_manager.templates import Job, JobStatusEnum, ResourceEnum, TaskStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -128,6 +128,7 @@ class SchedulerController(Controller):
             if spread_replicas:
                 job.status.update_replica_status({c_name : {TaskStatusEnum.INIT.value: replicas} for c_name, replicas in spread_replicas.items()})
                 job.status.update_status(JobStatusEnum.ACTIVE.value)
+                print(job)
                 idx_list.append(job_idx)
                 self.logger.info(
                     f'Sending job {job.get_name()} to clusters {spread_replicas}.'
@@ -147,31 +148,36 @@ class SchedulerController(Controller):
     def compute_replicas_spread(self, job, ranked_clusters):
         job_replicas = job.spec.replicas
         job_clusters = {}
-
-        job_cpus = job.spec.resources.get('cpu', 0)
-        job_gpus = job.spec.resources.get('gpu', 0)
-        job_memory = job.spec.resources.get('memory', 0)
+        print(ranked_clusters)
+        job_resource = deepcopy(job.spec.resources)
         
         ranked_clusters = list(ranked_clusters.items())
         # Greedily assign clusters replicas.
         total_cluster_replicas = 0
+
+        def is_subset_and_values_smaller(dict1, dict2):
+            # Check if all keys in dict2 are in dict1
+            if all(key in dict1 for key in dict2):
+                # Check if all values in dict2 are smaller than corresponding values in dict1
+                return all(dict2[key] <= dict1[key] for key in dict2)
+            else:
+                return False
         for cluster_name, cluster_obj in ranked_clusters:
             cluster_replicas = 0
             alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
             # Predict how many replicas can fit onto each node for each cluster.
             for _, node_resource in alloc_capacity.items():
-                node_cpus = node_resource.get('cpu', 0)
-                node_gpus = node_resource.get('gpu', 0)
-                node_memory = node_resource.get('memory', 0)
                 while True:
                     if total_cluster_replicas == job_replicas:
                         break
-                    if job_cpus <= node_cpus and job_gpus <= node_gpus and job_memory <= node_memory:
-                        node_cpus -= job_cpus
-                        node_gpus -= job_gpus
-                        node_memory -= job_memory
+                    print(node_resource, job_resource)
+                    print(is_subset_and_values_smaller(node_resource, job_resource))
+                    if is_subset_and_values_smaller(node_resource, job_resource):
+                        for resource_type, resource_count in node_resource.items():
+                            if resource_type in job_resource:
+                                node_resource[resource_type] -= job_resource[resource_type]
                         total_cluster_replicas+=1
-                        cluster_replicas +=1
+                        cluster_replicas+=1
                     else:
                         break
             job_clusters[cluster_name] = cluster_replicas
@@ -180,7 +186,8 @@ class SchedulerController(Controller):
         # Can't schedule job. Returns a null dict.
         if total_cluster_replicas < job_replicas:
             return {}
-        return job_clusters
+        
+        return {k:v for k,v in job_clusters.items() if v>0}
 
 
     def filter_clusters(self, job, clusters: dict):
@@ -214,22 +221,34 @@ class SchedulerController(Controller):
                     del clusters[c_name]
         return clusters
 
-    def rank_clusters(self, job, clusters: dict):
-        # For now this policy is rank cluster by their availability. (load-balancing)
+    def rank_clusters(self, job: Job, clusters: dict):
+        # Rank cluster by their availability (i.e. load-balancing).
+        # Whatever scores highest on the **dot product** of the cluster's resources and the job's resources. (such as in the Tetris paper, Robert Grandl)
         sum_clusters = []
         for cluster in clusters.items():
             cluster_name, cluster_obj = cluster
             resources = cluster_obj.status.allocatable_capacity
-            sum_resources = {'cpu': 0, 'memory': 0, 'gpu': 0}
-            if resources:
-                for _, node_resources in resources.items():
-                    sum_resources['cpu'] += node_resources.get('cpu', 0)
-                    sum_resources['memory'] += node_resources.get('memory', 0)
-                    sum_resources['gpu'] += node_resources.get('gpu', 0)
+            sum_resources = {}
+            for _, node_resources in resources.items():
+                for resource_type, resource_count in node_resources.items():
+                    if resource_type not in sum_resources:
+                        sum_resources[resource_type] = 0
+                    sum_resources[resource_type] += resource_count
             sum_clusters.append((cluster_name, sum_resources))
+        
+        def sorting_func(cluster_tuple):
+            _, cluster_resources = cluster_tuple
+            score = 0
+            job_resources = job.spec.resources
+            for resource_type, resource_count in job_resources.items():
+                # Normalize score.
+                if resource_count ==0:
+                    continue
+                score += cluster_resources.get(resource_type, 0)/resource_count
+            return score
 
         sum_clusters = sorted(sum_clusters,
-                          key=lambda x: 10 * x[1]['gpu'] + x[1]['cpu'],
+                          key=sorting_func,
                           reverse=True)
         index_map = {value[0]: index for index, value in enumerate(sum_clusters)}
         sorted_clusters = sorted(list(clusters.items()), key=lambda x:  index_map[x[0]])

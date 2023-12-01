@@ -40,15 +40,28 @@ spec:
       resources:
         limits:
           cpu: {{cpu}}
-          {% if gpu is not none and gpu < 1 %}
+          {% if gpu is not none and gpu >= 1 %}
           nvidia.com/gpu: {{ gpu }}
           {% endif %}
         requests:
           cpu: {{cpu}}
-          {% if gpu is not none and gpu < 1 %}
+          {% if gpu is not none and gpu >= 1 %}
           nvidia.com/gpu: {{ gpu }}
           {% endif %}
   volumes:
     - name: scratch-space
-      emptyDir: 
+      emptyDir:
         medium: Memory
+  {% if node_set %}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchFields:
+          - key: metadata.name
+            operator: In
+            values:
+            {% for node in node_set %}
+              - {{node}}
+            {% endfor %}
+  {% endif %}

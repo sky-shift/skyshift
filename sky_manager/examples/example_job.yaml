@@ -8,7 +8,11 @@ metadata:
 spec:
   image: gcr.io/sky-burst/skyburst:latest
   resources:
-    cpu: 1
-    gpu: 0
+    cpus: 1
+    gpus: 0
+    memory: 128
+  env:
+    - name: MY_ENV_VAR
+      value: "hello"
   run: |
-    echo hi; sleep 100; echo bye
+    echo $MY_ENV_VAR; sleep 100; echo bye

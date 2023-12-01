@@ -9,7 +9,7 @@ setup(name='sky_manager',
       ],
       entry_points={
           'console_scripts': [
-              'skym = sky_manager.cli:cli',
+              'skyctl = sky_manager.cli:cli',
           ],
       },
       zip_safe=False)

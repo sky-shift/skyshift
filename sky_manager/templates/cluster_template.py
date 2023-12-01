@@ -7,7 +7,7 @@ from pydantic import Field, field_validator
 
 from sky_manager.templates.object_template import Object, ObjectException, \
     ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
-from sky_manager.templates.resource_template import ResourceEnum
+from sky_manager.templates.resource_template import ResourceEnum, AcceleratorEnum
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -33,10 +33,11 @@ class ClusterException(ObjectException):
 class ClusterStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     status: str = Field(default=ClusterStatusEnum.INIT.value, validate_default=True)
+    # Allocatable capacity of the cluser.
     allocatable_capacity: Dict[str, Dict[str, float]] = Field(
         default={}, validate_default=True)
+    # Total capacity of the cluster.
     capacity: Dict[str, Dict[str, float]] = Field(default={}, validate_default=True)
-
 
     @field_validator('conditions')
     @classmethod
@@ -59,10 +60,11 @@ class ClusterStatus(ObjectStatus):
     @field_validator('capacity', 'allocatable_capacity')
     @classmethod
     def verify_capacity(cls, capacity: Dict[str, Dict[str, float]]):
-        res_emum_dict = {m.name: m.value for m in ResourceEnum}
+        res_emum_dict = [m.value for m in ResourceEnum]
+        acc_enum_dict = [m.value for m in AcceleratorEnum]
         for node_name, node_resources in capacity.items():
             keys_in_enum = set(node_resources.keys()).issubset(
-                res_emum_dict.values())
+                res_emum_dict + acc_enum_dict)
             if not keys_in_enum:
                 raise ClusterException(
                     f'Invalid resource specification for node {node_name}: {node_resources}. '
@@ -78,6 +80,9 @@ class ClusterStatus(ObjectStatus):
 
     def update_conditions(self, conditions):
         self.conditions = conditions
+    
+    def update_accelerator_types(self, accelerator_types):
+        self.accelerator_types = accelerator_types
 
     def update_status(self, status: str):
         self.status = status

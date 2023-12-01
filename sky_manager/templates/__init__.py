@@ -4,10 +4,11 @@ from sky_manager.templates.namespace_template import Namespace, NamespaceExcepti
 from sky_manager.templates.object_template import Object, ObjectList, ObjectStatus, \
     ObjectMeta, ObjectSpec, ObjectException
 from sky_manager.templates.filter_policy import FilterPolicyException, FilterPolicyList, FilterPolicy
-from sky_manager.templates.resource_template import ResourceEnum
+from sky_manager.templates.resource_template import AcceleratorEnum, ResourceEnum
 from sky_manager.templates.event_template import WatchEvent, WatchEventEnum
 
 __all__ = [
+    'AcceleratorEnum',
     'Cluster',
     'ClusterException',
     'ClusterList',
