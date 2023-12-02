@@ -244,6 +244,7 @@ class KubernetesManager(Manager):
                 'ports': job.spec.ports,
                 'run': job.spec.run,
                 'cpu': job.spec.resources.get(ResourceEnum.CPU.value, 0),
+                'memory': job.spec.resources.get(ResourceEnum.MEMORY.value, 0),
                 'gpu': gpus,
                 'node_set': node_set,
             }
@@ -282,3 +283,15 @@ class KubernetesManager(Manager):
         elif pod_status == 'Failed' or pod_status == 'Unknown':
             status = TaskStatusEnum.FAILED.value
         return status
+    
+    def get_job_logs(self, job: Job, rank=0) -> str:
+        k8_job_name = job.status.job_ids[self.name]
+        return self.core_v1.read_namespaced_pod_log(name=f'{k8_job_name}-{rank}', namespace=job.metadata.namespace)
+
+if __name__ == '__main__':
+    cluster_name = 'mluo-onprem'
+    manager= KubernetesManager(cluster_name)
+    from sky_manager.api_client import JobAPI
+    job = JobAPI(namespace='default').get('asdf7')
+    print(manager.get_job_logs(job, rank=0))
+

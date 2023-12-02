@@ -141,6 +141,7 @@ class JobSpec(ObjectSpec):
     @classmethod
     def verify_resources(cls, resources: Dict[str, float]):
         resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
+        resources = {k:v for k,v in resources.items() if v > 0}
         resource_enums = [member.value for member in ResourceEnum]
         acc_enums = [member.value for member in AcceleratorEnum]
         for resource_type, resource_value in resources.items():

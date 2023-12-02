@@ -247,7 +247,6 @@ if __name__ == '__main__':
     new_value = {"b": 3}
     etcd_client.write("a", {"a":2})
     original_value = etcd_client.read("a")
-    print(original_value)
     etcd_client.update("a", new_value)
     etcd_client.update("a", new_value, resource_version = 1)
     new_value = etcd_client.read("a")

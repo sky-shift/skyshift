@@ -126,12 +126,25 @@ def delete_cluster(name):
               type=str,
               default='gcr.io/sky-burst/skyburst:latest',
               help='Image to run the job in (any docker registry image).')
-@click.option('--resources',
-              '-r',
-              type=(str, int),
+@click.option('--envs',
+              '-e',
+              type=(str, str),
               multiple=True,
-              default=[(ResourceEnum.CPU.value, 1)],
-              help='Resources required for the job.')
+              default=[],
+              help='Pass in environment variables to the job.')
+@click.option('--cpus',
+              type=float,
+              default=1,
+              help='Number of CPUs per task.')
+@click.option('--gpus',
+              type=int,
+              default=0,
+              help='Number of GPUs per task. Note that these GPUs can be any type of GPU.')
+@click.option('--accelerators', '-a', type=str, default=None, help='Type of accelerator resource to use (e.g. T4:1, V100:2)')
+@click.option('--memory',
+              type=float,
+              default=0,
+              help='Total memory (RAM) per task in MB.')
 @click.option('--run',
               type=str,
               default='sleep 10',
@@ -140,10 +153,19 @@ def delete_cluster(name):
               type=int,
               default=1,
               help='Number of replicas to run job.')
-def create_job(name, namespace, labels, image, resources, run, replicas):
+def create_job(name, namespace, labels, image, envs, cpus, gpus, accelerators, memory, run, replicas):
     """Adds a new job."""
     labels = dict(labels)
-    resources = dict(resources)
+    envs = dict(envs)
+
+    resource_dict = {
+                'cpus': cpus,
+                'gpus': gpus,
+                'memory': memory,
+    }
+    if accelerators:
+        acc_type, acc_count = accelerators.split(':')
+        resource_dict[acc_type] = int(acc_count)
 
     job_dictionary = {
         'kind': 'Job',
@@ -154,15 +176,14 @@ def create_job(name, namespace, labels, image, resources, run, replicas):
         },
         'spec': {
             'image': image,
-            'resources': dict(resources),
+            'envs': envs,
+            'resources': resource_dict,
             'run': run,
             'replicas': replicas,
         }
     }
     job_api_obj = JobAPI(namespace=namespace)
-    print(job_dictionary)
     api_response = job_api_obj.create(job_dictionary)
-    print(api_response)
     click.echo(f"Created job {name}.")
     return api_response
 

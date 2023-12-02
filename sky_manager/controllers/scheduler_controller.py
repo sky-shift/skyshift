@@ -128,7 +128,6 @@ class SchedulerController(Controller):
             if spread_replicas:
                 job.status.update_replica_status({c_name : {TaskStatusEnum.INIT.value: replicas} for c_name, replicas in spread_replicas.items()})
                 job.status.update_status(JobStatusEnum.ACTIVE.value)
-                print(job)
                 idx_list.append(job_idx)
                 self.logger.info(
                     f'Sending job {job.get_name()} to clusters {spread_replicas}.'
@@ -148,7 +147,6 @@ class SchedulerController(Controller):
     def compute_replicas_spread(self, job, ranked_clusters):
         job_replicas = job.spec.replicas
         job_clusters = {}
-        print(ranked_clusters)
         job_resource = deepcopy(job.spec.resources)
         
         ranked_clusters = list(ranked_clusters.items())
@@ -170,8 +168,6 @@ class SchedulerController(Controller):
                 while True:
                     if total_cluster_replicas == job_replicas:
                         break
-                    print(node_resource, job_resource)
-                    print(is_subset_and_values_smaller(node_resource, job_resource))
                     if is_subset_and_values_smaller(node_resource, job_resource):
                         for resource_type, resource_count in node_resource.items():
                             if resource_type in job_resource:

@@ -40,12 +40,14 @@ spec:
       resources:
         limits:
           cpu: {{cpu}}
-          {% if gpu is not none and gpu >= 1 %}
+          memory: "{{memory}}Mi"
+          {% if gpu is not none and gpu >= 0 %}
           nvidia.com/gpu: {{ gpu }}
           {% endif %}
         requests:
           cpu: {{cpu}}
-          {% if gpu is not none and gpu >= 1 %}
+          memory: "{{memory}}Mi"
+          {% if gpu is not none and gpu >= 0 %}
           nvidia.com/gpu: {{ gpu }}
           {% endif %}
   volumes:
