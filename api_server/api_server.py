@@ -26,30 +26,9 @@ NON_NAMESPACED_OBJECTS = {
 SUPPORTED_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
 
 
-
-
-def launch_api_service(dry_run=True):
+def launch_api_service():
     api_server = APIServer()
-    if dry_run:
-        from sky_manager.templates.cluster_template import ClusterMeta, ClusterSpec
-        api_server.etcd_client.delete_all()
-        filter_policy_dict = yaml.safe_load(
-            open(
-                '/home/gcpuser/sky-manager/sky_manager/examples/filter_policy.yaml',
-                "r"))
-        api_server.etcd_client.write(
-            f'filterpolicies/{DEFAULT_NAMESPACE}/filter-policy-0',
-            filter_policy_dict)
-        job_dict = yaml.safe_load(
-            open(
-                '/home/gcpuser/sky-manager/sky_manager/examples/example_job.yaml',
-                "r"))
-        for i in range(3):
-            job_dict['metadata']['name'] = f'job-{i}'
-            api_server.etcd_client.write(f'jobs/{DEFAULT_NAMESPACE}/job-{i}',
-                                         job_dict)
     return api_server
-
 
 class APIServer(object):
     """
@@ -63,6 +42,16 @@ class APIServer(object):
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self._create_endpoints()
+        self._post_init_hook()
+    
+    def _post_init_hook(self):
+        all_namespaces = self.etcd_client.read_prefix('namespaces')
+        # Hack: Create Default Namespace if it does not exist.
+        if DEFAULT_NAMESPACE not in all_namespaces:
+            self.etcd_client.write('namespaces/default', Namespace(metadata=NamespaceMeta(name='default')).model_dump(mode='json'))
+    
+    def object_authentication(self):
+        return
 
     def create_object(self,
                       object_type: str):
@@ -121,7 +110,9 @@ class APIServer(object):
 
         if watch:
             return self._watch_key(link_header)
+        print(link_header)
         read_response = self.etcd_client.read_prefix(link_header)
+        print(read_response)
         for object_dict in read_response:
             object_list.append(object_class(**object_dict))
         obj_list_cls = eval(object_class.__name__ + 'List')(objects=object_list)

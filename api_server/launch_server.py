@@ -18,8 +18,6 @@ if __name__ == '__main__':
                         help="Host for the API server (default: %(default)s)")
     parser.add_argument("--port", type=int, default=API_SERVER_PORT,
                         help="Port for the API server (default: %(default)s)")
-    parser.add_argument("--dry-run", dest="dry_run", action="store_true",
-                        help="Run the server in dry-run mode (default: False)")
     # Parse the arguments
     args = parser.parse_args()
     uvicorn.run('api_server:app', host=args.host, port=args.port, workers=multiprocessing.cpu_count())

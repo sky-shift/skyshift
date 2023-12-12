@@ -1,6 +1,6 @@
 from sky_manager.templates.cluster_template import Cluster, ClusterException, ClusterList, ClusterStatusEnum
 from sky_manager.templates.job_template import Job, JobException, JobList, JobStatusEnum, TaskStatusEnum
-from sky_manager.templates.namespace_template import Namespace, NamespaceException, NamespaceList
+from sky_manager.templates.namespace_template import Namespace, NamespaceException, NamespaceMeta, NamespaceList
 from sky_manager.templates.object_template import Object, ObjectList, ObjectStatus, \
     ObjectMeta, ObjectSpec, ObjectException
 from sky_manager.templates.filter_policy import FilterPolicyException, FilterPolicyList, FilterPolicy
@@ -22,6 +22,7 @@ __all__ = [
     'JobStatusEnum',
     'Namespace',
     'NamespaceException',
+    'NamespaceMeta',
     'NamespaceList',
     'ResourceEnum',
     'Object',
