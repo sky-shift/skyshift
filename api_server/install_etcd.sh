@@ -17,4 +17,4 @@ mkdir -p ~/.etcd
 cp /tmp/etcd-download-test/etcd ~/.etcd/
 cp /tmp/etcd-download-test/etcdctl ~/.etcd/
 
-nohup ~/.etcd/etcd > /dev/null 2>&1 &
+nohup ~/.etcd/etcd --data-dir ~/.etcd > /dev/null 2>&1 &
