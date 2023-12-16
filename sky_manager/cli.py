@@ -288,7 +288,7 @@ def delete_namespace(name: str):
     namespace_api_obj = NamespaceAPI()
     api_response = namespace_api_obj.delete(name)
     click.echo(f"Deleted namespace {name}.")
-    return api_responseå
+    return api_response
 
 # FilterPolicy API as CLI
 @create.command(name='filterPolicy')
