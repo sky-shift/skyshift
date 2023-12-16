@@ -12,4 +12,9 @@ curl -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/
 tar xzvf /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz -C /tmp/etcd-download-test --strip-components=1
 rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
 
-/tmp/etcd-download-test/etcd & 
+mkdir -p ~/.etcd
+
+cp /tmp/etcd-download-test/etcd ~/.etcd/
+cp /tmp/etcd-download-test/etcdctl ~/.etcd/
+
+nohup ~/.etcd/etcd > /dev/null 2>&1 &

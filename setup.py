@@ -6,14 +6,15 @@ import subprocess
 
 
 def check_and_install_etcd():
-    try:
-        subprocess.run(["etcd", "--version"], check=True)
-        print("[Preinstaller] ETCD is running.")
-    except requests.ConnectionError:
-        print("[Preinstaller] ETCD is not running, automatically installing ETCD.")
+    result = subprocess.run('ps aux | grep "[e]tcd"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return_code = result.returncode
+    if return_code == 0:
+        print('[Installer] ETCD is running.')
+    else:
+        print("[Installer] ETCD is not running, automatically installing ETCD.")
         # Install ETCD (platform-specific code goes here)
         # Start ETCD in background (platform-specific code goes here)
-        subprocess.call(['./etcd_installation.sh'])
+        subprocess.run('./setup/etcd_installation.sh', shell=True)
 
 
 class CustomDevelopCommand(develop):
