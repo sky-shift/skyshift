@@ -55,6 +55,20 @@ class TaskStatusEnum(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+class RestartPolicyEnum(enum.Enum):
+    """Represents the restart policy of a job."""
+    # Never restart job (even if it fails).
+    NEVER = 'Never'
+    # Always restart job (even if it succeeds, RC=0).
+    ALWAYS = 'Always'
+    # Only restart job if it fails (RC!=0).
+    ON_FAILURE = 'OnFailure'
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
 
 class JobException(ObjectException):
     """Raised when the job template is invalid."""
@@ -121,6 +135,7 @@ class JobSpec(ObjectSpec):
     envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
     replicas: int = Field(default=1, validate_default=True)
+    restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value, validate_default=True)
 
     @field_validator('ports')
     @classmethod
@@ -136,6 +151,13 @@ class JobSpec(ObjectSpec):
         if replicas <= 0:
             raise ValueError(f'Invalid replicas: {replicas}.')
         return replicas
+
+    @field_validator('restart_policy')
+    @classmethod
+    def verify_restart_policy(cls, restart_policy: str) -> str:
+        if restart_policy is None or restart_policy not in [r.value for r in RestartPolicyEnum]:
+            raise JobException(f'Invalid restart policy: {restart_policy}.')
+        return restart_policy
 
     @field_validator('resources')
     @classmethod

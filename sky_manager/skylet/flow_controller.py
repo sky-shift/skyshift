@@ -60,8 +60,7 @@ class FlowController(Controller):
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
             if self.name in event_object.status.replica_status:
-                job_ids = event_object.status.job_ids
-                if self.name not in job_ids:
+                if self.name not in event_object.status.job_ids:
                     self.worker_queue.put(event)
 
         def delete_callback_fn(event):
@@ -156,9 +155,9 @@ class FlowController(Controller):
     
     def _delete_job(self, job: Job):
         job_status =  job.status
+        self.manager_api.delete_job(job)
         del job_status.replica_status[self.name]
         del job_status.job_ids[self.name]
-        self.manager_api.delete_job(job)
 
 if __name__ == '__main__':
     cluster_api = ClusterAPI()

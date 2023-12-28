@@ -8,13 +8,14 @@ from copy import deepcopy
 import yaml
 import os
 
-from sky_manager.skylet import ClusterController, FlowController, JobController
+from sky_manager.skylet import ClusterController, FlowController, JobController, NetworkController
 import traceback
 
 CONTROLLERS = [
     ClusterController,
     FlowController,
     JobController,
+    NetworkController,
 ]
 
 def launch_skylet(cluster_id):

@@ -38,6 +38,8 @@ class ClusterStatus(ObjectStatus):
         default={}, validate_default=True)
     # Total capacity of the cluster.
     capacity: Dict[str, Dict[str, float]] = Field(default={}, validate_default=True)
+    # If inter-cluster networking has been installed and enabled on the cluster.
+    network_enabled: bool = Field(default=False)
 
     @field_validator('conditions')
     @classmethod

@@ -36,13 +36,10 @@ class K8ConnectionError(config.config_exception.ConfigException):
 
 # Pull based architecture
 class KubernetesManager(Manager):
-    """ Kubernetes compatability set for Sky Manager.
-    """
+    """ Kubernetes compatability set for Sky Manager."""
 
-    def __init__(self, name: str, namespace: str = 'default'):
+    def __init__(self, name: str):
         super().__init__(name)
-        self.name = name
-        self.namespace = namespace
         # Load kubernetes config for the given context.
         try:
             config.load_kube_config(context=self.cluster_name)
@@ -50,13 +47,24 @@ class KubernetesManager(Manager):
             raise K8ConnectionError(
                 f"Could not connect to Kubernetes cluster {self.cluster_name}. Check your kubeconfig."
             )
+        all_contexts = config.list_kube_config_contexts()[0]
+        self.context = None
+        for context in all_contexts:
+            if context['name'] == self.cluster_name:
+                self.context = context
+                break
+        assert self.context is not None, f"Could not find context {self.cluster_name} in kubeconfig."
+
+        self.user = self.context['context']['user']
+        self.namespace = self.context['context'].get('namespace', 'default')
         # If Kubeneretes context is identified, create Kubernetes client.
         self.core_v1 = client.CoreV1Api()
+        self.apps_v1 = client.AppsV1Api()
         self.accelerator_types = None
-    
+
 
     def get_accelerator_types(self):
-        # For now overfit to GKE cluster. TODO: Replace with a more general solution.
+        # For now overfit to GKE cluster. TODO(mluo): Replace with a more general solution.
         accelerator_types = {}
         node_list = self.core_v1.list_node()
         for node in node_list.items:
@@ -170,23 +178,33 @@ class KubernetesManager(Manager):
         # Check if the job has already been submitted.
         label_selector = f'manager=sky_manager,sky_job_id={job_name}'
         matching_pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector)
-        if matching_pods.items:
+        matching_deployments = self.apps_v1.list_namespaced_deployment(self.namespace, label_selector=label_selector)
+        if matching_pods.items or matching_deployments.items:
             # Job has already been submitted.
-            rank_0_pod = matching_pods.items[0]
-            k8_job_name = rank_0_pod.metadata.name
-            last_hyphen_idx = k8_job_name.rfind('-')
-            if last_hyphen_idx != -1:
-                k8_job_name = k8_job_name[:last_hyphen_idx]
+            if matching_pods.items:
+                first_object = matching_pods.items[0]
+            else:
+                first_object = matching_deployments.items[0]
+            k8_job_name = first_object.metadata.name
+            split_str_ids = k8_job_name.split('-')[:2]
+            k8_job_name = f'{split_str_ids[0]}-{split_str_ids[1]}'
             return {
                 'manager_job_id': k8_job_name
             }
-        # Unique job name to prevent job name collisions.
+
         k8_job_name = f'{job_name}-{uuid.uuid4().hex[:8]}'
-        pod_dicts = self._convert_to_pod_yaml(job, k8_job_name)
         api_responses = []
-        for pod_dict in pod_dicts:
-            api_responses.append(self.core_v1.create_namespaced_pod(
-                namespace=self.namespace, body=pod_dict))
+        if job.spec.restart_policy == 'Always':
+            deploy_dict = self._convert_to_deployment_yaml(job, k8_job_name)
+            response = self.apps_v1.create_namespaced_deployment(
+                namespace=self.namespace, body=deploy_dict)
+            api_responses.append(response)
+        else:
+            # Unique job name to prevent job name collisions. This implicitly creates a stateful set.
+            pod_dicts = self._convert_to_pod_yaml(job, k8_job_name)
+            for pod_dict in pod_dicts:
+                api_responses.append(self.core_v1.create_namespaced_pod(
+                    namespace=self.namespace, body=pod_dict))
         return {
             'manager_job_id': k8_job_name,
             'api_responses': api_responses,
@@ -194,12 +212,65 @@ class KubernetesManager(Manager):
 
     def delete_job(self, job: Job) -> None:
         # List all the pods in the namespace with the given label
-        label_selector = f'manager=sky_manager,sky_job_id={job.get_name()}'
-        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector)
-     
-        # Loop through the found pods and delete them
-        for pod in pods.items:
-            self.core_v1.delete_namespaced_pod(name=pod.metadata.name, namespace=self.namespace)
+        print(job)
+        if job.spec.restart_policy == 'Always':
+            # Delete the deployment
+            self.apps_v1.delete_namespaced_deployment(name=job.status.job_ids[self.cluster_name], namespace=self.namespace)
+        else:
+            label_selector = f'manager=sky_manager,sky_job_id={job.get_name()}'
+            pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector)
+            # Loop through the found pods and delete them
+            for pod in pods.items:
+                self.core_v1.delete_namespaced_pod(name=pod.metadata.name, namespace=self.namespace)
+    
+    def _convert_to_deployment_yaml(self, job: Job, job_name: str = None):
+        """
+        Serves as a compatibility layer to generate Deployment yamls from
+        Sky Manager's job specifciations.
+
+        Args:
+            job: Generic Job object.
+        """
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        replicas = sum(job.status.replica_status[self.cluster_name].values())
+        jinja_env = Environment(loader=FileSystemLoader(
+            os.path.abspath(dir_path)),
+            autoescape=select_autoescape())
+        deployment_jinja_template = jinja_env.get_template('k8_deployment.j2')
+
+        node_set = []
+        gpus = job.spec.resources.get(ResourceEnum.GPU.value, 0)
+        accelerator_values = [m.value for m in AcceleratorEnum]
+        if gpus ==0:
+            job_resource_dict = {k:v for k,v in job.spec.resources.items() if k in accelerator_values}
+            if len(job_resource_dict) !=0:
+                assert len(job_resource_dict) == 1, "Job can only specify one accelerator type."
+                accelerator_type = list(job_resource_dict.keys())[0]
+                gpus = job_resource_dict[accelerator_type]
+                cluster_acc_types = self.get_accelerator_types()
+                for node_name, acc_type in cluster_acc_types.items():
+                    if acc_type == accelerator_type:
+                        node_set.append(node_name)
+
+        deployment_dict = {
+            'deployment_name': job_name,
+            'cluster_name': self.cluster_name,
+            'sky_job_id': job.get_name(),
+            'restart_policy': job.spec.restart_policy,
+            'image': job.spec.image,
+            'replicas': replicas,
+            'env_vars': job.spec.envs,
+            'ports': job.spec.ports,
+            'run': job.spec.run,
+            'cpu': job.spec.resources.get(ResourceEnum.CPU.value, 0),
+            'memory': job.spec.resources.get(ResourceEnum.MEMORY.value, 0),
+            'gpu': gpus,
+            'node_set': node_set,
+        }
+        deployment_dict = deployment_jinja_template.render(deployment_dict)
+        print(deployment_dict)
+        deployment_dict = yaml.safe_load(deployment_dict)
+        return deployment_dict
 
     def _convert_to_pod_yaml(self, job: Job, job_name: str = None):
         """
@@ -210,7 +281,7 @@ class KubernetesManager(Manager):
             job: Generic Job object.
         """
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        replicas = sum(job.status.replica_status[self.name].values())
+        replicas = sum(job.status.replica_status[self.cluster_name].values())
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
             autoescape=select_autoescape())
@@ -237,7 +308,7 @@ class KubernetesManager(Manager):
                 'pod_name': f'{job_name}-{rank_id}',
                 'cluster_name': self.cluster_name,
                 'sky_job_id': job.get_name(),
-                'restart_policy': 'Never',
+                'restart_policy': job.spec.restart_policy,
                 'image': job.spec.image,
                 'pod_rank': rank_id,
                 'env_vars': job.spec.envs,
@@ -249,7 +320,6 @@ class KubernetesManager(Manager):
                 'node_set': node_set,
             }
             pod_dict = pod_jinja_template.render(jinja_dict)
-            print(pod_dict)
             pod_dict = yaml.safe_load(pod_dict)
             pod_dicts.append(pod_dict)
         return pod_dicts
