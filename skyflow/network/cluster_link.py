@@ -1,16 +1,17 @@
 # For now, we implement linking of clusters using Skupper.
+import os
 import subprocess
 
 from skyflow.cluster_manager import Manager
 
+TOKEN_DIRECTORY = '~/.skym/link_secrets'
+
 SKUPPER_INSTALL_CMD = 'skupper init --context {cluster_name} --namespace {namespace}'
 SKUPPER_STATUS_CMD = 'skupper status --context {cluster_name} --namespace {namespace}'
-
-SKUPPER_TOKEN_CMD = 'skupper token create ~/skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace}'
-
-SKUPPER_LINK_CMD = 'skupper link create ~/skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace} --name {name}'
-
-SKUPPER_DELETE_CMD = 'skupper delete link {name} --context {cluster_name} --namespace {namespace}'
+SKUPPER_TOKEN_CMD = 'skupper token create ~/.skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace}'
+SKUPPER_LINK_CREATE_CMD = 'skupper link create ~/.skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace} --name {name}'
+SKUPPER_LINK_DELETE_CMD = 'skupper link delete {name} --context {cluster_name} --namespace {namespace}'
+SKUPPER_LINK_STATUS_CMD = 'skupper link status {name} --context {cluster_name} --namespace {namespace}'
 
 
 def status_network(manager: Manager):
@@ -38,6 +39,19 @@ def launch_network(manager: Manager):
         print(f"Failed to install Skupper on `{cluster_name}`: {e.cmd}")
         raise e
     
+def check_link_status(link_name: str, manager: Manager):
+    namespace = manager.namespace
+    cluster_name = manager.cluster_name
+    
+    try:
+        status_link_command = SKUPPER_LINK_STATUS_CMD.format(name=link_name, cluster_name=cluster_name, namespace=namespace)
+        status_output = subprocess.check_output(status_link_command, shell=True, timeout=10).decode('utf-8')
+        if f'No such link' in status_output:
+            return False
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print('Failed to check Skupper status. Check if Skupper is installed correctly.')
+        raise e
 
 
 def create_link(link_name: str, source_manager: Manager, target_manager: Manager):
@@ -47,9 +61,14 @@ def create_link(link_name: str, source_manager: Manager, target_manager: Manager
     target_namespace = target_manager.namespace
     target_cluster_name = target_manager.cluster_name
 
+    if check_link_status(link_name, source_manager):
+        return
+
     try:
         # Create authetnication token.
-        create_token_command = SKUPPER_TOKEN_CMD.format(cluster_name=target_cluster_name, namespace=target_namespace)
+        full_path = os.path.abspath(os.path.expanduser(TOKEN_DIRECTORY))
+        os.makedirs(full_path, exist_ok=True)
+        create_token_command = SKUPPER_TOKEN_CMD.format(name=link_name, cluster_name=target_cluster_name, namespace=target_namespace)
         subprocess.check_output(create_token_command, shell=True, timeout=30).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed generate a secret token with Skupper. Check if Skupper is installed correctly.')
@@ -57,7 +76,7 @@ def create_link(link_name: str, source_manager: Manager, target_manager: Manager
 
     try:
         # Create authetnication token.
-        create_link_command= SKUPPER_LINK_CMD.format(cluster_name=source_cluster_name, namespace=source_namespace)
+        create_link_command= SKUPPER_LINK_CREATE_CMD.format(name=link_name, cluster_name=source_cluster_name, namespace=source_namespace)
         subprocess.check_output(create_link_command, shell=True, timeout=30).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed to establish a link between two clusters.')
@@ -69,9 +88,13 @@ def delete_link(link_name: str, manager: Manager):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
 
+    if not check_link_status(link_name, manager):
+        return
     try:
-        # Create authetnication token.
-        delete_link_command= SKUPPER_DELETE_CMD.format(cluster_name=cluster_name, namespace=namespace, name=link_name)
+        # Delete authentication token.
+        token_path = os.path.abspath(os.path.expanduser(TOKEN_DIRECTORY)) + '/' + link_name + '.token'
+        os.remove(token_path)
+        delete_link_command= SKUPPER_LINK_DELETE_CMD.format(name=link_name, cluster_name=cluster_name, namespace=namespace)
         subprocess.check_output(delete_link_command, shell=True, timeout=30).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed delete a link between two clusters.')

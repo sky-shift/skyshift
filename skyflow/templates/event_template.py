@@ -23,7 +23,7 @@ class WatchEventEnum(enum.Enum):
 class WatchEvent(BaseModel):
     kind: str = Field(default='WatchEvent')
     event_type: str
-    object: Union[Cluster, Job, FilterPolicy, Namespace, Object]
+    object: Union[Cluster, Job, FilterPolicy, Namespace, Link, Object]
     
     @field_validator('event_type')
     @classmethod    
