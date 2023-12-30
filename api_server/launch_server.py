@@ -5,7 +5,7 @@ import subprocess
 
 import uvicorn
 
-from sky_manager.utils.utils import generate_manager_config
+from skyflow.utils.utils import generate_manager_config
 
 API_SERVER_HOST = 'localhost'
 API_SERVER_PORT = 50051

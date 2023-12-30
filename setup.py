@@ -1,11 +1,12 @@
 from setuptools import setup
 
-setup(name='sky_manager',
+setup(name='skyflow',
       version='0.0',
       description='Sky Manager',
-      packages=['sky_manager'],
+      packages=['skyflow'],
       install_requires=[
           'Click',
+          'click_aliases',
           'kubernetes', 
           'protobuf==3.20.0',
           'pydantic>=2.5.0',
@@ -21,7 +22,7 @@ setup(name='sky_manager',
       },
       entry_points={
           'console_scripts': [
-              'skyctl = sky_manager.cli:cli',
+              'skyctl = skyflow.cli.cli:cli',
           ],
       },
       zip_safe=False)

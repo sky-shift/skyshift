@@ -9,22 +9,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import yaml
 
-from sky_manager.etcd_client.etcd_client import ETCDClient, ETCD_PORT
-from sky_manager.templates import *
-from sky_manager.templates.event_template import WatchEvent
-from sky_manager.utils import load_object
-
-DEFAULT_NAMESPACE = 'default'
-NAMESPACED_OBJECTS = {
-    'jobs': Job,
-    'filterpolicies': FilterPolicy,
-}
-NON_NAMESPACED_OBJECTS = {
-    'clusters': Cluster,
-    'namespaces': Namespace,
-}
-SUPPORTED_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
-
+from skyflow.etcd_client.etcd_client import ETCDClient, ETCD_PORT
+from skyflow.templates import *
+from skyflow.globals import *
+from skyflow.templates.event_template import WatchEvent
+from skyflow.utils import load_object
 
 def launch_api_service():
     api_server = APIServer()
@@ -65,10 +54,10 @@ class APIServer(object):
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
 
-            if object_type not in SUPPORTED_OBJECTS:
+            if object_type not in ALL_OBJECTS:
                 raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
 
-            object_class = SUPPORTED_OBJECTS[object_type]
+            object_class = ALL_OBJECTS[object_type]
             try:
                 object = object_class(**object_specs)
             except ObjectException as e:
@@ -98,9 +87,9 @@ class APIServer(object):
         """
         Lists all objects of a given type.
         """
-        if object_type not in SUPPORTED_OBJECTS:
+        if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
-        object_class = SUPPORTED_OBJECTS[object_type]
+        object_class = ALL_OBJECTS[object_type]
 
         object_list = []
         if is_namespaced and namespace is not None:
@@ -127,9 +116,9 @@ class APIServer(object):
         """
         Returns a specific object, raises Error otherwise.
         """
-        if object_type not in SUPPORTED_OBJECTS:
+        if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
-        object_class = SUPPORTED_OBJECTS[object_type]
+        object_class = ALL_OBJECTS[object_type]
 
         if is_namespaced:
             link_header = f'{object_type}/{namespace}'
@@ -155,10 +144,10 @@ class APIServer(object):
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported Content-Type: {content_type}")
 
-            if object_type not in SUPPORTED_OBJECTS:
+            if object_type not in ALL_OBJECTS:
                 raise HTTPException(status_code=400, detail=f"Invalid object type: {object_type}")
 
-            object_class = SUPPORTED_OBJECTS[object_type]
+            object_class = ALL_OBJECTS[object_type]
             try:
                 object = object_class(**object_specs)
             except ObjectException as e:

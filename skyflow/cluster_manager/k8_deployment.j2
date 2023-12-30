@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{deployment_name}}  # Add a deployment name
+  labels: # Add labels to the deployment
+    manager: sky_manager
+    cluster: {{cluster_name}}
+    sky_job_id: {{sky_job_id}}
+spec:
+  replicas: {{replicas}}  # Define the number of replicas
+  selector:
+    matchLabels:
+      manager: sky_manager
+      cluster: {{cluster_name}}
+      sky_job_id: {{sky_job_id}}
+  template:  # Pod specification starts here
+    metadata:
+      labels:
+        manager: sky_manager
+        cluster: {{cluster_name}}
+        sky_job_id: {{sky_job_id}}
+    spec:
+      restartPolicy: {{restart_policy}}
+      containers:
+        - name: my-container
+          image: {{image}}
+          volumeMounts:
+            - name: scratch-space
+              mountPath: /scratch
+          {% if ports %}
+          ports:
+            {% for port in ports %}
+            - containerPort: {{port}}
+            {% endfor %}
+          {% endif %}
+          {% if env_vars %}
+          env:
+            {% for key, value in env_vars.items() %}
+            - name: {{ key }}
+              value: "{{ value }}"
+            {% endfor %}
+          {% endif %}
+          command:
+            - "/bin/sh"
+            - "-c"
+          args:
+            - |         
+              {{run}}
+          resources:
+            limits:
+              cpu: {{cpu}}
+              memory: "{{memory}}Mi"
+              {% if gpu is not none and gpu >= 0 %}
+              nvidia.com/gpu: {{ gpu }}
+              {% endif %}
+            requests:
+              cpu: {{cpu}}
+              memory: "{{memory}}Mi"
+              {% if gpu is not none and gpu >= 0 %}
+              nvidia.com/gpu: {{ gpu }}
+              {% endif %}
+      volumes:
+        - name: scratch-space
+          emptyDir:
+            medium: Memory
+      {% if node_set %}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchFields:
+              - key: metadata.name
+                operator: In
+                values:
+                {% for node in node_set %}
+                  - {{node}}
+                {% endfor %}
+      {% endif %}
