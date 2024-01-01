@@ -14,8 +14,7 @@ Install dependencies, Sky Manager packages, and setup cli
 
 ```
 bash api_server/install_etcd.sh
-python setup.py
-
+python setup.py install
 ```
 
 ## Steps to run Sky Manager
@@ -55,13 +54,13 @@ python launch_sky_manager.py
 Add the Kubernetes clusters to Sky Manager:
 
 ```
-skym create-cluster --name [CLUSTER_NAME] --manager_type k8
+skyctl create-cluster --name [CLUSTER_NAME] --manager_type k8
 ```
 
 In accordance with the example in Step 1:
 ```
-skym create-cluster --name mluo-onprem --manager_type k8
-skym create-cluster --name mluo-onprem --manager_type k8
+skyctl create-cluster --name mluo-onprem --manager_type k8
+skyctl create-cluster --name mluo-onprem --manager_type k8
 ```
 
 Check the status of the clusters using `skym list-clusters`. The output should look like:
