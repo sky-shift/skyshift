@@ -10,11 +10,12 @@ Sky Manager is an implementation of a centralized broker. This is currently a pr
 conda create -n sky python=3.9
 ```
 
-Install dependencies and Sky Manager package with pip:
+Install dependencies, Sky Manager packages, and setup cli
 
 ```
-pip install -r requirements.txt
-pip install -e .
+bash api_server/install_etcd.sh
+python setup.py
+
 ```
 
 ## Steps to run Sky Manager
@@ -36,8 +37,8 @@ CURRENT   NAME          CLUSTER                                   AUTHINFO
 Launch the API server on a separate tmux or screen window:
 
 ```
-cd sky-manager/sky_manager
-python api_server/api_server.py
+cd sky-manager/sky_manager/api_server
+python launch_server.py
 ```
 
 ### 3. Launch Controller Manager.
