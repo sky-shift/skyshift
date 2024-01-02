@@ -79,10 +79,10 @@ mluo-onprem  k8          cpu: 3.86/4.0                      READY
 Jobs an be submitted with `skym create-jobs`:
 
 ```
-skym create-job --name hello --run 'echo hi; sleep 300; echo bye'
+skyctl create job --run 'echo hi; sleep 300; echo bye' [name]
 ```
 
-Check the status of the jobs using `skym list-jobs`. The output should look like:
+Check the status of the jobs using `skyctl get jobs`. The output should look like:
 
 ```
 Name    Cluster      Resources    Status
