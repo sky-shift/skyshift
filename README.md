@@ -10,11 +10,11 @@ Sky Manager is an implementation of a centralized broker. This is currently a pr
 conda create -n sky python=3.9
 ```
 
-Install dependencies and Sky Manager package with pip:
+Install dependencies, Sky Manager packages, and setup cli
 
 ```
-pip install -r requirements.txt
-pip install -e .
+bash api_server/install_etcd.sh
+python setup.py install
 ```
 
 ## Steps to run Sky Manager
@@ -36,8 +36,8 @@ CURRENT   NAME          CLUSTER                                   AUTHINFO
 Launch the API server on a separate tmux or screen window:
 
 ```
-cd sky-manager/sky_manager
-python api_server/api_server.py
+cd sky-manager/sky_manager/api_server
+python launch_server.py
 ```
 
 ### 3. Launch Controller Manager.
@@ -54,13 +54,13 @@ python launch_sky_manager.py
 Add the Kubernetes clusters to Sky Manager:
 
 ```
-skym create-cluster --name [CLUSTER_NAME] --manager_type k8
+skyctl create-cluster --name [CLUSTER_NAME] --manager_type k8
 ```
 
 In accordance with the example in Step 1:
 ```
-skym create-cluster --name mluo-onprem --manager_type k8
-skym create-cluster --name mluo-onprem --manager_type k8
+skyctl create-cluster --name mluo-onprem --manager_type k8
+skyctl create-cluster --name mluo-onprem --manager_type k8
 ```
 
 Check the status of the clusters using `skym list-clusters`. The output should look like:
@@ -79,10 +79,10 @@ mluo-onprem  k8          cpu: 3.86/4.0                      READY
 Jobs an be submitted with `skym create-jobs`:
 
 ```
-skym create-job --name hello --run 'echo hi; sleep 300; echo bye'
+skyctl create job --run 'echo hi; sleep 300; echo bye' [name]
 ```
 
-Check the status of the jobs using `skym list-jobs`. The output should look like:
+Check the status of the jobs using `skyctl get jobs`. The output should look like:
 
 ```
 Name    Cluster      Resources    Status
