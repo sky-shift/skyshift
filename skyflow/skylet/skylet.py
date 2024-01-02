@@ -8,7 +8,7 @@ from copy import deepcopy
 import yaml
 import os
 
-from skyflow.skylet import ClusterController, FlowController, JobController, NetworkController
+from skyflow.skylet import *
 import traceback
 
 CONTROLLERS = [
@@ -16,6 +16,8 @@ CONTROLLERS = [
     FlowController,
     JobController,
     NetworkController,
+    ProxyController,
+    EndpointsController,
 ]
 
 def launch_skylet(cluster_id):

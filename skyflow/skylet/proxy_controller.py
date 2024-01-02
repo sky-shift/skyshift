@@ -110,7 +110,8 @@ class ProxyController(Controller):
                 self.manager_api.delete_endpoint_slice(event_object)
             else:
                 # Delete skupper expose (but do not delete link).
-                self._unexpose_service(event_object.get_name())
+                if self.name in event_object.spec.endpoints:
+                    self._unexpose_service(event_object.get_name())
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[event_object.metadata.name]
             # The primary cluster creates a k8 endpoints object and attaches it to the service.
