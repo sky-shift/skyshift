@@ -1,6 +1,6 @@
-# Sky Manager - Sky as a Service
+# SkyFlow - Container Orchestration across the Sky.
 
-Sky Manager is an implementation of a centralized broker. This is currently a prototype (~2k LOC) and currently supports scheduling across multiple clusters.
+Skyflow orchestrates container-based workloads across the Sky. Our goal is to abstract away the notion of many clusters into one super-cluster. It current supports automatic spreading jobs/deployments across clusters and its new feature - a network mesh - that allows for K8 services to natively load balance across pods in local and remote clusters.
 
 ## Installing Sky Manager
 
@@ -13,8 +13,16 @@ conda create -n sky python=3.9
 Install dependencies, Sky Manager packages, and setup cli
 
 ```
-bash api_server/install_etcd.sh
-python setup.py install
+cd skyflow
+pip install -e .
+# Dependencies for Skyflow's API server.
+pip install -e .[server]
+```
+
+Finally, install Skupper. This is the multi-cluster communication fabric we use to expose services across different clusters.
+
+```
+curl https://skupper.io/install.sh | sh
 ```
 
 ## Steps to run Sky Manager
@@ -33,11 +41,11 @@ CURRENT   NAME          CLUSTER                                   AUTHINFO
 
 ### 2. Launch API server.
 
-Launch the API server on a separate tmux or screen window:
+Launch the API server on a separate tmux or screen window (or nohup). This will automatically install and run ETCD on your machine and launch the API server.
 
 ```
-cd sky-manager/sky_manager/api_server
-python launch_server.py
+# In skyflow/ base folder
+python api_server/launch_server.py
 ```
 
 ### 3. Launch Controller Manager.
@@ -45,53 +53,55 @@ python launch_server.py
 Launch the Controller Manager (which manages Skylet controller + Scheduler controller) on a separate tmux or screen window:
 
 ```
-cd sky-manager/sky_manager
-python launch_sky_manager.py
+# In skyflow/ base folder
+python skyflow/launch_sky_manager.py
 ```
 
 ### 4. Add Kubernetes Clusters on Sky Manager
 
-Add the Kubernetes clusters to Sky Manager:
-
+Check the status of the clusters using `skyctl get clusters`. The output should look like:
 ```
-skyctl create-cluster --name [CLUSTER_NAME] --manager_type k8
-```
-
-In accordance with the example in Step 1:
-```
-skyctl create-cluster --name mluo-onprem --manager_type k8
-skyctl create-cluster --name mluo-onprem --manager_type k8
+Name                                    Manager    Resources                          Status
+mluo-cloud                              k8         cpus: 1.93/2.0                     READY
+                                                   memory: 6035.6796875/7954.6796875
+mluo-onprem                             k8         cpus: 1.93/2.0                     READY
+                                                   memory: 6035.6796875/7954.6796875
 ```
 
-Check the status of the clusters using `skym list-clusters`. The output should look like:
+If there are no clusters, add more clusters into your `~/.kube/config` file and run:
 ```
-Name         Manager     Resources                          Status
-mluo-cloud   k8          cpu: 3.86/4.0                      READY
-                         gpu: 0/0
-                         memory: 12071.359375/15909.359375
-mluo-onprem  k8          cpu: 3.86/4.0                      READY
-                         gpu: 0/0
-                         memory: 12071.359375/15909.359375
+skyctl create-cluster --name [K8_CONTEXT_NAME] --manager_type k8
 ```
 
 ### 5. Congrats. Submit jobs!
 
-Jobs an be submitted with `skym create-jobs`:
+Jobs an be submitted with `skyctl create jobs`:
 
 ```
-skyctl create job --run 'echo hi; sleep 300; echo bye' [name]
+skyctl create job [name] --replicas [REPLICA_COUNT] --run '[RUN_COMMAND]' --cpus [CPU_COUNT_PER_REPLICA] --labels app nginx
 ```
+All argument can be found in `skyctl create jobs --help`.
 
 Check the status of the jobs using `skyctl get jobs`. The output should look like:
 
 ```
-Name    Cluster      Resources    Status
-hello   mluo-onprem  cpu: 1       COMPLETED
-hello1  mluo-cloud   cpu: 2       COMPLETED
-hello2  mluo-onprem  cpu: 1       COMPLETED
-hello3  mluo-onprem  cpu: 2       COMPLETED
-hello4  mluo-cloud   cpu: 1       COMPLETED
-hello5  mluo-onprem  cpu: 1       COMPLETED
+Name     Cluster      Replicas    Resources    Namespace    Status
+hello    mluo-cloud   1/1         cpus: 1.0    default      RUNNING
+hello    mluo-onprem  1/1         cpus: 1.0    default      RUNNING
 ```
+
+### 6. Create Skyflow services!
+
+Services can be submitted with `skyctl create services`:
+
+```
+skyctl create service my-nginx-service --type LoadBalancer --selector app nginx --ports 8008 80 --cluster mluo-onprem
+```
+
+This will create a native K8 service on the `mluo-onprem` cluster. If there are replicas, the K8 service will automatically loadbalance across both local and remote pods (in other clusters).
+
+
+
+
 
 
