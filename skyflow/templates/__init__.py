@@ -7,6 +7,8 @@ from skyflow.templates.object_template import Object, ObjectList, ObjectStatus, 
 from skyflow.templates.filter_policy import FilterPolicyException, FilterPolicyList, FilterPolicy
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.event_template import WatchEvent, WatchEventEnum
+from skyflow.templates.service_template import Service, ServiceException, ServiceList, ServiceMeta
+from skyflow.templates.endpoints_template import Endpoints, EndpointsException, EndpointsList, EndpointsMeta, EndpointsStatus, EndpointsSpec, EndpointObject
 
 __all__ = [
     'AcceleratorEnum',
@@ -14,6 +16,13 @@ __all__ = [
     'ClusterException',
     'ClusterList',
     'ClusterStatusEnum',
+    'Endpoints',
+    'EndpointsException',
+    'EndpointsList',
+    'EndpointsMeta',
+    'EndpointsSpec',
+    'EndpointsStatus',
+    'EndpointObject',
     'FilterPolicy',
     'FilterPolicyException',
     'FilterPolicyList',
@@ -31,6 +40,10 @@ __all__ = [
     'NamespaceMeta',
     'NamespaceList',
     'ResourceEnum',
+    'Service',
+    'ServiceException',
+    'ServiceList',
+    'ServiceMeta',
     'Object',
     'ObjectException',
     'ObjectList',

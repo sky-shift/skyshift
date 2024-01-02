@@ -1,3 +1,7 @@
+import os
+from typing import List, Tuple
+import yaml
+
 import click
 from click_aliases import ClickAliasedGroup
 
@@ -26,9 +30,34 @@ def delete():
     """Delete an object."""
     pass
 
+@click.group(cls=ClickAliasedGroup)
+def apply():
+    """Create an object from a config file."""
+    pass
+
 cli.add_command(create)
 cli.add_command(get)
 cli.add_command(delete)
+cli.add_command(apply)
+
+# Apply as CLI
+@click.command()
+@click.option('--file', '-f', required=True, help='Path to config file (YAML).')
+def apply_config(file: str):
+    if file is None:
+        raise Exception('File must be specified.')
+    
+    absolute_config_path = os.path.abspath(os.path.expanduser(file))
+    if not os.path.exists(absolute_config_path):
+        raise Exception(f'File {absolute_config_path} does not exist.')
+    
+    with open(os.path.expanduser(absolute_config_path),
+                  'r') as config_file:
+        config_dict = yaml.safe_load(config_file)
+    
+    create_cli_object(config_dict['kind'], config_dict)
+
+    
 
 #==============================================================================
 # Cluster API as CLI
@@ -172,7 +201,7 @@ def delete_job(name: str, namespace: str):
     delete_cli_object(object_type= 'job', name=name, namespace=namespace)
 
 #==============================================================================
-# Namspace API as CLI
+# Namespace API as CLI
 @create.command(name='namespace', aliases=['namespaces'])
 @click.argument('name', required=True)
 def create_namespace(name: str):
@@ -313,4 +342,101 @@ def get_links(name: str, watch: bool):
 def delete_link(name):
     """Removes/detaches a cluster from Sky Manager."""
     delete_cli_object(object_type= 'link', name=name)
+
+#==============================================================================
+# Service API as CLI
+@create.command(name='service', aliases=['services', 'svc'])
+@click.argument('name', required=True)
+@click.option('--namespace',
+              type=str,
+              default='default',
+              help='Namespace corresponding to service\'s location.')
+@click.option('--type', '-t', type=str, default='ClusterIP', help='Type of service.')
+@click.option('--selector',
+                '-s',
+                type=(str, str),
+                default=None,
+                help='Label selectors.')
+@click.option('--ports', 
+                '-p',
+                type=(int, int),
+                multiple=True,
+                default=[],
+                help='Port pairs for service (<port>:<containerPort/targetPort>). Defaults to TCP connection.')
+@click.option('--cluster',
+                '-c',
+                type=str,
+                default='auto',
+                help='Cluster to expose service on.')
+def create_service(name: str, namespace: str, type: str, selector: List[Tuple[str, str]], ports: List[Tuple[int, int]], cluster: str):
+    """Creates a new service."""
+    ports = [{'port': port, 'target_port': target_port, 'protocol': 'TCP'} for port, target_port in ports]
+    if isinstance(selector, tuple):
+        selector = [selector]
+    selector = {s[0]: s[1] for s in selector}
+    assert cluster is not None, 'Service `cluster` must be specified.'
+
+    service_dictionary = {
+        'kind': 'Service',
+        'metadata': {
+            'name': name,
+            'namespace': namespace,
+        },
+        'spec': {
+            "type": type,
+            'selector': selector,
+            "ports": ports,
+            'primary_cluster': cluster,
+        }
+    }
+    create_cli_object(service_dictionary)
+
+
+@get.command(name='service', aliases=['services', 'svc'])
+@click.argument('name', required=False, default=None)
+@click.option('--namespace',
+              type=str,
+              default='default',
+              help='Namespace corresponding to service`s locaton.')
+@click.option('--watch', default=False, is_flag=True, help='Performs a watch.')
+def get_service(name: str, namespace: str, watch: bool):
+    """Gets all services or fetches a specific service."""
+    api_response = get_cli_object(object_type = 'service', name=name, namespace=namespace, watch=watch)
+    print_service_table(api_response)
+
+
+@delete.command(name='service', aliases=['services', 'svc'])
+@click.argument('name', required=True)
+@click.option('--namespace',
+              type=str,
+              default='default',
+              help='Namespace corresponding to service`s locaton.')
+def delete_service(name: str, namespace: str):
+    """Removes/detaches a cluster from Sky Manager."""
+    delete_cli_object(object_type= 'service', namespace=namespace, name=name)
+
+#==============================================================================
+# Endpoints API as CLI
+@get.command(name='endpoints', aliases=['endpoint'])
+@click.argument('name', required=False, default=None)
+@click.option('--namespace',
+              type=str,
+              default='default',
+              help='Namespace corresponding to service`s locaton.')
+@click.option('--watch', default=False, is_flag=True, help='Performs a watch.')
+def get_endpoints(name: str, namespace: str, watch: bool):
+    """Gets all services or fetches a specific service."""
+    api_response = get_cli_object(object_type = 'endpoints', name=name, namespace=namespace, watch=watch)
+    print_endpoints_table(api_response)
+
+
+@delete.command(name='endpoints', aliases=['endpoint'])
+@click.argument('name', required=True)
+@click.option('--namespace',
+              type=str,
+              default='default',
+              help='Namespace corresponding to service`s locaton.')
+def delete_endpoints(name: str, namespace: str):
+    """Removes/detaches a cluster from Sky Manager."""
+    delete_cli_object(object_type= 'endpoints', namespace=namespace, name=name)
 

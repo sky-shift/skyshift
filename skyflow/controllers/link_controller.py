@@ -100,7 +100,6 @@ class LinkController(Controller):
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
         target_cluster_manager = setup_cluster_manager(clusters_cache[target])
         try:
-            import pdb; pdb.set_trace()
             create_link(link_name=name, source_manager = source_cluster_manager, target_manager = target_cluster_manager)
         except Exception as e:
             self.logger.error(traceback.format_exc())

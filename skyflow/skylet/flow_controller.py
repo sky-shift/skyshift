@@ -55,7 +55,7 @@ class FlowController(Controller):
         # Python thread safe queue for Informers to append events to.
         self.job_informer = Informer(JobAPI(namespace=None))
 
-        def update_callback_fn(event):
+        def update_callback_fn(old_obj, event):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.

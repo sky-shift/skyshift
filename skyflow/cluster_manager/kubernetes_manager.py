@@ -1,6 +1,7 @@
 import logging
 import re
 import os
+import time
 from typing import Dict, Tuple
 import uuid
 
@@ -60,6 +61,7 @@ class KubernetesManager(Manager):
         # If Kubeneretes context is identified, create Kubernetes client.
         self.core_v1 = client.CoreV1Api()
         self.apps_v1 = client.AppsV1Api()
+        self.discovery_v1 = client.DiscoveryV1Api()
         self.accelerator_types = None
 
 
@@ -212,7 +214,6 @@ class KubernetesManager(Manager):
 
     def delete_job(self, job: Job) -> None:
         # List all the pods in the namespace with the given label
-        print(job)
         if job.spec.restart_policy == 'Always':
             # Delete the deployment
             self.apps_v1.delete_namespaced_deployment(name=job.status.job_ids[self.cluster_name], namespace=self.namespace)
@@ -232,12 +233,11 @@ class KubernetesManager(Manager):
             job: Generic Job object.
         """
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        replicas = sum(job.status.replica_status[self.cluster_name].values())
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
             autoescape=select_autoescape())
         deployment_jinja_template = jinja_env.get_template('k8_deployment.j2')
-
+        replicas = sum(job.status.replica_status[self.cluster_name].values())
         node_set = []
         gpus = job.spec.resources.get(ResourceEnum.GPU.value, 0)
         accelerator_values = [m.value for m in AcceleratorEnum]
@@ -256,8 +256,10 @@ class KubernetesManager(Manager):
             'deployment_name': job_name,
             'cluster_name': self.cluster_name,
             'sky_job_id': job.get_name(),
+            'sky_namespace': job.get_namespace(),
             'restart_policy': job.spec.restart_policy,
             'image': job.spec.image,
+            'labels': job.metadata.labels,
             'replicas': replicas,
             'env_vars': job.spec.envs,
             'ports': job.spec.ports,
@@ -308,8 +310,10 @@ class KubernetesManager(Manager):
                 'pod_name': f'{job_name}-{rank_id}',
                 'cluster_name': self.cluster_name,
                 'sky_job_id': job.get_name(),
+                'sky_namespace': job.get_namespace(),
                 'restart_policy': job.spec.restart_policy,
                 'image': job.spec.image,
+                'labels': job.metadata.labels,
                 'pod_rank': rank_id,
                 'env_vars': job.spec.envs,
                 'ports': job.spec.ports,
@@ -323,6 +327,12 @@ class KubernetesManager(Manager):
             pod_dict = yaml.safe_load(pod_dict)
             pod_dicts.append(pod_dict)
         return pod_dicts
+    
+    def get_pods_with_selector(self, label_selector: Dict[str, str]):
+        """ Gets all pods with the given label selector. """
+        #label_selector['manager'] = 'sky_manager'
+        label_selector_str = ','.join([f'{k}={v}' for k, v in label_selector.items()])
+        return self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector_str)
 
     def get_jobs_status(self) -> Dict[str, Tuple[str, str]]:
         """ Gets the jobs state. (Map from job name to status) """
@@ -357,6 +367,117 @@ class KubernetesManager(Manager):
     def get_job_logs(self, job: Job, rank=0) -> str:
         k8_job_name = job.status.job_ids[self.name]
         return self.core_v1.read_namespaced_pod_log(name=f'{k8_job_name}-{rank}', namespace=job.metadata.namespace)
+    
+    def create_or_update_service(self, service: 'Service', override_name: str = None) -> str:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        jinja_env = Environment(loader=FileSystemLoader(
+            os.path.abspath(dir_path)),
+            autoescape=select_autoescape())
+        service_jinja_template = jinja_env.get_template('k8_service.j2')        
+        service_dict = {
+            'name': f'{service.get_name()}',
+            'type': service.spec.type if service.spec.primary_cluster == self.cluster_name else 'ClusterIP',
+            'sky_namespace': service.get_namespace(),
+            'selector': service.spec.selector,
+            'ports': service.spec.ports,
+        }
+        service_dict = service_jinja_template.render(service_dict)
+        service_dict = yaml.safe_load(service_dict)
+
+        try:
+            self.core_v1.create_namespaced_service(namespace=self.namespace, body=service_dict)
+        except client.exceptions.ApiException as e:
+            if e.status == 409:  # Conflict, service already exists
+                # Update service
+                self.core_v1.patch_namespaced_service(name=service.get_name(), namespace=self.namespace, body=service_dict)
+            else:
+                raise e
+
+    def delete_service(self, service: 'Service') -> str:
+        try:
+            self.core_v1.delete_namespaced_service(name=service.get_name(), namespace=self.namespace)
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                # Service does not exist.
+                pass
+            else:
+                raise e
+    
+
+    def create_or_update_endpoint_slice(self, endpoints: 'Endpoints'):
+        name = endpoints.get_name()
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        jinja_env = Environment(loader=FileSystemLoader(
+            os.path.abspath(dir_path)),
+            autoescape=select_autoescape())
+        endpoint_template = jinja_env.get_template('k8_endpointslice.j2')        
+        endpoint_dict = {
+            'object_name': None,
+            "name": name,
+            "addresses": [],
+            "ports": [],
+        }
+        for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
+            if cluster_name == self.cluster_name:
+                continue
+            if endpoint_obj.exposed_to_cluster:
+                while True:
+                    try:
+                        # Get the endpoints object.
+                        exposed_k8_endpoints = self.core_v1.read_namespaced_endpoints(name=f'{name}-{cluster_name}', namespace=self.namespace)
+                        break
+                    except client.exceptions.ApiException as e:
+                        if e.status == 404:
+                            # Endpoints object does not exist yet.
+                            time.sleep(0.1)
+                            continue
+                        else:
+                            raise e
+                for _ in range(endpoint_obj.num_endpoints):
+                    subsets= exposed_k8_endpoints.subsets
+                    assert len(subsets) <= 1, "Only one subset is supported."
+                    subset = subsets[0]
+                    # Loop through ports in each subset
+                    ports = [p.port for p in subset.ports]   
+                    # Loop through addresses in each subset
+                    for address in subset.addresses:
+                        # Get the pod IP
+                        pod_ip = address.ip       
+                        endpoint_dict['addresses'].append(pod_ip)
+                    break
+                endpoint_dict['ports'].extend(ports)
+                endpoint_dict['object_name'] = f'{name}-{cluster_name}'
+                if not endpoint_dict['addresses']:
+                    continue
+
+                endpoint_dict = endpoint_template.render(endpoint_dict)
+                print(endpoint_dict)
+                endpoint_dict = yaml.safe_load(endpoint_dict)
+                try:
+                    # Create an EndpointSlice
+                    self.discovery_v1.create_namespaced_endpoint_slice(namespace=self.namespace, body=endpoint_dict)
+                except client.rest.ApiException as e:
+                    if e.status == 409:
+                        # EndpointSlice already exists, update it
+                        self.discovery_v1.replace_namespaced_endpoint_slice(name=endpoint_dict['object_name'], namespace=self.namespace, body=endpoint_dict)
+                    else:
+                        raise e
+
+    def delete_endpoint_slice(self, endpoints: 'Endpoints'):
+        name = endpoints.get_name()
+        # Get all endpoints under label
+        label_selector = f'manager=sky-manager,kubernetes.io/service-name={name}'
+        endpoints_list = self.discovery_v1.list_namespaced_endpoint_slice(namespace=self.namespace, label_selector=label_selector)
+        for e_slice in endpoints_list.items:
+            try:
+                self.discovery_v1.delete_namespaced_endpoint_slice(name=e_slice.metadata.name, namespace=self.namespace)
+            except client.exceptions.ApiException as e:
+                if e.status == 404:
+                    # Endpoint slice does not exist.
+                    pass
+                else:
+                    raise e
+
 
 if __name__ == '__main__':
     cluster_name = 'mluo-onprem'

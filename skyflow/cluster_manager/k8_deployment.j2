@@ -13,12 +13,17 @@ spec:
       manager: sky_manager
       cluster: {{cluster_name}}
       sky_job_id: {{sky_job_id}}
+      sky_namespace: {{sky_namespace}}
   template:  # Pod specification starts here
     metadata:
       labels:
         manager: sky_manager
         cluster: {{cluster_name}}
         sky_job_id: {{sky_job_id}}
+        sky_namespace: {{sky_namespace}}
+        {% for key, value in labels.items() %}
+        {{key}}: {{value}}
+        {% endfor %}
     spec:
       restartPolicy: {{restart_policy}}
       containers:

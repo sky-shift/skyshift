@@ -66,7 +66,7 @@ class SchedulerController(Controller):
             if not event_status.replica_status:
                 self.event_queue.put(event)
         
-        def update_job_callback_fn(event):
+        def update_job_callback_fn(old_obj, event):
             event_object = event.object
             replica_status = event_object.status.replica_status
             # Filter for evicted tasks in a job.

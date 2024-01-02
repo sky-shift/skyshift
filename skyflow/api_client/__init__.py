@@ -4,6 +4,8 @@ from skyflow.api_client.filter_policy import FilterPolicyAPI
 from skyflow.api_client.job_api import JobAPI
 from skyflow.api_client.link_api import LinkAPI
 from skyflow.api_client.namespace_api import NamespaceAPI
+from skyflow.api_client.service_api import ServiceAPI
+from skyflow.api_client.endpoints_api import EndpointsAPI
 
 __all__ = [
     'ClusterAPI',
@@ -13,4 +15,6 @@ __all__ = [
     'NamespaceObjectAPI',
     'NoNamespaceObjectAPI',
     'NamespaceAPI',
+    'ServiceAPI',
+    'EndpointsAPI',
 ]

@@ -6,6 +6,8 @@ DEFAULT_NAMESPACE = 'default'
 NAMESPACED_OBJECTS = {
     'jobs': Job,
     'filterpolicies': FilterPolicy,
+    'services': Service,
+    'endpoints': Endpoints,
 }
 NON_NAMESPACED_OBJECTS = {
     'clusters': Cluster,

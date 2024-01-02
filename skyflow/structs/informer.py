@@ -32,8 +32,12 @@ class Informer(object):
 
         # By default, callbacks do nothing.
         event_types = ['add', 'update', 'delete']
-        self.callback_handler = {e_type: lambda x: x for e_type in event_types}
+        self.callback_handler = {}
+        self.callback_handler['add'] = lambda x: x
+        self.callback_handler['update'] = lambda x, y: y
+        self.callback_handler['delete'] = lambda x: x
 
+ 
     def sync_cache(self):
         # Lists all available objects and populates the cache with such objects.
         api_object = self.api.list()
@@ -80,9 +84,10 @@ class Informer(object):
                     self.cache[obj_name] = watch_obj
                 self.callback_handler['add'](watch_event)
             elif event_type == WatchEventEnum.UPDATE:
+                old_obj = self.cache[obj_name]
                 with self.lock:
                     self.cache[obj_name] = watch_obj
-                self.callback_handler['update'](watch_event)
+                self.callback_handler['update'](old_obj, watch_event)
             elif event_type == WatchEventEnum.DELETE:
                 del self.cache[obj_name]
                 self.callback_handler['delete'](watch_event)

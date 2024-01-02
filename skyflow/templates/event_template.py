@@ -2,10 +2,11 @@ import enum
 
 from pydantic import BaseModel, Field, field_validator, validator, model_validator, root_validator
 
-from typing import Dict, Set, Union
+from typing import Union
 from skyflow.templates import *
 from skyflow.utils.utils import load_object
-
+from skyflow.templates.service_template import Service
+from skyflow.templates.endpoints_template import Endpoints
 class WatchEventEnum(enum.Enum):
     # New object is added.
     ADD = "ADD"
@@ -23,7 +24,7 @@ class WatchEventEnum(enum.Enum):
 class WatchEvent(BaseModel):
     kind: str = Field(default='WatchEvent')
     event_type: str
-    object: Union[Cluster, Job, FilterPolicy, Namespace, Link, Object]
+    object: Union[Cluster, Job, FilterPolicy, Namespace, Link, Service, Endpoints, Object]
     
     @field_validator('event_type')
     @classmethod    

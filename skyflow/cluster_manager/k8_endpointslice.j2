@@ -1,0 +1,25 @@
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: {{object_name}}
+  labels:
+    manager: sky-manager
+    kubernetes.io/service-name: {{name}}  # Associate with your service
+addressType: IPv4
+{% if addresses %}
+endpoints:
+{% for address in addresses %}
+  - addresses:
+      - {{address}}  # Pod IP address
+    conditions:
+      ready: true
+{% endfor %}
+{% endif %}
+{% if ports %}
+ports:
+{% for port in ports %}
+  - name: ""
+    protocol: TCP
+    port: {{ port }}
+{% endfor %}
+{% endif %}

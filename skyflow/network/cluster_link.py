@@ -1,6 +1,7 @@
 # For now, we implement linking of clusters using Skupper.
 import os
 import subprocess
+from typing import List
 
 from skyflow.cluster_manager import Manager
 
@@ -75,7 +76,7 @@ def create_link(link_name: str, source_manager: Manager, target_manager: Manager
         raise e
 
     try:
-        # Create authetnication token.
+        # Create a link between two clusters.
         create_link_command= SKUPPER_LINK_CREATE_CMD.format(name=link_name, cluster_name=source_cluster_name, namespace=source_namespace)
         subprocess.check_output(create_link_command, shell=True, timeout=30).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
@@ -99,3 +100,32 @@ def delete_link(link_name: str, manager: Manager):
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed delete a link between two clusters.')
         raise e
+
+
+def expose_service(service_name: str, manager: Manager, ports: List[int]):
+    namespace = manager.namespace
+    cluster_name = manager.cluster_name
+    expose_service_name = f'{service_name}-{cluster_name}'
+    expose_cmd = f'skupper expose service {service_name}.{namespace} --address {expose_service_name} --context {cluster_name} --namespace {namespace} '
+    for port in ports:
+        expose_cmd += f'--port {port} --target-port {port} '
+    try:
+        subprocess.check_output(expose_cmd, shell=True, timeout=20).decode('utf-8')
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print('Failed to expose service.')
+        raise e
+
+
+def unexpose_service(service_name: str, manager: Manager):
+    namespace = manager.namespace
+    cluster_name = manager.cluster_name
+    expose_service_name = f'{service_name}-{cluster_name}'
+    unexpose_cmd = f'skupper unexpose service {service_name}.{namespace} --address {expose_service_name} --context {cluster_name} --namespace {namespace}'
+    try:
+        # Create authetnication token.
+        subprocess.check_output(unexpose_cmd, shell=True, timeout=20).decode('utf-8')
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print('Failed to expose service.')
+        raise e
+
+    

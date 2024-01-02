@@ -68,7 +68,7 @@ class SkyletController(Controller):
         def add_callback_fn(event):
             self.event_queue.put(event)
         
-        def update_callback_fn(event):
+        def update_callback_fn(old_obj, event):
             event_object = event.object
             if event_object.get_status() == ClusterStatusEnum.ERROR:
                 self.event_queue.put(event)
@@ -84,7 +84,6 @@ class SkyletController(Controller):
         self.cluster_informer.start()
 
 
-
     def run(self):
         # Establish a watch over added clusters.
         self.logger.info(
@@ -97,7 +96,8 @@ class SkyletController(Controller):
             # Serves as a form of rate limiting.
             # TODO(mluo): Move rate limiting to the event queue.
             time.sleep(SKYLET_CONTROLLER_INTERVAL)
-    
+
+
     def controller_loop(self):
         watch_event = self.event_queue.get()
         event_type = watch_event.event_type

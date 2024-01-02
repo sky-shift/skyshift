@@ -38,7 +38,7 @@ class ObjectSpec(BaseModel):
 
 
 class Object(BaseModel):
-    kind: str
+    kind: str = Field(default='Object')
     metadata: ObjectMeta = Field(default=ObjectMeta())
     spec: ObjectSpec = Field(default=ObjectSpec())
     status: ObjectStatus = Field(default=ObjectStatus())

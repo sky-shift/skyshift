@@ -99,9 +99,7 @@ class APIServer(object):
 
         if watch:
             return self._watch_key(link_header)
-        print(link_header)
         read_response = self.etcd_client.read_prefix(link_header)
-        print(read_response)
         for object_dict in read_response:
             object_list.append(object_class(**object_dict))
         obj_list_cls = eval(object_class.__name__ + 'List')(objects=object_list)

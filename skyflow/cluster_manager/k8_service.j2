@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{name}}
+  labels:
+    sky_namespace: {{sky_namespace}}
+spec:
+  type: {{type}}
+  {% if selector %}
+  selector: 
+    {% for key, value in selector.items() %}
+    {{ key }}: {{ value }}
+    {% endfor %}
+  {% endif %}
+  ports:
+    {% for port in ports %}
+    - protocol: {{ port.protocol }}
+      port: {{ port.port }}
+      targetPort: {{ port.target_port }}
+    {% endfor %}

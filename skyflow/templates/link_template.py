@@ -45,6 +45,7 @@ class LinkSpec(ObjectSpec):
 
 
 class Link(Object):
+    kind: str = Field(default='Link', validate_default=True)
     metadata: LinkMeta = Field(default=LinkMeta(), validate_default=True)
     spec: LinkSpec = Field(default=LinkSpec(), validate_default=True)
     status: LinkStatus = Field(default=LinkStatus(), validate_default=True)

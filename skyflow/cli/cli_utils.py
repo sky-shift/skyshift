@@ -10,6 +10,8 @@ from skyflow.templates import Cluster, TaskStatusEnum, Object, ObjectList
 NAMESPACED_API_OBJECTS = {
     'job': JobAPI,
     'filterpolicy': FilterPolicyAPI,
+    'service': ServiceAPI,
+    'endpoints': EndpointsAPI,
 }
 NON_NAMESPACED_API_OBJECTS = {
     'cluster': ClusterAPI,
@@ -197,6 +199,37 @@ def print_filter_table(job_list: List[dict]):
     click.echo(f'{table}\r')
 
 
+
+def print_service_table(service_list: List[dict]):
+    if isinstance(service_list, ObjectList):
+        service_list = service_list.objects
+    else:
+        service_list = [service_list]
+    field_names = [
+        "NAME", "TYPE", "CLUSTER-IP", "EXTERNAL-IP", "PORTS", "CLUSTER",
+    ]
+    table_data = []
+
+    for entry in service_list:
+        name = entry.get_name()
+        type = entry.spec.type
+        ports = entry.spec.ports
+        cluster_ip = entry.spec.cluster_ip
+        external_ip = entry.status.external_ip
+        cluster = entry.spec.primary_cluster
+        port_str = ''
+        # port_str = '80:8080; ...'
+        for idx, p in enumerate(ports):
+            if idx == len(ports)-1:
+                port_str += f'{p.port}:{p.target_port}'
+            else:
+                port_str += f'{p.port}:{p.target_port}; '
+        table_data.append([name, type, cluster_ip, external_ip, port_str, cluster])
+
+    table = tabulate(table_data, field_names, tablefmt="plain")
+    click.echo(f'{table}\r')
+
+
 def print_link_table(link_list):
     if isinstance(link_list, ObjectList):
         link_list = link_list.objects
@@ -211,6 +244,26 @@ def print_link_table(link_list):
         target = entry.spec.target_cluster
         status = entry.get_status()
         table_data.append([name, source, target, status])
+
+    table = tabulate(table_data, field_names, tablefmt="plain")
+    click.echo(f'{table}\r')
+
+def print_endpoints_table(endpoints_list):
+    if isinstance(endpoints_list, ObjectList):
+        endpoints_list = endpoints_list.objects
+    else:
+        endpoints_list = [endpoints_list]
+    field_names = ["NAME", "NAMESPACE", "ENDPOINTS"]
+    table_data = []
+
+    for entry in endpoints_list:
+        name = entry.get_name()
+        namespace = entry.get_namespace()
+        endpoints = entry.spec.endpoints
+        endpoints_str = ''
+        for cluster, endpoint_obj in endpoints.items():
+            endpoints_str += f'{cluster}: {endpoint_obj.num_endpoints}\n'
+        table_data.append([name, namespace, endpoints_str])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f'{table}\r')
