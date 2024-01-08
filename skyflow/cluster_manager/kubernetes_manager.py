@@ -351,6 +351,24 @@ class KubernetesManager(Manager):
             jobs_dict[sky_job_name][pod_status] += 1
         return jobs_dict
 
+    def get_service_status(self) -> Dict[str, Tuple[str, str]]:
+        """ Gets the jobs state. (Map from job name to status) """
+        # TODO(mluo): Minimize K8 API calls by doing a List and Watch over
+        # Sky Manager services
+        sky_svcs = self.core_v1.list_namespaced_service(self.namespace, label_selector='manager=sky_manager,primary_service=hello')
+
+        svc_dict = {}
+        for svc in sky_svcs.items:
+            svc_name = svc.metadata.name
+            if svc_name not in svc_dict:
+                svc_dict[svc_name] = {}
+            # Inject clusterIP and Loadbalanacer external ip
+            svc_dict[svc_name]['clusterIP'] = svc.spec.cluster_ip
+            # Check if loabalancer ip exists
+            if svc.status.load_balancer.ingress:
+                svc_dict[svc_name]['externalIP'] = svc.status.load_balancer.ingress[0].ip
+        return svc_dict
+
     def _process_pod_status(self, pod):
         pod_status = pod.status.phase
         status = None
@@ -373,15 +391,23 @@ class KubernetesManager(Manager):
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
             autoescape=select_autoescape())
-        service_jinja_template = jinja_env.get_template('k8_service.j2')        
+        service_jinja_template = jinja_env.get_template('k8_service.j2')  
+        if service.spec.primary_cluster == self.cluster_name:
+            service_type = service.spec.type
+            primary_service = 'hello'
+        else:
+            service_type = 'ClusterIP'
+            primary_service = "bye"
         service_dict = {
             'name': f'{service.get_name()}',
-            'type': service.spec.type if service.spec.primary_cluster == self.cluster_name else 'ClusterIP',
+            'type': service_type,
+            'primary_service': primary_service,
             'sky_namespace': service.get_namespace(),
             'selector': service.spec.selector,
             'ports': service.spec.ports,
         }
         service_dict = service_jinja_template.render(service_dict)
+        print(service_dict)
         service_dict = yaml.safe_load(service_dict)
 
         try:

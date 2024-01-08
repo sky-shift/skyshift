@@ -3,7 +3,9 @@ kind: Service
 metadata:
   name: {{name}}
   labels:
+    manager: sky_manager
     sky_namespace: {{sky_namespace}}
+    primary_service: "{{primary_service}}"
 spec:
   type: {{type}}
   {% if selector %}

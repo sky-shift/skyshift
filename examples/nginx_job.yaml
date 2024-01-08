@@ -1,0 +1,17 @@
+kind: Job
+
+metadata: 
+  name: sky1
+  labels:
+    app: sky
+
+spec:
+  replicas: 2
+  image: nginx:1.14.2
+  resources:
+    cpus: 1
+    memory: 128
+  env:
+    - name: HELLO_SKY
+      value: "hello_sky"
+  restartPolicy: Always

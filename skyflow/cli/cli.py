@@ -41,7 +41,7 @@ cli.add_command(delete)
 cli.add_command(apply)
 
 # Apply as CLI
-@click.command()
+@click.command(name='apply') 
 @click.option('--file', '-f', required=True, help='Path to config file (YAML).')
 def apply_config(file: str):
     if file is None:
@@ -55,9 +55,9 @@ def apply_config(file: str):
                   'r') as config_file:
         config_dict = yaml.safe_load(config_file)
     
-    create_cli_object(config_dict['kind'], config_dict)
+    create_cli_object(config_dict)
 
-    
+cli.add_command(apply_config)
 
 #==============================================================================
 # Cluster API as CLI

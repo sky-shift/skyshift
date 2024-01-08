@@ -18,6 +18,7 @@ CONTROLLERS = [
     NetworkController,
     ProxyController,
     EndpointsController,
+    ServiceController,
 ]
 
 def launch_skylet(cluster_id):

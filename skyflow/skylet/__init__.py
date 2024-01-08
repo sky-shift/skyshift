@@ -4,6 +4,7 @@ from skyflow.skylet.flow_controller import FlowController
 from skyflow.skylet.network_controller import NetworkController
 from skyflow.skylet.proxy_controller import ProxyController
 from skyflow.skylet.endpoints_controller import EndpointsController
+from skyflow.skylet.service_controller import ServiceController
 
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     'JobController',
     'NetworkController',
     'ProxyController',
-    'EndpointsController'
+    'EndpointsController',
+    'ServiceController',
 ]

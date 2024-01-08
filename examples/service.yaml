@@ -1,13 +1,14 @@
 kind: Service
 
 metadata:
-  name: test-service
+  name: skyretreat
 
 spec:
   type: LoadBalancer
+  primary_cluster: mluo-onprem
   selector:
-    app: test-app
+    app: nginx
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 8080
+      port: 8080
+      target_port: 80
