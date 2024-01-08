@@ -145,15 +145,19 @@ def delete_cluster(name):
               type=int,
               default=1,
               help='Number of replicas to run job.')
-def create_job(name, namespace, labels, image, envs, cpus, gpus, accelerators, memory, run, replicas):
+@click.option('--restart_policy',
+                type=str,
+                default='Always',
+                help='Restart policy for job tasks.')
+def create_job(name, namespace, labels, image, envs, cpus, gpus, accelerators, memory, run, replicas, restart_policy):
     """Adds a new job."""
     labels = dict(labels)
     envs = dict(envs)
 
     resource_dict = {
-                'cpus': cpus,
-                'gpus': gpus,
-                'memory': memory,
+        'cpus': cpus,
+        'gpus': gpus,
+        'memory': memory,
     }
     if accelerators:
         acc_type, acc_count = accelerators.split(':')
@@ -172,6 +176,7 @@ def create_job(name, namespace, labels, image, envs, cpus, gpus, accelerators, m
             'resources': resource_dict,
             'run': run,
             'replicas': replicas,
+            'restart_policy': restart_policy,
         }
     }
     create_cli_object(job_dictionary)

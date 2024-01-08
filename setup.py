@@ -7,6 +7,7 @@ setup(name='skyflow',
       install_requires=[
           'Click',
           'click_aliases',
+          'etcd3',
           'kubernetes', 
           'protobuf==3.20.0',
           'pydantic>=2.5.0',

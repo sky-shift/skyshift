@@ -1,11 +1,11 @@
 kind: Service
 
 metadata:
-  name: skyretreat
+  name: servicedemo
 
 spec:
   type: LoadBalancer
-  primary_cluster: mluo-onprem
+  primary_cluster: local
   selector:
     app: nginx
   ports:

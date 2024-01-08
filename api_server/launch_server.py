@@ -46,5 +46,5 @@ if __name__ == '__main__':
 
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     check_and_install_etcd()
-    uvicorn.run('api_server:app', host=args.host, port=args.port, workers=multiprocessing.cpu_count())
     generate_manager_config(args.host, args.port)
+    uvicorn.run('api_server:app', host=args.host, port=args.port, workers=multiprocessing.cpu_count())
