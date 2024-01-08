@@ -82,7 +82,6 @@ class ServiceController(Controller):
 
     def controller_loop(self):
             self.service_status = self.manager_api.get_service_status()
-            print(self.service_status)
             # Copy Informer cache to get the jobs stored in API server.)
             informer_object = self.informer.get_cache()
             prev_svcs = list(informer_object.keys())
