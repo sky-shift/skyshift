@@ -11,4 +11,6 @@ spec:
   resources:
     cpus: 0.5
     memory: 256
+  ports:
+    - 80
   restartPolicy: Always

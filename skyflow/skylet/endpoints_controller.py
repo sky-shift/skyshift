@@ -80,7 +80,7 @@ class EndpointsController(Controller):
             self.worker_queue.put(event)
         
         def update_svc_callback_fn(old_obj, event):
-            new_obj = event.obj
+            new_obj = event.object
             if old_obj.spec.selector != new_obj.spec.selector:
                 self.worker_queue.put(event)
             elif old_obj.spec.primary_cluster != new_obj.spec.primary_cluster:

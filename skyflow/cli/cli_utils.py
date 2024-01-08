@@ -63,7 +63,7 @@ def print_cluster_table(cluster_list):
         cluster_list = cluster_list.objects
     else:
         cluster_list = [cluster_list]
-    field_names = ["Name", "Manager", "Resources", "Status"]
+    field_names = ["NAME", "MANAGER", "RESOURCES", "STATUS"]
     table_data = []
 
     def gather_resources(data):
@@ -110,7 +110,7 @@ def print_job_table(job_list: List[dict]):
         job_list = job_list.objects
     else:
         job_list = [job_list]
-    field_names = ["Name", "Cluster", "Replicas", "Resources", "Namespace", "Status"]
+    field_names = ["NAME", "CLUSTER", "REPLICAS", "RESOURCES", "NAMESPACE", "STATUS"]
     table_data = []
     for entry in job_list:
         name = entry.get_name()
@@ -164,7 +164,7 @@ def print_namespace_table(namespace_list: List[dict]):
         namespace_list = namespace_list.objects
     else:
         namespace_list = [namespace_list]
-    field_names = ["Name", "Status"]
+    field_names = ["NAME", "STATUS"]
     table_data = []
 
     for entry in namespace_list:
@@ -235,7 +235,7 @@ def print_link_table(link_list):
         link_list = link_list.objects
     else:
         link_list = [link_list]
-    field_names = ["Name", "Source", "Target", "Status"]
+    field_names = ["NAME", "SOURCE", "TARGET", "STATUS"]
     table_data = []
 
     for entry in link_list:

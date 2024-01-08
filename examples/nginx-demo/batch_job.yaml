@@ -14,5 +14,5 @@ spec:
   env:
     - name: HELLO_SKY
       value: "hello_sky"
-  run: 'echo $HELLO_SKY; sleep 30'
+  run: 'echo $HELLO_SKY; sleep 300'
   restartPolicy: Never
