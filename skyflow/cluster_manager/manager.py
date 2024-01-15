@@ -43,6 +43,11 @@ class Manager(object):
         return
 
     def submit_job(self, job):
+        #Submit job once with unique job ID, if more requests 
+        #come with ID, ignore
+        raise NotImplementedError
+
+    def delete_job(self, job):
         raise NotImplementedError
 
     def get_job_status(self, job_name):
