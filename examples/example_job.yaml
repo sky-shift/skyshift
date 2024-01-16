@@ -12,6 +12,9 @@ spec:
     gpus: 0
     memory: 128
   env:
-    MY_ENV_VAR: "hello"
+    - name: MY_ENV_VAR
+      value: "hello"
+    - name: MY_ENV_VAR2
+      value: "hello2"
   run: |
     echo $MY_ENV_VAR; sleep 100; echo bye

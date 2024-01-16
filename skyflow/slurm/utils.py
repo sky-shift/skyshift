@@ -26,8 +26,8 @@ def convert_yaml(job):
     #jobDict["labels"] = job.metadata.labels
     jobDict["environment"] = job.spec.image
     jobDict["resources"] = job.spec.resources
-    for key in job.spec.env:
-        jobDict["environment"] = job.spec.env
+    for key in job.spec.envs:
+        jobDict["environment"] = job.spec.envs
 
     resources= job.spec.resources
     resources["mem"] = resources["memory"]

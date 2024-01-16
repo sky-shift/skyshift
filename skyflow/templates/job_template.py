@@ -132,7 +132,7 @@ class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
     resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES, validate_default=True)
     run: str = Field(default="", validate_default=True)
-    env: Dict[str, str] = Field(default={}, validate_default=True)
+    envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
     replicas: int = Field(default=1, validate_default=True)
     restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value, validate_default=True)
