@@ -1,7 +1,7 @@
 kind: Job
 
 metadata: 
-  name: hello-world
+  name: hello-world7
   labels:
     testing: hello
 
@@ -11,10 +11,12 @@ spec:
     cpus: 1
     gpus: 0
     memory: 128
-  env:
-    - name: MY_ENV_VAR
-      value: "hello"
-    - name: MY_ENV_VAR2
-      value: "hello2"
+  envs:
+    MY_ENV_VAR: "hello"
+    PATH: "/bin"
+    #- name: MY_ENV_VAR2
+    #  value: "hello2"
+    # post process k8s way into regular dict
   run: |
-    echo $MY_ENV_VAR; sleep 100; echo bye
+    #!/bin/bash
+    echo $MY_ENV_VAR; sleep 500; echo bye

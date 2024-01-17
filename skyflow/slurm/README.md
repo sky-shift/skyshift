@@ -84,6 +84,9 @@ Slurm watchdog, poll asynchrnoously every X time
 
 # Docker
 ```
+#generate shell script, check if docker is installed, and dockerd is daemonized
+#pull image, submit job
+# use jinja
 docker build --tag {} {dir}
 docker run --rm {tag}
 docker inspect {tag}

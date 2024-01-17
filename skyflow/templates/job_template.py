@@ -181,7 +181,8 @@ class Job(Object):
     metadata: JobMeta = Field(default=JobMeta(), validate_default=True)
     spec: JobSpec = Field(default=JobSpec(), validate_default=True)
     status: JobStatus = Field(default=JobStatus(), validate_default=True)
-    
+    # def setSpec(self, val):
+    #     self.spec = JobSpec(val)
     def get_namespace(self):
         return self.metadata.namespace
 

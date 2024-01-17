@@ -24,31 +24,38 @@ def convert_yaml(job):
     jobDict = {}
     jobDict["name"] = job.metadata.name
     #jobDict["labels"] = job.metadata.labels
-    jobDict["environment"] = job.spec.image
-    jobDict["resources"] = job.spec.resources
+    #jobDict["image"] = job.spec.image
+    #jobDict["resources"] = job.spec.resources
+    tmp = job.spec.envs
+    #print(tmp)
     for key in job.spec.envs:
         jobDict["environment"] = job.spec.envs
-
-    resources= job.spec.resources
-    resources["mem"] = resources["memory"]
-    del resources["memory"]
-    jobDict["resources"] = resources
+    resources = job.spec.resources
+    #resources["mem"] = resources["memory"]
+    #del resources["memory"]
+    #tasks == vCPUs
+    jobDict["tasks"] = int(resources["cpus"])
+    jobDict["memory_per_cpu"] = int(resources["memory"])
     #Check if time limit is imposed, else set as infinite
-    if "time_limit" in jobDict["resources"].keys():
-        jobDict["resources"]["time_limit"] = "INFINITE"
+    if "time_limit" in jobDict.keys():
+        jobDict["time_limit"] = "INFINITE"
 
     run = job.spec.run
     
+    
     slurmSubmit["script"] = run
     slurmSubmit["job"] = jobDict
-
-    print(json.dumps(slurmSubmit))
+    print("=========")
+    print(json.dumps(slurmSubmit, indent=4,))
+    return slurmSubmit
     
 
 if __name__ == "__main__":
     f = open("../../examples/example_job.yaml", "r")
     mdict = yaml.safe_load(f)
-    #print(dict)
-    job = Job(metadata=mdict["metadata"], spec = mdict["spec"])
+
+    print(mdict)
+    job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
     #print(dict["spec"])
+    print(job.spec)
     convert_yaml(job)
