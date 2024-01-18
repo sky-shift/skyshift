@@ -52,7 +52,9 @@ class Manager(object):
 
     def get_job_status(self, job_name):
         raise NotImplementedError
-
+        
+    def get_accelerator_types(self):
+        raise NotImplementedError
     @staticmethod
     def convert_yaml(job):
         raise NotImplementedError
