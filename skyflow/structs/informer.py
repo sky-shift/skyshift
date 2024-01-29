@@ -12,7 +12,7 @@ Typical usage example:
 import queue
 import threading
 import time
-from typing import Any, Callable, Dict
+from typing import Any, Dict
 
 from skyflow.structs import Watcher
 from skyflow.templates.event_template import WatchEventEnum
