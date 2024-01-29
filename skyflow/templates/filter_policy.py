@@ -4,8 +4,9 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field, field_validator
 
-from skyflow.templates.object_template import Object, ObjectException, \
-    ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
+from skyflow.templates.object_template import (Object, ObjectException,
+                                               ObjectList, ObjectMeta,
+                                               ObjectSpec, ObjectStatus)
 
 DEFAULT_NAMESPACE = 'default'
 
@@ -14,6 +15,7 @@ class FilterPolicyException(ObjectException):
     "Raised when the filter policy is invalid."
     pass
 
+
 class FilterStatusEnum(enum.Enum):
     # Status when Filter policy is active.
     ACTIVE = "ACTIVE"
@@ -21,7 +23,8 @@ class FilterStatusEnum(enum.Enum):
 
 class FilterPolicyStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
-    status: str = Field(default=FilterStatusEnum.ACTIVE.value, validate_default=True)
+    status: str = Field(default=FilterStatusEnum.ACTIVE.value,
+                        validate_default=True)
 
     @field_validator('conditions')
     @classmethod
@@ -62,6 +65,7 @@ class FilterPolicyStatus(ObjectStatus):
                 'transitionTime': str(cur_time),
             })
 
+
 class FilterPolicyMeta(ObjectMeta):
     namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
 
@@ -77,22 +81,27 @@ class ClusterFilter(BaseModel):
     include: List[str] = Field(default=[])
     exclude: List[str] = Field(default=[])
 
+
 class FilterPolicySpec(ObjectSpec):
-    cluster_filter: ClusterFilter = Field(default=ClusterFilter(), validate_default=True)
+    cluster_filter: ClusterFilter = Field(default=ClusterFilter(),
+                                          validate_default=True)
     labels_selector: Dict[str, str] = Field(default={}, validate_default=True)
 
 
 class FilterPolicy(Object):
-    metadata: FilterPolicyMeta = Field(default=FilterPolicyMeta(), validate_default=True)
-    spec: FilterPolicySpec = Field(default=FilterPolicySpec(), validate_default=True)
-    status: FilterPolicyStatus = Field(default=FilterPolicyStatus(), validate_default=True)
-    
+    metadata: FilterPolicyMeta = Field(default=FilterPolicyMeta(),
+                                       validate_default=True)
+    spec: FilterPolicySpec = Field(default=FilterPolicySpec(),
+                                   validate_default=True)
+    status: FilterPolicyStatus = Field(default=FilterPolicyStatus(),
+                                       validate_default=True)
+
     def get_namespace(self):
         return self.metadata.namespace
 
 
 class FilterPolicyList(ObjectList):
-    objects: List[FilterPolicy] = Field(default=[])
+    kind: str = Field(default='FilterPolicyList')
 
 
 if __name__ == '__main__':

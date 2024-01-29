@@ -3,12 +3,14 @@ from typing import List
 
 from pydantic import Field
 
-from skyflow.templates.object_template import Object, ObjectException, \
-    ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
+from skyflow.templates.object_template import (Object, ObjectException,
+                                               ObjectList, ObjectMeta,
+                                               ObjectSpec, ObjectStatus)
 
 
 class LinkException(ObjectException):
     pass
+
 
 class LinkStatusEnum(enum.Enum):
     """Represents the network link between two clusters."""
@@ -23,6 +25,7 @@ class LinkStatusEnum(enum.Enum):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
+
 
 class LinkStatus(ObjectStatus):
     phase: str = Field(default=LinkStatusEnum.INIT.value)
@@ -39,6 +42,7 @@ class LinkStatus(ObjectStatus):
 class LinkMeta(ObjectMeta):
     pass
 
+
 class LinkSpec(ObjectSpec):
     source_cluster: str = Field(default=None)
     target_cluster: str = Field(default=None)
@@ -49,7 +53,7 @@ class Link(Object):
     metadata: LinkMeta = Field(default=LinkMeta(), validate_default=True)
     spec: LinkSpec = Field(default=LinkSpec(), validate_default=True)
     status: LinkStatus = Field(default=LinkStatus(), validate_default=True)
-    
+
     def get_status(self):
         return self.status.phase
 
@@ -58,5 +62,4 @@ class Link(Object):
 
 
 class LinkList(ObjectList):
-    objects: List[Link] = Field(default=[])
-
+    kind: str = Field(default='LinkList')

@@ -1,8 +1,10 @@
-from contextlib import contextmanager
+import logging
 import threading
 import time
+from contextlib import contextmanager
 
 CONTROLLER_RATE_LIMIT = 1
+
 
 @contextmanager
 def ControllerErrorHandler(controller: 'Controller'):
@@ -21,8 +23,9 @@ class Controller(object):
     A controller is a process that runs in the background and attempts to reconcile
     state to a desired state. This happens in the self.run() method.
     """
+
     def __init__(self) -> None:
-        pass
+        self.logger = logging.getLogger(f'[Generic Controller]')
 
     def post_init_hook(self):
         """Hook that is called after the controller is initialized.

@@ -1,12 +1,17 @@
 import enum
+from typing import Generic, TypeVar, Union
 
-from pydantic import BaseModel, Field, field_validator, validator, model_validator, root_validator
+T = TypeVar('T')
 
-from typing import Union
+from pydantic import (BaseModel, Field, field_validator, model_validator,
+                      root_validator, validator)
+
 from skyflow.templates import *
-from skyflow.utils.utils import load_object
-from skyflow.templates.service_template import Service
 from skyflow.templates.endpoints_template import Endpoints
+from skyflow.templates.service_template import Service
+from skyflow.utils.utils import load_object
+
+
 class WatchEventEnum(enum.Enum):
     # New object is added.
     ADD = "ADD"
@@ -21,13 +26,13 @@ class WatchEventEnum(enum.Enum):
         return super().__eq__(other)
 
 
-class WatchEvent(BaseModel):
+class WatchEvent(BaseModel, Generic[T]):
     kind: str = Field(default='WatchEvent')
     event_type: str
-    object: Union[Cluster, Job, FilterPolicy, Namespace, Link, Service, Endpoints, Object]
-    
+    object: T
+
     @field_validator('event_type')
-    @classmethod    
+    @classmethod
     def verify_event_type(cls, event_type: str):
         if not any(event_type == ev_enum.value for ev_enum in WatchEventEnum):
             raise ValueError(f'Invalid watch event type, {event_type}.')
@@ -38,4 +43,3 @@ class WatchEvent(BaseModel):
         if isinstance(v, dict):
             return load_object(v)
         return v
-

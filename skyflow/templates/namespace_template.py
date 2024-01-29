@@ -1,11 +1,12 @@
-from enum import Enum
 import time
+from enum import Enum
 from typing import Dict, List
 
 from pydantic import Field, field_validator
 
-from skyflow.templates.object_template import Object, ObjectException, \
-    ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
+from skyflow.templates.object_template import (Object, ObjectException,
+                                               ObjectList, ObjectMeta,
+                                               ObjectSpec, ObjectStatus)
 
 
 class NamespaceEnum(Enum):
@@ -20,7 +21,8 @@ class NamespaceException(ObjectException):
 
 class NamespaceStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
-    status: str = Field(default=NamespaceEnum.ACTIVE.value, validate_default=True)
+    status: str = Field(default=NamespaceEnum.ACTIVE.value,
+                        validate_default=True)
 
     @field_validator('conditions')
     @classmethod
@@ -65,6 +67,7 @@ class NamespaceStatus(ObjectStatus):
 class NamespaceMeta(ObjectMeta):
     pass
 
+
 class NamespaceSpec(ObjectSpec):
     pass
 
@@ -76,7 +79,7 @@ class Namespace(Object):
 
 
 class NamespaceList(ObjectList):
-    objects: List[Namespace] = Field(default=[])
+    pass
 
 
 if __name__ == '__main__':

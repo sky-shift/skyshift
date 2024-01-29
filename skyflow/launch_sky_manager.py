@@ -1,13 +1,14 @@
 import traceback
 
-
+from skyflow.controllers.link_controller import LinkController
 from skyflow.controllers.scheduler_controller import SchedulerController
 from skyflow.controllers.skylet_controller import SkyletController
-from skyflow.controllers.link_controller import LinkController
-
 
 # Servers as the Controller Manager, which runs two controllers.
-SKY_MANAGER_CONTROLLERS = [SkyletController, SchedulerController, LinkController]
+SKY_MANAGER_CONTROLLERS = [
+    SkyletController, SchedulerController, LinkController
+]
+
 
 def launch_sky_manager():
     # Launch SkyletController, which manages Skylets.

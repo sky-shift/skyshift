@@ -5,6 +5,8 @@ metadata:
 
 spec:
   type: LoadBalancer
+  # Enter which cluster to deploy service on.
+  # By default, it selects the cluster with most replicas.
   primary_cluster: remote
   selector:
     app: nginx

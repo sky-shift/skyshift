@@ -1,13 +1,14 @@
-from copy import deepcopy
 import datetime
 import enum
+from copy import deepcopy
 from typing import Any, Dict, List
 
 from pydantic import Field, field_validator
 
-from skyflow.templates.object_template import Object, ObjectException, \
-    ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
-from skyflow.templates.resource_template import ResourceEnum, AcceleratorEnum
+from skyflow.templates.object_template import (Object, ObjectException,
+                                               ObjectList, ObjectMeta,
+                                               ObjectSpec, ObjectStatus)
+from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 DEFAULT_IMAGE = 'ubuntu:latest'
 DEFAULT_JOB_RESOURCES = {
@@ -33,6 +34,7 @@ class JobStatusEnum(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+
 class TaskStatusEnum(enum.Enum):
     """A job consists of many tasks. This enum represents the status of a task."""
     # When a task is first created.
@@ -55,6 +57,7 @@ class TaskStatusEnum(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+
 class RestartPolicyEnum(enum.Enum):
     """Represents the restart policy of a job."""
     # Never restart job (even if it fails).
@@ -74,10 +77,12 @@ class JobException(ObjectException):
     """Raised when the job template is invalid."""
     pass
 
+
 class JobStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     # Maps clusters to status of replicas.
-    replica_status: Dict[str, Dict[str, int]] = Field(default={}, validate_default=True)
+    replica_status: Dict[str, Dict[str, int]] = Field(default={},
+                                                      validate_default=True)
     # Job-IDs for each set of replicas per cluster.
     job_ids: Dict[str, str] = Field(default={}, validate_default=True)
 
@@ -87,9 +92,12 @@ class JobStatus(ObjectStatus):
         if not conditions:
             time_str = datetime.datetime.utcnow().isoformat()
             conditions = [{
-                'type': JobStatusEnum.INIT.value,
-                'transition_time': datetime.datetime.utcnow().isoformat(),
-                'update_time': time_str,
+                'type':
+                JobStatusEnum.INIT.value,
+                'transition_time':
+                datetime.datetime.utcnow().isoformat(),
+                'update_time':
+                time_str,
             }]
         if len(conditions) == 0:
             raise JobException('Job status\'s condition field is empty.')
@@ -98,7 +106,7 @@ class JobStatus(ObjectStatus):
                 raise JobException(
                     'Job status\'s condition field is missing status.')
         return conditions
-    
+
     def update_replica_status(self, replica_status: Dict[str, Dict[str, int]]):
         self.replica_status = replica_status
 
@@ -115,7 +123,8 @@ class JobStatus(ObjectStatus):
                 'update_time': time_str,
             })
         else:
-            previous_status['update_time'] = datetime.datetime.utcnow().isoformat()
+            previous_status['update_time'] = datetime.datetime.utcnow(
+            ).isoformat()
 
 
 class JobMeta(ObjectMeta):
@@ -128,14 +137,17 @@ class JobMeta(ObjectMeta):
             raise ValueError('Namespace cannot be empty.')
         return v
 
+
 class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
-    resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES, validate_default=True)
+    resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES,
+                                        validate_default=True)
     run: str = Field(default="", validate_default=True)
     envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
     replicas: int = Field(default=1, validate_default=True)
-    restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value, validate_default=True)
+    restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value,
+                                validate_default=True)
 
     @field_validator('ports')
     @classmethod
@@ -155,7 +167,9 @@ class JobSpec(ObjectSpec):
     @field_validator('restart_policy')
     @classmethod
     def verify_restart_policy(cls, restart_policy: str) -> str:
-        if restart_policy is None or restart_policy not in [r.value for r in RestartPolicyEnum]:
+        if restart_policy is None or restart_policy not in [
+                r.value for r in RestartPolicyEnum
+        ]:
             raise JobException(f'Invalid restart policy: {restart_policy}.')
         return restart_policy
 
@@ -163,15 +177,18 @@ class JobSpec(ObjectSpec):
     @classmethod
     def verify_resources(cls, resources: Dict[str, float]):
         resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
-        resources = {k:v for k,v in resources.items() if v > 0}
+        resources = {k: v for k, v in resources.items() if v > 0}
         resource_enums = [member.value for member in ResourceEnum]
         acc_enums = [member.value for member in AcceleratorEnum]
         for resource_type, resource_value in resources.items():
             if resource_type not in resource_enums:
                 if resource_type not in acc_enums:
-                    raise ValueError(f'Invalid resource type: {resource_type}.')
+                    raise ValueError(
+                        f'Invalid resource type: {resource_type}.')
                 elif ResourceEnum.GPU.value in list(resources.keys()):
-                    raise ValueError(f'Cannot specify both GPU and accelerator type {resource_type}.')
+                    raise ValueError(
+                        f'Cannot specify both GPU and accelerator type {resource_type}.'
+                    )
             if resource_value < 0:
                 raise ValueError(f'Invalid resource value: {resource_value}.')
         return resources
@@ -181,13 +198,14 @@ class Job(Object):
     metadata: JobMeta = Field(default=JobMeta(), validate_default=True)
     spec: JobSpec = Field(default=JobSpec(), validate_default=True)
     status: JobStatus = Field(default=JobStatus(), validate_default=True)
-    
+
     def get_namespace(self):
         return self.metadata.namespace
 
 
 class JobList(ObjectList):
-    objects: List[Job] = Field(default=[])
+    kind: str = Field(default='JobList')
+
 
 if __name__ == '__main__':
     print(JobList())

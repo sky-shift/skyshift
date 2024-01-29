@@ -12,18 +12,20 @@ Typical usage example:
 import queue
 import threading
 import time
+from typing import Any, Callable, Dict
 
 from skyflow.structs import Watcher
 from skyflow.templates.event_template import WatchEventEnum
+
 
 class Informer(object):
 
     def __init__(self, api: object):
         self.api = api
         self.watcher = Watcher(self.api)
-        self.informer_queue = queue.Queue()
+        self.informer_queue: queue.Queue = queue.Queue()
         self.lock = threading.Lock()
-        self.cache = {}
+        self.cache: Dict[str, Any] = {}
 
         # This thread reflects changes over the watch and populates the informer queue.
         self.reflector = threading.Thread(target=self._reflect_events)
@@ -31,13 +33,8 @@ class Informer(object):
         self.event_controller = threading.Thread(target=self._event_controller)
 
         # By default, callbacks do nothing.
-        event_types = ['add', 'update', 'delete']
-        self.callback_handler = {}
-        self.callback_handler['add'] = lambda x: x
-        self.callback_handler['update'] = lambda x, y: y
-        self.callback_handler['delete'] = lambda x: x
+        self.callback_handler: Dict[str, Any] = {}
 
- 
     def sync_cache(self):
         # Lists all available objects and populates the cache with such objects.
         api_object = self.api.list()
@@ -59,7 +56,10 @@ class Informer(object):
         self.reflector.join()
         self.event_controller.join()
 
-    def add_event_callbacks(self, add_event_callback = None, update_event_callback = None, delete_event_callback = None):
+    def add_event_callbacks(self,
+                            add_event_callback=None,
+                            update_event_callback=None,
+                            delete_event_callback=None):
         # Set the add, update, and delete callbacks.
         if add_event_callback:
             self.callback_handler['add'] = add_event_callback
@@ -82,15 +82,18 @@ class Informer(object):
             if event_type == WatchEventEnum.ADD:
                 with self.lock:
                     self.cache[obj_name] = watch_obj
-                self.callback_handler['add'](watch_event)
+                if 'add' in self.callback_handler:
+                    self.callback_handler['add'](watch_event)
             elif event_type == WatchEventEnum.UPDATE:
                 old_obj = self.cache[obj_name]
                 with self.lock:
                     self.cache[obj_name] = watch_obj
-                self.callback_handler['update'](old_obj, watch_event)
+                if 'update' in self.callback_handler:
+                    self.callback_handler['update'](old_obj, watch_event)
             elif event_type == WatchEventEnum.DELETE:
                 del self.cache[obj_name]
-                self.callback_handler['delete'](watch_event)
+                if 'delete' in self.callback_handler:
+                    self.callback_handler['delete'](watch_event)
 
     def get_cache(self):
         # Returns a cache at a given point in time.

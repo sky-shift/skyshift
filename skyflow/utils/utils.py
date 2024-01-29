@@ -5,16 +5,16 @@ import os
 import requests
 import yaml
 
-from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
-from skyflow.templates import Cluster
-
 API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
+
 OBJECT_TEMPLATES = importlib.import_module('skyflow.templates')
+
 
 def load_object(response: dict):
     kind = response['kind']
     object_class = getattr(OBJECT_TEMPLATES, kind)
     return object_class(**response)
+
 
 def watch_events(url: str):
     response = requests.get(url, stream=True)
@@ -32,42 +32,6 @@ def match_labels(labels: dict, labels_selector: dict):
         if k not in labels or labels[k] != v:
             return False
     return True
-
-def setup_cluster_manager(cluster_obj: Cluster):
-    cluster_type = cluster_obj.spec.manager
-    cluster_name = cluster_obj.get_name()
-
-    if cluster_type in ['k8', 'kubernetes']:
-        cluster_manager_cls = KubernetesManager
-    else:
-        raise ValueError(f"Cluster type {cluster_type} not supported.")
-
-    # Get the constructor of the class
-    constructor = cluster_manager_cls.__init__
-    # Get the parameter names of the constructor
-    class_params = constructor.__code__.co_varnames[1:constructor.__code__.
-                                                    co_argcount]
-
-    # Filter the dictionary keys based on parameter names
-    args = {
-        k: v
-        for k, v in dict(cluster_obj.metadata).items() if k in class_params
-    }
-    # Create an instance of the class with the extracted arguments.
-    return cluster_manager_cls(**args)
-
-def generate_manager_config(host: str, port: int):
-    """Generates the API server config file."""
-    config_dict = {
-        'api_server': {
-            'host': host,
-            'port': port,
-        },
-    }
-    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
-    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-    with open(absolute_path, 'w') as config_file:
-        yaml.dump(config_dict, config_file)
 
 
 def load_manager_config():

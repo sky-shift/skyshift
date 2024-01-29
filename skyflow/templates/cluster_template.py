@@ -4,10 +4,10 @@ from typing import Dict, List
 
 from pydantic import Field, field_validator
 
-
-from skyflow.templates.object_template import Object, ObjectException, \
-    ObjectList, ObjectMeta, ObjectSpec, ObjectStatus
-from skyflow.templates.resource_template import ResourceEnum, AcceleratorEnum
+from skyflow.templates.object_template import (Object, ObjectException,
+                                               ObjectList, ObjectMeta,
+                                               ObjectSpec, ObjectStatus)
+from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -32,12 +32,15 @@ class ClusterException(ObjectException):
 
 class ClusterStatus(ObjectStatus):
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
-    status: str = Field(default=ClusterStatusEnum.INIT.value, validate_default=True)
+    status: str = Field(default=ClusterStatusEnum.INIT.value,
+                        validate_default=True)
     # Allocatable capacity of the cluser.
-    allocatable_capacity: Dict[str, Dict[str, float]] = Field(
-        default={}, validate_default=True)
+    allocatable_capacity: Dict[str, Dict[str,
+                                         float]] = Field(default={},
+                                                         validate_default=True)
     # Total capacity of the cluster.
-    capacity: Dict[str, Dict[str, float]] = Field(default={}, validate_default=True)
+    capacity: Dict[str, Dict[str, float]] = Field(default={},
+                                                  validate_default=True)
     # If inter-cluster networking has been installed and enabled on the cluster.
     network_enabled: bool = Field(default=False)
 
@@ -58,15 +61,15 @@ class ClusterStatus(ObjectStatus):
                 raise ClusterException(
                     'Cluster status\'s condition field is missing status.')
         return conditions
-    
+
     @field_validator('capacity', 'allocatable_capacity')
     @classmethod
     def verify_capacity(cls, capacity: Dict[str, Dict[str, float]]):
         res_emum_dict = [m.value for m in ResourceEnum]
         acc_enum_dict = [m.value for m in AcceleratorEnum]
         for node_name, node_resources in capacity.items():
-            keys_in_enum = set(node_resources.keys()).issubset(
-                res_emum_dict + acc_enum_dict)
+            keys_in_enum = set(node_resources.keys()).issubset(res_emum_dict +
+                                                               acc_enum_dict)
             if not keys_in_enum:
                 raise ClusterException(
                     f'Invalid resource specification for node {node_name}: {node_resources}. '
@@ -82,7 +85,7 @@ class ClusterStatus(ObjectStatus):
 
     def update_conditions(self, conditions):
         self.conditions = conditions
-    
+
     def update_accelerator_types(self, accelerator_types):
         self.accelerator_types = accelerator_types
 
@@ -100,9 +103,8 @@ class ClusterStatus(ObjectStatus):
     def update_capacity(self, capacity: Dict[str, Dict[str, float]]):
         self.capacity = capacity
 
-    def update_allocatable_capacity(self, capacity: Dict[str,
-                                                         Dict[str,
-                                                              float]]):
+    def update_allocatable_capacity(self, capacity: Dict[str, Dict[str,
+                                                                   float]]):
         self.allocatable_capacity = capacity
 
 
@@ -117,7 +119,8 @@ class ClusterSpec(ObjectSpec):
     @classmethod
     def verify_manager(cls, manager: str) -> str:
         if not manager:
-            raise ValueError('Cluster spec requires `manager` field to be filled in.')
+            raise ValueError(
+                'Cluster spec requires `manager` field to be filled in.')
         return manager
 
 
@@ -128,7 +131,8 @@ class Cluster(Object):
 
 
 class ClusterList(ObjectList):
-    objects: List[Cluster] = Field(default=[])
+    kind: str = Field(default='ClusterList')
+
 
 if __name__ == '__main__':
     print(ClusterSpec(manager='k8'))
