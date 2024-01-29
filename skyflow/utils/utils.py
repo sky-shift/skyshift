@@ -5,7 +5,7 @@ import os
 import requests
 import yaml
 
-API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
+API_SERVER_CONFIG_PATH = '~/.skyconf/config.yaml'
 
 OBJECT_TEMPLATES = importlib.import_module('skyflow.templates')
 

@@ -6,7 +6,7 @@ import subprocess
 import uvicorn
 import yaml
 
-API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
+API_SERVER_CONFIG_PATH = '~/.skyconf/config.yaml'
 API_SERVER_HOST = 'localhost'
 API_SERVER_PORT = 50051
 

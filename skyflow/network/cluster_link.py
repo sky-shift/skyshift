@@ -1,18 +1,22 @@
-# For now, we implement linking of clusters using Skupper.
+"""
+Module to manage Skupper network operations.
+
+@TODO(pravein): Convert to ClusterLink.
+"""
 import os
 import subprocess
 from typing import List
 
 from skyflow.cluster_manager import KubernetesManager
 
-TOKEN_DIRECTORY = '~/.skym/link_secrets'
+TOKEN_DIRECTORY = '~/.skyconf/link_secrets'
 
-SKUPPER_INSTALL_CMD = 'skupper init --context {cluster_name} --namespace {namespace}'
-SKUPPER_STATUS_CMD = 'skupper status --context {cluster_name} --namespace {namespace}'
-SKUPPER_TOKEN_CMD = 'skupper token create ~/.skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace}'
-SKUPPER_LINK_CREATE_CMD = 'skupper link create ~/.skym/link_secrets/{name}.token --context {cluster_name} --namespace {namespace} --name {name}'
-SKUPPER_LINK_DELETE_CMD = 'skupper link delete {name} --context {cluster_name} --namespace {namespace}'
-SKUPPER_LINK_STATUS_CMD = 'skupper link status {name} --context {cluster_name} --namespace {namespace}'
+INSTALL_CMD = 'skupper init --context {cluster_name} --namespace {namespace}'
+STATUS_CMD = 'skupper status --context {cluster_name} --namespace {namespace}'
+TOKEN_CMD = 'skupper token create ~/.skyconf/link_secrets/{name}.token --context {cluster_name} --namespace {namespace}'
+LINK_CREATE_CMD = 'skupper link create ~/.skyconf/link_secrets/{name}.token --context {cluster_name} --namespace {namespace} --name {name}'
+LINK_DELETE_CMD = 'skupper link delete {name} --context {cluster_name} --namespace {namespace}'
+LINK_STATUS_CMD = 'skupper link status {name} --context {cluster_name} --namespace {namespace}'
 
 
 def status_network(manager: KubernetesManager):
@@ -20,8 +24,8 @@ def status_network(manager: KubernetesManager):
     cluster_name = manager.cluster_name
     try:
         # Check skupper status.
-        check_status_command = SKUPPER_STATUS_CMD.format(
-            cluster_name=cluster_name, namespace=namespace)
+        check_status_command = STATUS_CMD.format(cluster_name=cluster_name,
+                                                 namespace=namespace)
         status_output = subprocess.check_output(check_status_command,
                                                 shell=True,
                                                 timeout=10).decode('utf-8')
@@ -39,8 +43,8 @@ def launch_network(manager: KubernetesManager):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     try:
-        install_command = SKUPPER_INSTALL_CMD.format(cluster_name=cluster_name,
-                                                     namespace=namespace)
+        install_command = INSTALL_CMD.format(cluster_name=cluster_name,
+                                             namespace=namespace)
         subprocess.check_output(install_command, shell=True).decode('utf-8')
     except subprocess.CalledProcessError as e:
         print(f"Failed to install Skupper on `{cluster_name}`: {e.cmd}")
@@ -52,7 +56,7 @@ def check_link_status(link_name: str, manager: KubernetesManager):
     cluster_name = manager.cluster_name
 
     try:
-        status_link_command = SKUPPER_LINK_STATUS_CMD.format(
+        status_link_command = LINK_STATUS_CMD.format(
             name=link_name, cluster_name=cluster_name, namespace=namespace)
         status_output = subprocess.check_output(status_link_command,
                                                 shell=True,
@@ -82,7 +86,7 @@ def create_link(link_name: str, source_manager: KubernetesManager,
         # Create authetnication token.
         full_path = os.path.abspath(os.path.expanduser(TOKEN_DIRECTORY))
         os.makedirs(full_path, exist_ok=True)
-        create_token_command = SKUPPER_TOKEN_CMD.format(
+        create_token_command = TOKEN_CMD.format(
             name=link_name,
             cluster_name=target_cluster_name,
             namespace=target_namespace)
@@ -96,7 +100,7 @@ def create_link(link_name: str, source_manager: KubernetesManager,
 
     try:
         # Create a link between two clusters.
-        create_link_command = SKUPPER_LINK_CREATE_CMD.format(
+        create_link_command = LINK_CREATE_CMD.format(
             name=link_name,
             cluster_name=source_cluster_name,
             namespace=source_namespace)
@@ -118,7 +122,7 @@ def delete_link(link_name: str, manager: KubernetesManager):
         token_path = os.path.abspath(
             os.path.expanduser(TOKEN_DIRECTORY)) + '/' + link_name + '.token'
         os.remove(token_path)
-        delete_link_command = SKUPPER_LINK_DELETE_CMD.format(
+        delete_link_command = LINK_DELETE_CMD.format(
             name=link_name, cluster_name=cluster_name, namespace=namespace)
         subprocess.check_output(delete_link_command, shell=True,
                                 timeout=30).decode('utf-8')
