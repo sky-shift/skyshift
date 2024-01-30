@@ -6,7 +6,7 @@ metadata:
     testing: hello
 
 spec:
-  image: gcr.io/sky-burst/skyburst:latest
+  image: ubuntu
   resources:
     cpus: 1
     gpus: 0
@@ -14,9 +14,7 @@ spec:
   envs:
     MY_ENV_VAR: "hello"
     PATH: "/bin"
-    #- name: MY_ENV_VAR2
-    #  value: "hello2"
-    # post process k8s way into regular dict
+
   run: |
     #!/bin/bash
     echo $MY_ENV_VAR; sleep 500; echo bye
