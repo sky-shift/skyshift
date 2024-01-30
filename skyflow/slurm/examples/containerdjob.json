@@ -1,0 +1,16 @@
+{
+  "script": "#!/bin/bash\necho 'HELLO'\nnerdctl run --rm hello-world\nsleep 3000\necho 'bye'",
+  "job": {
+    "name": "Dockerrun",
+    "account": "sub1",
+    "hold": false,
+    "environment": {
+      "PATH": "/bin",
+      "HOME": "/home/cdaron",
+      "XDG_RUNTIME_DIR": "/run/user/1000"
+    },
+    "tasks": 12,
+    "memory_per_cpu": 100,
+    "time_limit": 240
+  }
+}
