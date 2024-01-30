@@ -14,13 +14,13 @@ import threading
 import time
 from typing import Any, Dict
 
-from skyflow.structs import Watcher
 from skyflow.templates.event_template import WatchEventEnum
 
 
 class Informer(object):
 
     def __init__(self, api: object):
+        from skyflow.structs import Watcher
         self.api = api
         self.watcher = Watcher(self.api)
         self.informer_queue: queue.Queue = queue.Queue()

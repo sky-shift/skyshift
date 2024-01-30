@@ -78,9 +78,6 @@ cli.add_command(apply_config)
               help='Type of cluster manager')
 def create_cluster(name: str, manager: str):
     """Attaches a new cluster."""
-    if manager not in ['k8']:
-        click.echo(f"Unsupported manager_type: {manager}")
-        return
 
     cluster_dictionary = {
         'kind': 'Cluster',

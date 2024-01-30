@@ -65,7 +65,6 @@ class ClusterController(Controller):
 
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
-        # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
 
         # Fetch the accelerator types on the cluster.
@@ -118,15 +117,15 @@ if __name__ == '__main__':
         cluster_api.create({
             "kind": "Cluster",
             "metadata": {
-                "name": "mluo-onprem"
+                "name": "cdaron-onprem"
             },
             "spec": {
-                'manager': 'k8',
+                'manager': 'slurm',
             }
         })
     except:
         pass
-    hc = ClusterController('mluo-onprem')
+    hc = ClusterController('cdaron-onprem')
     hc.run()
 
 # for node, accelerator_type in self.accelerator_types.items():

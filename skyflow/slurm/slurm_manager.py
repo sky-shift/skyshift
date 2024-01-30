@@ -189,7 +189,6 @@ class SlurmManager( object ):
                 ResourceEnum.MEMORY.value: node_memory,
                 ResourceEnum.GPU.value: node_gpu
             }
-        print(available_resources)
         return available_resources
     def get_cluster_status(self) -> ClusterStatus:
         """ Gets the cluster status by pinging slurmrestd 
@@ -199,11 +198,12 @@ class SlurmManager( object ):
         """
         fetch = self.port + "/ping"
         r = self.session.get(fetch).json()
-        if r[pings][ping] != "UP" or len(r[errors]) > 0:
+        if r["pings"][0]["ping"] != "UP" or len(r["errors"]) > 0:
             return ClusterStatus(
             status=ClusterStatusEnum.ERROR.value,
             capacity=self.cluster_resources(),
             allocatable_capacity=self.allocatable_resources(),
+            )
         return ClusterStatus(
             status=ClusterStatusEnum.READY.value,
             capacity=self.cluster_resources(),
@@ -298,4 +298,5 @@ if __name__ == "__main__":
     #api.get_job_status(37)
     #api.send_job('webserver.json')
     #api.allocatable_resources()
+    #print(api.get_cluster_status())
 
