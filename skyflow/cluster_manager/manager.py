@@ -1,8 +1,10 @@
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
+
 class ManagerException(Exception):
     """Raised when the manager is invalid."""
     pass
+
 
 class Manager(object):
     """
@@ -36,7 +38,6 @@ class Manager(object):
             capacity=self.cluster_resources,
             allocatable_capacity=self.allocatable_resources,
         )
-
 
     def get_jobs_status(self):
         """Gets the status for all jobs."""

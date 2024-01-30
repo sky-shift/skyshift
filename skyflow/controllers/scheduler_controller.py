@@ -2,23 +2,25 @@
 
 This controller does not schedule tasks/pods, but instead schedules at a higher level of abstraction - jobs (groups of tasks/pods). This enables the scheduler to satisfy gang/coscheduling, colocation, and governance requirements that are not possible with the default Kubernetes scheduler (without CRDs or custom controllers).
 """
-from contextlib import contextmanager
-from collections import OrderedDict
-from copy import deepcopy
 import logging
 import queue
-import requests
 import traceback
-from typing import Dict
+from collections import OrderedDict
+from contextlib import contextmanager
+from copy import deepcopy
+from typing import Dict, List
 
+import requests
+
+from skyflow.api_client import *
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
-from skyflow.api_client import *
 from skyflow.templates import Job, JobStatusEnum, ResourceEnum, TaskStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+
 
 def aggregate_job_status(replica_status: Dict[str, Dict[str, int]]):
     """Merges the status of replicas across clusters."""
@@ -39,8 +41,7 @@ def SchedulerErrorHandler(controller: Controller):
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error(
-            'Cannot connect to API server. Retrying.')
+        controller.logger.error('Cannot connect to API server. Retrying.')
     except Exception as e:
         controller.logger.error(traceback.format_exc())
 
@@ -53,38 +54,43 @@ class SchedulerController(Controller):
         self.logger.setLevel(logging.INFO)
 
         # Assumed FIFO
-        self.workload_queue = []
+        self.workload_queue: List[Job] = []
 
         #Thread safe queue for Informers to append events to.
-        self.event_queue = queue.Queue()
+        self.event_queue: queue.Queue = queue.Queue()
 
     def post_init_hook(self):
+
         def add_job_callback_fn(event):
             event_object = event.object
             event_status = event_object.status
             # Filter for newly created jobs (jobs without replica status field).
             if not event_status.replica_status:
                 self.event_queue.put(event)
-        
+
         def update_job_callback_fn(old_obj, event):
             event_object = event.object
             replica_status = event_object.status.replica_status
             # Filter for evicted tasks in a job.
-            if TaskStatusEnum.EVICTED.value in aggregate_job_status(replica_status):
+            if TaskStatusEnum.EVICTED.value in aggregate_job_status(
+                    replica_status):
                 self.event_queue.put(event)
 
         self.job_informer = Informer(JobAPI(namespace=None))
         self.job_informer.add_event_callbacks(
-            add_event_callback=add_job_callback_fn, update_event_callback=update_job_callback_fn)
+            add_event_callback=add_job_callback_fn,
+            update_event_callback=update_job_callback_fn)
         self.job_informer.start()
 
         self.prev_alloc_capacity = {}
+
         def add_cluster_callback_fn(event):
             # Only add event when allocatable cluster resources have changed.
             event_object = event.object
             cluster_name = event_object.get_name()
             cluster_alloc = event_object.status.allocatable_capacity
-            if cluster_alloc != self.prev_alloc_capacity.get(cluster_name, None):
+            if cluster_alloc != self.prev_alloc_capacity.get(
+                    cluster_name, None):
                 self.event_queue.put(event)
                 self.prev_alloc_capacity[cluster_name] = cluster_alloc
 
@@ -100,7 +106,6 @@ class SchedulerController(Controller):
         while True:
             with SchedulerErrorHandler(self):
                 self.controller_loop()
-    
 
     def controller_loop(self):
         # Blocks until there is at least 1 element in the queue or until timeout.
@@ -124,9 +129,15 @@ class SchedulerController(Controller):
             ranked_clusters = self.rank_clusters(job, filtered_clusters)
             # Compute replica spread across clusters. Default policy is best-fit bin-packing.
             # Place as many replicas on the fullest clusters.
-            spread_replicas = self.compute_replicas_spread(job, ranked_clusters)
+            spread_replicas = self.compute_replicas_spread(
+                job, ranked_clusters)
             if spread_replicas:
-                job.status.update_replica_status({c_name : {TaskStatusEnum.INIT.value: replicas} for c_name, replicas in spread_replicas.items()})
+                job.status.update_replica_status({
+                    c_name: {
+                        TaskStatusEnum.INIT.value: replicas
+                    }
+                    for c_name, replicas in spread_replicas.items()
+                })
                 job.status.update_status(JobStatusEnum.ACTIVE.value)
                 idx_list.append(job_idx)
                 self.logger.info(
@@ -138,17 +149,18 @@ class SchedulerController(Controller):
                 )
                 idx_list.append(job_idx)
                 job.status.update_status(JobStatusEnum.FAILED.value)
-            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode='json'))
+            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
+                mode='json'))
             break
 
         for job_idx in reversed(idx_list):
             del self.workload_queue[job_idx]
-    
+
     def compute_replicas_spread(self, job, ranked_clusters):
         job_replicas = job.spec.replicas
         job_clusters = {}
         job_resource = deepcopy(job.spec.resources)
-        
+
         ranked_clusters = list(ranked_clusters.items())
         # Greedily assign clusters replicas.
         total_cluster_replicas = 0
@@ -160,6 +172,7 @@ class SchedulerController(Controller):
                 return all(dict2[key] <= dict1[key] for key in dict2)
             else:
                 return False
+
         for cluster_name, cluster_obj in ranked_clusters:
             cluster_replicas = 0
             alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
@@ -168,12 +181,15 @@ class SchedulerController(Controller):
                 while True:
                     if total_cluster_replicas == job_replicas:
                         break
-                    if is_subset_and_values_smaller(node_resource, job_resource):
-                        for resource_type, resource_count in node_resource.items():
+                    if is_subset_and_values_smaller(node_resource,
+                                                    job_resource):
+                        for resource_type, resource_count in node_resource.items(
+                        ):
                             if resource_type in job_resource:
-                                node_resource[resource_type] -= job_resource[resource_type]
-                        total_cluster_replicas+=1
-                        cluster_replicas+=1
+                                node_resource[resource_type] -= job_resource[
+                                    resource_type]
+                        total_cluster_replicas += 1
+                        cluster_replicas += 1
                     else:
                         break
             job_clusters[cluster_name] = cluster_replicas
@@ -182,9 +198,8 @@ class SchedulerController(Controller):
         # Can't schedule job. Returns a null dict.
         if total_cluster_replicas < job_replicas:
             return {}
-        
-        return {k:v for k,v in job_clusters.items() if v>0}
 
+        return {k: v for k, v in job_clusters.items() if v > 0}
 
     def filter_clusters(self, job, clusters: dict):
         # Filter for clusters.
@@ -231,23 +246,26 @@ class SchedulerController(Controller):
                         sum_resources[resource_type] = 0
                     sum_resources[resource_type] += resource_count
             sum_clusters.append((cluster_name, sum_resources))
-        
+
         def sorting_func(cluster_tuple):
             _, cluster_resources = cluster_tuple
             score = 0
             job_resources = job.spec.resources
             for resource_type, resource_count in job_resources.items():
                 # Normalize score.
-                if resource_count ==0:
+                if resource_count == 0:
                     continue
-                score += cluster_resources.get(resource_type, 0)/resource_count
+                score += cluster_resources.get(resource_type,
+                                               0) / resource_count
             return score
 
-        sum_clusters = sorted(sum_clusters,
-                          key=sorting_func,
-                          reverse=True)
-        index_map = {value[0]: index for index, value in enumerate(sum_clusters)}
-        sorted_clusters = sorted(list(clusters.items()), key=lambda x:  index_map[x[0]])
+        sum_clusters = sorted(sum_clusters, key=sorting_func, reverse=True)
+        index_map = {
+            value[0]: index
+            for index, value in enumerate(sum_clusters)
+        }
+        sorted_clusters = sorted(list(clusters.items()),
+                                 key=lambda x: index_map[x[0]])
         return OrderedDict(sorted_clusters)
 
 

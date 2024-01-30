@@ -4,12 +4,13 @@ Each Skylet corresponds to a cluster.
 Skylet is a daemon process that runs in the background. It is responsible for updating the state of the cluster and jobs submitted.
 """
 import argparse
-from copy import deepcopy
-import yaml
 import os
+import traceback
+from copy import deepcopy
+
+import yaml
 
 from skyflow.skylet import *
-import traceback
 
 CONTROLLERS = [
     ClusterController,
@@ -21,6 +22,7 @@ CONTROLLERS = [
     ServiceController,
 ]
 
+
 def launch_skylet(cluster_id):
     controllers = []
     try:
@@ -29,7 +31,9 @@ def launch_skylet(cluster_id):
             controllers.append(c(cluster_id))
     except Exception as e:
         print(traceback.format_exc())
-        print("Failed to initialize Skylet, check if cluster {cluster_id} is valid.")
+        print(
+            "Failed to initialize Skylet, check if cluster {cluster_id} is valid."
+        )
     for c in controllers:
         c.start()
     for c in controllers:

@@ -1,4 +1,5 @@
-from skyflow.api_client import NoNamespaceObjectAPI
+from skyflow.api_client.object_api import NoNamespaceObjectAPI
+
 
 class LinkAPI(NoNamespaceObjectAPI):
 

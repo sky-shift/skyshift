@@ -1,24 +1,26 @@
+import logging
+import time
+import traceback
+import uuid
 from contextlib import contextmanager
 from copy import deepcopy
 from queue import Queue
-import logging
-import requests
-import traceback
-import time
-import uuid
 from typing import List
 
-from skyflow.structs import Informer
-from skyflow.controllers import Controller
-from skyflow.utils.utils import setup_cluster_manager
-from skyflow.templates import Service, Job, WatchEventEnum, EndpointObject
+import requests
+
 from skyflow.api_client import *
-from skyflow.utils import match_labels
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
+from skyflow.controllers import Controller
 from skyflow.network.cluster_link import expose_service, unexpose_service
+from skyflow.structs import Informer
+from skyflow.templates import EndpointObject, Job, Service, WatchEventEnum
+from skyflow.utils import match_labels
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+
 
 @contextmanager
 def ProxyErrorHandler(controller: Controller):
@@ -28,35 +30,35 @@ def ProxyErrorHandler(controller: Controller):
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error(
-            'Cannot connect to API server. Retrying.')
+        controller.logger.error('Cannot connect to API server. Retrying.')
     except Exception as e:
         controller.logger.error(traceback.format_exc())
         controller.logger.error('Encountered unusual error. Trying again.')
+
 
 class ProxyController(Controller):
     """
     The Proxy controller establishes links between different clusters.
     """
+
     def __init__(self, name) -> None:
         super().__init__()
         self.name = name
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
-        self.worker_queue = Queue()
+        self.worker_queue: Queue = Queue()
 
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        self.logger = logging.getLogger(
-            f'[{self.name} - Proxy Controller]')
+        self.logger = logging.getLogger(f'[{self.name} - Proxy Controller]')
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
 
         self.endpoints_informer = Informer(EndpointsAPI(namespace=None))
-        
+
         def update_callback_fn(old_obj, event):
             new_obj = event.object
             old_obj_endpoints = old_obj.spec.endpoints
@@ -73,10 +75,12 @@ class ProxyController(Controller):
                 self.worker_queue.put(event)
             elif self.name in old_obj_endpoints and self.name in new_obj_endpoints:
                 # Number of endpoints has changed.
-                if old_obj_endpoints[self.name].num_endpoints != new_obj_endpoints[self.name].num_endpoints or not new_obj_endpoints[self.name].exposed_to_cluster:
+                if old_obj_endpoints[
+                        self.name].num_endpoints != new_obj_endpoints[
+                            self.name].num_endpoints or not new_obj_endpoints[
+                                self.name].exposed_to_cluster:
                     self.worker_queue.put(event)
 
-        
         def delete_callback_fn(event):
             self.worker_queue.put(event)
 
@@ -98,11 +102,11 @@ class ProxyController(Controller):
 
     def controller_loop(self):
         # Poll for jobs and execute/kill them depending on the job status.
-            # Blocks until there is at least 1 element in the queue.
+        # Blocks until there is at least 1 element in the queue.
         event = self.worker_queue.get()
         event_key = event.event_type
         event_object = event.object
-        
+
         primary_cluster = event_object.spec.primary_cluster
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
@@ -113,7 +117,8 @@ class ProxyController(Controller):
                 if self.name in event_object.spec.endpoints:
                     self._unexpose_service(event_object.get_name())
         elif event_key == WatchEventEnum.UPDATE:
-            service_obj = self.service_informer.get_cache()[event_object.metadata.name]
+            service_obj = self.service_informer.get_cache()[
+                event_object.metadata.name]
             # The primary cluster creates a k8 endpoints object and attaches it to the service.
             print(self.name, primary_cluster)
             if self.name == primary_cluster:
@@ -123,17 +128,22 @@ class ProxyController(Controller):
                 if self.name not in event_object.spec.endpoints:
                     self._unexpose_service(event_object.get_name())
                 else:
-                    if not event_object.spec.endpoints[self.name].exposed_to_cluster:
-                        self._expose_service(event_object.get_name(), [a.port for a in service_obj.spec.ports])
-                        event_object.spec.endpoints[self.name].exposed_to_cluster = True
-                        EndpointsAPI(namespace=event_object.get_namespace()).update(config=event_object.model_dump(mode='json'))
+                    if not event_object.spec.endpoints[
+                            self.name].exposed_to_cluster:
+                        self._expose_service(
+                            event_object.get_name(),
+                            [a.port for a in service_obj.spec.ports])
+                        event_object.spec.endpoints[
+                            self.name].exposed_to_cluster = True
+                        EndpointsAPI(
+                            namespace=event_object.get_namespace()).update(
+                                config=event_object.model_dump(mode='json'))
 
     def _expose_service(self, name: str, ports: List[int]):
         expose_service(f'{name}', self.manager_api, ports)
 
     def _unexpose_service(self, name: str):
         unexpose_service(f'{name}', self.manager_api)
-    
 
 
 if __name__ == '__main__':

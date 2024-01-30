@@ -1,5 +1,4 @@
 from skyflow.templates import *
-from skyflow.api_client import *
 
 DEFAULT_NAMESPACE = 'default'
 
@@ -15,4 +14,3 @@ NON_NAMESPACED_OBJECTS = {
     'links': Link,
 }
 ALL_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
-

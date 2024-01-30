@@ -1,22 +1,25 @@
+import logging
+import time
+import traceback
+import uuid
 from contextlib import contextmanager
 from copy import deepcopy
 from queue import Queue
-import logging
-import requests
-import traceback
-import time
-import uuid
 
-from skyflow.structs import Informer
-from skyflow.controllers import Controller
-from skyflow.utils.utils import setup_cluster_manager
-from skyflow.templates import FilterPolicy, Job, JobStatusEnum, WatchEventEnum, TaskStatusEnum
+import requests
+
 from skyflow.api_client import *
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
+from skyflow.controllers import Controller
+from skyflow.structs import Informer
+from skyflow.templates import (FilterPolicy, Job, JobStatusEnum,
+                               TaskStatusEnum, WatchEventEnum)
 from skyflow.utils import match_labels
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+
 
 @contextmanager
 def FlowErrorHandler(controller: Controller):
@@ -26,29 +29,29 @@ def FlowErrorHandler(controller: Controller):
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error(
-            'Cannot connect to API server. Retrying.')
+        controller.logger.error('Cannot connect to API server. Retrying.')
     except Exception as e:
         controller.logger.error(traceback.format_exc())
         controller.logger.error('Encountered unusual error. Trying again.')
+
 
 class FlowController(Controller):
     """
     The Flow controller determines the flow of jobs in and out of the cluster.
     """
+
     def __init__(self, name) -> None:
         super().__init__()
         self.name = name
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
-        self.worker_queue = Queue()
+        self.worker_queue: Queue = Queue()
 
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        self.logger = logging.getLogger(
-            f'[{self.name} - Flow Controller]')
+        self.logger = logging.getLogger(f'[{self.name} - Flow Controller]')
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
@@ -79,7 +82,7 @@ class FlowController(Controller):
 
         def add_policy_callback_fn(event):
             self.worker_queue.put(event)
-        
+
         def update_policy_callback_fn(event):
             self.worker_queue.put(event)
 
@@ -98,11 +101,11 @@ class FlowController(Controller):
 
     def controller_loop(self):
         # Poll for jobs and execute/kill them depending on the job status.
-            # Blocks until there is at least 1 element in the queue.
+        # Blocks until there is at least 1 element in the queue.
         event = self.worker_queue.get()
         event_key = event.event_type
         event_object = event.object
-        
+
         cached_jobs = deepcopy(self.job_informer.get_cache())
 
         if isinstance(event_object, Job):
@@ -113,21 +116,27 @@ class FlowController(Controller):
                 try:
                     self._submit_job(job_object)
                     self.logger.info(
-                    f'Successfully submitted job \'{job_name}\' to cluster \'{self.name}\'.'
+                        f'Successfully submitted job \'{job_name}\' to cluster \'{self.name}\'.'
                     )
                 except:
                     self.logger.error(traceback.format_exc())
                     self.logger.error(
                         f'Failed to submit job  \'{job_name}\' to the cluster  \'{self.name}\'. Marking job as failed.'
                     )
-                    job_object.status.replica_status[self.name] = {TaskStatusEnum.FAILED.value: sum(job_object.status.replica_status[self.name].values())}
-                JobAPI(namespace=job_object.get_namespace()).update(config=job_object.model_dump(mode='json'))
+                    job_object.status.replica_status[self.name] = {
+                        TaskStatusEnum.FAILED.value:
+                        sum(job_object.status.replica_status[
+                            self.name].values())
+                    }
+                JobAPI(namespace=job_object.get_namespace()).update(
+                    config=job_object.model_dump(mode='json'))
             elif event_key == WatchEventEnum.DELETE:
                 # If the job is not in the cache, it has already been deleted.
                 self._delete_job(job_object)
             else:
                 self.logger.error(
-                    f'Invalid event type `{event_key}` for job {job_object.get_name()}.')
+                    f'Invalid event type `{event_key}` for job {job_object.get_name()}.'
+                )
         elif isinstance(event_object, FilterPolicy):
             # Handle when FilterPolicy changes.
             assert event_key in [WatchEventEnum.ADD, WatchEventEnum.UPDATE]
@@ -145,32 +154,35 @@ class FlowController(Controller):
                 if self.name not in allowed_clusters:
                     # Evict the job from the cluster (also delete it from the cluster).
                     self._delete_job(c_job)
-                    c_job.status.replica_status[self.name] = {TaskStatusEnum.EVICTED.value: sum(job_object.status.replica_status[self.name].values())}
-                    JobAPI(namespace=c_job.get_namespace()).update(config=c_job.model_dump(mode='json'))
-    
+                    c_job.status.replica_status[self.name] = {
+                        TaskStatusEnum.EVICTED.value:
+                        sum(job_object.status.replica_status[
+                            self.name].values())
+                    }
+                    JobAPI(namespace=c_job.get_namespace()).update(
+                        config=c_job.model_dump(mode='json'))
+
     def _submit_job(self, job: Job):
         manager_response = self.manager_api.submit_job(job)
         job.status.job_ids[self.name] = manager_response['manager_job_id']
-        
-    
+
     def _delete_job(self, job: Job):
-        job_status =  job.status
+        job_status = job.status
         self.manager_api.delete_job(job)
         del job_status.replica_status[self.name]
         del job_status.job_ids[self.name]
 
+
 if __name__ == '__main__':
     cluster_api = ClusterAPI()
-    cluster_api.create(
-        {
-            "kind": "Cluster",
-            "metadata": {
-                "name": "mluo-onprem"
-            },
-            "spec": {
-                'manager': 'k8',
-            }
+    cluster_api.create({
+        "kind": "Cluster",
+        "metadata": {
+            "name": "mluo-onprem"
+        },
+        "spec": {
+            'manager': 'k8',
         }
-    )
+    })
     jc = FlowController('mluo-onprem')
     jc.start()

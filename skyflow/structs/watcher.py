@@ -9,24 +9,30 @@ Typical usage example:
         print(event)
 """
 import logging
-import requests
 import time
 import traceback
+
+import requests
 
 from skyflow.templates.event_template import WatchEvent
 
 # TODO(mluo): Make backoff exponential.
 BACKOFF_TIME = 3
-DEFAULT_RETRY_LIMIT = 1e9
+DEFAULT_RETRY_LIMIT = int(1e9)
 
 logger = logging.getLogger(__name__)
 
+
 class Watcher:
-    def __init__(self, api: object, retry_limit: int = DEFAULT_RETRY_LIMIT, backoff_time: int = BACKOFF_TIME):
+
+    def __init__(self,
+                 api: object,
+                 retry_limit: int = DEFAULT_RETRY_LIMIT,
+                 backoff_time: int = BACKOFF_TIME):
         self.api = api
         self.retry_limit = retry_limit
         self.backoff_time = backoff_time
-    
+
     def watch(self):
         retry = 0
         while True:
@@ -39,10 +45,11 @@ class Watcher:
                 time.sleep(self.backoff_time)
             except requests.exceptions.ConnectionError:
                 retry += 1
-                logger.error('Unable to connect to API Server closed. Trying again.')
+                logger.error(
+                    'Unable to connect to API Server closed. Trying again.')
                 time.sleep(self.backoff_time)
             except Exception as e:
-                retry+=1
+                retry += 1
                 logger.error(traceback.format_exc())
                 logger.error('Encountered unusual error. Trying again.')
                 time.sleep(self.backoff_time)
@@ -59,4 +66,3 @@ if __name__ == '__main__':
         print(lol)
         print(type(lol))
         print(lol.event_type)
-

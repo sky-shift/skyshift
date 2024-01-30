@@ -1,17 +1,18 @@
 kind: Job
 
 metadata: 
-  name: sky1
+  name: mybatchjob
   labels:
-    app: sky
+    app: batchjob
 
 spec:
   replicas: 2
-  image: nginx:1.14.2
+  image: gcr.io/sky-burst/skyburst:latest
   resources:
     cpus: 1
     memory: 128
   env:
     - name: HELLO_SKY
       value: "hello_sky"
-  restartPolicy: Always
+  run: 'echo $HELLO_SKY; sleep 300'
+  restartPolicy: Never
