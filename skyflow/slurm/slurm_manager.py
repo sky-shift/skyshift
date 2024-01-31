@@ -4,59 +4,70 @@ import requests
 import json
 import socket
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 from dataclasses import dataclass
 from skyflow.cluster_manager import Manager
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 from skyflow.templates import Job, TaskStatusEnum, AcceleratorEnum, ResourceEnum
 import uuid
 from skyflow.slurm.slurm_utils import *
+
+SLURMRESTD_CONFIG_PATH = "~/.skyconf/slurmrestd.yaml"
+
+class ConfigUndefinedError(Exception):
+    """ Raised when there is an error in slurmrestd config yaml. """
+    pass
+
+class SlurmrestdConnectionError(Exception):
+    """ Raised when there is an error connecting to slurmrestd. """
+    pass
+
 class SlurmManager( object ):
     """ Slurm compatability set for Skyflow."""
 
-    def __init__ (self, slurm_port=os.environ["SLURMRESTD"], openAPI_ver=os.environ["SLURMOPENAPI"], isUnixSocket=True):
-        """ Constructor given that environmental variables are set.
-            
-            Args: 
-                slurm_port: unix socket or hostname slurmrestd listens on.
-                openAPI_ver: openAPI version number configured on slurmrestd.
-                isUnixSocket: true if its a unix socket, false if its a hostname.
-            
+    def __init__ (self):
+        """ Constructor which sets up request session, and checks if slurmrestd is reachable.
+
             Raises:
-                Exception: environmental variables not set, or no port or api version provided.
+                Exception: Unable to read config yaml from path SLURMRESTD_CONFIG_PATH.
+                ConfigUndefinedError: Value required in config yaml not not defined.
         """
-        #Configure port depending on socket type
-        if slurm_port == None:
-            raise Exception("Please provide the unix port listening on, or set it in environment variable $SLURMRESTD")
-            return
-        if openAPI_ver == None:
-            raise Exception("Please provide the openapi version slurmrestd is configured with, or set it in environment variable $SLURMOPENAPI")
-            return    
-        self.slurm_port = slurm_port
-        self.openAPI_ver = openAPI_ver
+        is_unix_socket = False
+        absolute_path = os.path.expanduser(SLURMRESTD_CONFIG_PATH)
+        with open(absolute_path, "r") as config_file:
+            try:
+                config_dict = yaml.safe_load(config_file)
+            except:
+                raise Exception("Unable to load %s", CONFIG_FILE_PATH)
+                return
+            #Get openapi verision, and socket/hostname slurmrestd is listening on
+            try:
+                self.openapi = config_dict["slurmrestd"]["openapi_ver"]
+            except:
+                raise ConfigUndefinedError(
+                f"Define openapi in {SLURMRESTD_CONFIG_PATH}.") 
+                return       
+            try: 
+                self.port = config_dict["slurmrestd"]["port"]
+            except:
+                raise ConfigUndefinedError(
+                f"Define port slurmrestd is listening on in {SLURMRESTD_CONFIG_PATH}.")
+                return
+        
+        if "sock" in self.port.lower():
+            is_unix_socket = True  
+
         self.session= requests_unixsocket.Session()
-        if isUnixSocket:
-            self.port = "http+unix://" + self.slurm_port.replace("/", "%2F")
-        else:
-            self.port=slurm_port
-        self.port = self.port + "/slurm/" + self.openAPI_ver
-
-    def get_node_status(self, node) -> None:
-        """ Fetches status of compute node.
-
-            Args: slurm node name
-        """
-        fetch = self.port + "/node/" + node
-        r = self.session.get(fetch)
-        self.__print_json(r.json())
-    def __print_json(self, data):
+        if is_unix_socket:
+            self.port = "http+unix://" + self.port.replace("/", "%2F")
+        self.port = self.port + "/slurm/" + self.openapi
+    def __print_json(self, data: json):
         """ DEBUG Prints json data in a readable style.
         
             Args: http response data
         """
-
         print(json.dumps(data, indent=4, sort_keys=True))
-    def __get_json_key_val(self, data, keys: Tuple):
+    def __get_json_key_val(self, data: json, keys: Tuple) -> Union[int, str]:
         """ Fetch values from nested dicts.
 
             Args:
@@ -74,7 +85,7 @@ class SlurmManager( object ):
             except:
                 return
         return val
-    def send_job(self, jsonData):
+    def send_job(self, json_data: json):
         """Submit JSON job file
 
             Args: 
@@ -83,12 +94,10 @@ class SlurmManager( object ):
             Returns:
                 Response from slurmrestd
         """
-        print(jsonData)
         post_path = self.port + "/job/submit"
-        r = self.session.post(post_path, json=jsonData)
-        self.__print_json(r.json())
+        r = self.session.post(post_path, json=json_data)
         return r
-    def __get_matching_job_names(self, n) -> list[str]:
+    def __get_matching_job_names(self, n: str) -> list[str]:
         """ Gets a list of jobs with matching names. 
             
             Arg:
@@ -137,7 +146,7 @@ class SlurmManager( object ):
         #TODO blank for now
         accelerator_types = {}
         return accelerator_types
-    def cluster_resources(self) -> dict[str, dict[str, int]]:
+    def cluster_resources(self) -> Dict[str, Dict[str, int]]:
         """ Get total resources of all nodes in the cluster. 
             
             Returns: 
@@ -163,7 +172,7 @@ class SlurmManager( object ):
                 ResourceEnum.GPU.value: node_gpu
             }
         return cluster_resources
-    def allocatable_resources(self) -> dict[str, dict[str, int]]:
+    def allocatable_resources(self) -> Dict[str, Dict[str, int]]:
         """ Gets currently allocatable resources of all nodes. 
         
             Returns: 
@@ -196,9 +205,10 @@ class SlurmManager( object ):
             Returns: 
                 ClusterStatus object
         """
+        HEAD_NODE = 0
         fetch = self.port + "/ping"
         r = self.session.get(fetch).json()
-        if r["pings"][0]["ping"] != "UP" or len(r["errors"]) > 0:
+        if r["pings"][HEAD_NODE]["ping"] != "UP" or len(r["errors"]) > 0:
             return ClusterStatus(
             status=ClusterStatusEnum.ERROR.value,
             capacity=self.cluster_resources(),
@@ -290,7 +300,7 @@ class SlurmManager( object ):
         return jobs_dict
 #Testing purposes
 if __name__ == "__main__":
-    api = SlurmManager(isUnixSocket=True)
+    api = SlurmManager()
     #api.get_status()
     #api.send_job('basicjob.json')
     #api.send_job('fail.json')
@@ -298,5 +308,5 @@ if __name__ == "__main__":
     #api.get_job_status(37)
     #api.send_job('webserver.json')
     #api.allocatable_resources()
-    #print(api.get_cluster_status())
+    print(api.get_cluster_status())
 
