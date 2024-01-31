@@ -1,8 +1,15 @@
+"""
+Service API.
+"""
+
 from skyflow.api_client.object_api import NamespaceObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 
 
 class ServiceAPI(NamespaceObjectAPI):
+    """
+    Service API for handling Service objects.
+    """
 
     def __init__(self, namespace: str = DEFAULT_NAMESPACE):
-        super().__init__(namespace=namespace, object_type='services')
+        super().__init__(namespace=namespace, object_type="services")

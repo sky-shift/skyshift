@@ -18,7 +18,7 @@ from skyflow.utils import match_labels
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
@@ -29,10 +29,10 @@ def FlowErrorHandler(controller: Controller):
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
+        controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Encountered unusual error. Trying again.')
+        controller.logger.error("Encountered unusual error. Trying again.")
 
 
 class FlowController(Controller):
@@ -49,9 +49,10 @@ class FlowController(Controller):
 
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
 
-        self.logger = logging.getLogger(f'[{self.name} - Flow Controller]')
+        self.logger = logging.getLogger(f"[{self.name} - Flow Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
@@ -74,10 +75,11 @@ class FlowController(Controller):
         # Filtered add events and delete events are added to the worker queue.
         self.job_informer.add_event_callbacks(
             update_event_callback=update_callback_fn,
-            delete_event_callback=delete_callback_fn)
+            delete_event_callback=delete_callback_fn,
+        )
         self.job_informer.start()
 
-        #Define filter policy
+        # Define filter policy
         self.policy_informer = Informer(FilterPolicyAPI(namespace=None))
 
         def add_policy_callback_fn(event):
@@ -88,12 +90,13 @@ class FlowController(Controller):
 
         self.policy_informer.add_event_callbacks(
             add_event_callback=add_policy_callback_fn,
-            update_event_callback=update_policy_callback_fn)
+            update_event_callback=update_policy_callback_fn,
+        )
         self.policy_informer.start()
 
     def run(self):
         self.logger.info(
-            'Running flow controller - Manages job submission and eviction from the cluster.'
+            "Running flow controller - Manages job submission and eviction from the cluster."
         )
         while True:
             with FlowErrorHandler(self):
@@ -116,12 +119,12 @@ class FlowController(Controller):
                 try:
                     self._submit_job(job_object)
                     self.logger.info(
-                        f'Successfully submitted job \'{job_name}\' to cluster \'{self.name}\'.'
+                        f"Successfully submitted job '{job_name}' to cluster '{self.name}'."
                     )
                 except:
                     self.logger.error(traceback.format_exc())
                     self.logger.error(
-                        f'Failed to submit job  \'{job_name}\' to the cluster  \'{self.name}\'. Marking job as failed.'
+                        f"Failed to submit job  '{job_name}' to the cluster  '{self.name}'. Marking job as failed."
                     )
                     job_object.status.replica_status[self.name] = {
                         TaskStatusEnum.FAILED.value:
@@ -129,13 +132,13 @@ class FlowController(Controller):
                             self.name].values())
                     }
                 JobAPI(namespace=job_object.get_namespace()).update(
-                    config=job_object.model_dump(mode='json'))
+                    config=job_object.model_dump(mode="json"))
             elif event_key == WatchEventEnum.DELETE:
                 # If the job is not in the cache, it has already been deleted.
                 self._delete_job(job_object)
             else:
                 self.logger.error(
-                    f'Invalid event type `{event_key}` for job {job_object.get_name()}.'
+                    f"Invalid event type `{event_key}` for job {job_object.get_name()}."
                 )
         elif isinstance(event_object, FilterPolicy):
             # Handle when FilterPolicy changes.
@@ -160,11 +163,11 @@ class FlowController(Controller):
                             self.name].values())
                     }
                     JobAPI(namespace=c_job.get_namespace()).update(
-                        config=c_job.model_dump(mode='json'))
+                        config=c_job.model_dump(mode="json"))
 
     def _submit_job(self, job: Job):
         manager_response = self.manager_api.submit_job(job)
-        job.status.job_ids[self.name] = manager_response['manager_job_id']
+        job.status.job_ids[self.name] = manager_response["manager_job_id"]
 
     def _delete_job(self, job: Job):
         job_status = job.status
@@ -173,7 +176,7 @@ class FlowController(Controller):
         del job_status.job_ids[self.name]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cluster_api = ClusterAPI()
     cluster_api.create({
         "kind": "Cluster",
@@ -181,8 +184,8 @@ if __name__ == '__main__':
             "name": "mluo-onprem"
         },
         "spec": {
-            'manager': 'k8',
-        }
+            "manager": "k8",
+        },
     })
-    jc = FlowController('mluo-onprem')
+    jc = FlowController("mluo-onprem")
     jc.start()

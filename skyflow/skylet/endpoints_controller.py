@@ -19,7 +19,7 @@ from skyflow.utils import match_labels
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
@@ -30,10 +30,10 @@ def EndpointsErrorHandler(controller: Controller):
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
+        controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Encountered unusual error. Trying again.')
+        controller.logger.error("Encountered unusual error. Trying again.")
 
 
 class EndpointsController(Controller):
@@ -50,10 +50,11 @@ class EndpointsController(Controller):
 
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
 
         self.logger = logging.getLogger(
-            f'[{self.name} - Endpoints Controller]')
+            f"[{self.name} - Endpoints Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
@@ -97,12 +98,13 @@ class EndpointsController(Controller):
         self.service_informer.add_event_callbacks(
             add_event_callback=add_svc_callback_fn,
             update_event_callback=update_svc_callback_fn,
-            delete_event_callback=delete_svc_callback_fn)
+            delete_event_callback=delete_svc_callback_fn,
+        )
         self.service_informer.start()
 
     def run(self):
         self.logger.info(
-            'Running endpoints controller - keeps track of jobs across clusters (for services).'
+            "Running endpoints controller - keeps track of jobs across clusters (for services)."
         )
         while True:
             with EndpointsErrorHandler(self):
@@ -123,7 +125,7 @@ class EndpointsController(Controller):
                 end_obj = self._create_or_update_endpoint(event_object)
                 try:
                     EndpointsAPI(namespace=service_namespace).update(
-                        config=end_obj.model_dump(mode='json'))
+                        config=end_obj.model_dump(mode="json"))
                 except Exception as e:
                     self.worker_queue.put(event)
             elif event_key == WatchEventEnum.DELETE:
@@ -146,18 +148,18 @@ class EndpointsController(Controller):
         ]:
             # Create the endpoint object.
             end_obj_dict: dict = {
-                'kind': 'Endpoints',
-                'metadata': {
-                    'name': service_name,
-                    'namespace': service_namespace,
+                "kind": "Endpoints",
+                "metadata": {
+                    "name": service_name,
+                    "namespace": service_namespace,
                 },
-                'spec': {
-                    'primary_cluster': primary_cluster,
-                }
+                "spec": {
+                    "primary_cluster": primary_cluster,
+                },
             }
             end_obj = Endpoints(**end_obj_dict)
             EndpointsAPI(namespace=service_namespace).create(
-                end_obj.model_dump(mode='json'))
+                end_obj.model_dump(mode="json"))
             self.manager_api.create_or_update_service(service)
         else:
             end_obj = self._retry_until_fetch_object(
@@ -195,15 +197,15 @@ class EndpointsController(Controller):
                 return Endpoints.parse_obj(**end_json)
             except Exception as e:
                 retry += 1
-                self.logger.error(f'Could not fetch {name}. Retrying.')
+                self.logger.error(f"Could not fetch {name}. Retrying.")
                 time.sleep(0.1)
                 if retry == 10:
                     raise e
 
 
-if __name__ == '__main__':
-    jc = EndpointsController('mluo-onprem')
-    jc1 = EndpointsController('mluo-cloud')
+if __name__ == "__main__":
+    jc = EndpointsController("mluo-onprem")
+    jc1 = EndpointsController("mluo-cloud")
 
     jc.start()
     jc1.start()

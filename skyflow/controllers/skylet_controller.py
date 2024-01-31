@@ -4,19 +4,18 @@ Manages launching and terminating Skylets for clusters. Each cluster corresponds
 If a new cluster is detected (e.g. in INIT state), a Skylet is launched to track and coordinate
 the cluster's state. If a cluster is deleted, the corresponding Skylet is terminated.
 """
+
 import logging
 import multiprocessing
 import time
-import traceback
-from contextlib import contextmanager
 from queue import Queue
 
 import psutil
-import requests
 
 from skyflow.api_client import ClusterAPI
+from skyflow.api_client.object_api import APIException
 from skyflow.cluster_lookup import lookup_kube_config
-from skyflow.controllers.controller import Controller
+from skyflow.controllers import Controller, controller_error_handler
 from skyflow.skylet.skylet import launch_skylet
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
@@ -26,7 +25,7 @@ SKYLET_CONTROLLER_INTERVAL = 0.5
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 def terminate_process(pid: int):
@@ -36,29 +35,16 @@ def terminate_process(pid: int):
         child.terminate()
     parent.terminate()
 
-
-@contextmanager
-def SkyletControllerErrorHandler(controller: Controller):
-    """Handles different types of errors from the Skylet Controller."""
-    try:
-        # Yield control back to the calling block
-        yield
-    except requests.exceptions.ConnectionError as e:
-        controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
-    except Exception as e:
-        controller.logger.error(traceback.format_exc())
-
-
 class SkyletController(Controller):
-
+    """Skylet Controller - Spwans Skylets for each cluster."""
     def __init__(self):
         super().__init__()
-        self.logger = logging.getLogger(f'[Skylet Controller]')
+        self.logger = logging.getLogger("[Skylet Controller]")
         self.logger.setLevel(logging.INFO)
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
+        self.cluster_informer: Informer = None
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
@@ -68,7 +54,7 @@ class SkyletController(Controller):
         def add_callback_fn(event):
             self.event_queue.put(event)
 
-        def update_callback_fn(old_obj, event):
+        def update_callback_fn(_, event):
             event_object = event.object
             if event_object.get_status() == ClusterStatusEnum.ERROR:
                 self.event_queue.put(event)
@@ -80,20 +66,21 @@ class SkyletController(Controller):
         self.cluster_informer.add_event_callbacks(
             add_event_callback=add_callback_fn,
             update_event_callback=update_callback_fn,
-            delete_event_callback=delete_callback_fn)
+            delete_event_callback=delete_callback_fn,
+        )
         self.cluster_informer.start()
 
     def run(self):
         # Establish a watch over added clusters.
         self.logger.info(
-            'Executing Skylet controller - Manages launching and terminating Skylets for clusters.'
+            "Executing Skylet controller - Manages launching and terminating Skylets for clusters."
         )
         self._load_clusters()
         while True:
-            with SkyletControllerErrorHandler(self):
+            with controller_error_handler(self):
                 self.controller_loop()
             # Serves as a form of rate limiting.
-            # TODO(mluo): Move rate limiting to the event queue.
+            # @TODO(mluo): Move rate limiting to the event queue.
             time.sleep(SKYLET_CONTROLLER_INTERVAL)
 
     def controller_loop(self):
@@ -104,26 +91,26 @@ class SkyletController(Controller):
         # Launch Skylet if it is a newly added cluster.
         if event_type == WatchEventEnum.ADD:
             self._launch_skylet(cluster_obj)
-            self.logger.info(f'Launched Skylet for cluster: {cluster_name}.')
+            self.logger.info("Launched Skylet for cluster: %s.", cluster_name)
         elif event_type in [WatchEventEnum.DELETE, WatchEventEnum.UPDATE]:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
-            self.logger.info(f'Terminated Skylet for cluster: {cluster_name}.')
+            self.logger.info("Terminated Skylet for cluster: %s.", cluster_name)
 
     def _load_clusters(self):
         existing_clusters = lookup_kube_config()
         for cluster_name in existing_clusters:
             try:
                 cluster_obj = ClusterAPI().get(cluster_name)
-            except Exception as e:
+            except APIException:
                 cluster_dictionary = {
-                    'kind': 'Cluster',
-                    'metadata': {
-                        'name': cluster_name,
+                    "kind": "Cluster",
+                    "metadata": {
+                        "name": cluster_name,
                     },
-                    'spec': {
-                        'manager': 'k8',
-                    }
+                    "spec": {
+                        "manager": "k8",
+                    },
                 }
                 cluster_obj = ClusterAPI().create(config=cluster_dictionary)
             self._launch_skylet(cluster_obj)
@@ -149,6 +136,6 @@ class SkyletController(Controller):
 
 
 # Testing purposes.
-if __name__ == '__main__':
+if __name__ == "__main__":
     cont = SkyletController()
     cont.run()

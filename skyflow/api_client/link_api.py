@@ -1,8 +1,14 @@
+"""
+Link API.
+"""
+
 from skyflow.api_client.object_api import NoNamespaceObjectAPI
 
 
 class LinkAPI(NoNamespaceObjectAPI):
+    """
+    Link API for handling Link objects.
+    """
 
     def __init__(self):
-        self.object_type = 'links'
-        super().__init__()
+        super().__init__(object_type='links')

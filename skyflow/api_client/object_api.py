@@ -1,5 +1,6 @@
-from typing import Optional
-
+"""
+Object API.
+"""
 import requests
 
 from skyflow.utils import load_object, watch_events
@@ -7,61 +8,72 @@ from skyflow.utils.utils import load_manager_config
 
 
 def verify_response(response):
-    if 'detail' in response:
-        raise APIException(response['detail'])
+    """Verifies API response to check for error."""
+    if "detail" in response:
+        raise APIException(response["detail"])
     return load_object(response)
 
 
+# @TODO(mluo): Introduce different types of API exceptions.
 class APIException(Exception):
-    pass
+    """Generic API Exception."""
 
 
-class ObjectAPI(object):
-    pass
+class ObjectAPI:
+    """
+    Generic Object API.
+    """
 
     def create(self, config: dict):
+        """Creates an object."""
         raise NotImplementedError
 
     def update(self, config: dict):
+        """Updates an object."""
         raise NotImplementedError
 
     def list(self):
+        """Lists all objects."""
         raise NotImplementedError
 
     def get(self, name: str):
+        """Gets an object."""
         raise NotImplementedError
 
     def delete(self, name: str):
+        """Deletes an object."""
         raise NotImplementedError
 
     def watch(self):
+        """Watches for changes to objects."""
         raise NotImplementedError
 
 
 class NamespaceObjectAPI(ObjectAPI):
+    """
+    Namespaced Object API - API for namespace objects.
+    """
 
-    def __init__(self, namespace: str, object_type: Optional[str] = None):
+    def __init__(self, namespace: str, object_type: str):
         self.namespace = namespace
         self.host, self.port = load_manager_config()
         self.object_type = object_type
-        if not self.object_type:
-            raise NotImplementedError(
-                'Classes that inherit from this class must set the `object_type` attribute.'
-            )
-        self.url: str = ''
+        self.url: str = ""
         if namespace is None:
-            self.url = f'http://{self.host}:{self.port}/{self.object_type}'
+            self.url = f"http://{self.host}:{self.port}/{self.object_type}"
         else:
-            self.url = f'http://{self.host}:{self.port}/{self.namespace}/{self.object_type}'
+            self.url = (
+                f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
+            )
 
     def create(self, config: dict):
-        assert self.namespace is not None, 'Method `create` requires a namespace.'
+        assert self.namespace is not None, "Method `create` requires a namespace."
         response = requests.post(self.url, json=config)
         response = response.json()
         return verify_response(response)
 
     def update(self, config: dict):
-        assert self.namespace is not None, 'Method `update` requires a namespace.'
+        assert self.namespace is not None, "Method `update` requires a namespace."
         response = requests.put(self.url, json=config).json()
         return verify_response(response)
 
@@ -70,32 +82,30 @@ class NamespaceObjectAPI(ObjectAPI):
         return verify_response(response)
 
     def get(self, name: str):
-        assert self.namespace is not None, 'Method `get` requires a namespace.'
-        response = requests.get(f'{self.url}/{name}').json()
+        assert self.namespace is not None, "Method `get` requires a namespace."
+        response = requests.get(f"{self.url}/{name}").json()
         return verify_response(response)
 
     def delete(self, name: str):
-        assert self.namespace is not None, 'Method `delete` requires namespace.'
-        response = requests.delete(f'{self.url}/{name}').json()
+        assert self.namespace is not None, "Method `delete` requires namespace."
+        response = requests.delete(f"{self.url}/{name}").json()
         return verify_response(response)
 
     def watch(self):
-        watch_url = f'{self.url}?watch=true'
+        watch_url = f"{self.url}?watch=true"
         for data in watch_events(watch_url):
             yield verify_response(data)
 
 
 class NoNamespaceObjectAPI(ObjectAPI):
+    """
+    NoNamespace Object API - API for Sky-scoped objects.
+    """
 
-    def __init__(self):
+    def __init__(self, object_type: str):
+        self.object_type = object_type
         self.host, self.port = load_manager_config()
-        self.url = None
-        # For classes that inherit from this class, they must set the object_type.
-        if not self.object_type:
-            raise NotImplementedError(
-                'Classes that inherit from this class must set the `object_type` attribute.'
-            )
-        self.url = f'http://{self.host}:{self.port}/{self.object_type}'
+        self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
     def create(self, config: dict):
         response = requests.post(self.url, json=config).json()
@@ -113,15 +123,15 @@ class NoNamespaceObjectAPI(ObjectAPI):
         return obj
 
     def get(self, name: str):
-        response = requests.get(f'{self.url}/{name}').json()
+        response = requests.get(f"{self.url}/{name}").json()
         obj = verify_response(response)
         return obj
 
     def delete(self, name: str):
-        response = requests.delete(f'{self.url}/{name}').json()
+        response = requests.delete(f"{self.url}/{name}").json()
         obj = verify_response(response)
         return obj
 
     def watch(self):
-        for data in watch_events(f'{self.url}?watch=true'):
+        for data in watch_events(f"{self.url}?watch=true"):
             yield verify_response(data)

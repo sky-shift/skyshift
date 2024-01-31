@@ -1,3 +1,6 @@
+"""
+Object template.
+"""
 import uuid
 from typing import Dict, Generic, List, TypeVar
 
@@ -5,77 +8,92 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from skyflow.utils.utils import load_object
 
-T = TypeVar('T')
+GenericType = TypeVar("GenericType")
 
 
 class ObjectException(Exception):
-
-    def __init__(self, message='Failed to create object.'):
+    """Raised when the object dict is invalid."""
+    def __init__(self, message="Failed to create object."):
         self.message = message
         super().__init__(self.message)
 
 
 class ObjectStatus(BaseModel):
+    """Status of an object."""
     conditions: List[Dict[str, str]] = Field(default=[])
 
     def update_conditions(self, conditions):
+        """Updates the conditions field of an object."""
         self.conditions = conditions
 
 
 class ObjectMeta(BaseModel, validate_assignment=True):
+    """Metadata of an object."""
     name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
     labels: Dict[str, str] = Field(default={})
     annotations: Dict[str, str] = Field(default={})
     # ETCD resource version for an object.
     resource_version: int = Field(default=-1)
 
-    @field_validator('name')
+    @field_validator("name")
     @classmethod
-    def verify_name(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Object name cannot be empty.')
-        return v
+    def verify_name(cls, value: str) -> str:
+        """Validates the name field of an object."""
+        if not value:
+            raise ValueError("Object name cannot be empty.")
+        return value
 
 
 class ObjectSpec(BaseModel):
-    pass
+    """Spec of an object."""
 
 
 class Object(BaseModel):
-    kind: str = Field(default='Object')
+    """Object template."""
+    kind: str = Field(default="Object")
     metadata: ObjectMeta = Field(default=ObjectMeta())
     spec: ObjectSpec = Field(default=ObjectSpec())
     status: ObjectStatus = Field(default=ObjectStatus())
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
+    @classmethod
     def set_kind(cls, values):
+        """Sets the kind field of an object."""
         if isinstance(values, Object):
             return values
-        values['kind'] = cls.__name__
+        values["kind"] = cls.__name__
         return values
 
     def get_status(self):
-        return self.status.status
+        """Returns the status of an object."""
+        return self.status.status # pylint: disable=no-member
 
     def get_name(self):
-        return self.metadata.name
+        """Returns the name of an object."""
+        return self.metadata.name # pylint: disable=no-member
 
 
-class ObjectList(BaseModel, Generic[T]):
-    kind: str = Field(default='ObjectList')
-    objects: List[T] = Field(default=[])
+class ObjectList(BaseModel, Generic[GenericType]):
+    """List of objects."""
+    kind: str = Field(default="ObjectList")
+    objects: List[GenericType] = Field(default=[])
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
+    @classmethod
     def set_kind(cls, values):
-        values['kind'] = cls.__name__
+        """Sets the kind field of an object."""
+        values["kind"] = cls.__name__
         return values
 
-    @field_validator('objects', mode='before')
-    def set_correct_object_type(cls, v):
-        for idx, obj in enumerate(v):
+    @field_validator("objects", mode="before")
+    @classmethod
+    def set_correct_object_type(cls, value):
+        """Sets the correct object type."""
+        for idx, obj in enumerate(value):
             if isinstance(obj, dict):
-                v[idx] = load_object(obj)
-        return v
+                value[idx] = load_object(obj)
+        return value
 
-    def add_object(self, obj: T):
-        self.objects.append(obj)
+    def add_object(self, obj: GenericType):
+        """Adds an object to the list."""
+        self.objects.append(obj) # pylint: disable=no-member

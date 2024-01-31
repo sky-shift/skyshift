@@ -1,5 +1,7 @@
+"""
+Link Template for Skyflow.
+"""
 import enum
-from typing import List
 
 from pydantic import Field
 
@@ -9,17 +11,18 @@ from skyflow.templates.object_template import (Object, ObjectException,
 
 
 class LinkException(ObjectException):
-    pass
+    """Raised when the link template is invalid."""
 
 
 class LinkStatusEnum(enum.Enum):
     """Represents the network link between two clusters."""
+
     # When job is first created.
-    INIT = 'INIT'
+    INIT = "INIT"
     # When job is currently running.
-    ACTIVE = 'ACTIVE'
+    ACTIVE = "ACTIVE"
     # When a job has failed.
-    FAILED = 'FAILED'
+    FAILED = "FAILED"
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -28,38 +31,45 @@ class LinkStatusEnum(enum.Enum):
 
 
 class LinkStatus(ObjectStatus):
+    """Status of a Link."""
     phase: str = Field(default=LinkStatusEnum.INIT.value)
 
     def get_status(self):
+        """Returns the status of the Link."""
         return self.phase
 
     def update_status(self, status: str):
+        """Updates the status of the Link."""
         if status not in [status.value for status in LinkStatusEnum]:
-            raise LinkException(f'Invalid status: {status}')
+            raise LinkException(f"Invalid status: {status}")
         self.phase = status
 
 
 class LinkMeta(ObjectMeta):
-    pass
-
+    """Metadata of a Link."""
 
 class LinkSpec(ObjectSpec):
+    """Spec of a Link."""
     source_cluster: str = Field(default=None)
     target_cluster: str = Field(default=None)
 
 
 class Link(Object):
-    kind: str = Field(default='Link', validate_default=True)
+    """Link object."""
+    kind: str = Field(default="Link", validate_default=True)
     metadata: LinkMeta = Field(default=LinkMeta(), validate_default=True)
     spec: LinkSpec = Field(default=LinkSpec(), validate_default=True)
     status: LinkStatus = Field(default=LinkStatus(), validate_default=True)
 
     def get_status(self):
-        return self.status.phase
+        """Returns the status of the Link."""
+        return self.status.phase # pylint: disable=no-member
 
     def get_namespace(self):
-        return self.metadata.namespace
+        """Returns the namespace of the Link."""
+        return self.metadata.namespace # pylint: disable=no-member
 
 
 class LinkList(ObjectList):
-    kind: str = Field(default='LinkList')
+    """List of Links."""
+    kind: str = Field(default="LinkList")

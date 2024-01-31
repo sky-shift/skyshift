@@ -1,12 +1,14 @@
-from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
+"""
+Defines compatability layer for generic Managers.
+"""
+from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
 
 class ManagerException(Exception):
     """Raised when the manager is invalid."""
-    pass
 
 
-class Manager(object):
+class Manager:
     """
     General manager object.
 
@@ -32,7 +34,7 @@ class Manager(object):
         raise NotImplementedError
 
     def get_cluster_status(self):
-        """ Gets the cluster status. """
+        """Gets the cluster status."""
         return ClusterStatus(
             status=ClusterStatusEnum.READY.value,
             capacity=self.cluster_resources,
@@ -41,14 +43,12 @@ class Manager(object):
 
     def get_jobs_status(self):
         """Gets the status for all jobs."""
-        return
-
-    def submit_job(self, job):
         raise NotImplementedError
 
-    def get_job_status(self, job_name):
+    def submit_job(self, job: Job):
+        """Submits a job to the underlying cluster manager."""
         raise NotImplementedError
 
-    @staticmethod
-    def convert_yaml(job):
+    def delete_job(self, job: Job):
+        """Deletes a job from the underlying cluster manager."""
         raise NotImplementedError

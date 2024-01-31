@@ -1,4 +1,7 @@
-from typing import Dict, List, Optional
+"""
+Endpoints template.
+"""
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -9,25 +12,27 @@ from skyflow.templates.object_template import (Object, ObjectException,
 
 class EndpointsException(ObjectException):
     """Raised when the job template is invalid."""
-    pass
 
 
 class EndpointsStatus(ObjectStatus):
-    pass
+    """Endpoints status."""
 
 
 class EndpointsMeta(ObjectMeta):
-    namespace: str = Field(default='default', validate_default=True)
+    """Endpoints metadata."""
+    namespace: str = Field(default="default", validate_default=True)
 
-    @field_validator('namespace')
+    @field_validator("namespace")
     @classmethod
-    def verify_namespace(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Namespace cannot be empty.')
-        return v
+    def verify_namespace(cls, value: str) -> str:
+        """Validates the namespace field of a Endpoints."""
+        if not value:
+            raise ValueError("Namespace cannot be empty.")
+        return value
 
 
 class EndpointObject(BaseModel):
+    """Endpoint object representing all endpoints for a cluster."""
     # Num endpoints to make in endpoints yaml of the primary cluster.
     num_endpoints: int = Field(default=0, validate_default=True)
     # This is exposed ip and port on the primary cluster.
@@ -35,15 +40,17 @@ class EndpointObject(BaseModel):
 
 
 class EndpointsSpec(ObjectSpec):
+    """Endpoints spec."""
     selector: Dict[str, str] = Field(default={}, validate_default=True)
     # Maps cluster name to Endpoint object.
     endpoints: Dict[str, EndpointObject] = Field(default={},
                                                  validate_default=True)
-    primary_cluster: Optional[str] = Field(default='')
+    primary_cluster: Optional[str] = Field(default="")
 
 
 class Endpoints(Object):
-    kind: str = Field(default='Endpoints', validate_default=True)
+    """Endpoints object."""
+    kind: str = Field(default="Endpoints", validate_default=True)
     metadata: EndpointsMeta = Field(default=EndpointsMeta(),
                                     validate_default=True)
     spec: EndpointsSpec = Field(default=EndpointsSpec(), validate_default=True)
@@ -51,8 +58,10 @@ class Endpoints(Object):
                                     validate_default=True)
 
     def get_namespace(self):
-        return self.metadata.namespace
+        """Returns the namespace of the object."""
+        return self.metadata.namespace # pylint: disable=no-member
 
 
 class EndpointsList(ObjectList):
-    kind: str = Field(default='EndpointsList')
+    """List of Endpoints."""
+    kind: str = Field(default="EndpointsList")

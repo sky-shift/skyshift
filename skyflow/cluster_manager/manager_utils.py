@@ -1,12 +1,18 @@
+"""
+Utils for cluster managers.
+"""
 from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
 from skyflow.templates import Cluster
 
 
 def setup_cluster_manager(cluster_obj: Cluster):
+    """
+    Discovers and creates the appropriate cluster manager instance based on the
+    cluster object.
+    """
     cluster_type = cluster_obj.spec.manager
-    cluster_name = cluster_obj.get_name()
 
-    if cluster_type in ['k8', 'kubernetes']:
+    if cluster_type in ["k8", "kubernetes"]:
         cluster_manager_cls = KubernetesManager
     else:
         raise ValueError(f"Cluster type {cluster_type} not supported.")

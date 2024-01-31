@@ -1,6 +1,7 @@
 """
 Source code for the log controllers that keep track of the state of the cluster and jobs. These controllers are launched in Skylet.
 """
+
 import logging
 import time
 import traceback
@@ -19,29 +20,29 @@ from skyflow.utils import load_object
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 DEFAULT_HEARTBEAT_TIME = 5
 DEFAULT_RETRY_LIMIT = 5
 
 
 @contextmanager
-def HeartbeatErrorHandler(controller: 'ClusterController'):
+def HeartbeatErrorHandler(controller: "ClusterController"):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
+        controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Encountered unusual error. Trying again.')
+        controller.logger.error("Encountered unusual error. Trying again.")
         controller.retry_counter += 1
 
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(
-            f'Retry limit exceeded. Marking cluster {controller.name} as ERROR state.'
+            f"Retry limit exceeded. Marking cluster {controller.name} as ERROR state."
         )
         controller.update_unhealthy_cluster()
 
@@ -53,10 +54,12 @@ class ClusterController(Controller):
     The status includes the cluster capacity, allocatable capacity, and the current status of the cluster.
     """
 
-    def __init__(self,
-                 name,
-                 heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
-                 retry_limit: int = DEFAULT_RETRY_LIMIT):
+    def __init__(
+        self,
+        name,
+        heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
+        retry_limit: int = DEFAULT_RETRY_LIMIT,
+    ):
         super().__init__()
 
         self.name = name
@@ -72,12 +75,12 @@ class ClusterController(Controller):
         # This is used to determine node affinity for jobs that request specific accelerators such as T4 GPU.
         self.accelerator_types = self.manager_api.get_accelerator_types()
 
-        self.logger = logging.getLogger(f'[{self.name} - Cluster Controller]')
+        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
         self.logger.setLevel(logging.INFO)
 
     def run(self):
         self.logger.info(
-            'Running cluster controller - Updates the state of the cluster.')
+            "Running cluster controller - Updates the state of the cluster.")
         self.retry_counter = 0
         while True:
             start = time.time()
@@ -90,7 +93,7 @@ class ClusterController(Controller):
     def controller_loop(self):
         cluster_status = self.manager_api.get_cluster_status()
         self.update_healthy_cluster(cluster_status)
-        self.logger.info('Updated cluster state.')
+        self.logger.info("Updated cluster state.")
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         cluster_api = ClusterAPI()
@@ -100,7 +103,7 @@ class ClusterController(Controller):
         prev_cluster_status.update_capacity(cluster_status.capacity)
         prev_cluster_status.update_allocatable_capacity(
             cluster_status.allocatable_capacity)
-        cluster_api.update(cluster_obj.model_dump(mode='json'))
+        cluster_api.update(cluster_obj.model_dump(mode="json"))
 
     def update_unhealthy_cluster(self):
         # When the cluster is unhealthy, we need to update the cluster status to ERROR in the API server.
@@ -108,11 +111,11 @@ class ClusterController(Controller):
         cluster_obj = cluster_api.get(self.name)
         cluster_status = cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
-        cluster_api.update(cluster_obj.model_dump(mode='json'))
+        cluster_api.update(cluster_obj.model_dump(mode="json"))
 
 
 # Testing purposes.
-if __name__ == '__main__':
+if __name__ == "__main__":
     cluster_api = ClusterAPI()
     try:
         cluster_api.create({
@@ -121,12 +124,12 @@ if __name__ == '__main__':
                 "name": "mluo-onprem"
             },
             "spec": {
-                'manager': 'k8',
-            }
+                "manager": "k8",
+            },
         })
     except:
         pass
-    hc = ClusterController('mluo-onprem')
+    hc = ClusterController("mluo-onprem")
     hc.run()
 
 # for node, accelerator_type in self.accelerator_types.items():

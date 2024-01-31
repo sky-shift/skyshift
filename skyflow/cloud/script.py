@@ -9,22 +9,49 @@ def provision_resources(num_nodes, cluster_name, run_command, resources):
     """
     Provision resources for the cluster using SkyPilot Python API.
     """
+
     def create_resource(num):
-        task = sky.Task(setup='echo "setup"',
-                        run=run_command)
-        ports = ["22", "6443", "2376", "2379", "2380", "8472", "9099",
-                 "10250", "443", "379", "6443", "8472", "80", "472", "10254", "3389", "30000-32767",
-                 "7946", "179", "6783-6784", "9796", "9443", "9100", "8443", "4789", ]
+        task = sky.Task(setup='echo "setup"', run=run_command)
+        ports = [
+            "22",
+            "6443",
+            "2376",
+            "2379",
+            "2380",
+            "8472",
+            "9099",
+            "10250",
+            "443",
+            "379",
+            "6443",
+            "8472",
+            "80",
+            "472",
+            "10254",
+            "3389",
+            "30000-32767",
+            "7946",
+            "179",
+            "6783-6784",
+            "9796",
+            "9443",
+            "9100",
+            "8443",
+            "4789",
+        ]
         if "ports" not in resources:
             resources["ports"] = ports
         else:
             resources["ports"] = list(set(resources["ports"] + ports))
         task.set_resources(sky.Resources(**resources))
-        sky.launch(task, f"skym-{cluster_name}-{num}",)
+        sky.launch(
+            task,
+            f"skym-{cluster_name}-{num}",
+        )
 
     threads = []
     for i in range(num_nodes):
-        thread = threading.Thread(target=create_resource, args=(i,))
+        thread = threading.Thread(target=create_resource, args=(i, ))
         thread.start()
         threads.append(thread)
 
@@ -36,7 +63,7 @@ def parse_ssh_config():
     """
     Parse the SSH config file and return a dictionary mapping hosts to their users.
     """
-    with open(os.path.expanduser("~/.ssh/config"), 'r') as f:
+    with open(os.path.expanduser("~/.ssh/config"), "r") as f:
         lines = f.readlines()
 
     current_host = None
@@ -46,14 +73,15 @@ def parse_ssh_config():
     for line in lines:
         line = line.strip()
 
-        if prev_line and prev_line.startswith("# Added by sky") and line.startswith('Host '):
+        if (prev_line and prev_line.startswith("# Added by sky")
+                and line.startswith("Host ")):
             current_host = line.split()[1]
             host_details[current_host] = {}
         elif current_host:
-            if line.startswith('HostName '):
-                host_details[current_host]['hostname'] = line.split()[1]
-            elif line.startswith('User '):
-                host_details[current_host]['user'] = line.split()[1]
+            if line.startswith("HostName "):
+                host_details[current_host]["hostname"] = line.split()[1]
+            elif line.startswith("User "):
+                host_details[current_host]["user"] = line.split()[1]
 
         prev_line = line
 
@@ -73,8 +101,10 @@ def construct_cluster_yaml(cluster_name, num_nodes):
             "provider": "nginx"
         },
         "system_images": {
-            "ingress": "rancher/nginx-ingress-controller:0.21.0-rancher1",
-            "ingress_backend": "rancher/nginx-ingress-controller-defaultbackend:1.4"
+            "ingress":
+            "rancher/nginx-ingress-controller:0.21.0-rancher1",
+            "ingress_backend":
+            "rancher/nginx-ingress-controller-defaultbackend:1.4",
         },
         # "services": {
         #     "kube-api": {
@@ -93,7 +123,7 @@ def construct_cluster_yaml(cluster_name, num_nodes):
             "address": details["hostname"],
             "user": details["user"],
             "ssh_port": 22,
-            "role": ["worker"]
+            "role": ["worker"],
         }
 
         if i == 0:
@@ -101,7 +131,7 @@ def construct_cluster_yaml(cluster_name, num_nodes):
 
         data["nodes"].append(node)
 
-    with open('cluster.yml', 'w') as file:
+    with open("cluster.yml", "w") as file:
         yaml.dump(data, file)
 
 
@@ -124,8 +154,8 @@ def cleanup(cluster_name):
     os.system("sky down skym-test-0 --yes; sky down skym-test-1 --yes")
     os.system("rm cluster.yml cluster.rkestate kube_config_cluster.yml")
 
-# store kubernetes:skypilot mappings in /home/skym or something for persistant storage
 
+# store kubernetes:skypilot mappings in /home/skym or something for persistant storage
 
 cleanup("test")
 create_new_kubernetes_cluster("test", 2, 'echo "Stopping Ray"')

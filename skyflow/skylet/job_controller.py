@@ -1,6 +1,7 @@
 """
 Source code for the log controllers that keep track of the state of the cluster and jobs. These controllers are launched in Skylet.
 """
+
 import logging
 import time
 import traceback
@@ -18,39 +19,41 @@ from skyflow.templates.job_template import Job, JobStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 DEFAULT_HEARTBEAT_TIME = 3
 DEFAULT_RETRY_LIMIT = 3
 
 
 @contextmanager
-def HeartbeatErrorHandler(controller: 'JobController'):
+def HeartbeatErrorHandler(controller: "JobController"):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
     except requests.exceptions.ConnectionError as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
+        controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception as e:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Encountered unusual error. Trying again.')
+        controller.logger.error("Encountered unusual error. Trying again.")
         time.sleep(0.5)
         controller.retry_counter += 1
 
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(
-            f'Retry limit exceeded. Marking pending/running jobs in ERROR state.'
+            f"Retry limit exceeded. Marking pending/running jobs in ERROR state."
         )
 
 
 class JobController(Controller):
 
-    def __init__(self,
-                 name,
-                 heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
-                 retry_limit: int = DEFAULT_RETRY_LIMIT):
+    def __init__(
+        self,
+        name,
+        heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
+        retry_limit: int = DEFAULT_RETRY_LIMIT,
+    ):
         super().__init__()
 
         self.name = name
@@ -62,7 +65,7 @@ class JobController(Controller):
         # Fetch cluster state template (cached cluster state).
         self.job_status = self.manager_api.get_jobs_status()
 
-        self.logger = logging.getLogger(f'[{self.name} - Job Controller]')
+        self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
@@ -72,7 +75,7 @@ class JobController(Controller):
 
     def run(self):
         self.logger.info(
-            'Running job controller - Updates the status of the jobs sent by Sky Manager.'
+            "Running job controller - Updates the status of the jobs sent by Sky Manager."
         )
         self.retry_counter = 0
         while True:
@@ -102,17 +105,17 @@ class JobController(Controller):
         try:
             job.status.replica_status[self.name] = status
             JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
-                mode='json'))
+                mode="json"))
         except:
             job = JobAPI(namespace=job.get_namespace()).get(
                 name=job.get_name())
             job.status.replica_status[self.name] = status
             JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
-                mode='json'))
+                mode="json"))
 
 
 # Testing purposes.
-if __name__ == '__main__':
+if __name__ == "__main__":
     cluster_api = ClusterAPI()
     try:
         cluster_api.create({
@@ -121,10 +124,10 @@ if __name__ == '__main__':
                 "name": "mluo-onprem"
             },
             "spec": {
-                'manager': 'k8',
-            }
+                "manager": "k8",
+            },
         })
     except:
         pass
-    jc = JobController('mluo-onprem')
+    jc = JobController("mluo-onprem")
     jc.start()
