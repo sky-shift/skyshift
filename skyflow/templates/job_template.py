@@ -4,6 +4,7 @@ Job template for Skyflow.
 import datetime
 import enum
 from copy import deepcopy
+import re
 from typing import Dict, List
 
 from pydantic import Field, field_validator
@@ -161,6 +162,19 @@ class JobSpec(ObjectSpec):
     restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value,
                                 validate_default=True)
 
+    @field_validator('image')
+    @classmethod
+    def validate_image(cls, v):
+        # Regex to match the basic structure of a Docker image
+        # This pattern assumes a simple validation and might need to be adjusted
+        # for more specific requirements or to enforce stricter checks.
+        pattern = r'^([a-zA-Z0-9.-]+)(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+)?(@sha256:[a-fA-F0-9]{64})?$'
+        
+        if not re.match(pattern, v):
+            raise ValueError('Invalid image format. Expected format: repository[:tag] or repository[@digest].')
+        return v
+
+
     @field_validator("ports")
     @classmethod
     def verify_ports(cls, ports: List[int]) -> List[int]:
@@ -193,20 +207,17 @@ class JobSpec(ObjectSpec):
     def verify_resources(cls, resources: Dict[str, float]):
         """Validates the resources field of a job."""
         resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
-        resources = {k: v for k, v in resources.items() if v > 0}
         resource_enums = [member.value for member in ResourceEnum]
         acc_enums = [member.value for member in AcceleratorEnum]
         for resource_type, resource_value in resources.items():
-            if resource_type not in resource_enums:
-                if resource_type not in acc_enums:
-                    raise ValueError(
-                        f"Invalid resource type: {resource_type}.")
-                if ResourceEnum.GPU.value in list(resources.keys()):
-                    raise ValueError(
-                        f"Cannot specify both GPU and accelerator type {resource_type}."
-                    )
+            if resource_type not in resource_enums and resource_type not in acc_enums:
+                raise ValueError(f"Invalid resource type: {resource_type}.")
             if resource_value < 0:
-                raise ValueError(f"Invalid resource value: {resource_value}.")
+                raise ValueError(f"Invalid resource value for {resource_type}: {resource_value}.")
+
+            if resource_type in acc_enums and ResourceEnum.GPU.value in resources:
+                raise ValueError(f"Cannot specify both GPU and accelerator type {resource_type} simultaneously.")
+
         return resources
 
 

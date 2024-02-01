@@ -43,7 +43,7 @@ def launch_skylet(cluster_id):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Laumch a Skylet for a cluster.")
+        description="Launch a Skylet for a cluster.")
     parser.add_argument("--config",
                         type=str,
                         required=True,

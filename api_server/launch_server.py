@@ -32,7 +32,7 @@ def generate_manager_config(host: str, port: int):
 def check_and_install_etcd():
     """Checks if ETCD is installed and running. If not, installs and launches ETCD."""
     result = subprocess.run(
-        'ps aux | grep "[e]tcd"',
+        'ps aux | grep "etcd"',
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
