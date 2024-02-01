@@ -10,7 +10,7 @@ from copy import deepcopy
 
 import requests
 
-from skyflow.api_client import JobAPI, ClusterAPI
+from skyflow.api_client import ClusterAPI, JobAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -34,22 +34,21 @@ def heartbeat_error_handler(controller: "JobController"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
         time.sleep(0.5)
         controller.retry_counter += 1
 
     if controller.retry_counter > controller.retry_limit:
-        controller.logger.error(
-            "Retry limit exceeded. Marking pending/running jobs in ERROR state."
-        )
+        controller.logger.error("Retry limit exceeded.")
 
 
-class JobController(Controller): # pylint: disable=too-many-instance-attributes
+class JobController(Controller):  # pylint: disable=too-many-instance-attributes
     """
     Updates the status of the jobs sent by Skyflow.
     """
+
     def __init__(
         self,
         name,
@@ -61,7 +60,7 @@ class JobController(Controller): # pylint: disable=too-many-instance-attributes
         self.name = name
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
-        self.informer = Informer(JobAPI(namespace=None))
+        self.informer = Informer(JobAPI(namespace=''))
         self.retry_counter = 0
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)

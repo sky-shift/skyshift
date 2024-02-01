@@ -34,7 +34,7 @@ def heartbeat_error_handler(controller: "ServiceController"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
         time.sleep(0.5)
@@ -42,8 +42,7 @@ def heartbeat_error_handler(controller: "ServiceController"):
 
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(
-            "Retry limit exceeded. Service controller is down."
-        )
+            "Retry limit exceeded. Service controller is down.")
 
 
 def update_svc(svc: Service, status: dict):
@@ -55,8 +54,8 @@ def update_svc(svc: Service, status: dict):
             svc.spec.cluster_ip = status["clusterIP"]
         if "externalIP" in status:
             svc.status.external_ip = status["externalIP"]
-        ServiceAPI(namespace=svc.get_namespace()).update(
-            config=svc.model_dump(mode="json"))
+        ServiceAPI(namespace=svc.get_namespace()).update(config=svc.model_dump(
+            mode="json"))
     except APIException:
         svc = ServiceAPI(namespace=svc.get_namespace()).get(
             name=svc.get_name())
@@ -64,13 +63,15 @@ def update_svc(svc: Service, status: dict):
             svc.spec.cluster_ip = status["clusterIP"]
         if "externalIP" in status:
             svc.status.external_ip = status["externalIP"]
-        ServiceAPI(namespace=svc.get_namespace()).update(
-            config=svc.model_dump(mode="json"))
+        ServiceAPI(namespace=svc.get_namespace()).update(config=svc.model_dump(
+            mode="json"))
 
-class ServiceController(Controller): # pylint: disable=too-many-instance-attributes
+
+class ServiceController(Controller):  # pylint: disable=too-many-instance-attributes
     """
     Tracks the status of services in the cluster.
     """
+
     def __init__(
         self,
         name,
@@ -87,7 +88,7 @@ class ServiceController(Controller): # pylint: disable=too-many-instance-attribu
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.service_status = self.manager_api.get_service_status()
-        self.informer = Informer(ServiceAPI(namespace=None))
+        self.informer = Informer(ServiceAPI(namespace=''))
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
         self.logger.setLevel(logging.INFO)
 

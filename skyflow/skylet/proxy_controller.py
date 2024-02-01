@@ -30,7 +30,7 @@ def proxy_error_handler(controller: Controller):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -51,13 +51,14 @@ class ProxyController(Controller):
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
-        self.service_informer = Informer(ServiceAPI(namespace=None))
-        self.endpoints_informer = Informer(EndpointsAPI(namespace=None))
+        self.service_informer = Informer(ServiceAPI(namespace=''))
+        self.endpoints_informer = Informer(EndpointsAPI(namespace=''))
 
         self.logger = logging.getLogger(f"[{self.name} - Proxy Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
+
         def update_callback_fn(old_obj, event):
             new_obj = event.object
             old_obj_endpoints = old_obj.spec.endpoints

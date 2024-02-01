@@ -1,7 +1,6 @@
 """
 Init module for Skylet controllers.
 """
-
 from skyflow.skylet.cluster_controller import ClusterController
 from skyflow.skylet.endpoints_controller import EndpointsController
 from skyflow.skylet.flow_controller import FlowController

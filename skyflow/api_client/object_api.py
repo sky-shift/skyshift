@@ -59,7 +59,7 @@ class NamespaceObjectAPI(ObjectAPI):
         self.host, self.port = load_manager_config()
         self.object_type = object_type
         self.url: str = ""
-        if namespace is None:
+        if not namespace:
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
         else:
             self.url = (

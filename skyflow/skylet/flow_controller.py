@@ -9,12 +9,11 @@ from queue import Queue
 
 import requests
 
-from skyflow.api_client import ClusterAPI, JobAPI, FilterPolicyAPI
+from skyflow.api_client import ClusterAPI, FilterPolicyAPI, JobAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
-from skyflow.templates import (FilterPolicy, Job,
-                               TaskStatusEnum, WatchEventEnum)
+from skyflow.templates import FilterPolicy, Job, TaskStatusEnum, WatchEventEnum
 from skyflow.utils import match_labels
 
 logging.basicConfig(
@@ -31,7 +30,7 @@ def flow_error_handler(controller: Controller):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -47,8 +46,8 @@ class FlowController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: Queue = Queue()
-        self.job_informer = Informer(JobAPI(namespace=None))
-        self.policy_informer = Informer(FilterPolicyAPI(namespace=None))
+        self.job_informer = Informer(JobAPI(namespace=''))
+        self.policy_informer = Informer(FilterPolicyAPI(namespace=''))
 
         logging.basicConfig(
             level=logging.INFO,
@@ -59,6 +58,7 @@ class FlowController(Controller):
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
+
         def update_callback_fn(_, event):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
@@ -116,14 +116,13 @@ class FlowController(Controller):
                 try:
                     self._submit_job(job_object)
                     self.logger.info(
-                        "Successfully submitted job '%s' to cluster '%s'.", job_name, self.name
-                    )
-                except Exception: # pylint: disable=broad-except
+                        "Successfully submitted job '%s' to cluster '%s'.",
+                        job_name, self.name)
+                except Exception:  # pylint: disable=broad-except
                     self.logger.error(traceback.format_exc())
                     self.logger.error(
                         "Failed to submit job  '%s' to the cluster '%s'. "
-                        "Marking job as failed.", job_name, self.name
-                    )
+                        "Marking job as failed.", job_name, self.name)
                     job_object.status.replica_status[self.name] = {
                         TaskStatusEnum.FAILED.value:
                         sum(job_object.status.replica_status[
@@ -135,10 +134,8 @@ class FlowController(Controller):
                 # If the job is not in the cache, it has already been deleted.
                 self._delete_job(job_object)
             else:
-                self.logger.error(
-                    "Invalid event type `%s` for job %s.",
-                    event_key, job_object.get_name()
-                )
+                self.logger.error("Invalid event type `%s` for job %s.",
+                                  event_key, job_object.get_name())
         elif isinstance(event_object, FilterPolicy):
             # Handle when FilterPolicy changes.
             assert event_key in [WatchEventEnum.ADD, WatchEventEnum.UPDATE]

@@ -9,7 +9,9 @@ from skyflow.controllers.skylet_controller import SkyletController
 
 # Servers as the Controller Manager, which runs two controllers.
 SKY_MANAGER_CONTROLLERS = [
-    SkyletController, SchedulerController, LinkController
+    SkyletController,
+    SchedulerController,
+    LinkController
 ]
 
 

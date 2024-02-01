@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 import requests
 
-from skyflow.api_client import ClusterAPI, ServiceAPI, EndpointsAPI
+from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -31,7 +31,7 @@ def endpoints_error_handler(controller: Controller):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -47,7 +47,7 @@ class EndpointsController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: queue.Queue = queue.Queue()
-        self.service_informer = Informer(ServiceAPI(namespace=None))
+        self.service_informer = Informer(ServiceAPI(namespace=''))
 
         logging.basicConfig(
             level=logging.INFO,

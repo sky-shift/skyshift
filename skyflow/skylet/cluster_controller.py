@@ -15,8 +15,7 @@ import requests
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
-from skyflow.templates.cluster_template import (ClusterStatus,
-                                                ClusterStatusEnum)
+from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +34,7 @@ def heartbeat_error_handler(controller: "ClusterController"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
         controller.retry_counter += 1

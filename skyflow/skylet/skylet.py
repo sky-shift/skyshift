@@ -11,8 +11,9 @@ import traceback
 
 import yaml
 
-from skyflow.skylet import ClusterController, FlowController, JobController, \
-    NetworkController, ProxyController, EndpointsController, ServiceController
+from skyflow.skylet import (ClusterController, EndpointsController,
+                            FlowController, JobController, NetworkController,
+                            ProxyController, ServiceController)
 
 CONTROLLERS = [
     ClusterController,
@@ -34,7 +35,7 @@ def launch_skylet(cluster_id):
         controllers = []
         for cont in CONTROLLERS:
             controllers.append(cont(cluster_id))
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         print(traceback.format_exc())
         print(
             "Failed to initialize Skylet, check if cluster {cluster_id} is valid."

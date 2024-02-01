@@ -106,7 +106,7 @@ class APIServer:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
         object_class = ALL_OBJECTS[object_type]
-        if namespace is not None:
+        if namespace is not None and object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
@@ -140,6 +140,7 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
+        print(link_header)
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
