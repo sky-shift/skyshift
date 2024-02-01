@@ -1,21 +1,20 @@
+"""
+Proxy Controller - Exposes services to other clusters.
+"""
 import logging
-import time
 import traceback
-import uuid
 from contextlib import contextmanager
-from copy import deepcopy
 from queue import Queue
 from typing import List
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.network.cluster_link import expose_service, unexpose_service
 from skyflow.structs import Informer
-from skyflow.templates import EndpointObject, Job, Service, WatchEventEnum
-from skyflow.utils import match_labels
+from skyflow.templates import WatchEventEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,15 +22,15 @@ logging.basicConfig(
 
 
 @contextmanager
-def ProxyErrorHandler(controller: Controller):
+def proxy_error_handler(controller: Controller):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception as e:
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -52,13 +51,13 @@ class ProxyController(Controller):
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
+        self.service_informer = Informer(ServiceAPI(namespace=''))
+        self.endpoints_informer = Informer(EndpointsAPI(namespace=''))
 
         self.logger = logging.getLogger(f"[{self.name} - Proxy Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
-
-        self.endpoints_informer = Informer(EndpointsAPI(namespace=None))
 
         def update_callback_fn(old_obj, event):
             new_obj = event.object
@@ -89,8 +88,6 @@ class ProxyController(Controller):
             delete_event_callback=delete_callback_fn,
         )
         self.endpoints_informer.start()
-
-        self.service_informer = Informer(ServiceAPI(namespace=None))
         self.service_informer.start()
 
     def run(self):
@@ -98,7 +95,7 @@ class ProxyController(Controller):
             "Running proxy controller - it exposes services to other clusters."
         )
         while True:
-            with ProxyErrorHandler(self):
+            with proxy_error_handler(self):
                 self.controller_loop()
 
     def controller_loop(self):

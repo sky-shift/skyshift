@@ -1,5 +1,5 @@
 """
-Source code for the log controllers that keep track of the state of the cluster and jobs. These controllers are launched in Skylet.
+Job controllers track the state of running jobs on clusters.
 """
 
 import logging
@@ -10,12 +10,12 @@ from copy import deepcopy
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, JobAPI
+from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
-from skyflow.templates.cluster_template import Cluster
-from skyflow.templates.job_template import Job, JobStatusEnum
+from skyflow.templates.job_template import Job
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,27 +26,28 @@ DEFAULT_RETRY_LIMIT = 3
 
 
 @contextmanager
-def HeartbeatErrorHandler(controller: "JobController"):
+def heartbeat_error_handler(controller: "JobController"):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception as e:
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
         time.sleep(0.5)
         controller.retry_counter += 1
 
     if controller.retry_counter > controller.retry_limit:
-        controller.logger.error(
-            f"Retry limit exceeded. Marking pending/running jobs in ERROR state."
-        )
+        controller.logger.error("Retry limit exceeded.")
 
 
-class JobController(Controller):
+class JobController(Controller):  # pylint: disable=too-many-instance-attributes
+    """
+    Updates the status of the jobs sent by Skyflow.
+    """
 
     def __init__(
         self,
@@ -59,7 +60,8 @@ class JobController(Controller):
         self.name = name
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
-
+        self.informer = Informer(JobAPI(namespace=''))
+        self.retry_counter = 0
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
@@ -70,17 +72,15 @@ class JobController(Controller):
 
     def post_init_hook(self):
         # Keeps track of cached job state.
-        self.informer = Informer(JobAPI(namespace=None))
         self.informer.start()
 
     def run(self):
         self.logger.info(
-            "Running job controller - Updates the status of the jobs sent by Sky Manager."
+            "Running job controller - Updates the status of the jobs sent by Skyflow."
         )
-        self.retry_counter = 0
         while True:
             start = time.time()
-            with HeartbeatErrorHandler(self):
+            with heartbeat_error_handler(self):
                 self.controller_loop()
             end = time.time()
             if end - start < self.heartbeat_interval:
@@ -96,17 +96,18 @@ class JobController(Controller):
             # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
             if job_name not in prev_jobs:
                 continue
-            else:
-                cached_job = informer_object[job_name]
-
+            cached_job = informer_object[job_name]
             self.update_job(cached_job, fetched_status)
 
     def update_job(self, job: Job, status: dict):
+        """
+        Update the status of the job on the API server.
+        """
         try:
             job.status.replica_status[self.name] = status
             JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
                 mode="json"))
-        except:
+        except APIException:
             job = JobAPI(namespace=job.get_namespace()).get(
                 name=job.get_name())
             job.status.replica_status[self.name] = status
@@ -115,19 +116,19 @@ class JobController(Controller):
 
 
 # Testing purposes.
-if __name__ == "__main__":
-    cluster_api = ClusterAPI()
-    try:
-        cluster_api.create({
-            "kind": "Cluster",
-            "metadata": {
-                "name": "mluo-onprem"
-            },
-            "spec": {
-                "manager": "k8",
-            },
-        })
-    except:
-        pass
-    jc = JobController("mluo-onprem")
-    jc.start()
+# if __name__ == "__main__":
+#     cluster_api = ClusterAPI()
+#     try:
+#         cluster_api.create({
+#             "kind": "Cluster",
+#             "metadata": {
+#                 "name": "mluo-onprem"
+#             },
+#             "spec": {
+#                 "manager": "k8",
+#             },
+#         })
+#     except:
+#         pass
+#     jc = JobController("mluo-onprem")
+#     jc.start()

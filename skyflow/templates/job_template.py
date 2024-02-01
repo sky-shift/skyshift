@@ -9,8 +9,8 @@ from typing import Dict, List
 
 from pydantic import Field, field_validator
 
-from skyflow.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
+from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
+                                               ObjectException, ObjectList,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
@@ -101,7 +101,7 @@ class JobStatus(ObjectStatus):
             time_str = datetime.datetime.utcnow().isoformat()
             conditions = [{
                 "type":
-                JobStatusEnum.INIT.value,
+                JobStatusEnum.INIT.value,  # pylint: disable=no-member
                 "transition_time":
                 datetime.datetime.utcnow().isoformat(),
                 "update_time":
@@ -137,17 +137,8 @@ class JobStatus(ObjectStatus):
             ).isoformat()
 
 
-class JobMeta(ObjectMeta):
+class JobMeta(NamespacedObjectMeta):
     """Metadata of a job."""
-    namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
-
-    @field_validator("namespace")
-    @classmethod
-    def verify_namespace(cls, value: str) -> str:
-        """Validates the namespace field of a job."""
-        if not value:
-            raise ValueError("Namespace cannot be empty.")
-        return value
 
 
 class JobSpec(ObjectSpec):
@@ -229,7 +220,7 @@ class Job(Object):
 
     def get_namespace(self):
         """Returns the namespace of the job."""
-        return self.metadata.namespace # pylint: disable=no-member
+        return self.metadata.namespace  # pylint: disable=no-member
 
 
 class JobList(ObjectList):

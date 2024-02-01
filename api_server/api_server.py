@@ -42,6 +42,10 @@ class APIServer:
                     mode="json"),
             )
 
+    def startup(self):
+        """Initialize the API server upon startup."""
+        signal.signal(signal.SIGINT, lambda x, y: sys.exit())
+
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
 
@@ -106,7 +110,7 @@ class APIServer:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
         object_class = ALL_OBJECTS[object_type]
-        if namespace is not None:
+        if namespace is not None and object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
@@ -140,6 +144,7 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
+        print(link_header)
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
@@ -359,9 +364,4 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 api_server = APIServer()
 app.include_router(api_server.router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the API server upon startup."""
-    signal.signal(signal.SIGINT, lambda x, y: sys.exit())
+app.add_event_handler("startup", api_server.startup)

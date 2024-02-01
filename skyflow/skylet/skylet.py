@@ -1,17 +1,19 @@
 """
 Each Skylet corresponds to a cluster.
 
-Skylet is a daemon process that runs in the background. It is responsible for updating the state of the cluster and jobs submitted.
+Skylet is a daemon process that runs in the background.
+It is responsible for updating the state of the cluster and jobs submitted.
 """
 
 import argparse
 import os
 import traceback
-from copy import deepcopy
 
 import yaml
 
-from skyflow.skylet import *
+from skyflow.skylet import (ClusterController, EndpointsController,
+                            FlowController, JobController, NetworkController,
+                            ProxyController, ServiceController)
 
 CONTROLLERS = [
     ClusterController,
@@ -25,20 +27,23 @@ CONTROLLERS = [
 
 
 def launch_skylet(cluster_id):
+    """
+    Launches a Skylet for a given cluster.
+    """
     controllers = []
     try:
         controllers = []
-        for c in CONTROLLERS:
-            controllers.append(c(cluster_id))
-    except Exception as e:
+        for cont in CONTROLLERS:
+            controllers.append(cont(cluster_id))
+    except Exception:  # pylint: disable=broad-except
         print(traceback.format_exc())
         print(
             "Failed to initialize Skylet, check if cluster {cluster_id} is valid."
         )
-    for c in controllers:
-        c.start()
-    for c in controllers:
-        c.join()
+    for cont in controllers:
+        cont.start()
+    for cont in controllers:
+        cont.join()
 
 
 if __name__ == "__main__":

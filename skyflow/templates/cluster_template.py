@@ -35,7 +35,6 @@ class ClusterException(ObjectException):
 
 class ClusterStatus(ObjectStatus):
     """Status of a Cluster."""
-    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     status: str = Field(default=ClusterStatusEnum.INIT.value,
                         validate_default=True)
     # Allocatable capacity of the cluser.
@@ -49,16 +48,17 @@ class ClusterStatus(ObjectStatus):
     network_enabled: bool = Field(default=False)
 
     # Dict mapping node names to accelerator types.
-    accelerator_types: Dict[str, str] = Field(default={}, validate_default=True)
+    accelerator_types: Dict[str, str] = Field(default={},
+                                              validate_default=True)
 
     @field_validator("conditions")
     @classmethod
-    def verify_conditions(cls, value: List[Dict[str, str]]):
+    def verify_cluster_conditions(cls, value: List[Dict[str, str]]):
         """Validates the conditions field of a Cluster."""
         conditions = value
         if not conditions:
             conditions = [{
-                "status": ClusterStatusEnum.INIT.value,
+                "status": ClusterStatusEnum.INIT.value,  # pylint: disable=no-member
                 "transitionTime": str(time.time()),
             }]
         if len(conditions) == 0:

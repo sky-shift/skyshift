@@ -35,8 +35,10 @@ def terminate_process(pid: int):
         child.terminate()
     parent.terminate()
 
+
 class SkyletController(Controller):
     """Skylet Controller - Spwans Skylets for each cluster."""
+
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger("[Skylet Controller]")
@@ -44,12 +46,10 @@ class SkyletController(Controller):
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
-        self.cluster_informer: Informer = None
+        self.cluster_informer = Informer(ClusterAPI())
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
-        cluster_api = ClusterAPI()
-        self.cluster_informer = Informer(cluster_api)
 
         def add_callback_fn(event):
             self.event_queue.put(event)
@@ -95,7 +95,8 @@ class SkyletController(Controller):
         elif event_type in [WatchEventEnum.DELETE, WatchEventEnum.UPDATE]:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
-            self.logger.info("Terminated Skylet for cluster: %s.", cluster_name)
+            self.logger.info("Terminated Skylet for cluster: %s.",
+                             cluster_name)
 
     def _load_clusters(self):
         existing_clusters = lookup_kube_config()

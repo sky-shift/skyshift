@@ -13,6 +13,7 @@ GenericType = TypeVar("GenericType")
 
 class ObjectException(Exception):
     """Raised when the object dict is invalid."""
+
     def __init__(self, message="Failed to create object."):
         self.message = message
         super().__init__(self.message)
@@ -20,7 +21,7 @@ class ObjectException(Exception):
 
 class ObjectStatus(BaseModel):
     """Status of an object."""
-    conditions: List[Dict[str, str]] = Field(default=[])
+    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
 
     def update_conditions(self, conditions):
         """Updates the conditions field of an object."""
@@ -41,6 +42,19 @@ class ObjectMeta(BaseModel, validate_assignment=True):
         """Validates the name field of an object."""
         if not value:
             raise ValueError("Object name cannot be empty.")
+        return value
+
+
+class NamespacedObjectMeta(ObjectMeta):
+    """Metadata of a Namespaced Object."""
+    namespace: str = Field(default='default', validate_default=True)
+
+    @field_validator("namespace")
+    @classmethod
+    def verify_namespace(cls, value: str) -> str:
+        """Validates the namespace field of a Service."""
+        if not value:
+            raise ValueError("Namespace cannot be empty.")
         return value
 
 
@@ -66,11 +80,11 @@ class Object(BaseModel):
 
     def get_status(self):
         """Returns the status of an object."""
-        return self.status.status # pylint: disable=no-member
+        return self.status.status  # pylint: disable=no-member
 
     def get_name(self):
         """Returns the name of an object."""
-        return self.metadata.name # pylint: disable=no-member
+        return self.metadata.name  # pylint: disable=no-member
 
 
 class ObjectList(BaseModel, Generic[GenericType]):
@@ -96,4 +110,4 @@ class ObjectList(BaseModel, Generic[GenericType]):
 
     def add_object(self, obj: GenericType):
         """Adds an object to the list."""
-        self.objects.append(obj) # pylint: disable=no-member
+        self.objects.append(obj)  # pylint: disable=no-member

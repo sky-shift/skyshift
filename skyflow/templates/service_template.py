@@ -4,19 +4,16 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from skyflow.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
+from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
+                                               ObjectException, ObjectList,
                                                ObjectSpec, ObjectStatus)
-
-
-DEFAULT_NAMESPACE = "default"
 
 
 class ServiceType(enum.Enum):
     """Enum for Service type."""
-    ClusterIP = "ClusterIP" # pylint: disable=invalid-name
-    LoadBalancer = "LoadBalancer" # pylint: disable=invalid-name
-    ExternalName = "ExternalName" # pylint: disable=invalid-name
+    ClusterIP = "ClusterIP"  # pylint: disable=invalid-name
+    LoadBalancer = "LoadBalancer"  # pylint: disable=invalid-name
+    ExternalName = "ExternalName"  # pylint: disable=invalid-name
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -33,17 +30,8 @@ class ServiceStatus(ObjectStatus):
     external_ip: Optional[str] = Field(default=None)
 
 
-class ServiceMeta(ObjectMeta):
+class ServiceMeta(NamespacedObjectMeta):
     """Metadata of a Service."""
-    namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
-
-    @field_validator("namespace")
-    @classmethod
-    def verify_namespace(cls, value: str) -> str:
-        """Validates the namespace field of a Service."""
-        if not value:
-            raise ValueError("Namespace cannot be empty.")
-        return value
 
 
 class ServicePorts(BaseModel):
@@ -55,7 +43,8 @@ class ServicePorts(BaseModel):
 
 class ServiceSpec(ObjectSpec):
     """Spec of a Service."""
-    type: str = Field(default="ClusterIP", validate_default=True)
+    type: str = Field(default=ServiceType.ClusterIP.value,
+                      validate_default=True)
     selector: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[ServicePorts] = Field(default=[], validate_default=True)
     cluster_ip: Optional[str] = Field(default="")
@@ -81,7 +70,7 @@ class Service(Object):
 
     def get_namespace(self):
         """Returns the namespace of a Service."""
-        return self.metadata.namespace # pylint: disable=no-member
+        return self.metadata.namespace  # pylint: disable=no-member
 
 
 class ServiceList(ObjectList):

@@ -92,7 +92,7 @@ def delete_cli_object(object_type: str,
     return api_response
 
 
-def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):
+def print_cluster_table(cluster_list: Union[ClusterList, Cluster]): # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
     """

@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from skyflow.utils.utils import load_object
 
-GenericType= TypeVar("GenericType")
+GenericType = TypeVar("GenericType")
+
 
 class WatchEventEnum(enum.Enum):
     """

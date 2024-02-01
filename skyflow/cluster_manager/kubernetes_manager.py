@@ -35,10 +35,10 @@ def parse_resource_memory(resource_str):
     unit = resource_str[len(value):]
     return float(value) * unit_map.get(unit, 1) / (2**20)
 
+
 def process_pod_status(pod: client.V1Pod) -> str:
     """Processes pod status."""
     pod_status = pod.status.phase
-    status = None
     if pod_status == "Pending":
         status = TaskStatusEnum.PENDING.value
     elif pod_status == "Running":
@@ -47,6 +47,8 @@ def process_pod_status(pod: client.V1Pod) -> str:
         status = TaskStatusEnum.COMPLETED.value
     elif pod_status in ["Failed", "Unknown"]:
         status = TaskStatusEnum.FAILED.value
+    else:
+        raise ValueError(f"Unknown pod status {pod_status}")
     return status
 
 
@@ -56,6 +58,7 @@ class K8ConnectionError(config.config_exception.ConfigException):
 
 class KubernetesManager(Manager):
     """Kubernetes compatability set for Sky Manager."""
+
     def __init__(self, name: str):
         super().__init__(name)
         # Load kubernetes config for the given context.
@@ -64,8 +67,7 @@ class KubernetesManager(Manager):
         except config.config_exception.ConfigException as error:
             raise K8ConnectionError(
                 "Could not connect to Kubernetes cluster "
-                f"{self.cluster_name}, check kubeconfig."
-            ) from error
+                f"{self.cluster_name}, check kubeconfig.") from error
         all_contexts = config.list_kube_config_contexts()[0]
         self.context = None
         for context in all_contexts:
@@ -261,7 +263,7 @@ class KubernetesManager(Manager):
                 self.core_v1.delete_namespaced_pod(name=pod.metadata.name,
                                                    namespace=self.namespace)
 
-    def _convert_to_deployment_yaml(self, job: Job, job_name: Optional[str]): # pylint: disable=too-many-locals
+    def _convert_to_deployment_yaml(self, job: Job, job_name: Optional[str]):  # pylint: disable=too-many-locals
         """
         Serves as a compatibility layer to generate Deployment yamls from
         Sky Manager's job specifciations.
@@ -316,7 +318,7 @@ class KubernetesManager(Manager):
         deployment_yaml = yaml.safe_load(deployment_jinja)
         return deployment_yaml
 
-    def _convert_to_pod_yaml(self, job: Job, job_name: Optional[str] = None): # pylint: disable=too-many-locals
+    def _convert_to_pod_yaml(self, job: Job, job_name: Optional[str] = None):  # pylint: disable=too-many-locals
         """
         Serves as a compatibility layer to generate Pod yamls from
         Sky Manager's job specifciations.
@@ -429,8 +431,7 @@ class KubernetesManager(Manager):
         return self.core_v1.read_namespaced_pod_log(
             name=f"{k8_job_name}-{rank}", namespace=job.metadata.namespace)
 
-    def create_or_update_service(self,
-                                 service: Service) -> None:
+    def create_or_update_service(self, service: Service) -> None:
         """Creates or updates service on K8 cluster."""
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(
@@ -476,7 +477,7 @@ class KubernetesManager(Manager):
             if error.status != 404:
                 raise error
 
-    def create_or_update_endpoint_slice(self, endpoints: Endpoints): # pylint: disable=too-many-locals, too-many-branches
+    def create_or_update_endpoint_slice(self, endpoints: Endpoints):  # pylint: disable=too-many-locals, too-many-branches
         """Creates or updates endpoint slices in Kubernetes cluster."""
         name = endpoints.get_name()
         dir_path = os.path.dirname(os.path.realpath(__file__))

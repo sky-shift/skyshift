@@ -1,7 +1,6 @@
 """
 Launches the API server for Sky Manager.
 """
-
 import argparse
 import multiprocessing
 import os

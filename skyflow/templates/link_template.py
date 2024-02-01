@@ -24,10 +24,10 @@ class LinkStatusEnum(enum.Enum):
     # When a job has failed.
     FAILED = "FAILED"
 
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.value == other
-        return super().__eq__(other)
+    def __eq__(self, other_link):
+        if isinstance(other_link, str):
+            return self.value == other_link
+        return super().__eq__(other_link)
 
 
 class LinkStatus(ObjectStatus):
@@ -48,6 +48,7 @@ class LinkStatus(ObjectStatus):
 class LinkMeta(ObjectMeta):
     """Metadata of a Link."""
 
+
 class LinkSpec(ObjectSpec):
     """Spec of a Link."""
     source_cluster: str = Field(default=None)
@@ -63,11 +64,11 @@ class Link(Object):
 
     def get_status(self):
         """Returns the status of the Link."""
-        return self.status.phase # pylint: disable=no-member
+        return self.status.phase  # pylint: disable=no-member
 
     def get_namespace(self):
         """Returns the namespace of the Link."""
-        return self.metadata.namespace # pylint: disable=no-member
+        return self.metadata.namespace  # pylint: disable=no-member
 
 
 class LinkList(ObjectList):

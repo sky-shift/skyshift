@@ -2,12 +2,13 @@
 The Controller class is a generic controller that can be used to implement
 custom controllers.
 """
-from contextlib import contextmanager
 import logging
 import threading
 import traceback
+from contextlib import contextmanager
 
 import requests
+
 
 @contextmanager
 def controller_error_handler(controller: "Controller"):
@@ -18,8 +19,9 @@ def controller_error_handler(controller: "Controller"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
+
 
 class Controller:
     """
@@ -28,16 +30,18 @@ class Controller:
     A controller is a process that runs in the background and attempts to reconcile
     state to a desired state. This happens in the self.run() method.
     """
+
     def __init__(self) -> None:
         self.logger = logging.getLogger("[Generic Controller]")
-        self.controller_process: threading.Thread = None
+        self.controller_process: threading.Thread = threading.Thread(
+            target=self.run)
 
     def post_init_hook(self):
         """Hook that is called after the controller is initialized.
 
         This method is usually called to initialize informers and watches.
         """
-        raise NotImplementedError
+        self.logger.info('No post init hook defined for controller.')
 
     def run(self):
         """Main control loop for the controller."""
@@ -53,7 +57,6 @@ class Controller:
         """Start controller thread."""
         # Run post initialization hook.
         self.post_init_hook()
-        self.controller_process = threading.Thread(target=self.run)
         self.controller_process.start()
 
     def join(self):

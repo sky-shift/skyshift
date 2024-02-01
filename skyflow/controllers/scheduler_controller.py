@@ -12,7 +12,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from typing import Dict, List
 
-from skyflow.api_client import JobAPI, ClusterAPI, FilterPolicyAPI
+from skyflow.api_client import ClusterAPI, FilterPolicyAPI, JobAPI
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
 from skyflow.templates import Job, JobStatusEnum, TaskStatusEnum
@@ -31,6 +31,7 @@ def aggregate_job_status(replica_status: Dict[str, Dict[str, int]]):
                 merged_status[task_status] = 0
             merged_status[task_status] += count
     return merged_status
+
 
 def rank_clusters(job: Job, clusters: dict):
     """Ranks cluster based on their availability.
@@ -58,18 +59,15 @@ def rank_clusters(job: Job, clusters: dict):
             # Normalize score.
             if resource_count == 0:
                 continue
-            score += cluster_resources.get(resource_type,
-                                            0) / resource_count
+            score += cluster_resources.get(resource_type, 0) / resource_count
         return score
 
     sum_clusters = sorted(sum_clusters, key=sorting_func, reverse=True)
-    index_map = {
-        value[0]: index
-        for index, value in enumerate(sum_clusters)
-    }
+    index_map = {value[0]: index for index, value in enumerate(sum_clusters)}
     sorted_clusters = sorted(list(clusters.items()),
-                                key=lambda x: index_map[x[0]])
+                             key=lambda x: index_map[x[0]])
     return OrderedDict(sorted_clusters)
+
 
 def filter_clusters(job: Job, clusters: dict):
     """
@@ -105,13 +103,14 @@ def filter_clusters(job: Job, clusters: dict):
                 del clusters[c_name]
     return clusters
 
+
 def compute_replicas_spread(job: Job, ranked_clusters: dict):
     """Compute the number of replicas that should be placed on each cluster."""
     job_replicas = job.spec.replicas
     job_clusters = {}
     job_resource = deepcopy(job.spec.resources)
 
-    ranked_clusters = list(ranked_clusters.items())
+    ranked_clusters_list = list(ranked_clusters.items())
     # Greedily assign clusters replicas.
     total_cluster_replicas = 0
 
@@ -122,7 +121,7 @@ def compute_replicas_spread(job: Job, ranked_clusters: dict):
             return all(dict2[key] <= dict1[key] for key in dict2)
         return False
 
-    for cluster_name, cluster_obj in ranked_clusters: # pylint: disable=too-many-nested-blocks
+    for cluster_name, cluster_obj in ranked_clusters_list:  # pylint: disable=too-many-nested-blocks
         cluster_replicas = 0
         alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
         # Predict how many replicas can fit onto each node for each cluster.
@@ -130,8 +129,7 @@ def compute_replicas_spread(job: Job, ranked_clusters: dict):
             while True:
                 if total_cluster_replicas == job_replicas:
                     break
-                if is_subset_and_values_smaller(node_resource,
-                                                job_resource):
+                if is_subset_and_values_smaller(node_resource, job_resource):
                     for resource_type in node_resource:
                         if resource_type in job_resource:
                             node_resource[resource_type] -= job_resource[
@@ -149,11 +147,13 @@ def compute_replicas_spread(job: Job, ranked_clusters: dict):
 
     return {k: v for k, v in job_clusters.items() if v > 0}
 
+
 class SchedulerController(Controller):
     """
     Scheduler controller determines which cluster (or spread of clusters)
     a job should be placed on.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Scheduler Controller]")
@@ -166,9 +166,9 @@ class SchedulerController(Controller):
         self.event_queue: queue.Queue = queue.Queue()
 
         # Initialize informers.
-        self.cluster_informer: Informer = None
-        self.job_informer: Informer = None
-        self.prev_alloc_capacity = {}
+        self.cluster_informer: Informer = Informer(ClusterAPI())
+        self.job_informer: Informer = Informer(JobAPI(namespace=''))
+        self.prev_alloc_capacity: Dict[str, Dict[str, float]] = {}
 
     def post_init_hook(self):
 
@@ -187,7 +187,6 @@ class SchedulerController(Controller):
                     replica_status):
                 self.event_queue.put(event)
 
-        self.job_informer = Informer(JobAPI(namespace=None))
         self.job_informer.add_event_callbacks(
             add_event_callback=add_job_callback_fn,
             update_event_callback=update_job_callback_fn,
@@ -204,7 +203,6 @@ class SchedulerController(Controller):
                 self.event_queue.put(event)
                 self.prev_alloc_capacity[cluster_name] = cluster_alloc
 
-        self.cluster_informer = Informer(ClusterAPI())
         self.cluster_informer.add_event_callbacks(
             add_event_callback=add_cluster_callback_fn)
         self.cluster_informer.start()
@@ -237,8 +235,7 @@ class SchedulerController(Controller):
             ranked_clusters = rank_clusters(job, filtered_clusters)
             # Compute replica spread across clusters. Default policy is best-fit bin-packing.
             # Place as many replicas on the fullest clusters.
-            spread_replicas = compute_replicas_spread(
-                job, ranked_clusters)
+            spread_replicas = compute_replicas_spread(job, ranked_clusters)
             if spread_replicas:
                 job.status.update_replica_status({
                     c_name: {
@@ -248,11 +245,12 @@ class SchedulerController(Controller):
                 })
                 job.status.update_status(JobStatusEnum.ACTIVE.value)
                 idx_list.append(job_idx)
-                self.logger.info(
-                    "Sending job %s to clusters %s.",job.get_name(), spread_replicas)
+                self.logger.info("Sending job %s to clusters %s.",
+                                 job.get_name(), spread_replicas)
             else:
                 self.logger.info(
-                    "Unable to schedule job %s. Marking it as failed.", job.get_name())
+                    "Unable to schedule job %s. Marking it as failed.",
+                    job.get_name())
                 idx_list.append(job_idx)
                 job.status.update_status(JobStatusEnum.FAILED.value)
             JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
@@ -261,6 +259,7 @@ class SchedulerController(Controller):
 
         for job_idx in reversed(idx_list):
             del self.workload_queue[job_idx]
+
 
 # Testing Scheduler Controller.
 if __name__ == "__main__":
