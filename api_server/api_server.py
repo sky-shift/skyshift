@@ -42,10 +42,6 @@ class APIServer:
                     mode="json"),
             )
 
-    def startup(self):
-        """Initialize the API server upon startup."""
-        signal.signal(signal.SIGINT, lambda x, y: sys.exit())
-
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
 
@@ -359,8 +355,13 @@ class APIServer:
             )
 
 
+def startup():
+    """Initialize the API server upon startup."""
+    signal.signal(signal.SIGINT, lambda x, y: sys.exit())
+
+
 app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 api_server = APIServer()
 app.include_router(api_server.router)
-app.add_event_handler("startup", api_server.startup)
+app.add_event_handler("startup", startup)

@@ -60,15 +60,23 @@ def check_and_install_etcd():
             )
 
 
-# Faster way to run API server:
-# `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker
-# -b :50051 api_server.api_server:app`
-if __name__ == "__main__":
-    # Create the parser
+def main(host, port):
+    """Main function that encapsulates the script logic."""
+    # Check if etcd is installed and running - elsewise, install and launch etcd.
+    check_and_install_etcd()
+    generate_manager_config(host, port)
+    uvicorn.run(
+        "api_server:app",
+        host=host,
+        port=port,
+        workers=multiprocessing.cpu_count(),
+    )
+
+
+def parse_args():
+    """Parse and return command line arguments."""
     parser = argparse.ArgumentParser(
         description="Launch API Service for Sky Manager.")
-
-    # Add arguments
     parser.add_argument(
         "--host",
         type=str,
@@ -81,15 +89,12 @@ if __name__ == "__main__":
         default=API_SERVER_PORT,
         help="Port for the API server (default: %(default)s)",
     )
-    # Parse the arguments
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # Check if etcd is installed and running - elsewise, install and launch etcd.
-    check_and_install_etcd()
-    generate_manager_config(args.host, args.port)
-    uvicorn.run(
-        "api_server:app",
-        host=args.host,
-        port=args.port,
-        workers=multiprocessing.cpu_count(),
-    )
+
+# Faster way to run API server:
+# `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker
+# -b :50051 api_server.api_server:app`
+if __name__ == "__main__":
+    args = parse_args()
+    main(args.host, args.port)

@@ -4,7 +4,7 @@ Link Template for Skyflow.
 import enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
@@ -51,7 +51,9 @@ class LinkStatus(ObjectStatus):
 
     def update_status(self, status: str) -> None:
         """Updates the status of the Link."""
-        self.phase = LinkStatus.validate_phase(status)
+        if status not in [status.value for status in LinkStatusEnum]:
+            raise LinkException(f"Invalid status: {status}")
+        self.phase = status
 
 
 class LinkMeta(ObjectMeta):
@@ -65,22 +67,28 @@ class LinkSpec(ObjectSpec):
 
     @field_validator('source_cluster')
     @classmethod
-    def validate_source_cluster(cls, source_cluster: Optional[str]) -> Optional[str]:
+    def validate_source_cluster(
+            cls, source_cluster: Optional[str]) -> Optional[str]:
         """
         Validates the source cluster field. If provided, it must be a non-empty string.
         """
-        if source_cluster is not None and (not isinstance(source_cluster, str) or source_cluster.strip() == ""):
-            raise LinkException("Source cluster must be a non-empty string or None.")
+        if source_cluster is not None and (not isinstance(source_cluster, str)
+                                           or source_cluster.strip() == ""):
+            raise LinkException(
+                "Source cluster must be a non-empty string or None.")
         return source_cluster
 
     @field_validator('target_cluster')
     @classmethod
-    def validate_target_cluster(cls, target_cluster: Optional[str]) -> Optional[str]:
+    def validate_target_cluster(
+            cls, target_cluster: Optional[str]) -> Optional[str]:
         """
         Validates the target cluster field. If provided, it must be a non-empty string.
         """
-        if target_cluster is not None and (not isinstance(target_cluster, str) or target_cluster.strip() == ""):
-            raise LinkException("Target cluster must be a non-empty string or None.")
+        if target_cluster is not None and (not isinstance(target_cluster, str)
+                                           or target_cluster.strip() == ""):
+            raise LinkException(
+                "Target cluster must be a non-empty string or None.")
         return target_cluster
 
 

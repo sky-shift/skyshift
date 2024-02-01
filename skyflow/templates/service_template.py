@@ -62,27 +62,32 @@ class ServiceSpec(ObjectSpec):
 
     @field_validator('ports')
     @classmethod
-    def verify_ports(cls, service_ports: List[ServicePorts]) -> List[ServicePorts]:
+    def verify_ports(cls,
+                     service_ports: List[ServicePorts]) -> List[ServicePorts]:
         """Validates each service_port in the ports field."""
         for service_port in service_ports:
-            if not (0 < service_port.port <= 65535):
-                raise ServiceException(f"Invalid port number: {service_port.port}")
-            if not (0 < service_port.target_port <= 65535):
-                raise ServiceException(f"Invalid target port number: {service_port.target_port}")
+            if not 0 < service_port.port <= 65535:
+                raise ServiceException(
+                    f"Invalid port number: {service_port.port}")
+            if not 0 < service_port.target_port <= 65535:
+                raise ServiceException(
+                    f"Invalid target port number: {service_port.target_port}")
             if service_port.protocol not in ["TCP", "UDP"]:
-                raise ServiceException(f"Unsupported protocol: {service_port.protocol}")
+                raise ServiceException(
+                    f"Unsupported protocol: {service_port.protocol}")
         return service_ports
 
     @field_validator('cluster_ip')
     @classmethod
-    def validate_cluster_ip(cls, ip: str) -> str:
+    def validate_cluster_ip(cls, ip_address: str) -> str:
         """Validates the cluster IP address."""
-        if ip is not None and ip != "":
+        if ip_address is not None and ip_address != "":
             try:
-                ipaddress.IPv4Address(ip)
-            except ipaddress.AddressValueError:
-                raise ServiceException(f"Invalid IPv4 address: {ip}")
-        return ip
+                ipaddress.IPv4Address(ip_address)
+            except ipaddress.AddressValueError as error:
+                raise ServiceException(
+                    f"Invalid IPv4 address: {ip_address}") from error
+        return ip_address
 
 
 class Service(Object):

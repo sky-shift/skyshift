@@ -3,8 +3,8 @@ Job template for Skyflow.
 """
 import datetime
 import enum
-from copy import deepcopy
 import re
+from copy import deepcopy
 from typing import Dict, List
 
 from pydantic import Field, field_validator
@@ -155,16 +155,17 @@ class JobSpec(ObjectSpec):
 
     @field_validator('image')
     @classmethod
-    def validate_image(cls, v):
-        # Regex to match the basic structure of a Docker image
-        # This pattern assumes a simple validation and might need to be adjusted
-        # for more specific requirements or to enforce stricter checks.
-        pattern = r'^([a-zA-Z0-9.-]+)(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+)?(@sha256:[a-fA-F0-9]{64})?$'
-        
-        if not re.match(pattern, v):
-            raise ValueError('Invalid image format. Expected format: repository[:tag] or repository[@digest].')
-        return v
+    def validate_image(cls, image):
+        """
+        Function to check if the image is in the correct format.
+        """
+        pattern = r'^([a-zA-Z0-9.-]+)(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+)?(@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
 
+        if not re.match(pattern, image):
+            raise ValueError(
+                'Invalid image format. Expected format: repository[:tag] or repository[@digest].'
+            )
+        return image
 
     @field_validator("ports")
     @classmethod
@@ -204,10 +205,14 @@ class JobSpec(ObjectSpec):
             if resource_type not in resource_enums and resource_type not in acc_enums:
                 raise ValueError(f"Invalid resource type: {resource_type}.")
             if resource_value < 0:
-                raise ValueError(f"Invalid resource value for {resource_type}: {resource_value}.")
+                raise ValueError(
+                    f"Invalid resource value for {resource_type}: {resource_value}."
+                )
 
             if resource_type in acc_enums and ResourceEnum.GPU.value in resources:
-                raise ValueError(f"Cannot specify both GPU and accelerator type {resource_type} simultaneously.")
+                raise ValueError(
+                    f"Cannot specify both GPU and accelerator type {resource_type} simultaneously."
+                )
 
         return resources
 

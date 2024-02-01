@@ -22,7 +22,6 @@ class EndpointsMeta(NamespacedObjectMeta):
     """Endpoints metadata."""
 
 
-
 class EndpointObject(BaseModel):
     """Endpoint object representing all endpoints for a cluster."""
     # Num endpoints to make in endpoints yaml of the primary cluster.
@@ -35,7 +34,8 @@ class EndpointObject(BaseModel):
     def validate_num_endpoints(cls, num_endpoints: int) -> int:
         """Validates the number of endpoints. The number must be non-negative."""
         if num_endpoints < 0:
-            raise EndpointsException("Number of endpoints must be non-negative.")
+            raise EndpointsException(
+                "Number of endpoints must be non-negative.")
         return num_endpoints
 
     @field_validator('exposed_to_cluster')
@@ -43,40 +43,56 @@ class EndpointObject(BaseModel):
     def validate_exposed_to_cluster(cls, exposed_to_cluster: bool) -> bool:
         """Validates the exposed_to_cluster field. Must be a boolean."""
         if not isinstance(exposed_to_cluster, bool):
-            raise EndpointsException("Exposed to cluster field must be a boolean.")
+            raise EndpointsException(
+                "Exposed to cluster field must be a boolean.")
         return exposed_to_cluster
 
 
 class EndpointsSpec(ObjectSpec):
     """Endpoints spec."""
     selector: Dict[str, str] = Field(default={}, validate_default=True)
-    endpoints: Dict[str, EndpointObject] = Field(default={}, validate_default=True)
+    endpoints: Dict[str, EndpointObject] = Field(default={},
+                                                 validate_default=True)
     primary_cluster: Optional[str] = Field(default=None)
 
     @field_validator('selector')
     @classmethod
     def validate_selector(cls, selector: Dict[str, str]) -> Dict[str, str]:
         """Validates the selector. Ensures all keys and values are strings."""
-        if not all(isinstance(key, str) and isinstance(value, str) for key, value in selector.items()):
-            raise EndpointsException("Selector keys and values must be strings.")
+        if not all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in selector.items()):
+            raise EndpointsException(
+                "Selector keys and values must be strings.")
         return selector
 
     @field_validator('endpoints')
     @classmethod
-    def validate_endpoints(cls, endpoints: Dict[str, EndpointObject]) -> Dict[str, EndpointObject]:
+    def validate_endpoints(
+            cls, endpoints: Dict[str,
+                                 EndpointObject]) -> Dict[str, EndpointObject]:
         """Validates the endpoints. Ensures keys are strings and values are EndpointObjects."""
-        if not all(isinstance(cluster_name, str) and isinstance(endpoint, EndpointObject) for cluster_name, endpoint in endpoints.items()):
-            raise EndpointsException("Endpoints keys must be strings and values must be EndpointObjects.")
+        if not all(
+                isinstance(cluster_name, str)
+                and isinstance(endpoint, EndpointObject)
+                for cluster_name, endpoint in endpoints.items()):
+            raise EndpointsException(
+                "Endpoints keys must be strings and values must be EndpointObjects."
+            )
         return endpoints
 
     @field_validator('primary_cluster')
     @classmethod
-    def validate_primary_cluster(cls, primary_cluster: Optional[str]) -> Optional[str]:
+    def validate_primary_cluster(
+            cls, primary_cluster: Optional[str]) -> Optional[str]:
         """Validates the primary cluster field. If provided, it must be a non-empty string."""
-        if primary_cluster is not None and not isinstance(primary_cluster, str):
-            raise EndpointsException("Primary cluster must be a string or None.")
+        if primary_cluster is not None and not isinstance(
+                primary_cluster, str):
+            raise EndpointsException(
+                "Primary cluster must be a string or None.")
         if primary_cluster == "":
-            raise EndpointsException("Primary cluster cannot be an empty string.")
+            raise EndpointsException(
+                "Primary cluster cannot be an empty string.")
         return primary_cluster
 
 
