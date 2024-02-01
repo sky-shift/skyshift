@@ -1,7 +1,8 @@
 """
 Globals contains variables used across the Skyflow.
 """
-from skyflow.templates import Job, FilterPolicy, Service, Endpoints, Cluster, Namespace, Link
+from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
+                               Namespace, Service)
 
 DEFAULT_NAMESPACE = "default"
 

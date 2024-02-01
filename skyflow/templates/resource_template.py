@@ -1,11 +1,10 @@
 """
 Resource template for Skyflow.
 """
+import enum
 
-from enum import Enum
 
-
-class ResourceEnum(Enum):
+class ResourceEnum(enum.Enum):
     """
     Different types of resources.
     """
@@ -20,7 +19,7 @@ class ResourceEnum(Enum):
 
 
 # @TODO(mluo): Expand list of accelerators
-class AcceleratorEnum(Enum):
+class AcceleratorEnum(enum.Enum):
     """
     Different types of accelerators.
     """

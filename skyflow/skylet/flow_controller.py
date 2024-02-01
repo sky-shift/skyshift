@@ -1,18 +1,19 @@
+"""
+Flow Controller - Submits and removes jobs from the cluster.
+"""
 import logging
-import time
 import traceback
-import uuid
 from contextlib import contextmanager
 from copy import deepcopy
 from queue import Queue
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, JobAPI, FilterPolicyAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
-from skyflow.templates import (FilterPolicy, Job, JobStatusEnum,
+from skyflow.templates import (FilterPolicy, Job,
                                TaskStatusEnum, WatchEventEnum)
 from skyflow.utils import match_labels
 
@@ -22,15 +23,15 @@ logging.basicConfig(
 
 
 @contextmanager
-def FlowErrorHandler(controller: Controller):
+def flow_error_handler(controller: Controller):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception as e:
+    except Exception: # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -46,6 +47,8 @@ class FlowController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: Queue = Queue()
+        self.job_informer = Informer(JobAPI(namespace=None))
+        self.policy_informer = Informer(FilterPolicyAPI(namespace=None))
 
         logging.basicConfig(
             level=logging.INFO,
@@ -56,10 +59,7 @@ class FlowController(Controller):
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
-        # Python thread safe queue for Informers to append events to.
-        self.job_informer = Informer(JobAPI(namespace=None))
-
-        def update_callback_fn(old_obj, event):
+        def update_callback_fn(_, event):
             event_object = event.object
             # Filter for jobs that are scheduled by the Scheduler Controller and
             # are assigned to this cluster.
@@ -79,9 +79,6 @@ class FlowController(Controller):
         )
         self.job_informer.start()
 
-        # Define filter policy
-        self.policy_informer = Informer(FilterPolicyAPI(namespace=None))
-
         def add_policy_callback_fn(event):
             self.worker_queue.put(event)
 
@@ -99,7 +96,7 @@ class FlowController(Controller):
             "Running flow controller - Manages job submission and eviction from the cluster."
         )
         while True:
-            with FlowErrorHandler(self):
+            with flow_error_handler(self):
                 self.controller_loop()
 
     def controller_loop(self):
@@ -119,12 +116,13 @@ class FlowController(Controller):
                 try:
                     self._submit_job(job_object)
                     self.logger.info(
-                        f"Successfully submitted job '{job_name}' to cluster '{self.name}'."
+                        "Successfully submitted job '%s' to cluster '%s'.", job_name, self.name
                     )
-                except:
+                except Exception: # pylint: disable=broad-except
                     self.logger.error(traceback.format_exc())
                     self.logger.error(
-                        f"Failed to submit job  '{job_name}' to the cluster  '{self.name}'. Marking job as failed."
+                        "Failed to submit job  '%s' to the cluster '%s'. "
+                        "Marking job as failed.", job_name, self.name
                     )
                     job_object.status.replica_status[self.name] = {
                         TaskStatusEnum.FAILED.value:
@@ -138,7 +136,8 @@ class FlowController(Controller):
                 self._delete_job(job_object)
             else:
                 self.logger.error(
-                    f"Invalid event type `{event_key}` for job {job_object.get_name()}."
+                    "Invalid event type `%s` for job %s.",
+                    event_key, job_object.get_name()
                 )
         elif isinstance(event_object, FilterPolicy):
             # Handle when FilterPolicy changes.

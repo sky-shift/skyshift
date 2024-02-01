@@ -1,21 +1,21 @@
+"""
+Endpoints controller manages updating available endpoints over diff clusters.
+"""
 import logging
 import queue
 import time
 import traceback
-import uuid
 from contextlib import contextmanager
-from copy import deepcopy
-from typing import TypedDict
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, ServiceAPI, EndpointsAPI
+from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
 from skyflow.templates import (EndpointObject, Endpoints, Job, Service,
                                WatchEventEnum)
-from skyflow.utils import match_labels
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,15 +23,15 @@ logging.basicConfig(
 
 
 @contextmanager
-def EndpointsErrorHandler(controller: Controller):
+def endpoints_error_handler(controller: Controller):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception as e:
+    except Exception: # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
 
@@ -47,6 +47,7 @@ class EndpointsController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: queue.Queue = queue.Queue()
+        self.service_informer = Informer(ServiceAPI(namespace=None))
 
         logging.basicConfig(
             level=logging.INFO,
@@ -58,29 +59,6 @@ class EndpointsController(Controller):
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
-        # # Python thread safe queue for Informers to append events to.
-        # self.job_informer = Informer(JobAPI(namespace=None))
-
-        # def update_callback_fn(event):
-        #     event_object = event.object
-        #     # Filter for jobs that are scheduled by the Scheduler Controller and
-        #     # are assigned to this cluster.
-        #     if self.name in event_object.status.replica_status:
-        #         if self.name not in event_object.status.job_ids:
-        #             self.worker_queue.put(event)
-
-        # def delete_callback_fn(event):
-        #     event_object = event.object
-        #     if self.name in event_object.status.replica_status:
-        #         self.worker_queue.put(event)
-
-        # Filtered add events and delete events are added to the worker queue.
-        # self.job_informer.add_event_callbacks(
-        #     update_event_callback=update_callback_fn,
-        #     delete_event_callback=delete_callback_fn)
-        # self.job_informer.start()
-
-        self.service_informer = Informer(ServiceAPI(namespace=None))
 
         def add_svc_callback_fn(event):
             self.worker_queue.put(event)
@@ -107,7 +85,7 @@ class EndpointsController(Controller):
             "Running endpoints controller - keeps track of jobs across clusters (for services)."
         )
         while True:
-            with EndpointsErrorHandler(self):
+            with endpoints_error_handler(self):
                 self.controller_loop()
 
     def controller_loop(self):
@@ -121,12 +99,12 @@ class EndpointsController(Controller):
             service_name = event_object.get_name()
             service_namespace = event_object.get_namespace()
             primary_cluster = event_object.spec.primary_cluster
-            if event_key == WatchEventEnum.ADD or event_key == WatchEventEnum.UPDATE:
+            if event_key in [WatchEventEnum.ADD, WatchEventEnum.UPDATE]:
                 end_obj = self._create_or_update_endpoint(event_object)
                 try:
                     EndpointsAPI(namespace=service_namespace).update(
                         config=end_obj.model_dump(mode="json"))
-                except Exception as e:
+                except APIException:
                     self.worker_queue.put(event)
             elif event_key == WatchEventEnum.DELETE:
                 # Remove the endpoint object (only the primary cluster removes it)
@@ -195,12 +173,12 @@ class EndpointsController(Controller):
                 end_json: dict = EndpointsAPI(namespace=namespace).get(
                     name=name)
                 return Endpoints.parse_obj(**end_json)
-            except Exception as e:
+            except APIException as error:
                 retry += 1
-                self.logger.error(f"Could not fetch {name}. Retrying.")
+                self.logger.error("Could not fetch %s. Retrying.", name)
                 time.sleep(0.1)
                 if retry == 10:
-                    raise e
+                    raise error
 
 
 if __name__ == "__main__":

@@ -3,10 +3,10 @@ Endpoints template.
 """
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
-from skyflow.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
+from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
+                                               ObjectException, ObjectList,
                                                ObjectSpec, ObjectStatus)
 
 
@@ -18,17 +18,8 @@ class EndpointsStatus(ObjectStatus):
     """Endpoints status."""
 
 
-class EndpointsMeta(ObjectMeta):
+class EndpointsMeta(NamespacedObjectMeta):
     """Endpoints metadata."""
-    namespace: str = Field(default="default", validate_default=True)
-
-    @field_validator("namespace")
-    @classmethod
-    def verify_namespace(cls, value: str) -> str:
-        """Validates the namespace field of a Endpoints."""
-        if not value:
-            raise ValueError("Namespace cannot be empty.")
-        return value
 
 
 class EndpointObject(BaseModel):
@@ -59,7 +50,7 @@ class Endpoints(Object):
 
     def get_namespace(self):
         """Returns the namespace of the object."""
-        return self.metadata.namespace # pylint: disable=no-member
+        return self.metadata.namespace  # pylint: disable=no-member
 
 
 class EndpointsList(ObjectList):

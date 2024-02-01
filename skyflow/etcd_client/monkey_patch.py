@@ -4,6 +4,7 @@ Monkey patches etcd3 package to better support Skyflow.
 import etcd3
 from etcd3.client import _handle_errors
 
+
 # Hack: ETCD3 does not return the deleted values, so we monkey patch it.
 @_handle_errors
 def delete_prefix(self, prefix, prev_kv=False):

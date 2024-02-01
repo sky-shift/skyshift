@@ -3,16 +3,13 @@ FilterPolicy - A FilterPolicy is a set of rules that governs the filters
 for clusters that a job can be scheduled on.
 """
 import enum
-import time
 from typing import Dict, List
 
 from pydantic import BaseModel, Field, field_validator
 
-from skyflow.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
+from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
+                                               ObjectException, ObjectList,
                                                ObjectSpec, ObjectStatus)
-
-DEFAULT_NAMESPACE = "default"
 
 
 class FilterPolicyException(ObjectException):
@@ -24,31 +21,16 @@ class FilterStatusEnum(enum.Enum):
     # Status when Filter policy is active.
     ACTIVE = "ACTIVE"
 
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
 
 class FilterPolicyStatus(ObjectStatus):
     """Status of a Filter Policy."""
-    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     status: str = Field(default=FilterStatusEnum.ACTIVE.value,
                         validate_default=True)
-
-    @field_validator("conditions")
-    @classmethod
-    def verify_conditions(cls, value: List[Dict[str, str]]):
-        """Validates the conditions field of a Filter Policy."""
-        conditions = value
-        if not conditions:
-            conditions = [{
-                "status": FilterStatusEnum.ACTIVE.value,
-                "transitionTime": str(time.time()),
-            }]
-        if len(conditions) == 0:
-            raise ValueError(
-                "Filter Policy status's condition field is empty.")
-        for condition in conditions:
-            if "status" not in condition:
-                raise ValueError(
-                    "Filter Policy's condition field is missing status.")
-        return conditions
 
     @field_validator("status")
     @classmethod
@@ -58,34 +40,9 @@ class FilterPolicyStatus(ObjectStatus):
             raise ValueError(f"Invalid Filter Policy status: {status}.")
         return status
 
-    def update_conditions(self, conditions):
-        """Updates the conditions field of a Filter Policy."""
-        self.conditions = conditions
 
-    def update_status(self, status: str):
-        """Updates the status field of a Filter Policy."""
-        self.status = status
-        # Check most recent status of the cluster.
-        previous_status = self.conditions[-1]
-        if previous_status["status"] != status:
-            cur_time = time.time()
-            self.conditions.append({
-                "status": status,
-                "transitionTime": str(cur_time),
-            })
-
-
-class FilterPolicyMeta(ObjectMeta):
+class FilterPolicyMeta(NamespacedObjectMeta):
     """Metadata for a Filter Policy."""
-    namespace: str = Field(default=DEFAULT_NAMESPACE, validate_default=True)
-
-    @field_validator("namespace")
-    @classmethod
-    def verify_namespace(cls, value: str) -> str:
-        """Validates the namespace field of a Filter Policy."""
-        if not value:
-            raise ValueError("Namespace cannot be empty.")
-        return value
 
 
 class ClusterFilter(BaseModel):
@@ -112,7 +69,7 @@ class FilterPolicy(Object):
 
     def get_namespace(self):
         """Returns the namespace of the Filter Policy."""
-        return self.metadata.namespace # pylint: disable=no-member
+        return self.metadata.namespace  # pylint: disable=no-member
 
 
 class FilterPolicyList(ObjectList):

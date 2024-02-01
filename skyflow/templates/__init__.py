@@ -2,7 +2,8 @@
 Init module for Skyflow object templates.
 """
 from skyflow.templates.cluster_template import (Cluster, ClusterException,
-                                                ClusterList, ClusterStatus, ClusterStatusEnum)
+                                                ClusterList, ClusterStatus,
+                                                ClusterStatusEnum)
 from skyflow.templates.endpoints_template import (EndpointObject, Endpoints,
                                                   EndpointsException,
                                                   EndpointsList, EndpointsMeta,

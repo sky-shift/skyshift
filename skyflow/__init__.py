@@ -1,3 +1,6 @@
+"""
+Init module for Skyflow.
+"""
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 
 __all__ = [

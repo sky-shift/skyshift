@@ -1,7 +1,7 @@
 """
 Namespace template.
 """
-from enum import Enum
+import enum
 
 from pydantic import Field, field_validator
 
@@ -10,10 +10,16 @@ from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectSpec, ObjectStatus)
 
 
-class NamespaceEnum(Enum):
+class NamespaceEnum(enum.Enum):
     """Enum for Namespace status."""
     # Namespace is active.
     ACTIVE = "ACTIVE"
+    DELETING = "DELETING"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 
 class NamespaceException(ObjectException):
@@ -47,6 +53,7 @@ class NamespaceMeta(ObjectMeta):
 
 class NamespaceSpec(ObjectSpec):
     """Spec of a Namespace."""
+
 
 class Namespace(Object):
     """Namespace object."""

@@ -1,5 +1,5 @@
 """
-Source code for the log controllers that keep track of the state of the cluster and jobs. These controllers are launched in Skylet.
+Service controller.
 """
 
 import logging
@@ -10,7 +10,8 @@ from copy import deepcopy
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, ServiceAPI
+from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
@@ -25,15 +26,15 @@ DEFAULT_RETRY_LIMIT = 3
 
 
 @contextmanager
-def HeartbeatErrorHandler(controller: "ServiceController"):
+def heartbeat_error_handler(controller: "ServiceController"):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception as e:
+    except Exception: # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
         time.sleep(0.5)
@@ -41,12 +42,35 @@ def HeartbeatErrorHandler(controller: "ServiceController"):
 
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(
-            f"Retry limit exceeded. Marking pending/running jobs in ERROR state."
+            "Retry limit exceeded. Service controller is down."
         )
 
 
-class ServiceController(Controller):
+def update_svc(svc: Service, status: dict):
+    """
+    Updates the status of the service in the API server.
+    """
+    try:
+        if "clusterIP" in status:
+            svc.spec.cluster_ip = status["clusterIP"]
+        if "externalIP" in status:
+            svc.status.external_ip = status["externalIP"]
+        ServiceAPI(namespace=svc.get_namespace()).update(
+            config=svc.model_dump(mode="json"))
+    except APIException:
+        svc = ServiceAPI(namespace=svc.get_namespace()).get(
+            name=svc.get_name())
+        if "clusterIP" in status:
+            svc.spec.cluster_ip = status["clusterIP"]
+        if "externalIP" in status:
+            svc.status.external_ip = status["externalIP"]
+        ServiceAPI(namespace=svc.get_namespace()).update(
+            config=svc.model_dump(mode="json"))
 
+class ServiceController(Controller): # pylint: disable=too-many-instance-attributes
+    """
+    Tracks the status of services in the cluster.
+    """
     def __init__(
         self,
         name,
@@ -58,28 +82,26 @@ class ServiceController(Controller):
         self.name = name
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
-
+        self.retry_counter = 0
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.service_status = self.manager_api.get_service_status()
-
+        self.informer = Informer(ServiceAPI(namespace=None))
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
         # Keeps track of cached job state.
-        self.informer = Informer(ServiceAPI(namespace=None))
         self.informer.start()
 
     def run(self):
         self.logger.info(
             "Running job controller - Updates the status of the jobs sent by Sky Manager."
         )
-        self.retry_counter = 0
         while True:
             start = time.time()
-            with HeartbeatErrorHandler(self):
+            with heartbeat_error_handler(self):
                 self.controller_loop()
             end = time.time()
             if end - start < self.heartbeat_interval:
@@ -94,27 +116,8 @@ class ServiceController(Controller):
             # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
             if svc_name not in prev_svcs:
                 continue
-            else:
-                cached_svc = deepcopy(self.informer.get_cache()[svc_name])
-            self.update_svc(cached_svc, fetched_status)
-
-    def update_svc(self, svc: Service, status: dict):
-        try:
-            if "clusterIP" in status:
-                svc.spec.cluster_ip = status["clusterIP"]
-            if "externalIP" in status:
-                svc.status.external_ip = status["externalIP"]
-            ServiceAPI(namespace=svc.get_namespace()).update(
-                config=svc.model_dump(mode="json"))
-        except:
-            svc = ServiceAPI(namespace=svc.get_namespace()).get(
-                name=svc.get_name())
-            if "clusterIP" in status:
-                svc.spec.cluster_ip = status["clusterIP"]
-            if "externalIP" in status:
-                svc.status.external_ip = status["externalIP"]
-            ServiceAPI(namespace=svc.get_namespace()).update(
-                config=svc.model_dump(mode="json"))
+            cached_svc = deepcopy(self.informer.get_cache()[svc_name])
+            update_svc(cached_svc, fetched_status)
 
 
 # Testing purposes.

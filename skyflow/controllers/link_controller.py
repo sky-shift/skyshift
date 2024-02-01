@@ -7,7 +7,7 @@ import queue
 import subprocess
 import traceback
 
-from skyflow.api_client import LinkAPI, ClusterAPI
+from skyflow.api_client import ClusterAPI, LinkAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.network.cluster_link import create_link, delete_link
@@ -18,11 +18,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
+
 class LinkController(Controller):
     """
     Link Controller - Manages the dynamic links between clusters. This assumes
     that each cluster has the Cluster link/Skupper software/deployment installed.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Link Controller]")
@@ -93,7 +95,8 @@ class LinkController(Controller):
                 source_manager=source_cluster_manager,
                 target_manager=target_cluster_manager,
             )
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        except (subprocess.CalledProcessError,
+                subprocess.TimeoutExpired) as error:
             self.logger.error(traceback.format_exc())
             self.logger.error("Failed to create link between clusters.")
             raise error
@@ -104,7 +107,8 @@ class LinkController(Controller):
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
         try:
             delete_link(link_name=name, manager=source_cluster_manager)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        except (subprocess.CalledProcessError,
+                subprocess.TimeoutExpired) as error:
             self.logger.error(traceback.format_exc())
             self.logger.error("Failed to delete link between clusters.")
             raise error
