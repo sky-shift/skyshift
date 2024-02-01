@@ -144,7 +144,6 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-        print(link_header)
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
@@ -252,7 +251,7 @@ class APIServer:
                     # Check and validate event type.
                     watch_event = WatchEvent(event_type=event_type.value,
                                              object=event_value)
-                    yield watch_event.json() + "\n"
+                    yield watch_event.model_dump_json() + "\n"
             finally:
                 cancel_watch_fn()
 

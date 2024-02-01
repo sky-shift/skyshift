@@ -2,8 +2,9 @@
 Link Template for Skyflow.
 """
 import enum
+from typing import Optional
 
-from pydantic import Field
+from pydantic import BaseModel, Field, field_validator
 
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
@@ -34,15 +35,23 @@ class LinkStatus(ObjectStatus):
     """Status of a Link."""
     phase: str = Field(default=LinkStatusEnum.INIT.value)
 
-    def get_status(self):
+    @field_validator('phase')
+    @classmethod
+    def validate_phase(cls, phase: str) -> str:
+        """
+        Validates the phase field. Ensures it is a valid status according to LinkStatusEnum.
+        """
+        if phase not in [status.value for status in LinkStatusEnum]:
+            raise LinkException(f"Invalid status: {phase}")
+        return phase
+
+    def get_status(self) -> str:
         """Returns the status of the Link."""
         return self.phase
 
-    def update_status(self, status: str):
+    def update_status(self, status: str) -> None:
         """Updates the status of the Link."""
-        if status not in [status.value for status in LinkStatusEnum]:
-            raise LinkException(f"Invalid status: {status}")
-        self.phase = status
+        self.phase = LinkStatus.validate_phase(status)
 
 
 class LinkMeta(ObjectMeta):
@@ -51,8 +60,28 @@ class LinkMeta(ObjectMeta):
 
 class LinkSpec(ObjectSpec):
     """Spec of a Link."""
-    source_cluster: str = Field(default=None)
-    target_cluster: str = Field(default=None)
+    source_cluster: Optional[str] = Field(default=None)
+    target_cluster: Optional[str] = Field(default=None)
+
+    @field_validator('source_cluster')
+    @classmethod
+    def validate_source_cluster(cls, source_cluster: Optional[str]) -> Optional[str]:
+        """
+        Validates the source cluster field. If provided, it must be a non-empty string.
+        """
+        if source_cluster is not None and (not isinstance(source_cluster, str) or source_cluster.strip() == ""):
+            raise LinkException("Source cluster must be a non-empty string or None.")
+        return source_cluster
+
+    @field_validator('target_cluster')
+    @classmethod
+    def validate_target_cluster(cls, target_cluster: Optional[str]) -> Optional[str]:
+        """
+        Validates the target cluster field. If provided, it must be a non-empty string.
+        """
+        if target_cluster is not None and (not isinstance(target_cluster, str) or target_cluster.strip() == ""):
+            raise LinkException("Target cluster must be a non-empty string or None.")
+        return target_cluster
 
 
 class Link(Object):
