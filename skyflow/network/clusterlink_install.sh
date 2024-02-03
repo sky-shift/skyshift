@@ -1,9 +1,10 @@
 #! /bin/bash
 SCRIPT_DIR=$(pwd)
 
-function pull_and_install_clusterlink {
-    git clone https://github.com/praveingk/clusterlink.git
-    cd clusterlink
+pull_and_install_clusterlink() {
+    local dir=$1
+    git clone https://github.com/praveingk/clusterlink.git $dir/clusterlink
+    cd $dir/clusterlink
     mkdir -p deploy/
     make prereqs
     go mod tidy
@@ -12,4 +13,4 @@ function pull_and_install_clusterlink {
     export PATH=$PATH:$SCRIPT_DIR/clusterlink/bin
 }
 
-pull_and_install_clusterlink
+pull_and_install_clusterlink $1

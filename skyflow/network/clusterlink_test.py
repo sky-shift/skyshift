@@ -7,17 +7,21 @@ sys.path.insert(0,f'{projDir}')
 import cluster_linkv2 as clusterlink
 
 from skyflow.cluster_manager import Manager, KubernetesManager
-sys.path.append(f"{projDir}/skyflow/network/clusterlink")
 
+clusterlink.launch_network_fabric()
+
+clusterlink_path = os.path.join(clusterlink.CL_DIRECTORY, "clusterlink")
+sys.path.append(clusterlink_path)
 print(sys.path)
-from skyflow.network.clusterlink.demos.utils.kind import cluster
-from skyflow.network.clusterlink.demos.iperf3.kind.iperf3_client_start import testIperf3Client
+
+from demos.utils.kind import cluster
+from demos.iperf3.kind.iperf3_client_start import testIperf3Client
 
 cluster1 = "peer1"
 cluster2 = "peer2"
 
-cluster1_service_yaml = f"{projDir}/clusterlink/demos/iperf3/testdata/manifests/iperf3-client/iperf3-client.yaml"
-cluster2_service_yaml = f"{projDir}/clusterlink/demos/iperf3/testdata/manifests/iperf3-server/iperf3.yaml"
+cluster1_service_yaml = f"{clusterlink_path}/demos/iperf3/testdata/manifests/iperf3-client/iperf3-client.yaml"
+cluster2_service_yaml = f"{clusterlink_path}/demos/iperf3/testdata/manifests/iperf3-server/iperf3.yaml"
 cluster1_service           = "iperf3-client"
 cluster2_service           = "iperf3-server"
 destPort                   = 5000
@@ -28,15 +32,11 @@ def cleanup():
     cl1.deleteCluster()
     cl2.deleteCluster()
     try :
-        subprocess.check_output(f"rm -rf kind-{cluster1}", shell=True).decode('utf-8')
+        subprocess.check_output(f"rm -rf {clusterlink.CL_DIRECTORY}/kind-{cluster1}", shell=True).decode('utf-8')
     except:
         pass
     try:
-        subprocess.check_output(f"rm -rf kind-{cluster2}", shell=True).decode('utf-8')
-    except:
-        pass
-    try:
-        subprocess.check_output(f"rm -rf clusterlink/", shell=True).decode('utf-8')
+        subprocess.check_output(f"rm -rf {clusterlink.CL_DIRECTORY}/kind-{cluster2}", shell=True).decode('utf-8')
     except:
         pass
 
@@ -53,8 +53,6 @@ if __name__ == '__main__':
 
     cluster1_manager= KubernetesManager("kind-"+cluster1)
     cluster2_manager= KubernetesManager("kind-"+cluster2)
-
-    clusterlink.launch_network_fabric()
 
     print("Lauching Clusterlink network on peer1!\n")
     try:

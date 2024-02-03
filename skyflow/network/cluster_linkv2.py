@@ -7,15 +7,15 @@ import time
 import json
 from skyflow.cluster_manager import Manager
 
-CERT_DIRECTORY = ''
-POLICY_FILE = CERT_DIRECTORY+'allowAll.json'
+CL_DIRECTORY = os.path.expanduser('~/.skym/cl/')
+POLICY_FILE = 'allowAll.json'
 CERT = "cert.pem"
 KEY = "key.pem"
 KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
 
-CL_INSTALL_DIR ="clusterlink/bin/"
+CL_INSTALL_DIR = CL_DIRECTORY+ "clusterlink/bin/"
 
 SKUPPER_INSTALL_CMD = 'skupper init --context {cluster_name} --namespace {namespace}'
 SKUPPER_STATUS_CMD = 'skupper status --context {cluster_name} --namespace {namespace}'
@@ -24,10 +24,10 @@ SKUPPER_LINK_CREATE_CMD = 'skupper link create ~/.skym/link_secrets/{name}.token
 SKUPPER_LINK_DELETE_CMD = 'skupper link delete {name} --context {cluster_name} --namespace {namespace}'
 SKUPPER_LINK_STATUS_CMD = 'skupper link status {name} --context {cluster_name} --namespace {namespace}'
 
-CL_INSTALL_CMD = './skyflow/network/clusterlink_install.sh'
+CL_INSTALL_CMD = './skyflow/network/clusterlink_install.sh {dir}'
 CLA_FABRIC_CMD = 'cl-adm create fabric'
 CLA_PEER_CMD = 'cl-adm create peer --name {cluster_name}'
-CL_DEPLOY_CMD = 'kubectl create -f '+ CERT_DIRECTORY+ '{cluster_name}/k8s.yaml'
+CL_DEPLOY_CMD = 'kubectl create -f {cluster_name}/k8s.yaml'
 
 CL_INIT_CMD = 'gwctl init --id {cluster_name} --gwIP {cl_gw_ip} --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}'
 CL_LINK_CMD = 'gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}'
@@ -122,15 +122,15 @@ def expose_clusterlink(cluster: str, port="443"):
 
 def init_clusterlink_gateway(cluster: str):
     try:
-        certca = os.path.join(CERT)
-        cert = os.path.join(cluster, CERT)
-        key = os.path.join(cluster, KEY)
+        certca = os.path.join(CL_DIRECTORY, CERT)
+        cert = os.path.join(CL_DIRECTORY, cluster, CERT)
+        key = os.path.join(CL_DIRECTORY, cluster, KEY)
         gw_ip, gw_port = get_clusterlink_gw_target(cluster)
 
         cl_init_cmd = CL_INIT_CMD.format(cluster_name=cluster, cl_gw_ip=gw_ip, gw_port=gw_port, certca=certca, cert=cert, key=key)
         print(cl_init_cmd)
         subprocess.check_output(cl_init_cmd, shell=True).decode('utf-8')
-        cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster, policy_file=POLICY_FILE)
+        cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster, policy_file=os.path.join(CL_DIRECTORY, POLICY_FILE))
         subprocess.check_output(cl_policy_cmd, shell=True).decode('utf-8')
     except subprocess.CalledProcessError as e:
         print(f"Failed to install Clusterlink : {e.cmd}")
@@ -139,14 +139,16 @@ def init_clusterlink_gateway(cluster: str):
 def launch_network_fabric():
     try:
         path = shutil.which("cl-adm")
+        os.makedirs(CL_DIRECTORY, exist_ok=True)
         if path is None:
-            subprocess.check_output(CL_INSTALL_CMD, shell=True).decode('utf-8')
+            cl_install_cmd = CL_INSTALL_CMD.format(dir=CL_DIRECTORY)
+            subprocess.check_output(cl_install_cmd, shell=True).decode('utf-8')
             current_path = os.environ.get('PATH')
             os.environ['PATH'] = f"{CL_INSTALL_DIR}:{current_path}"
-
-        subprocess.check_output(CLA_FABRIC_CMD, shell=True).decode('utf-8')
+            print(os.environ.get('PATH'))
+        subprocess.check_output(CLA_FABRIC_CMD, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
         policy_file = json.dumps(policy_allow_all, indent=2)
-        with open(POLICY_FILE, "w") as file:
+        with open(os.path.join(CL_DIRECTORY,POLICY_FILE), "w") as file:
             file.write(policy_file)
         return True
     except subprocess.CalledProcessError as e:
@@ -165,8 +167,8 @@ def launch_network(manager: Manager):
             launch_network_fabric() 
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name)
         cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
-        subprocess.check_output(cl_peer_command, shell=True).decode('utf-8')
-        subprocess.check_output(cl_deploy_command, shell=True).decode('utf-8')
+        subprocess.check_output(cl_peer_command, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
+        subprocess.check_output(cl_deploy_command, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
         wait_pod("cl-controlplane")
         wait_pod("cl-dataplane")
         expose_clusterlink(cluster_name)
@@ -214,7 +216,7 @@ def delete_link(link_name: str, manager: Manager):
         return
     try:
         delete_link_command= CL_LINK_DELETE_CMD.format(cluster_name=cluster_name, peer=link_name)
-        subprocess.check_output(delete_link_command, shell=True, timeout=30).decode('utf-8')
+        subprocess.check_output(delete_link_command, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed delete a link between two clusters.')
         raise e
@@ -227,7 +229,7 @@ def export_service(service_name: str, manager: Manager, ports: List[int]):
     try:
         for port in ports:
             export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name, service_name=expose_service_name, service_target=service_name, port=port)
-            subprocess.check_output(export_cmd, shell=True, timeout=20).decode('utf-8')
+            subprocess.check_output(export_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed to expose service.')
         raise e
@@ -240,8 +242,8 @@ def import_service(service_name: str, manager: Manager, peer: str, ports: List[i
         for port in ports:
             import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name, service_name=import_service_name, port=port)
             bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name, service_name=import_service_name, peer=peer)
-            subprocess.check_output(import_cmd, shell=True, timeout=20).decode('utf-8')
-            subprocess.check_output(bind_cmd, shell=True, timeout=20).decode('utf-8')
+            subprocess.check_output(import_cmd, shell=True).decode('utf-8')
+            subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed to expose service.')
         raise e
@@ -253,7 +255,7 @@ def unexpose_service(service_name: str, manager: Manager):
     unexpose_cmd = f'skupper unexpose service {service_name}.{namespace} --address {expose_service_name} --context {cluster_name} --namespace {namespace}'
     try:
         # Create authetnication token.
-        subprocess.check_output(unexpose_cmd, shell=True, timeout=20).decode('utf-8')
+        subprocess.check_output(unexpose_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         print('Failed to expose service.')
         raise e
