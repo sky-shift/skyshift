@@ -30,7 +30,7 @@ def generate_manager_config(host: str, port: int):
 
 def check_and_install_etcd():
     """Checks if ETCD is installed and running. If not, installs and launches ETCD."""
-    result = subprocess.run(
+    result = subprocess.run(  # pylint: disable=subprocess-run-check
         'ps aux | grep "[e]tcd"',
         shell=True,
         stdout=subprocess.PIPE,
@@ -59,7 +59,7 @@ def check_and_install_etcd():
             )
 
 
-def main(host, port):
+def main(host, port, workers):
     """Main function that encapsulates the script logic."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     check_and_install_etcd()
@@ -68,7 +68,7 @@ def main(host, port):
         "api_server:app",
         host=host,
         port=port,
-        workers=multiprocessing.cpu_count(),
+        workers=workers,
     )
 
 
@@ -88,6 +88,12 @@ def parse_args():
         default=API_SERVER_PORT,
         help="Port for the API server (default: %(default)s)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help="Number of workers for the API (default: %(default)s)",
+    )
     return parser.parse_args()
 
 
@@ -96,4 +102,4 @@ def parse_args():
 # -b :50051 api_server.api_server:app`
 if __name__ == "__main__":
     args = parse_args()
-    main(args.host, args.port)
+    main(args.host, args.port, args.workers)

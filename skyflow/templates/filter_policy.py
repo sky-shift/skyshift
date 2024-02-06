@@ -50,12 +50,33 @@ class ClusterFilter(BaseModel):
     include: List[str] = Field(default=[])
     exclude: List[str] = Field(default=[])
 
+    @field_validator('include', 'exclude')
+    @classmethod
+    def check_non_empty_strings(cls, value: List[str]) -> List[str]:
+        """
+        Ensures that the include and exclude lists contain only non-empty strings.
+        """
+        if any(not item.strip() for item in value):
+            raise ValueError("List must not contain empty strings.")
+        return value
+
 
 class FilterPolicySpec(ObjectSpec):
     """Spec for a Filter Policy."""
     cluster_filter: ClusterFilter = Field(default=ClusterFilter(),
                                           validate_default=True)
     labels_selector: Dict[str, str] = Field(default={}, validate_default=True)
+
+    @field_validator('labels_selector')
+    @classmethod
+    def check_non_empty_strings(cls, value: Dict[str, str]) -> Dict[str, str]:
+        """
+        Ensures that the labels_selector contains only non-empty strings.
+        """
+        if any(not key.strip() or not value.strip()
+               for key, value in value.items()):
+            raise ValueError("Labels' keys and values can't be empty strings.")
+        return value
 
 
 class FilterPolicy(Object):

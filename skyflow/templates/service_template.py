@@ -57,7 +57,7 @@ class ServiceSpec(ObjectSpec):
         """Validates the type field of a Service."""
         s_type = service_type
         if s_type is None or s_type not in [r.value for r in ServiceType]:
-            raise ServiceException(f"Invalid service type: {s_type}.")
+            raise ValueError(f"Invalid service type: {s_type}.")
         return s_type
 
     @field_validator('ports')
@@ -67,13 +67,12 @@ class ServiceSpec(ObjectSpec):
         """Validates each service_port in the ports field."""
         for service_port in service_ports:
             if not 0 < service_port.port <= 65535:
-                raise ServiceException(
-                    f"Invalid port number: {service_port.port}")
+                raise ValueError(f"Invalid port number: {service_port.port}")
             if not 0 < service_port.target_port <= 65535:
-                raise ServiceException(
+                raise ValueError(
                     f"Invalid target port number: {service_port.target_port}")
             if service_port.protocol not in ["TCP", "UDP"]:
-                raise ServiceException(
+                raise ValueError(
                     f"Unsupported protocol: {service_port.protocol}")
         return service_ports
 
@@ -85,7 +84,7 @@ class ServiceSpec(ObjectSpec):
             try:
                 ipaddress.IPv4Address(ip_address)
             except ipaddress.AddressValueError as error:
-                raise ServiceException(
+                raise ValueError(
                     f"Invalid IPv4 address: {ip_address}") from error
         return ip_address
 

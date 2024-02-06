@@ -159,12 +159,12 @@ class JobSpec(ObjectSpec):
         """
         Function to check if the image is in the correct format.
         """
-        pattern = r'^([a-zA-Z0-9.-]+)(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+)?(@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
+        pattern = r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
 
-        if not re.match(pattern, image):
+        if image == "" or not re.match(pattern, image):
             raise ValueError(
-                'Invalid image format. Expected format: repository[:tag] or repository[@digest].'
-            )
+                'Invalid image format. Expected format: [repository/]image[:tag] or\
+                      [repository/]image[@digest].')
         return image
 
     @field_validator("ports")
@@ -191,7 +191,7 @@ class JobSpec(ObjectSpec):
         if restart_policy is None or restart_policy not in [
                 r.value for r in RestartPolicyEnum
         ]:
-            raise JobException(f"Invalid restart policy: {restart_policy}.")
+            raise ValueError(f"Invalid restart policy: {restart_policy}.")
         return restart_policy
 
     @field_validator("resources")

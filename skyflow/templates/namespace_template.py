@@ -36,14 +36,14 @@ class NamespaceStatus(ObjectStatus):
     def verify_status(cls, status: str):
         """Validates the status field of a Namespace."""
         if status is None or status not in NamespaceEnum.__members__:
-            raise NamespaceException(f"Invalid namespace status: {status}.")
+            raise ValueError(f"Invalid namespace status: {status}.")
         return status
 
     def update_status(self, status: str):
         """Updates the status field of a Namespace."""
         # Check if status in enum.
         if status is None or status not in NamespaceEnum.__members__:
-            raise NamespaceException(f"Invalid namespace status: {status}.")
+            raise ValueError(f"Invalid namespace status: {status}.")
         self.status = status
 
 

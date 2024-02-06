@@ -1,6 +1,8 @@
 import asyncio
 import json
 import unittest
+from copy import deepcopy
+from typing import Any, Callable, Coroutine, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import yaml
@@ -9,27 +11,38 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
 from api_server.api_server import APIServer, app
-from skyflow.globals import DEFAULT_NAMESPACE
+from skyflow.globals import ALL_OBJECTS, DEFAULT_NAMESPACE, NAMESPACED_OBJECTS
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.endpoints_template import Endpoints
+from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.filter_policy import FilterPolicy
 from skyflow.templates.job_template import Job, JobException
 from skyflow.templates.link_template import Link
 from skyflow.templates.service_template import Service, ServiceException
+from skyflow.utils.utils import load_object
 
-NAMESPACED_OBJECTS = {
-    "jobs": Job,
-    "filterpolicies": FilterPolicy,
-    "services": Service,
-    "endpoints": Endpoints
-}
-NON_NAMESPACED_OBJECTS = {
-    "clusters": Cluster,
-    "namespaces": Namespace,
-    "links": Link
-}
-ALL_OBJECTS = {**NAMESPACED_OBJECTS, **NON_NAMESPACED_OBJECTS}
+
+def apply_modification(base, path, value):
+    """
+    Recursively navigate through the path to apply the modification.
+    """
+    current_level = base
+    for i, key in enumerate(path):
+        if i == len(
+                path
+        ) - 1:  # If it's the last element in the path, apply the value
+            if isinstance(current_level, list):
+                # For lists, the key should be the index
+                current_level[key] = value
+            else:
+                current_level[key] = value
+        else:
+            if isinstance(current_level, list):
+                current_level = current_level[key]
+            else:
+                current_level = current_level.setdefault(key, {})
+    return base
 
 
 class TestAPIServer(unittest.TestCase):
@@ -44,7 +57,7 @@ class TestAPIServer(unittest.TestCase):
         with patch.object(APIServer, '_post_init_hook', return_value=None):
             self.api_server = APIServer()
 
-    def run_async(self, coro):
+    def run_async(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """
         Utility method to run the coroutine and manage the event loop.
         """
@@ -77,43 +90,63 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Test scenarios
-            scenarios = [
-                {
-                    "content_type": "application/json",
+            # Base request setup
+            base_request = {
+                "headers": {
+                    "content-type": "application/json"
+                },
+                "body": json.dumps({"metadata": {
+                    "name": "test_object"
+                }})
+            }
+
+            # Define modifications to the base request for different scenarios
+            modifications = [{
+                "update": {
+                    "headers": {
+                        "content-type": "application/json"
+                    },
                     "body":
                     json.dumps({"metadata": {
                         "name": "json_test_object"
-                    }}),
-                    "expected_success": True
+                    }})
                 },
-                {
-                    "content_type": "application/yaml",
+                "expected_success": True
+            }, {
+                "update": {
+                    "headers": {
+                        "content-type": "application/yaml"
+                    },
                     "body":
                     yaml.dump({"metadata": {
                         "name": "yaml_test_object"
-                    }}),
-                    "expected_success": True
+                    }})
                 },
-                {
-                    "content_type": "text/plain",
-                    "body": "plain text",
-                    "expected_success": False
+                "expected_success": True
+            }, {
+                "update": {
+                    "headers": {
+                        "content-type": "text/plain"
+                    },
+                    "body": "plain text"
                 },
-            ]
+                "expected_success": False
+            }]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
+            for modification in modifications:
+                # Copy the base request and apply the modification
+                test_request = deepcopy(base_request)
+                test_request.update(modification["update"])
+
+                with self.subTest(modification=modification):
                     mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
+                    mock_request.headers = test_request["headers"]
                     mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
+                        return_value=test_request["body"].encode())
 
                     self.create_object = self.api_server.create_object("jobs")
 
-                    if scenario["expected_success"]:
+                    if modification["expected_success"]:
                         await self.create_object(mock_request)
                         self.mock_etcd_client_instance.write.assert_called()
                         self.mock_etcd_client_instance.write.reset_mock()
@@ -123,257 +156,230 @@ class TestAPIServer(unittest.TestCase):
 
         self.run_async(async_test())
 
+    async def execute_tests(self, create_object_func: Callable[[Request],
+                                                               Coroutine[None,
+                                                                         None,
+                                                                         Any]],
+                            base_spec: Dict[str, Any],
+                            modifications: List[Dict[str, Any]]) -> None:
+        """
+        Tests the creation of objects with various specifications, including invalid specs.
+        This function dynamically generates test scenarios based on a base specification and a list of modifications to apply.
+
+        :param create_object_func: The coroutine function to be tested, which creates the object.
+        :param base_spec: The base specification dictionary for creating a valid object.
+        :param modifications: A list of modifications, where each modification is a dictionary containing
+                            the 'path' for the specification to modify, the 'value' to set, and the
+                            'expected_exception' if the test should expect an exception.
+        """
+        scenarios = []
+        for modification in modifications:
+            # Create a copy of the base spec and apply the modification
+            test_spec = deepcopy(base_spec)
+            if modification["path"]:  # Check if path needs modification
+                test_spec = apply_modification(test_spec, modification["path"],
+                                               modification["value"])
+
+            scenario = {
+                "content_type": "application/json",
+                "body": json.dumps(test_spec),
+                "expected_exception": modification["exception"]
+            }
+            scenarios.append(scenario)
+
+        for scenario in scenarios:
+            with self.subTest(scenario=scenario):
+                mock_request = MagicMock(spec=Request)
+                mock_request.headers = {"content-type": "application/json"}
+                mock_request.body = AsyncMock(
+                    return_value=scenario["body"].encode())
+
+                if scenario["expected_exception"]:
+                    with self.assertRaises(scenario["expected_exception"]):
+                        await create_object_func(mock_request)
+                else:
+                    await create_object_func(mock_request)
+
     def test_job_creation_with_different_specs(self):
         """
         Test the creation of Job objects with various specifications, including invalid specs.
         """
 
         async def async_test():
-            # Define scenarios with invalid specs
-            scenarios = [
-                # Metadata name tests
+            # Base valid job specification
+            base_spec = {
+                "metadata": {
+                    "name": "valid_job_name"
+                },
+                "spec": {
+                    "replicas": 1,
+                    "resources": {
+                        "cpus": 1,
+                        "memory": 1024
+                    },
+                    "image": "ubuntu:latest",
+                    "envs": {
+                        "VAR1": "value1"
+                    },
+                    "ports": [80],
+                    "restart_policy": "Always",
+                    "run": "echo Hello World"
+                }
+            }
+
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "replicas"],
+                    "value": 0,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "replicas"],
+                    "value": -1,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "replicas"],
+                    "value": "invalid",
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "resources", "cpus"],
+                    "value": -1,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "resources", "memory"],
+                    "value": -100,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "resources", "GPU"],
+                    "value": -2,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "resources", "GPU"],
+                    "value": "two",
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "image"],
+                    "value": "",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "image"],
+                    "value": 123,
+                    "exception": ValidationError
+                },
+                # Valid cases
+                {
+                    "path": ["spec", "image"],
+                    "value": "ubuntu:latest",
+                    "exception": None
+                },
+                {
+                    "path": ["spec", "image"],
+                    "value": "alex/personal/repo/path/cool-image:latest",
+                    "exception": None
+                },
+                # Environment variables validation with invalid types
+                {
+                    "path": ["spec", "envs"],
+                    "value": {
+                        "VAR1": None
+                    },
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "envs"],
+                    "value": {
+                        "VAR1": 123
+                    },
+                    "exception": ValidationError
+                },
+                # Environment variable with empty string (valid case)
+                {
+                    "path": ["spec", "envs"],
+                    "value": {
+                        "VAR1": ""
+                    },
+                    "exception": None
                 },
 
-                # Replicas tests
+                # Ports validation
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "replicas": 0
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "ports"],
+                    "value": [-1],
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "replicas": -1
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "ports"],
+                    "value": [0],
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "replicas": "invalid"
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Resource tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "resources": {
-                            "CPU": -1
-                        }
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "ports"],
+                    "value": [70000],
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body":
-                    json.dumps({"spec": {
-                        "resources": {
-                            "MEMORY": -100
-                        }
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "ports"],
+                    "value": ["invalid"],
+                    "exception": ValidationError
                 },
+                # Valid ports case
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "resources": {
-                            "GPU": -2
-                        }
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "resources": {
-                            "GPU": "two"
-                        }
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "ports"],
+                    "value": [8080],
+                    "exception": None
                 },
 
-                # Image tests
+                # Restart policy validation
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "image": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "restart_policy"],
+                    "value": "InvalidPolicy",
+                    "exception": ValidationError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "image": 123
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "restart_policy"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "image": "ubuntu:latest"
-                    }}),
-                    "expected_exception": None
-                },  # Valid case
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "image":
-                            "alex/personal/repo/path/cool-image:latest"
-                        }
-                    }),
-                    "expected_exception":
-                    None
-                },  # Valid case
-
-                # Environment variables tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "envs": {
-                            "VAR1": None
-                        }
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "restart_policy"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
+                # Valid restart policy case
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "envs": {
-                            "VAR1": 123
-                        }
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "restart_policy"],
+                    "value": "Always",
+                    "exception": None
                 },
 
-                # Ports tests
+                # Run command validation
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "ports": [-1]
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "ports": [0]
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "ports": [70000]
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "ports": ["invalid"]
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Restart policy tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({"spec": {
-                        "restart_policy": "InvalidPolicy"
-                    }}),
-                    "expected_exception":
-                    HTTPException
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "restart_policy": ""
-                    }}),
-                    "expected_exception": HTTPException
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "restart_policy": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Run command tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "run": ""
-                    }}),
-                    "expected_exception": None
-                },  # Valid case
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "run": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Full spec with invalid combination tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "image": "ubuntu:latest",
-                            "replicas": -1,
-                            "resources": {
-                                "CPU": "two"
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    ValueError
+                    "path": ["spec", "run"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object("jobs")
-
-                    print(scenario["body"])
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
+            await self.execute_tests(self.api_server.create_object("jobs"),
+                                     base_spec, modifications)
 
         self.run_async(async_test())
 
@@ -383,118 +389,104 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for FilterPolicy
-            scenarios = [
-                # Valid FilterPolicy
+            # Base valid FilterPolicy specification
+            base_spec = {
+                "metadata": {
+                    "name": "validPolicy"
+                },
+                "spec": {
+                    "cluster_filter": {
+                        "include": ["clusterA"],
+                        "exclude": ["clusterB"]
+                    },
+                    "labels_selector": {
+                        "key": "value"
+                    }
+                }
+            }
+
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
+                # Metadata name tests
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validPolicy"
-                        },
-                        "spec": {
-                            "cluster_filter": {
-                                "include": ["clusterA"],
-                                "exclude": ["clusterB"]
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    None
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
 
-                # Metadata tests
+                # ClusterFilter include/exclude tests
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["spec", "cluster_filter", "include"],
+                    "value": -1,
+                    "exception": ValidationError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # ClusterFilter tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({"spec": {
-                        "cluster_filter": {
-                            "include": -1
-                        }
-                    }}),
-                    "expected_exception":
-                    ValidationError
+                    "path": ["spec", "cluster_filter", "exclude"],
+                    "value": {
+                        "clusterC": "value"
+                    },
+                    "exception": ValidationError
                 },
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "cluster_filter": {
-                                "exclude": {
-                                    "clusterC": "value"
-                                }
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    ValidationError
-                },
+                    "path": ["spec", "cluster_filter", "include"],
+                    "value": ["", "clusterA"],
+                    "exception": ValidationError
+                },  # Include list with empty string
+                {
+                    "path": ["spec", "cluster_filter", "exclude"],
+                    "value": ["clusterB", ""],
+                    "exception": ValidationError
+                },  # Exclude list with empty string
 
                 # Labels selector tests
                 {
-                    "content_type": "application/json",
-                    "body":
-                    json.dumps({"spec": {
-                        "labels_selector": {
-                            "key": 123
-                        }
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "labels_selector"],
+                    "value": {
+                        "key": 123
+                    },
+                    "exception": ValidationError
                 },
-
-                # Status tests
                 {
-                    "content_type": "application/json",
-                    "body":
-                    json.dumps({"status": {
-                        "status": "INVALID_STATUS"
-                    }}),
-                    "expected_exception": ValueError
-                },
+                    "path": ["spec", "labels_selector"],
+                    "value": {
+                        "": "value"
+                    },
+                    "exception": ValidationError
+                },  # Empty key
+                {
+                    "path": ["spec", "labels_selector"],
+                    "value": {
+                        "key": ""
+                    },
+                    "exception": ValidationError
+                },  # Empty value
+
+                # Valid cases with different configurations
+                {
+                    "path": [],
+                    "value": None,
+                    "exception": None
+                },  # No modification, valid base case
+                {
+                    "path": ["spec", "cluster_filter", "include"],
+                    "value": ["clusterA", "clusterB"],
+                    "exception": None
+                },  # Valid include clusters
+                {
+                    "path": ["spec", "cluster_filter", "exclude"],
+                    "value": ["clusterC", "clusterD"],
+                    "exception": None
+                },  # Valid exclude clusters
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object(
-                        "filterpolicies")
-
-                    if scenario["expected_exception"]:
-
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(
+                self.api_server.create_object("filterpolicies"), base_spec,
+                modifications)
 
         self.run_async(async_test())
 
@@ -504,130 +496,72 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for Service
-            scenarios = [
-                # Valid Service
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validService"
-                        },
-                        "spec": {
-                            "type": "ClusterIP",
-                            "ports": [{
-                                "port": 80,
-                                "target_port": 80
-                            }]
-                        }
-                    }),
-                    "expected_exception":
-                    None
+            # Base valid Service specification
+            base_spec = {
+                "metadata": {
+                    "name": "validService"
                 },
+                "spec": {
+                    "type": "ClusterIP",
+                    "ports": [{
+                        "port": 80,
+                        "target_port": 80
+                    }]
+                }
+            }
 
-                # Metadata tests
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Service type tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "type": "InvalidType"
-                    }}),
-                    "expected_exception": HTTPException
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "type": None
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Ports tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps(
-                        {"spec": {
-                            "ports": [{
-                                "port": -1,
-                                "target_port": 80
-                            }]
-                        }}),
-                    "expected_exception":
-                    HTTPException
+                    "path": ["spec", "type"],
+                    "value": "InvalidType",
+                    "exception": ValueError
                 },
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "ports": [{
-                                "port": 80,
-                                "target_port": "invalid"
-                            }]
-                        }
-                    }),
-                    "expected_exception":
-                    ValidationError
+                    "path": ["spec", "type"],
+                    "value": None,
+                    "exception": ValidationError
                 },
-
-                # Cluster IP tests
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "cluster_ip": -1
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "ports", 0, "port"],
+                    "value": -1,
+                    "exception": ValueError
                 },
-
-                # Primary Cluster tests
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "primary_cluster": -1
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "ports", 0, "target_port"],
+                    "value": "invalid",
+                    "exception": ValidationError
                 },
+                {
+                    "path": ["spec", "cluster_ip"],
+                    "value": -1,
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "primary_cluster"],
+                    "value": -1,
+                    "exception": ValidationError
+                },
+                # Valid case
+                {
+                    "path": [],
+                    "value": None,
+                    "exception": None
+                }  # Represents no modification, valid case
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object(
-                        "services")
-
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(self.api_server.create_object("services"),
+                                     base_spec, modifications)
 
         self.run_async(async_test())
 
@@ -637,123 +571,69 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for Endpoints
-            scenarios = [
-                # Valid Endpoints
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validEndpoints"
-                        },
-                        "spec": {
-                            "selector": {
-                                "key": "value"
-                            },
-                            "endpoints": {
-                                "clusterA": {
-                                    "num_endpoints": 2,
-                                    "exposed_to_cluster": True
-                                }
-                            }
+            # Base valid Endpoints specification
+            base_spec = {
+                "metadata": {
+                    "name": "validEndpoints"
+                },
+                "spec": {
+                    "selector": {
+                        "key": "value"
+                    },
+                    "endpoints": {
+                        "clusterA": {
+                            "num_endpoints": 2,
+                            "exposed_to_cluster": True
                         }
-                    }),
-                    "expected_exception":
-                    None
-                },
+                    },
+                    "primary_cluster": "clusterA"
+                }
+            }
 
-                # Metadata tests
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Selector tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "selector": {
-                            "key": 123
-                        }
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Endpoints tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "endpoints": {
-                                "clusterA": {
-                                    "num_endpoints": -1
-                                }
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    HTTPException
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "endpoints": {
-                                "clusterA": {
-                                    "exposed_to_cluster": "invalid"
-                                }
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    ValidationError
+                    "path": ["spec", "selector", "key"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
-
-                # Primary cluster tests
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "primary_cluster": -1
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "endpoints", "clusterA", "num_endpoints"],
+                    "value": -1,
+                    "exception": ValueError
                 },
+                {
+                    "path":
+                    ["spec", "endpoints", "clusterA", "exposed_to_cluster"],
+                    "value": "invalid",
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "primary_cluster"],
+                    "value": -1,
+                    "exception": ValidationError
+                },
+                # Valid case
+                {
+                    "path": [],
+                    "value": None,
+                    "exception": None
+                }  # Represents no modification, valid case
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object(
-                        "endpoints")
-
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(
+                self.api_server.create_object("endpoints"), base_spec,
+                modifications)
 
         self.run_async(async_test())
 
@@ -763,179 +643,105 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for Cluster
-            scenarios = [
-                # Valid Cluster
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validCluster"
-                        },
-                        "spec": {
-                            "manager": "k8"
-                        },
-                        "status": {
-                            "status": "READY"
+            # Base valid Cluster specification
+            base_spec = {
+                "metadata": {
+                    "name": "validCluster"
+                },
+                "spec": {
+                    "manager": "k8"
+                },
+                "status": {
+                    "status": "READY",
+                    "capacity": {
+                        "nodeA": {
+                            "cpus": 2,
+                            "memory": 2048
                         }
-                    }),
-                    "expected_exception":
-                    None
-                },
-
-                # Metadata tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Manager field tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "manager": ""
-                    }}),
-                    "expected_exception": ValueError
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"spec": {
-                        "manager": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Status field tests
-                {
-                    "content_type": "application/json",
-                    "body":
-                    json.dumps({"status": {
-                        "status": "INVALID_STATUS"
-                    }}),
-                    "expected_exception": HTTPException
-                },
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"status": {
-                        "status": None
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Capacity field tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps(
-                        {"status": {
-                            "capacity": {
-                                "nodeA": {
-                                    "CPU": -1
-                                }
-                            }
-                        }}),
-                    "expected_exception":
-                    HTTPException
-                },
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "status": {
-                            "capacity": {
-                                "nodeA": {
-                                    "GPU": "invalid"
-                                }
-                            }
+                    },
+                    "allocatable_capacity": {
+                        "nodeA": {
+                            "cpus": 2,
+                            "memory": 2048
                         }
-                    }),
-                    "expected_exception":
+                    },
+                    "accelerator_types": {
+                        "nodeA": "GPU"
+                    }
+                }
+            }
+
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
+                {
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["spec", "manager"],
+                    "value": "",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["spec", "manager"],
+                    "value": 123,
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["status", "status"],
+                    "value": "INVALID_STATUS",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["status", "status"],
+                    "value": None,
+                    "exception": ValidationError
+                },
+                {
+                    "path": ["status", "capacity", "nodeA", "cpus"],
+                    "value": -1,
+                    "exception": ValueError
+                },
+                {
+                    "path": ["status", "capacity", "nodeA", "GPU"],
+                    "value": "invalid",
+                    "exception": ValidationError
+                },
+                {
+                    "path":
+                    ["status", "allocatable_capacity", "nodeA", "MEMORY"],
+                    "value": -100,
+                    "exception": ValueError
+                },
+                {
+                    "path":
+                    ["status", "allocatable_capacity", "nodeA", "ACCELERATOR"],
+                    "value":
+                    "invalid",
+                    "exception":
                     ValidationError
                 },
-
-                # Allocatable Capacity tests
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "status": {
-                            "allocatable_capacity": {
-                                "nodeA": {
-                                    "MEMORY": -100
-                                }
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    HTTPException
+                    "path": ["status", "accelerator_types", "nodeA"],
+                    "value": -1,
+                    "exception": ValidationError
                 },
+                # Valid case
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "status": {
-                            "allocatable_capacity": {
-                                "nodeA": {
-                                    "ACCELERATOR": "invalid"
-                                }
-                            }
-                        }
-                    }),
-                    "expected_exception":
-                    ValidationError
-                },
-
-                # Accelerator Types tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps(
-                        {"status": {
-                            "accelerator_types": {
-                                "nodeA": -1
-                            }
-                        }}),
-                    "expected_exception":
-                    ValidationError
-                },
+                    "path": [],
+                    "value": None,
+                    "exception": None
+                }  # Represents no modification, valid case
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object(
-                        "clusters")
-
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(self.api_server.create_object("clusters"),
+                                     base_spec, modifications)
 
         self.run_async(async_test())
 
@@ -945,78 +751,43 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for Namespace
-            scenarios = [
-                # Valid Namespace
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validNamespace"
-                        },
-                        "status": {
-                            "status": "ACTIVE"
-                        }
-                    }),
-                    "expected_exception":
-                    None
+            # Base valid Namespace specification
+            base_spec = {
+                "metadata": {
+                    "name": "validNamespace"
                 },
+                "status": {
+                    "status": "ACTIVE"
+                }
+            }
 
-                # Metadata tests
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Status field tests
-                {
-                    "content_type": "application/json",
-                    "body":
-                    json.dumps({"status": {
-                        "status": "INVALID_STATUS"
-                    }}),
-                    "expected_exception": HTTPException
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"status": {
-                        "status": None
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["status", "status"],
+                    "value": "INVALID_STATUS",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["status", "status"],
+                    "value": None,
+                    "exception": ValidationError
                 },
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object(
-                        "namespaces")
-
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(
+                self.api_server.create_object("namespaces"), base_spec,
+                modifications)
 
         self.run_async(async_test())
 
@@ -1026,109 +797,56 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            # Define scenarios with various specs for Link
-            scenarios = [
-                # Valid Link
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "metadata": {
-                            "name": "validLink"
-                        },
-                        "spec": {
-                            "source_cluster": "clusterA",
-                            "target_cluster": "clusterB"
-                        },
-                        "status": {
-                            "phase": "ACTIVE"
-                        }
-                    }),
-                    "expected_exception":
-                    None
+            # Base valid Link specification
+            base_spec = {
+                "metadata": {
+                    "name": "validLink"
                 },
+                "spec": {
+                    "source_cluster": "clusterA",
+                    "target_cluster": "clusterB"
+                },
+                "status": {
+                    "phase": "ACTIVE"
+                }
+            }
 
-                # Metadata tests
+            # Scenarios with modifications to the base spec for testing various validations
+            modifications = [
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": ""
-                    }}),
-                    "expected_exception": ValueError
+                    "path": ["metadata", "name"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"metadata": {
-                        "name": 123
-                    }}),
-                    "expected_exception": ValidationError
-                },
-
-                # Source and Target Cluster tests
-                {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "source_cluster": "",
-                            "target_cluster": "clusterB"
-                        }
-                    }),
-                    "expected_exception":
-                    HTTPException
+                    "path": ["metadata", "name"],
+                    "value": 123,
+                    "exception": ValidationError
                 },
                 {
-                    "content_type":
-                    "application/json",
-                    "body":
-                    json.dumps({
-                        "spec": {
-                            "source_cluster": "clusterA",
-                            "target_cluster": ""
-                        }
-                    }),
-                    "expected_exception":
-                    HTTPException
-                },
-
-                # Phase status tests
-                {
-                    "content_type": "application/json",
-                    "body": json.dumps({"status": {
-                        "phase": "INVALID_PHASE"
-                    }}),
-                    "expected_exception": HTTPException
+                    "path": ["spec", "source_cluster"],
+                    "value": "",
+                    "exception": ValueError
                 },
                 {
-                    "content_type": "application/json",
-                    "body": json.dumps({"status": {
-                        "phase": None
-                    }}),
-                    "expected_exception": ValidationError
+                    "path": ["spec", "target_cluster"],
+                    "value": "",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["status", "phase"],
+                    "value": "INVALID_PHASE",
+                    "exception": ValueError
+                },
+                {
+                    "path": ["status", "phase"],
+                    "value": None,
+                    "exception": ValidationError
                 },
             ]
 
-            for scenario in scenarios:
-                with self.subTest(scenario=scenario):
-                    mock_request = MagicMock(spec=Request)
-                    mock_request.headers = {
-                        "content-type": scenario["content_type"]
-                    }
-                    mock_request.body = AsyncMock(
-                        return_value=scenario["body"].encode())
-
-                    self.create_object = self.api_server.create_object("links")
-
-                    print(scenario["body"])
-                    if scenario["expected_exception"]:
-                        with self.assertRaises(scenario["expected_exception"]):
-                            await self.create_object(mock_request)
-                    else:
-                        await self.create_object(mock_request)
-                        self.mock_etcd_client_instance.write.assert_called()
-                        self.mock_etcd_client_instance.write.reset_mock()
+            await self.execute_tests(self.api_server.create_object("links"),
+                                     base_spec, modifications)
 
         self.run_async(async_test())
 
@@ -1361,7 +1079,11 @@ class TestAPIServer(unittest.TestCase):
             })], lambda: None)
             watch_response = self.api_server.get_object("jobs",
                                                         "watched_object",
+                                                        namespace=namespace,
                                                         watch=True)
+            link_header = f"{'jobs'}/{namespace}" if namespace else "jobs"
+            self.mock_etcd_client_instance.watch.assert_called_once_with(
+                f"{link_header}/{'watched_object'}")
             self.assertIsInstance(watch_response, StreamingResponse)
 
             # 4. Test with Complex Object Data

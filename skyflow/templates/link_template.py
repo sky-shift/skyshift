@@ -42,7 +42,7 @@ class LinkStatus(ObjectStatus):
         Validates the phase field. Ensures it is a valid status according to LinkStatusEnum.
         """
         if phase not in [status.value for status in LinkStatusEnum]:
-            raise LinkException(f"Invalid status: {phase}")
+            raise ValueError(f"Invalid status: {phase}")
         return phase
 
     def get_status(self) -> str:
@@ -52,7 +52,7 @@ class LinkStatus(ObjectStatus):
     def update_status(self, status: str) -> None:
         """Updates the status of the Link."""
         if status not in [status.value for status in LinkStatusEnum]:
-            raise LinkException(f"Invalid status: {status}")
+            raise ValueError(f"Invalid status: {status}")
         self.phase = status
 
 
@@ -74,7 +74,7 @@ class LinkSpec(ObjectSpec):
         """
         if source_cluster is not None and (not isinstance(source_cluster, str)
                                            or source_cluster.strip() == ""):
-            raise LinkException(
+            raise ValueError(
                 "Source cluster must be a non-empty string or None.")
         return source_cluster
 
@@ -87,7 +87,7 @@ class LinkSpec(ObjectSpec):
         """
         if target_cluster is not None and (not isinstance(target_cluster, str)
                                            or target_cluster.strip() == ""):
-            raise LinkException(
+            raise ValueError(
                 "Target cluster must be a non-empty string or None.")
         return target_cluster
 
