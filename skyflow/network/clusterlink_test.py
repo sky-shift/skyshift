@@ -1,14 +1,25 @@
 import os
 import sys
 import subprocess
+import shutil
 projDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0,f'{projDir}')
 
 import cluster_linkv2 as clusterlink
 
 from skyflow.cluster_manager import Manager, KubernetesManager
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
-clusterlink.launch_network_fabric()
+path = shutil.which("cl-adm")
+if path is None:
+    clusterlink.install_clusterlink()
+fabric_cert = os.path.join(clusterlink.CL_DIRECTORY, clusterlink.CERT)
+if os.path.exists(fabric_cert) != True:
+    logging.info(f"Launching network fabric!")
+    clusterlink.launch_network_fabric()
 
 clusterlink_path = os.path.join(clusterlink.CL_DIRECTORY, "clusterlink")
 sys.path.append(clusterlink_path)

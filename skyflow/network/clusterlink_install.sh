@@ -1,5 +1,5 @@
 #! /bin/bash
-SCRIPT_DIR=$(pwd)
+install_dir="~/.skym/cl"
 
 pull_and_install_clusterlink() {
     local dir=$1
@@ -10,7 +10,8 @@ pull_and_install_clusterlink() {
     go mod tidy
     make build
     cd -
-    export PATH=$PATH:$SCRIPT_DIR/clusterlink/bin
+    export PATH=$PATH:$dir/clusterlink/bin
 }
 
-pull_and_install_clusterlink $1
+mkdir -p $install_dir
+pull_and_install_clusterlink $install_dir
