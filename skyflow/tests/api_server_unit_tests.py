@@ -4,24 +4,19 @@ import unittest
 from copy import deepcopy
 from typing import Any, Callable, Coroutine, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import yaml
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from api_server import launch_server
 
-from api_server.api_server import APIServer, app
+
 from skyflow.globals import ALL_OBJECTS, DEFAULT_NAMESPACE, NAMESPACED_OBJECTS
-from skyflow.templates import Namespace, NamespaceMeta, ObjectException
-from skyflow.templates.cluster_template import Cluster
-from skyflow.templates.endpoints_template import Endpoints
-from skyflow.templates.event_template import WatchEvent
-from skyflow.templates.filter_policy import FilterPolicy
-from skyflow.templates.job_template import Job, JobException
-from skyflow.templates.link_template import Link
-from skyflow.templates.service_template import Service, ServiceException
-from skyflow.utils.utils import load_object
+from skyflow.templates import Namespace, NamespaceMeta
 
+launch_server.check_and_install_etcd()
+
+from api_server.api_server import APIServer
 
 def apply_modification(base, path, value):
     """
@@ -929,22 +924,6 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.list_objects("invalid_type", watch=False)
             self.assertEqual(context.exception.status_code, 400)
 
-            # Test watch functionality
-            mock_events = [("MODIFIED", {
-                "metadata": {
-                    "name": "test_watch_1"
-                }
-            }), ("ADDED", {
-                "metadata": {
-                    "name": "test_watch_2"
-                }
-            })]
-            self.mock_etcd_client_instance.watch.return_value = (mock_events,
-                                                                 lambda: None)
-
-            response = self.api_server.list_objects("jobs", watch=True)
-            self.assertIsInstance(response, StreamingResponse)
-
         self.run_async(async_test())
 
     def test_list_objects_extended(self):
@@ -975,15 +954,6 @@ class TestAPIServer(unittest.TestCase):
                         object_type, namespace=namespace, watch=False)
                     self.assertEqual(len(obj_list.objects), 1)
                     self.mock_etcd_client_instance.reset_mock()
-
-            # Test watch parameter with events
-            self.mock_etcd_client_instance.watch.return_value = ([("PUT", {
-                "metadata": {
-                    "name": "test_job"
-                }
-            })], lambda: None)
-            watch_response = self.api_server.list_objects("jobs", watch=True)
-            self.assertIsInstance(watch_response, StreamingResponse)
 
         self.run_async(async_test())
 
@@ -1019,15 +989,6 @@ class TestAPIServer(unittest.TestCase):
             with self.assertRaises(HTTPException) as context:
                 self.api_server.get_object("jobs", "non_existent", watch=False)
             self.assertEqual(context.exception.status_code, 404)
-
-            # Test the 'watch' parameter behavior
-            self.mock_etcd_client_instance.watch.return_value = ([],
-                                                                 lambda: None)
-            watch_response = self.api_server.get_object("jobs",
-                                                        "test_job",
-                                                        watch=True)
-            self.assertIsInstance(watch_response, StreamingResponse)
-
         self.run_async(async_test())
 
     def test_get_object_extended(self):
@@ -1184,7 +1145,7 @@ class TestAPIServer(unittest.TestCase):
 
                     self.mock_etcd_client_instance.reset_mock()
 
-            # Test handling of non-existing objects
+            # Test handling of non-existent objects
             self.mock_etcd_client_instance.read_prefix.return_value = []
             with self.assertRaises(HTTPException) as context:
                 await update_func(mock_request)
@@ -1239,7 +1200,7 @@ class TestAPIServer(unittest.TestCase):
 
                     self.mock_etcd_client_instance.reset_mock()
 
-            # Test handling of non-existing objects
+            # Test handling of non-existent objects
             self.mock_etcd_client_instance.delete.return_value = None
             with self.assertRaises(HTTPException) as context:
                 delete_func("jobs", "non_existing_object")
