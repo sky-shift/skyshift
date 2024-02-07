@@ -13,11 +13,27 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
-def load_object(response: dict):
-    """Loads an object (from templates) from a response dict."""
-    kind = response["kind"]
-    object_class = getattr(OBJECT_TEMPLATES, kind)
-    return object_class(**response)
+def load_object(response: dict | list[dict]):
+    """
+    Loads an object or a list of objects (from templates) from a dictionary.
+    """
+    if isinstance(response, list):
+        return [load_single_object(item) for item in response]
+    return load_single_object(response)
+
+
+def load_single_object(item: dict):
+    """
+    Loads a single object (from templates) from a dictionary.
+    """
+    try:
+        kind = item["kind"]
+        object_class = getattr(OBJECT_TEMPLATES, kind)
+        if object_class:
+            return object_class(**item)
+        raise ValueError(f"Unknown kind: {kind}")
+    except KeyError as error:
+        raise ValueError(f"Missing expected key: {error}") from error
 
 
 def watch_events(url: str):
@@ -49,8 +65,10 @@ def load_manager_config():
         port = config_dict["api_server"]["port"]
     except FileNotFoundError as error:
         raise Exception(
-            f"API server config file not found at {API_SERVER_CONFIG_PATH}.") from error
+            f"API server config file not found at {API_SERVER_CONFIG_PATH}."
+        ) from error
     except KeyError as error:
         raise Exception(
-            f"API server config file at {API_SERVER_CONFIG_PATH} is invalid.") from error
+            f"API server config file at {API_SERVER_CONFIG_PATH} is invalid."
+        ) from error
     return host, port
