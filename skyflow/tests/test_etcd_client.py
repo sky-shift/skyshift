@@ -5,7 +5,7 @@ from skyflow import ETCDClient
 
 
 # To test, run:
-# pytest sky_manager/tests/test_etcd_client.py::TestETCDClient
+# pytest skyflow/tests/test_etcd_client.py::TestETCDClient
 class TestETCDClient:
     """
     Tests for ETCD interface.

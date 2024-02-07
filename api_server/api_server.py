@@ -42,10 +42,6 @@ class APIServer:
                     mode="json"),
             )
 
-    def startup(self):
-        """Initialize the API server upon startup."""
-        signal.signal(signal.SIGINT, lambda x, y: sys.exit())
-
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
 
@@ -144,7 +140,6 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-        print(link_header)
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
@@ -252,7 +247,7 @@ class APIServer:
                     # Check and validate event type.
                     watch_event = WatchEvent(event_type=event_type.value,
                                              object=event_value)
-                    yield watch_event.json() + "\n"
+                    yield watch_event.model_dump_json() + "\n"
             finally:
                 cancel_watch_fn()
 
@@ -360,8 +355,13 @@ class APIServer:
             )
 
 
+def startup():
+    """Initialize the API server upon startup."""
+    signal.signal(signal.SIGINT, lambda x, y: sys.exit())
+
+
 app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 api_server = APIServer()
 app.include_router(api_server.router)
-app.add_event_handler("startup", api_server.startup)
+app.add_event_handler("startup", startup)

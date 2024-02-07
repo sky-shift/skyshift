@@ -62,27 +62,59 @@ class ClusterStatus(ObjectStatus):
                 "transitionTime": str(time.time()),
             }]
         if len(conditions) == 0:
-            raise ClusterException(
-                "Cluster status's condition field is empty.")
+            raise ValueError("Cluster status's condition field is empty.")
         for condition in conditions:
             if "status" not in condition:
-                raise ClusterException(
+                raise ValueError(
                     "Cluster status's condition field is missing status.")
         return conditions
 
     @field_validator("capacity", "allocatable_capacity")
     @classmethod
     def verify_capacity(cls, capacity: Dict[str, Dict[str, float]]):
-        """Validates the capacity field of a Cluster."""
-        res_emum_dict = [m.value for m in ResourceEnum]
-        acc_enum_dict = [m.value for m in AcceleratorEnum]
+        """Validates the capacity and allocatable_capacity fields of a Cluster."""
+        resource_enum_dict = [m.value for m in ResourceEnum]
+        accelerator_enum_dict = [m.value for m in AcceleratorEnum]
+
+        # Define resource limits (if applicable)
+        resource_limits = {
+            ResourceEnum.CPU.value: {
+                "min": 0
+            },  # Minimum 0 CPUs
+            ResourceEnum.GPU.value: {
+                "min": 0
+            },  # Minimum 0 GPUs
+            ResourceEnum.MEMORY.value: {
+                "min": 0
+            },  # Minimum 0 MB
+            ResourceEnum.DISK.value: {
+                "min": 0
+            },  # Minimum 0 MB
+        }
+
         for node_name, node_resources in capacity.items():
-            keys_in_enum = set(node_resources.keys()).issubset(res_emum_dict +
-                                                               acc_enum_dict)
-            if not keys_in_enum:
-                raise ClusterException(
-                    f"Invalid resource specification for node {node_name}: {node_resources}. "
-                    "Please use ResourceEnum to specify resources.")
+            for resource_type, resource_value in node_resources.items():
+                if resource_type not in resource_enum_dict + accelerator_enum_dict:
+                    raise ValueError(
+                        f"Invalid resource type '{resource_type}' for node '{node_name}'. "
+                        "Please use ResourceEnum or AcceleratorEnum to specify resources."
+                    )
+                if resource_type in resource_limits:
+                    min_limit = resource_limits[resource_type].get(
+                        "min", float("-inf"))
+                    if resource_value < min_limit:
+                        raise ValueError(
+                            f"Invalid value for resource '{resource_type}' in node \
+                                '{node_name}': {resource_value}. "
+                            f"Value must be >= {min_limit}.")
+                else:
+                    # For accelerators or any other resources without defined limits
+                    if resource_value < 0:
+                        raise ValueError(
+                            f"Invalid value for resource '{resource_type}' in node \
+                                '{node_name}': {resource_value}. "
+                            "Value must be non-negative.")
+
         return capacity
 
     @field_validator("status")
@@ -90,7 +122,7 @@ class ClusterStatus(ObjectStatus):
     def verify_status(cls, status: str):
         """Validates the status field of a Cluster."""
         if status is None or status not in ClusterStatusEnum.__members__:
-            raise ClusterException(f"Invalid cluster status: {status}.")
+            raise ValueError(f"Invalid cluster status: {status}.")
         return status
 
     def update_conditions(self, conditions):
