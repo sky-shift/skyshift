@@ -4,19 +4,20 @@ import unittest
 from copy import deepcopy
 from typing import Any, Callable, Coroutine, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import yaml
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+
 from api_server import launch_server
-
-
 from skyflow.globals import ALL_OBJECTS, DEFAULT_NAMESPACE, NAMESPACED_OBJECTS
 from skyflow.templates import Namespace, NamespaceMeta
 
 launch_server.check_and_install_etcd()
 
 from api_server.api_server import APIServer
+
 
 def apply_modification(base, path, value):
     """
@@ -989,6 +990,7 @@ class TestAPIServer(unittest.TestCase):
             with self.assertRaises(HTTPException) as context:
                 self.api_server.get_object("jobs", "non_existent", watch=False)
             self.assertEqual(context.exception.status_code, 404)
+
         self.run_async(async_test())
 
     def test_get_object_extended(self):
@@ -1192,7 +1194,7 @@ class TestAPIServer(unittest.TestCase):
                     }
                     delete_func = self.api_server.delete_object
                     deleted_obj_dict = delete_func(object_type, object_name,
-                                                   namespace, is_namespaced)
+                                                   namespace)
                     self.assertEqual(deleted_obj_dict["metadata"]["name"],
                                      object_name)
                     self.mock_etcd_client_instance.delete.assert_called_once_with(

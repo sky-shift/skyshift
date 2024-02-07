@@ -205,7 +205,7 @@ class APIServer:
                         )
                     except Exception as error:
                         raise HTTPException(
-                            status_code=403,
+                            status_code=409,
                             detail=
                             f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
                         ) from error
@@ -276,7 +276,7 @@ class APIServer:
                 )
             except Exception as error:
                 raise HTTPException(
-                    status_code=403,
+                    status_code=409,
                     detail=
                     f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
                 ) from error
@@ -289,10 +289,9 @@ class APIServer:
         object_type: str,
         object_name: str,
         namespace: str = DEFAULT_NAMESPACE,
-        is_namespaced: bool = True,
     ):
         """Deletes an object of a given type."""
-        if is_namespaced:
+        if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
@@ -369,9 +368,7 @@ class APIServer:
             self._add_endpoint(
                 endpoint=f"/{object_type}/{{object_name}}",
                 endpoint_name=f"delete_{object_type}",
-                handler=partial(self.delete_object,
-                                object_type=object_type,
-                                is_namespaced=False),
+                handler=partial(self.delete_object, object_type=object_type),
                 methods=["DELETE"],
             )
 
