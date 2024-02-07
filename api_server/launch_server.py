@@ -30,13 +30,12 @@ def generate_manager_config(host: str, port: int):
 
 def check_and_install_etcd():
     """Checks if ETCD is installed and running. If not, installs and launches ETCD."""
-    result = subprocess.run(
+    result = subprocess.run(  # pylint: disable=subprocess-run-check
         'ps aux | grep "[e]tcd"',
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        check=True,
     )
     return_code = result.returncode
     if return_code == 0:
@@ -60,15 +59,23 @@ def check_and_install_etcd():
             )
 
 
-# Faster way to run API server:
-# `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker
-# -b :50051 api_server.api_server:app`
-if __name__ == "__main__":
-    # Create the parser
+def main(host, port, workers):
+    """Main function that encapsulates the script logic."""
+    # Check if etcd is installed and running - elsewise, install and launch etcd.
+    check_and_install_etcd()
+    generate_manager_config(host, port)
+    uvicorn.run(
+        "api_server:app",
+        host=host,
+        port=port,
+        workers=workers,
+    )
+
+
+def parse_args():
+    """Parse and return command line arguments."""
     parser = argparse.ArgumentParser(
         description="Launch API Service for Sky Manager.")
-
-    # Add arguments
     parser.add_argument(
         "--host",
         type=str,
@@ -81,15 +88,18 @@ if __name__ == "__main__":
         default=API_SERVER_PORT,
         help="Port for the API server (default: %(default)s)",
     )
-    # Parse the arguments
-    args = parser.parse_args()
-
-    # Check if etcd is installed and running - elsewise, install and launch etcd.
-    check_and_install_etcd()
-    generate_manager_config(args.host, args.port)
-    uvicorn.run(
-        "api_server:app",
-        host=args.host,
-        port=args.port,
-        workers=multiprocessing.cpu_count(),
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=multiprocessing.cpu_count(),
+        help="Number of workers running in parallel for the API server (default: %(default)s)",
     )
+    return parser.parse_args()
+
+
+# Faster way to run API server:
+# `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker
+# -b :50051 api_server.api_server:app`
+if __name__ == "__main__":
+    args = parse_args()
+    main(args.host, args.port, args.workers)
