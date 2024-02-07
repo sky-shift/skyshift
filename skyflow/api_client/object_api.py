@@ -7,11 +7,29 @@ from skyflow.utils import load_object, watch_events
 from skyflow.utils.utils import load_manager_config
 
 
-def verify_response(response):
-    """Verifies API response to check for error."""
-    if "detail" in response:
-        raise APIException(response["detail"])
-    return load_object(response)
+def verify_response(input_data):
+    """
+    Verifies API response or data to check for error.
+    """
+    if hasattr(input_data, 'status_code') and callable(
+            getattr(input_data, 'json', None)):
+        if input_data.status_code >= 400:
+            try:
+                body = input_data.json()
+            except ValueError:  # In case the response body is not JSON
+                body = {}
+            error_msg = body.get(
+                'detail',
+                f'HTTP error occurred: Status code {input_data.status_code}')
+            raise APIException(error_msg)
+        body = input_data.json()
+    else:
+        # Assume input_data is already parsed data for non-Response inputs
+        body = input_data
+        if "detail" in body:
+            raise APIException(body["detail"])
+
+    return load_object(body)
 
 
 # @TODO(mluo): Introduce different types of API exceptions.
@@ -58,37 +76,33 @@ class NamespaceObjectAPI(ObjectAPI):
         self.namespace = namespace
         self.host, self.port = load_manager_config()
         self.object_type = object_type
-        self.url: str = ""
-        if not namespace:
-            self.url = f"http://{self.host}:{self.port}/{self.object_type}"
+        if namespace:
+            self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
         else:
-            self.url = (
-                f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
-            )
+            self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
     def create(self, config: dict):
-        assert self.namespace is not None, "Method `create` requires a namespace."
+        assert self.namespace, "Method `create` requires a namespace."
         response = requests.post(self.url, json=config)
-        response = response.json()
         return verify_response(response)
 
     def update(self, config: dict):
-        assert self.namespace is not None, "Method `update` requires a namespace."
-        response = requests.put(self.url, json=config).json()
+        assert self.namespace, "Method `update` requires a namespace."
+        response = requests.put(self.url, json=config)
         return verify_response(response)
 
     def list(self):
-        response = requests.get(self.url).json()
+        response = requests.get(self.url)
         return verify_response(response)
 
     def get(self, name: str):
-        assert self.namespace is not None, "Method `get` requires a namespace."
-        response = requests.get(f"{self.url}/{name}").json()
+        assert self.namespace, "Method `get` requires a namespace."
+        response = requests.get(f"{self.url}/{name}")
         return verify_response(response)
 
     def delete(self, name: str):
-        assert self.namespace is not None, "Method `delete` requires namespace."
-        response = requests.delete(f"{self.url}/{name}").json()
+        assert self.namespace, "Method `delete` requires a namespace."
+        response = requests.delete(f"{self.url}/{name}")
         return verify_response(response)
 
     def watch(self):
@@ -108,29 +122,24 @@ class NoNamespaceObjectAPI(ObjectAPI):
         self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
     def create(self, config: dict):
-        response = requests.post(self.url, json=config).json()
-        obj = verify_response(response)
-        return obj
+        response = requests.post(self.url, json=config)
+        return verify_response(response)
 
     def update(self, config: dict):
-        response = requests.put(self.url, json=config).json()
-        obj = verify_response(response)
-        return obj
+        response = requests.put(self.url, json=config)
+        return verify_response(response)
 
     def list(self):
-        response = requests.get(self.url).json()
-        obj = verify_response(response)
-        return obj
+        response = requests.get(self.url)
+        return verify_response(response)
 
     def get(self, name: str):
-        response = requests.get(f"{self.url}/{name}").json()
-        obj = verify_response(response)
-        return obj
+        response = requests.get(f"{self.url}/{name}")
+        return verify_response(response)
 
     def delete(self, name: str):
-        response = requests.delete(f"{self.url}/{name}").json()
-        obj = verify_response(response)
-        return obj
+        response = requests.delete(f"{self.url}/{name}")
+        return verify_response(response)
 
     def watch(self):
         for data in watch_events(f"{self.url}?watch=true"):
