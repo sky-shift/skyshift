@@ -6,6 +6,7 @@ import signal
 import sys
 from functools import partial
 
+import jsonpatch
 import yaml
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -140,7 +141,6 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-        print(link_header)
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
@@ -205,7 +205,7 @@ class APIServer:
                         )
                     except Exception as error:
                         raise HTTPException(
-                            status_code=409,
+                            status_code=403,
                             detail=
                             f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
                         ) from error
@@ -216,6 +216,73 @@ class APIServer:
             )
 
         return _update_object
+
+    # Example command:
+    # curl -X PATCH  http://127.0.0.1:50051/clusters/local
+    # -H 'Content-Type: application/json'
+    # -d '[{"op": "replace", "path": "/status/status",
+    # "value": "INIT"}]'
+    def patch_object(self, object_type: str):
+        """Patches an object of a given type."""
+
+        async def _patch_object(
+            request: Request,
+            object_name: str,
+            namespace: str = DEFAULT_NAMESPACE,
+        ):
+            content_type = request.headers.get("content-type", None)
+            body = await request.body()
+            if content_type == "application/json":
+                patch_list = json.loads(body.decode())
+            elif content_type == "application/yaml":
+                patch_list = yaml.safe_load(body.decode())
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported Content-Type: {content_type}")
+            print(patch_list)
+
+            if object_type not in ALL_OBJECTS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid object type: {object_type}")
+
+            # Read all objects of the same type and check if the object already exists.
+            if object_type in NAMESPACED_OBJECTS:
+                link_header = f"{object_type}/{namespace}"
+            else:
+                link_header = f"{object_type}"
+            obj_dict = self.etcd_client.read(f"{link_header}/{object_name}")
+            if obj_dict is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Object '{link_header}/{object_name}' not found.",
+                )
+
+            # Support basic JSON patch: https://jsonpatch.com/
+            try:
+                patch = jsonpatch.JsonPatch(patch_list)
+            except Exception as error:
+                raise HTTPException(status_code=400,
+                                    detail="Invalid patch list.") from error
+
+            updated_obj_dict = patch.apply(obj_dict)
+            object_class = ALL_OBJECTS[object_type]
+            obj = object_class(**updated_obj_dict)
+            try:
+                self.etcd_client.update(
+                    f"{link_header}/{object_name}",
+                    obj.model_dump(mode="json"),
+                )
+            except Exception as error:
+                raise HTTPException(
+                    status_code=403,
+                    detail=
+                    f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
+                ) from error
+            return obj
+
+        return _patch_object
 
     def delete_object(
         self,
@@ -295,6 +362,12 @@ class APIServer:
             )
             self._add_endpoint(
                 endpoint=f"/{object_type}/{{object_name}}",
+                endpoint_name=f"patch_{object_type}",
+                handler=self.patch_object(object_type=object_type),
+                methods=["PATCH"],
+            )
+            self._add_endpoint(
+                endpoint=f"/{object_type}/{{object_name}}",
                 endpoint_name=f"delete_{object_type}",
                 handler=partial(self.delete_object,
                                 object_type=object_type,
@@ -341,6 +414,12 @@ class APIServer:
                     object_type=object_type,
                 ),
                 methods=["DELETE"],
+            )
+            self._add_endpoint(
+                endpoint=f"/{{namespace}}/{object_type}/{{object_name}}",
+                endpoint_name=f"patch_{object_type}",
+                handler=self.patch_object(object_type=object_type),
+                methods=["PATCH"],
             )
             # Add special case where can list namespaced objects across
             # all namespaces.

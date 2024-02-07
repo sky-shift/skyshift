@@ -24,7 +24,10 @@ setup(
         "skypilot[aws,gcp,azure,kubernetes]",
     ],
     extras_require={
-        "server": ["etcd3", "fastapi", "uvicorn[standard]", "pydantic>=2.5.0"],
+        "server": [
+            "etcd3", "fastapi", "uvicorn[standard]", "pydantic>=2.5.0",
+            'jsonpatch'
+        ],
         "dev": [
             "yapf==0.32.0", "pylint==2.8.2", "pylint-quotes==0.2.3",
             "mypy==1.8.0"
