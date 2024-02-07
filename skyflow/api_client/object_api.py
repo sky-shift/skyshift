@@ -34,11 +34,6 @@ def verify_response(input_data):
     return load_object(body)
 
 
-def process_name(name: str):
-    """Processes the name of an object for http request."""
-    return quote(name, safe='')
-
-
 # @TODO(mluo): Introduce different types of API exceptions.
 class APIException(Exception):
     """Generic API Exception."""
@@ -86,9 +81,13 @@ class NamespaceObjectAPI(ObjectAPI):
         if namespace:
             self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
         else:
+        if namespace:
+            self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
+        else:
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
     def create(self, config: dict):
+        assert self.namespace, "Method `create` requires a namespace."
         assert self.namespace, "Method `create` requires a namespace."
         response = requests.post(self.url, json=config)
         return verify_response(response)
@@ -96,22 +95,23 @@ class NamespaceObjectAPI(ObjectAPI):
     def update(self, config: dict):
         assert self.namespace, "Method `update` requires a namespace."
         response = requests.put(self.url, json=config)
+        assert self.namespace, "Method `update` requires a namespace."
+        response = requests.put(self.url, json=config)
         return verify_response(response)
 
     def list(self):
+        response = requests.get(self.url)
         response = requests.get(self.url)
         return verify_response(response)
 
     def get(self, name: str):
         assert self.namespace, "Method `get` requires a namespace."
-        processed_name = process_name(name)
-        response = requests.get(f"{self.url}/{processed_name}")
+        response = requests.get(f"{self.url}/{name}")
         return verify_response(response)
 
     def delete(self, name: str):
         assert self.namespace, "Method `delete` requires a namespace."
-        processed_name = process_name(name)
-        response = requests.delete(f"{self.url}/{processed_name}")
+        response = requests.delete(f"{self.url}/{name}")
         return verify_response(response)
 
     def watch(self):
@@ -133,23 +133,27 @@ class NoNamespaceObjectAPI(ObjectAPI):
     def create(self, config: dict):
         response = requests.post(self.url, json=config)
         return verify_response(response)
+        response = requests.post(self.url, json=config)
+        return verify_response(response)
 
     def update(self, config: dict):
+        response = requests.put(self.url, json=config)
+        return verify_response(response)
         response = requests.put(self.url, json=config)
         return verify_response(response)
 
     def list(self):
         response = requests.get(self.url)
         return verify_response(response)
+        response = requests.get(self.url)
+        return verify_response(response)
 
     def get(self, name: str):
-        processed_name = process_name(name)
-        response = requests.get(f"{self.url}/{processed_name}")
+        response = requests.get(f"{self.url}/{name}")
         return verify_response(response)
 
     def delete(self, name: str):
-        processed_name = process_name(name)
-        response = requests.delete(f"{self.url}/{processed_name}")
+        response = requests.delete(f"{self.url}/{name}")
         return verify_response(response)
 
     def watch(self):
