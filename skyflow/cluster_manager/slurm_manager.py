@@ -1,16 +1,21 @@
-import os
-import requests_unixsocket
-import requests
 import json
-import socket
 import logging
-from typing import Dict, Tuple, Union
-from dataclasses import dataclass
-from skyflow.cluster_manager import Manager
-from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
-from skyflow.templates import Job, TaskStatusEnum, AcceleratorEnum, ResourceEnum
+import os
+import socket
 import uuid
-from skyflow.slurm.slurm_utils import *
+from dataclasses import dataclass
+from typing import Dict, Tuple, Union
+
+import requests
+import requests_unixsocket
+import yaml
+from jinja2 import (Environment, FileSystemLoader, PackageLoader,
+                    select_autoescape)
+
+from skyflow.cluster_manager import Manager
+from skyflow.templates import (AcceleratorEnum, Job, ResourceEnum,
+                               TaskStatusEnum)
+from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 SLURMRESTD_CONFIG_PATH = "~/.skyconf/slurmrestd.yaml"
 
@@ -61,13 +66,13 @@ class SlurmManager( object ):
         if is_unix_socket:
             self.port = "http+unix://" + self.port.replace("/", "%2F")
         self.port = self.port + "/slurm/" + self.openapi
-    def __print_json(self, data: json):
+    def __print_json(self, data: str):
         """ DEBUG Prints json data in a readable style.
         
             Args: http response data
         """
         print(json.dumps(data, indent=4, sort_keys=True))
-    def __get_json_key_val(self, data: json, keys: Tuple) -> Union[int, str]:
+    def __get_json_key_val(self, data: str, keys: Tuple) -> Union[int, str]:
         """ Fetch values from nested dicts.
 
             Args:
@@ -85,7 +90,7 @@ class SlurmManager( object ):
             except:
                 return
         return val
-    def send_job(self, json_data: json):
+    def send_job(self, json_data: str):
         """Submit JSON job file
 
             Args: 
@@ -96,6 +101,7 @@ class SlurmManager( object ):
         """
         post_path = self.port + "/job/submit"
         r = self.session.post(post_path, json=json_data)
+        print(r.json())
         return r
     def __get_matching_job_names(self, n: str) -> list[str]:
         """ Gets a list of jobs with matching names. 
@@ -119,6 +125,42 @@ class SlurmManager( object ):
                 if slurm_job_name == n:
                     job_names.append(slurm_job_name)
         return job_names
+    def __convert_to_job_json(job: Job) -> str:
+        """ Converts job object into slurm json format
+            Args: 
+                job: job object to be cond verted
+            Returns:
+                Json file to be submitted
+        """
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        jinja_env = Environment(loader=FileSystemLoader(
+            os.path.abspath(dir_path)),
+            autoescape=select_autoescape())
+        slurm_job_template = jinja_env.get_template('slurm_job.j2')
+        image = "hello-world"
+        script_dict = {
+            'shebang': "#!/bin/bash",
+            'container_manager': "nerdctl run --rm " + image,
+            'job_specific_script': "sleep 3000",
+            'footer': "echo bye"
+        }
+        submission_script = ""
+        for key in script_dict:
+            submission_script = submission_script+ script_dict[key]
+            submission_script = submission_script + "/n"
+        print(submission_script)
+        resources = job.spec.resources
+        job_dict = {
+            'submission_script': submission_script,
+            'name': f'{job.metadata.name}',
+            'path' : f'{job.spec.envs["PATH"]}',
+            'home' : f'{job.spec.envs["HOME"]}',
+            'cpus' : int(resources["cpus"]),
+            'memory_per_cpu' : int(resources["memory"])/int(resources["cpus"]),
+            'time_limit' : 2400
+            }
+        job_jinja = slurm_job_template.render(job_dict)
+        return job_jinja
     def get_job_status(self, job: Job) -> list[str]:
         """ Gets status of single job.
 
@@ -252,12 +294,14 @@ class SlurmManager( object ):
 
         #deploy_dict = self.__convert_to_json(job, slurm_job_name)
         job.metadata.name = slurm_job_name
-        json = convert_yaml(job)
+        json = self.__convert_to_job_json(job)
        
         r = self.send_job(json)
         
         api_responses.append(r)
         slurm_job_id = (r.json()["job_id"])
+        #Assign slurm specific job id for future deletion search
+        job.status.job_ids["slurm_job_id"] = slurm_job_id
         return {
             'manager_job_id': slurm_job_name,
             'slurm_job_id' : slurm_job_id,
@@ -267,7 +311,7 @@ class SlurmManager( object ):
         """ Deletes a job from the slurm controller. 
 
             Args:
-                Job object to be deleted.
+                job: Job object to be deleted.
             Returns: 
                 Any api responses
         """
@@ -299,14 +343,12 @@ class SlurmManager( object ):
             jobs_dict[sky_job_name][pod_status] += 1
         return jobs_dict
 #Testing purposes
-if __name__ == "__main__":
-    api = SlurmManager()
-    #api.get_status()
-    #api.send_job('basicjob.json')
-    #api.send_job('fail.json')
-    #api.get_jobs()
-    #api.get_job_status(37)
-    #api.send_job('webserver.json')
-    #api.allocatable_resources()
-    print(api.get_cluster_status())
+
+#if __name__ == "__main__":
+    # api = SlurmManager()
+    # file_path = "./slurm_basic_job.json"
+    # with open(file_path, 'r') as json_file:
+    #     json_data = json_file.read()
+    # data = json.loads(json_data)
+    # api.send_job(data)
 

@@ -28,7 +28,6 @@ YAPF_VERSION=$(yapf --version | awk '{print $2}')
 PYLINT_VERSION=$(pylint --version | head -n 1 | awk '{print $2}')
 PYLINT_QUOTES_VERSION=$(pip list | grep pylint-quotes | awk '{print $2}')
 MYPY_VERSION=$(mypy --version | awk '{print $2}')
-echo $YAPF_VERSION
 
 # Params: tool name, tool version, required version
 tool_version_check() {
