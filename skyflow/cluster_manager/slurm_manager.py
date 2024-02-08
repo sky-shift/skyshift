@@ -19,18 +19,21 @@ from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 SLURMRESTD_CONFIG_PATH = "~/.skyconf/slurmrestd.yaml"
 
+
 class ConfigUndefinedError(Exception):
     """ Raised when there is an error in slurmrestd config yaml. """
     pass
+
 
 class SlurmrestdConnectionError(Exception):
     """ Raised when there is an error connecting to slurmrestd. """
     pass
 
-class SlurmManager( object ):
+
+class SlurmManager(object):
     """ Slurm compatability set for Skyflow."""
 
-    def __init__ (self):
+    def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
             Raises:
@@ -50,28 +53,31 @@ class SlurmManager( object ):
                 self.openapi = config_dict["slurmrestd"]["openapi_ver"]
             except:
                 raise ConfigUndefinedError(
-                f"Define openapi in {SLURMRESTD_CONFIG_PATH}.") 
-                return       
-            try: 
+                    f"Define openapi in {SLURMRESTD_CONFIG_PATH}.")
+                return
+            try:
                 self.port = config_dict["slurmrestd"]["port"]
             except:
                 raise ConfigUndefinedError(
-                f"Define port slurmrestd is listening on in {SLURMRESTD_CONFIG_PATH}.")
+                    f"Define port slurmrestd is listening on in {SLURMRESTD_CONFIG_PATH}."
+                )
                 return
-        
-        if "sock" in self.port.lower():
-            is_unix_socket = True  
 
-        self.session= requests_unixsocket.Session()
+        if "sock" in self.port.lower():
+            is_unix_socket = True
+
+        self.session = requests_unixsocket.Session()
         if is_unix_socket:
             self.port = "http+unix://" + self.port.replace("/", "%2F")
         self.port = self.port + "/slurm/" + self.openapi
+
     def __print_json(self, data: str):
         """ DEBUG Prints json data in a readable style.
         
             Args: http response data
         """
         print(json.dumps(data, indent=4, sort_keys=True))
+
     def __get_json_key_val(self, data: str, keys: Tuple) -> Union[int, str]:
         """ Fetch values from nested dicts.
 
@@ -88,8 +94,9 @@ class SlurmManager( object ):
             try:
                 val = val[key]
             except:
-                return
+                return val
         return val
+
     def send_job(self, json_data: str):
         """Submit JSON job file
 
@@ -103,6 +110,7 @@ class SlurmManager( object ):
         r = self.session.post(post_path, json=json_data)
         print(r.json())
         return r
+
     def __get_matching_job_names(self, n: str) -> list[str]:
         """ Gets a list of jobs with matching names. 
             
@@ -117,7 +125,7 @@ class SlurmManager( object ):
         r = self.session.get(fetch).json()
         jobCount = len(r["jobs"])
         job_names = []
-        for i in range (0, jobCount):
+        for i in range(0, jobCount):
             name = self.__get_json_key_val(r, ("jobs", i, "name"))
             split_str_ids = name.split('-')[:2]
             if len(split_str_ids) > 1:
@@ -125,7 +133,8 @@ class SlurmManager( object ):
                 if slurm_job_name == n:
                     job_names.append(slurm_job_name)
         return job_names
-    def __convert_to_job_json(job: Job) -> str:
+
+    def __convert_to_job_json(self, job: Job) -> str:
         """ Converts job object into slurm json format
             Args: 
                 job: job object to be cond verted
@@ -135,7 +144,7 @@ class SlurmManager( object ):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
-            autoescape=select_autoescape())
+                                autoescape=select_autoescape())
         slurm_job_template = jinja_env.get_template('slurm_job.j2')
         image = "hello-world"
         script_dict = {
@@ -146,21 +155,23 @@ class SlurmManager( object ):
         }
         submission_script = ""
         for key in script_dict:
-            submission_script = submission_script+ script_dict[key]
+            submission_script = submission_script + script_dict[key]
             submission_script = submission_script + "/n"
         print(submission_script)
         resources = job.spec.resources
         job_dict = {
             'submission_script': submission_script,
             'name': f'{job.metadata.name}',
-            'path' : f'{job.spec.envs["PATH"]}',
-            'home' : f'{job.spec.envs["HOME"]}',
-            'cpus' : int(resources["cpus"]),
-            'memory_per_cpu' : int(resources["memory"])/int(resources["cpus"]),
-            'time_limit' : 2400
-            }
+            'path': f'{job.spec.envs["PATH"]}',
+            'home': f'{job.spec.envs["HOME"]}',
+            'cpus': int(resources["cpus"]),
+            'memory_per_cpu':
+            int(resources["memory"]) / int(resources["cpus"]),
+            'time_limit': 2400
+        }
         job_jinja = slurm_job_template.render(job_dict)
         return job_jinja
+
     def get_job_status(self, job: Job) -> list[str]:
         """ Gets status of single job.
 
@@ -172,13 +183,15 @@ class SlurmManager( object ):
         """
         api_responses = []
         if "slurm_job_id" not in job.status.job_ids:
-            api_responses.append("No slurm job ID parameter, refusing to delete")
+            api_responses.append(
+                "No slurm job ID parameter, refusing to delete")
             return api_responses
         fetch = self.port + "/job/" + str(job.status.job_ids["slurm_job_id"])
         r = self.session.get(fetch)
         #TODO clean up relevant information
-        api_responses.append(r.json()[job_state])
+        api_responses.append(r.json()["job_state"])
         return api_responses
+
     def get_accelerator_types(self) -> Dict:
         """ Fetches accelerators available to the docker image.
 
@@ -186,9 +199,10 @@ class SlurmManager( object ):
                 Dict of accelerators
         """
         #TODO blank for now
-        accelerator_types = {}
+        accelerator_types = {"A100": 1}
         return accelerator_types
-    def cluster_resources(self) -> Dict[str, Dict[str, int]]:
+
+    def cluster_resources(self) -> Dict[str, Dict[str, float]]:
         """ Get total resources of all nodes in the cluster. 
             
             Returns: 
@@ -201,10 +215,11 @@ class SlurmManager( object ):
         numNodes = len(r["nodes"])
         cluster_resources = {}
         # Iterate through each node to get their resource values
-        for i in range (0, numNodes):
+        for i in range(0, numNodes):
             node_name = self.__get_json_key_val(r, ("nodes", i, "name"))
             node_cpu = self.__get_json_key_val(r, ("nodes", i, "cpus"))
-            node_memory = self.__get_json_key_val(r, ("nodes", i, "real_memory"))
+            node_memory = self.__get_json_key_val(r,
+                                                  ("nodes", i, "real_memory"))
             #TODO GPU
             #node_gpu = self.__get_json_key_val(r, ("nodes", i, "gres"))
             node_gpu = 0
@@ -214,7 +229,8 @@ class SlurmManager( object ):
                 ResourceEnum.GPU.value: node_gpu
             }
         return cluster_resources
-    def allocatable_resources(self) -> Dict[str, Dict[str, int]]:
+
+    def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """ Gets currently allocatable resources of all nodes. 
         
             Returns: 
@@ -227,10 +243,11 @@ class SlurmManager( object ):
         numNodes = len(r["nodes"])
         available_resources = {}
         # Iterate through each node to get their resource values
-        for i in range (0, numNodes):
+        for i in range(0, numNodes):
             node_name = self.__get_json_key_val(r, ("nodes", i, "name"))
             node_cpu = self.__get_json_key_val(r, ("nodes", i, "idle_cpus"))
-            node_memory = self.__get_json_key_val(r, ("nodes", i, "free_memory"))
+            node_memory = self.__get_json_key_val(r,
+                                                  ("nodes", i, "free_memory"))
             #TODO GPU
             #node_gpu = self.__get_json_key_val(r, ("nodes", i, "gres"))
             #node_gpu_used self.__get_json_key_val(r, ("nodes", i, "gres_used"))
@@ -241,6 +258,7 @@ class SlurmManager( object ):
                 ResourceEnum.GPU.value: node_gpu
             }
         return available_resources
+
     def get_cluster_status(self) -> ClusterStatus:
         """ Gets the cluster status by pinging slurmrestd 
         
@@ -252,15 +270,16 @@ class SlurmManager( object ):
         r = self.session.get(fetch).json()
         if r["pings"][HEAD_NODE]["ping"] != "UP" or len(r["errors"]) > 0:
             return ClusterStatus(
-            status=ClusterStatusEnum.ERROR.value,
-            capacity=self.cluster_resources(),
-            allocatable_capacity=self.allocatable_resources(),
+                status=ClusterStatusEnum.ERROR.value,
+                capacity=self.cluster_resources(),
+                allocatable_capacity=self.allocatable_resources(),
             )
         return ClusterStatus(
             status=ClusterStatusEnum.READY.value,
             capacity=self.cluster_resources(),
             allocatable_capacity=self.allocatable_resources(),
         )
+
     def submit_job(self, job: Job) -> Dict:
         """
         Submit a job to the cluster, represented as a group of pods.
@@ -274,7 +293,7 @@ class SlurmManager( object ):
             The submitted job name, job ID, and any job submission api responses.
         """
         job_name = job.metadata.name
-        
+
         # Check if the job has already been submitted.
         label_selector = f'manager=sky_manager,sky_job_id={job_name}'
         current_jobs = self.__get_matching_job_names(job_name)
@@ -285,9 +304,7 @@ class SlurmManager( object ):
             split_str_ids = first_object.split('-')[:2]
             slurm_job_name = f'{split_str_ids[0]}-{split_str_ids[1]}'
             print("JOB EXISTS DO NOTHING")
-            return {
-                'manager_job_id': slurm_job_name
-            }
+            return {'manager_job_id': slurm_job_name}
 
         slurm_job_name = f'{job_name}-{uuid.uuid4().hex[:8]}'
         api_responses = []
@@ -295,18 +312,19 @@ class SlurmManager( object ):
         #deploy_dict = self.__convert_to_json(job, slurm_job_name)
         job.metadata.name = slurm_job_name
         json = self.__convert_to_job_json(job)
-       
+
         r = self.send_job(json)
-        
+
         api_responses.append(r)
         slurm_job_id = (r.json()["job_id"])
         #Assign slurm specific job id for future deletion search
         job.status.job_ids["slurm_job_id"] = slurm_job_id
         return {
             'manager_job_id': slurm_job_name,
-            'slurm_job_id' : slurm_job_id,
+            'slurm_job_id': slurm_job_id,
             'api_responses': api_responses,
         }
+
     def delete_job(self, job) -> list[str]:
         """ Deletes a job from the slurm controller. 
 
@@ -317,7 +335,8 @@ class SlurmManager( object ):
         """
         api_responses = []
         if "slurm_job_id" not in job.status.job_ids:
-            api_responses.append("No slurm job ID parameter, refusing to delete")
+            api_responses.append(
+                "No slurm job ID parameter, refusing to delete")
             return api_responses
         url = self.port + "/job/" + str(job.status.job_ids["slurm_job_id"])
         r = self.session.delete(url)
@@ -325,30 +344,11 @@ class SlurmManager( object ):
         api_responses.append(r)
         return api_responses
 
-    def get_job_status(self) -> Dict[str, Tuple[str, str]]:
-        """ Checks job status of a job within a namespaced pod.
-
-            Returns:
-                A dict of each job name mapped to status of the job
-        """
-        api_responses = []
-        sky_manager_pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector='manager=sky_manager')
-        jobs_dict = {}
-        for node in sky_manager_pods.items:
-            sky_job_name = pod.metadata.labels['sky_job_id']
-            if sky_job_name not in jobs_dict:
-                jobs_dict[sky_job_name] = {}
-            if pod_status not in jobs_dict[sky_job_name]:
-                jobs_dict[sky_job_name][pod_status] = 0
-            jobs_dict[sky_job_name][pod_status] += 1
-        return jobs_dict
-#Testing purposes
 
 #if __name__ == "__main__":
-    # api = SlurmManager()
-    # file_path = "./slurm_basic_job.json"
-    # with open(file_path, 'r') as json_file:
-    #     json_data = json_file.read()
-    # data = json.loads(json_data)
-    # api.send_job(data)
-
+# api = SlurmManager()
+# file_path = "./slurm_basic_job.json"
+# with open(file_path, 'r') as json_file:
+#     json_data = json_file.read()
+# data = json.loads(json_data)
+# api.send_job(data)
