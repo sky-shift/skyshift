@@ -40,6 +40,9 @@ CL_IMPORT_CMD = 'gwctl create import --myid {cluster_name} --name {service_name}
 CL_BIND_CMD = 'gwctl create binding --myid {cluster_name} --import {service_name} --peer {peer}'
 CL_POLICY_CMD = 'gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}'
 
+CL_EXPORT_DELETE_CMD = 'gwctl delete export --myid {cluster_name} --name {service_name} --host {service_target} --port {port}'
+CL_IMPORT_DELETE_CMD = 'gwctl delete import --myid {cluster_name} --name {service_name} --host {service_name} --port {port}'
+
 CLUSTER_IP_CMD = 'kubectl get nodes -o \"jsonpath={.items[0].status.addresses[0].address}\" --context {cluster_name}'
 LB_CMD = 'kubectl get svc --context {cluster_name} -l app=cl-dataplane  -o jsonpath=\"\{.items[0].status.loadBalancer.ingress[0].ip\}\"'
 

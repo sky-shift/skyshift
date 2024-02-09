@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import argparse
 import logging
-
+import time
 projDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0,f'{projDir}')
 
@@ -46,7 +46,7 @@ def cleanCluster(name : str):
     subprocess.getoutput(f'kubectl delete -f {clusterlink.CL_DIRECTORY}/{name}/k8s.yaml')
     subprocess.getoutput(f'kubectl delete -f {cluster1_service_yaml}')
     subprocess.getoutput(f'kubectl delete -f {cluster2_service_yaml}')
-
+    print(f"Cleaned up clusters {name}")
 
 def cleanup(cl1, cl2 : str):
     # Cleanup any previous clusters
@@ -77,6 +77,15 @@ if __name__ == '__main__':
         cl1 = cluster(name="peer1", zone = "dal10", platform = "ibm")
         cl2 = cluster(name="peer2", zone = "dal10", platform = "ibm")
 
+    cl1Name = ""
+    cl2Name = ""
+    if env == "kind":
+        cl1Name = "kind-"+cl1.name
+        cl2Name = "kind-"+cl2.name
+    else:
+        cl1Name = cl1.name
+        cl2Name = cl2.name
+
 
     if command == "delete":
         cl1.deleteCluster()
@@ -90,15 +99,9 @@ if __name__ == '__main__':
         cl1.checkClusterIsReady()
         cl2.checkClusterIsReady()
         sys.exit(0)
-
-    cl1Name = ""
-    cl2Name = ""
-    if env == "kind":
-        cl1Name = "kind-"+cl1.name
-        cl2Name = "kind-"+cl2.name
-    else:
-        cl1Name = cl1.name
-        cl2Name = cl2.name
+    elif command == "cleanup":
+        cleanup(cl1Name, cl2Name)
+        sys.exit(0)
 
     cleanup(cl1Name, cl2Name)
 
