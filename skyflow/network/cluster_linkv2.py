@@ -29,7 +29,7 @@ CLA_PEER_CMD = 'cl-adm create peer --name {cluster_name}'
 CL_DEPLOY_CMD = 'kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml'
 
 CL_INIT_CMD = 'gwctl init --id {cluster_name} --gwIP {cl_gw_ip} --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}'
-CL_STATUS_CMD = 'gwctl get state --id {cluster_name}'
+CL_STATUS_CMD = 'gwctl get all --myid {cluster_name}'
 
 CL_LINK_CMD = 'gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}'
 CL_LINK_STATUS_CMD = 'gwctl get peer --myid {cluster_name} --name {peer}'
@@ -41,7 +41,7 @@ CL_BIND_CMD = 'gwctl create binding --myid {cluster_name} --import {service_name
 CL_POLICY_CMD = 'gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}'
 
 CLUSTER_IP_CMD = 'kubectl get nodes -o \"jsonpath={.items[0].status.addresses[0].address}\" --context {cluster_name}'
-LB_CMD = 'kubectl get svc --context {cluster_name} -l app=cl-dataplane  -o jsonpath="{.items[0].status.loadBalancer.ingress[0].ip}"'
+LB_CMD = 'kubectl get svc --context {cluster_name} -l app=cl-dataplane  -o jsonpath=\"\{.items[0].status.loadBalancer.ingress[0].ip\}\"'
 
 policy_allow_all = {
     "name": "allow-all",
@@ -69,15 +69,19 @@ def wait_pod(cluster_name, name, namespace="default"):
         else:
             break
 
-def status_network(manager: Manager):
-    namespace = manager.namespace
-    cluster_name = manager.cluster_name
+def clusterlink_gateway_access(cluster_name: str):
     # Check Clusterlink status.
     check_status_command = CL_STATUS_CMD.format(cluster_name=cluster_name)
     status_output = subprocess.getoutput(check_status_command)
     if f'Error' in status_output:
         return False
     return True
+
+def status_network(manager: Manager):
+    namespace = manager.namespace
+    cluster_name = manager.cluster_name
+    # Check Clusterlink status.
+    return clusterlink_gateway_access(cluster_name)
 
 
 def get_clusterlink_gw_target(cluster: str):
@@ -86,7 +90,9 @@ def get_clusterlink_gw_target(cluster: str):
         ip = clJson["items"][0]["status"]["addresses"][0]["address"]
         return ip, DEFAULT_CL_PORT_KIND
     # Clouds in general support load balancer to assign external IP
-    ip = subprocess.check_output('', shell=True).decode('utf-8')
+    clJson=json.loads(subprocess.getoutput(f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"))
+    ip=clJson["items"][0]["status"]["loadBalancer"]["ingress"][0]["ip"]
+
     return ip, DEFAULT_CL_PORT
 
 # createLoadBalancer creates load-balancer to external access. 
@@ -99,12 +105,13 @@ def expose_clusterlink(cluster: str, port="443"):
             time.sleep(1)
             return
         # Cloud scenario will go through this
-        gwIp=""
+        ingress=""
         subprocess.check_output(f"kubectl expose deployment --context={cluster} cl-dataplane --name=cl-dataplane-load-balancer --port={port} --target-port={port} --type=LoadBalancer", shell=True).decode('utf-8')
-        lb_cmd = LB_CMD.format(cluster_name=cluster)
-        while gwIp =="":
-            gwIp=subprocess.check_output(LB_CMD, shell=True).decode('utf-8')
+        while "ingress" not in ingress:
+            clJson=json.loads(subprocess.getoutput(f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"))
+            ingress=clJson["items"][0]["status"]["loadBalancer"]
             time.sleep(1)
+        logging.info(f"Clusterlink Dataplane exposed in {ingress}")
     except subprocess.CalledProcessError as e:
         print(f"Failed to create load balancer : {e.cmd}")
         raise e
@@ -119,6 +126,8 @@ def init_clusterlink_gateway(cluster: str):
         cl_init_cmd = CL_INIT_CMD.format(cluster_name=cluster, cl_gw_ip=gw_ip, gw_port=gw_port, certca=certca, cert=cert, key=key)
         logging.info(f"Initializing Clusterlink gateway: {cl_init_cmd}")
         subprocess.check_output(cl_init_cmd, shell=True).decode('utf-8')
+        while not clusterlink_gateway_access(cluster):
+            time.sleep(1)
         cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster, policy_file=os.path.join(CL_DIRECTORY, POLICY_FILE))
         subprocess.check_output(cl_policy_cmd, shell=True).decode('utf-8')
     except subprocess.CalledProcessError as e:
