@@ -40,17 +40,12 @@ destPort                   = 5000
 def cleanCluster(name : str):
     subprocess.getoutput(f'kubectl config use-context {name}')
     subprocess.getoutput('kubectl delete --all deployments')
-    subprocess.getoutput('kubectl delete --all deployments')
     subprocess.getoutput('kubectl delete --all svc')
     subprocess.getoutput('kubectl delete --all pods')
     subprocess.getoutput('kubectl delete --all pvc')
-    subprocess.getoutput('kubectl delete secrets cl-fabric')
-    subprocess.getoutput('kubectl delete secrets cl-peer')
-    subprocess.getoutput('kubectl delete secrets cl-controlplane')
-    subprocess.getoutput('kubectl delete secrets cl-dataplane')
-    subprocess.getoutput('kubectl delete secrets gwctl')
-    subprocess.getoutput('kubectl delete clusterroles cl-controlplane')
-    subprocess.getoutput('kubectl delete clusterrolebindings cl-controlplane')
+    subprocess.getoutput(f'kubectl delete -f {clusterlink.CL_DIRECTORY}/{name}/k8s.yaml')
+    subprocess.getoutput(f'kubectl delete -f {cluster1_service_yaml}')
+    subprocess.getoutput(f'kubectl delete -f {cluster2_service_yaml}')
 
 
 def cleanup(cl1, cl2 : str):
