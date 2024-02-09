@@ -11,7 +11,7 @@ from skyflow.controllers import Controller
 from skyflow.structs import Informer
 from skyflow.api_client import *
 from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
-from skyflow.network.cluster_link import create_link, delete_link
+from skyflow.network.cluster_linkv2 import create_link, delete_link
 from skyflow.utils.utils import setup_cluster_manager
 
 logging.basicConfig(

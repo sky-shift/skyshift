@@ -15,7 +15,7 @@ from skyflow.templates.cluster_template import Cluster, ClusterStatus, ClusterSt
 from skyflow.utils.utils import setup_cluster_manager
 from skyflow.structs import Informer
 from skyflow.api_client import *
-from skyflow.network.cluster_link import launch_network, status_network
+from skyflow.network.cluster_linkv2 import launch_network, status_network
 logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
@@ -81,7 +81,7 @@ class NetworkController(Controller):
     def controller_loop(self):
         # Install Skupper on the cluster.
         if not status_network(self.manager_api):
-            self.logger.info('Installing cluster link software.')
+            self.logger.info('Installing clusterlink software.')
             launch_network(self.manager_api)
         self.update_network_state(True)
     

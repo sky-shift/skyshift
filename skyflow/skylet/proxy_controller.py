@@ -14,7 +14,7 @@ from skyflow.utils.utils import setup_cluster_manager
 from skyflow.templates import Service, Job, WatchEventEnum, EndpointObject
 from skyflow.api_client import *
 from skyflow.utils import match_labels
-from skyflow.network.cluster_link import expose_service, unexpose_service
+from skyflow.network.cluster_linkv2 import export_service, import_service, unexpose_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -114,9 +114,10 @@ class ProxyController(Controller):
                     self._unexpose_service(event_object.get_name())
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[event_object.metadata.name]
-            # The primary cluster creates a k8 endpoints object and attaches it to the service.
+            # The primary cluster imports the service and creates a k8 endpoints object and attaches it to the remote service.
             print(self.name, primary_cluster)
             if self.name == primary_cluster:
+                self._import_service(event_object, [a.port for a in service_obj.spec.ports])
                 self.manager_api.create_or_update_endpoint_slice(event_object)
             else:
                 # Secondary clusters simply expose the service.
@@ -124,12 +125,17 @@ class ProxyController(Controller):
                     self._unexpose_service(event_object.get_name())
                 else:
                     if not event_object.spec.endpoints[self.name].exposed_to_cluster:
-                        self._expose_service(event_object.get_name(), [a.port for a in service_obj.spec.ports])
+                        self._export_service(event_object.get_name(), [a.port for a in service_obj.spec.ports])
                         event_object.spec.endpoints[self.name].exposed_to_cluster = True
                         EndpointsAPI(namespace=event_object.get_namespace()).update(config=event_object.model_dump(mode='json'))
 
-    def _expose_service(self, name: str, ports: List[int]):
-        expose_service(f'{name}', self.manager_api, ports)
+    def _import_service(self, endpoints: 'Endpoints', ports: List[int]):
+        name = endpoints.get_name()
+        for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
+            import_service(f'{name}', self.manager_api, cluster_name, ports)
+
+    def _export_service(self, name: str, ports: List[int]):
+        export_service(f'{name}', self.manager_api, ports)
 
     def _unexpose_service(self, name: str):
         unexpose_service(f'{name}', self.manager_api)
