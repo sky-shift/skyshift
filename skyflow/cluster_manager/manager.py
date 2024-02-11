@@ -44,7 +44,7 @@ class Manager(object):
         return
 
     def submit_job(self, job):
-        #Submit job once with unique job ID, if more requests 
+        #Submit job once with unique job ID, if more requests
         #come with ID, ignore
         raise NotImplementedError
 
@@ -53,9 +53,10 @@ class Manager(object):
 
     def get_job_status(self, job_name):
         raise NotImplementedError
-        
+
     def get_accelerator_types(self):
         raise NotImplementedError
+
     @staticmethod
     def convert_yaml(job):
         raise NotImplementedError
