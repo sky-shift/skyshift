@@ -1,18 +1,30 @@
 from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
-from skyflow.slurm.slurm_manager import SlurmManager
+from skyflow.cluster_manager.slurm_manager import SlurmManager
 from skyflow.templates.cluster_template import Cluster
 
-def setup_cluster_manager(cluster_obj: Cluster):
-    cluster_type = cluster_obj.spec.manager
-    cluster_name = cluster_obj.get_name()
+KUBERNETES_ALIASES = ("kubernetes", "k8", "k8s")
+SLURM_ALIASES = ("slurm", "slurmctl")
+SUPPORTED_MANAGERS = KUBERNETES_ALIASES + SLURM_ALIASES
 
-    if cluster_type in ['k8', 'kubernetes']:
-        cluster_manager_cls = KubernetesManager
-    elif cluster_type.lower() in ['slurm']:
-        cluster_manager_cls = SlurmManager
-    else:
+
+def setup_cluster_manager(cluster_obj: Cluster) -> object:
+    """ Assigns cluster manager depending on requested type.
+
+        Args:
+            cluster_obj: CLI requested cluster object to be created.
+        
+        Returns:
+            Instance of the desired cluster manager class.
+
+    """
+    cluster_type = cluster_obj.spec.manager.lower()
+    cluster_name = cluster_obj.get_name()
+    if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
-    
+    elif cluster_type in KUBERNETES_ALIASES:
+        cluster_manager_cls = KubernetesManager
+    elif cluster_type in SLURM_ALIASES:
+        cluster_manager_cls = SlurmManager
 
     # Get the constructor of the class
     constructor = cluster_manager_cls.__init__
