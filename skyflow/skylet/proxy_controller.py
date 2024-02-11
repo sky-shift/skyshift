@@ -1,39 +1,38 @@
+"""
+Proxy Controller - Exposes services to other clusters.
+"""
 import logging
-import time
 import traceback
-import uuid
 from contextlib import contextmanager
-from copy import deepcopy
 from queue import Queue
 from typing import List
 
 import requests
 
-from skyflow.api_client import *
+from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.network.cluster_link import expose_service, unexpose_service
 from skyflow.structs import Informer
-from skyflow.templates import EndpointObject, Job, Service, WatchEventEnum
-from skyflow.utils import match_labels
+from skyflow.templates import WatchEventEnum
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
-def ProxyErrorHandler(controller: Controller):
+def proxy_error_handler(controller: Controller):
     """Handles different types of errors from the Skylet Controller."""
     try:
         # Yield control back to the calling block
         yield
-    except requests.exceptions.ConnectionError as e:
+    except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Cannot connect to API server. Retrying.')
-    except Exception as e:
+        controller.logger.error("Cannot connect to API server. Retrying.")
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
-        controller.logger.error('Encountered unusual error. Trying again.')
+        controller.logger.error("Encountered unusual error. Trying again.")
 
 
 class ProxyController(Controller):
@@ -50,14 +49,15 @@ class ProxyController(Controller):
 
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        )
+        self.service_informer = Informer(ServiceAPI(namespace=''))
+        self.endpoints_informer = Informer(EndpointsAPI(namespace=''))
 
-        self.logger = logging.getLogger(f'[{self.name} - Proxy Controller]')
+        self.logger = logging.getLogger(f"[{self.name} - Proxy Controller]")
         self.logger.setLevel(logging.INFO)
 
     def post_init_hook(self):
-
-        self.endpoints_informer = Informer(EndpointsAPI(namespace=None))
 
         def update_callback_fn(old_obj, event):
             new_obj = event.object
@@ -75,10 +75,9 @@ class ProxyController(Controller):
                 self.worker_queue.put(event)
             elif self.name in old_obj_endpoints and self.name in new_obj_endpoints:
                 # Number of endpoints has changed.
-                if old_obj_endpoints[
-                        self.name].num_endpoints != new_obj_endpoints[
-                            self.name].num_endpoints or not new_obj_endpoints[
-                                self.name].exposed_to_cluster:
+                if (old_obj_endpoints[self.name].num_endpoints !=
+                        new_obj_endpoints[self.name].num_endpoints or
+                        not new_obj_endpoints[self.name].exposed_to_cluster):
                     self.worker_queue.put(event)
 
         def delete_callback_fn(event):
@@ -86,18 +85,17 @@ class ProxyController(Controller):
 
         self.endpoints_informer.add_event_callbacks(
             update_event_callback=update_callback_fn,
-            delete_event_callback=delete_callback_fn)
+            delete_event_callback=delete_callback_fn,
+        )
         self.endpoints_informer.start()
-
-        self.service_informer = Informer(ServiceAPI(namespace=None))
         self.service_informer.start()
 
     def run(self):
         self.logger.info(
-            'Running proxy controller - it exposes services to other clusters.'
+            "Running proxy controller - it exposes services to other clusters."
         )
         while True:
-            with ProxyErrorHandler(self):
+            with proxy_error_handler(self):
                 self.controller_loop()
 
     def controller_loop(self):
@@ -132,23 +130,24 @@ class ProxyController(Controller):
                             self.name].exposed_to_cluster:
                         self._expose_service(
                             event_object.get_name(),
-                            [a.port for a in service_obj.spec.ports])
+                            [a.port for a in service_obj.spec.ports],
+                        )
                         event_object.spec.endpoints[
                             self.name].exposed_to_cluster = True
                         EndpointsAPI(
                             namespace=event_object.get_namespace()).update(
-                                config=event_object.model_dump(mode='json'))
+                                config=event_object.model_dump(mode="json"))
 
     def _expose_service(self, name: str, ports: List[int]):
-        expose_service(f'{name}', self.manager_api, ports)
+        expose_service(f"{name}", self.manager_api, ports)
 
     def _unexpose_service(self, name: str):
-        unexpose_service(f'{name}', self.manager_api)
+        unexpose_service(f"{name}", self.manager_api)
 
 
-if __name__ == '__main__':
-    jc = ProxyController('mluo-onprem')
-    jc1 = ProxyController('mluo-cloud')
+if __name__ == "__main__":
+    jc = ProxyController("mluo-onprem")
+    jc1 = ProxyController("mluo-cloud")
 
     jc.start()
     jc1.start()

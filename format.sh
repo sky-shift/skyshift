@@ -112,7 +112,7 @@ echo '[Done] SkyFlow mypy'
 #==============================================================================#
 # Run Pylint
 echo 'SkyFlow Pylint:'
-pylint --load-plugins pylint_quotes skyflow api_server examples
+pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code skyflow api_server examples
 echo '[Done] SkyFlow Pylint'
 
 #==============================================================================#

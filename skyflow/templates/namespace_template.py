@@ -1,6 +1,7 @@
-import time
-from enum import Enum
-from typing import Dict, List
+"""
+Namespace template.
+"""
+import enum
 
 from pydantic import Field, field_validator
 
@@ -9,78 +10,61 @@ from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectSpec, ObjectStatus)
 
 
-class NamespaceEnum(Enum):
+class NamespaceEnum(enum.Enum):
+    """Enum for Namespace status."""
     # Namespace is active.
     ACTIVE = "ACTIVE"
+    DELETING = "DELETING"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 
 class NamespaceException(ObjectException):
     """Raised when the namespace dict is invalid."""
-    pass
 
 
 class NamespaceStatus(ObjectStatus):
-    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
+    """Status of a Namespace."""
     status: str = Field(default=NamespaceEnum.ACTIVE.value,
                         validate_default=True)
 
-    @field_validator('conditions')
-    @classmethod
-    def verify_conditions(cls, v: List[Dict[str, str]]):
-        conditions = v
-        if not conditions:
-            conditions = [{
-                'status': NamespaceEnum.ACTIVE.value,
-                'transitionTime': str(time.time()),
-            }]
-        if len(conditions) == 0:
-            raise NamespaceException(
-                'Namespace status\'s condition field is empty.')
-        for condition in conditions:
-            if 'status' not in condition:
-                raise NamespaceException(
-                    'Namespace status\'s condition field is missing status.')
-        return conditions
-
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def verify_status(cls, status: str):
+        """Validates the status field of a Namespace."""
         if status is None or status not in NamespaceEnum.__members__:
-            raise NamespaceException(f'Invalid namespace status: {status}.')
+            raise ValueError(f"Invalid namespace status: {status}.")
         return status
 
-    def update_conditions(self, conditions):
-        self.conditions = conditions
-
     def update_status(self, status: str):
+        """Updates the status field of a Namespace."""
+        # Check if status in enum.
+        if status is None or status not in NamespaceEnum.__members__:
+            raise ValueError(f"Invalid namespace status: {status}.")
         self.status = status
-        # Check most recent status of the cluster.
-        previous_status = self.conditions[-1]
-        if previous_status['status'] != status:
-            cur_time = time.time()
-            self.conditions.append({
-                'status': status,
-                'transitionTime': str(cur_time),
-            })
 
 
 class NamespaceMeta(ObjectMeta):
-    pass
+    """Metadata of a Namespace."""
 
 
 class NamespaceSpec(ObjectSpec):
-    pass
+    """Spec of a Namespace."""
 
 
 class Namespace(Object):
+    """Namespace object."""
     metadata: NamespaceMeta = Field(default=NamespaceMeta())
     spec: NamespaceSpec = Field(default=NamespaceSpec())
     status: NamespaceStatus = Field(default=NamespaceStatus())
 
 
 class NamespaceList(ObjectList):
-    pass
+    """List of Namespaces."""
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(Namespace())
