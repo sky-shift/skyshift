@@ -1,8 +1,9 @@
 #! /bin/bash
-install_dir="~/.skym/cl"
+install_dir=~/.skym/cl
 
 pull_and_install_clusterlink() {
     local dir=$1
+    echo "git clone https://github.com/praveingk/clusterlink.git $dir/clusterlink"
     git clone https://github.com/praveingk/clusterlink.git $dir/clusterlink
     cd $dir/clusterlink
     mkdir -p deploy/

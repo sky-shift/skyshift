@@ -25,7 +25,7 @@ CL_INSTALL_DIR = CL_DIRECTORY+ "clusterlink/bin/"
 
 CL_INSTALL_CMD = './skyflow/network/clusterlink_install.sh {dir}'
 CLA_FABRIC_CMD = 'cl-adm create fabric'
-CLA_PEER_CMD = 'cl-adm create peer --name {cluster_name}'
+CLA_PEER_CMD = 'cl-adm create peer --name {cluster_name} --namespace {namespace}'
 CL_DEPLOY_CMD = 'kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml'
 
 CL_INIT_CMD = 'gwctl init --id {cluster_name} --gwIP {cl_gw_ip} --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}'
@@ -173,7 +173,7 @@ def launch_network(manager: Manager):
             logging.info(f"Launching network fabric!")
             launch_network_fabric()
             
-        cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name)
+        cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name, namespace=namespace)
         cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
         subprocess.check_output(cl_peer_command, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
         subprocess.check_output(cl_deploy_command, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
