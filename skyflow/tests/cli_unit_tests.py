@@ -1,23 +1,21 @@
-"""
-Tests for CLI interface. Mostly integration tests with the API server and ETCD
-
-To test, run:
-pytest skyflow/tests/cli_unit_tests.py
-and for running a specific test:
-pytest skyflow/tests/cli_unit_tests.py::test_create_cluster_success
-
-"""
+import json
 import multiprocessing
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
 import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from api_server import launch_server
-from skyflow.cli.cli import (cli)
+from skyflow.api_client.object_api import APIException
+from skyflow.cli.cli import (cli, create_filter_policy, delete_filter_policy,
+                             get_filter_policy)
 
 
 @pytest.fixture(scope="session", autouse=True)
