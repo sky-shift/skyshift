@@ -92,7 +92,18 @@ def delete_cli_object(object_type: str,
     return api_response
 
 
-def print_cluster_table(cluster_list: Union[ClusterList, Cluster]): # pylint: disable=too-many-locals
+def fetch_job_logs(name: str, namespace: str):
+    """
+    Get logs of a Job.
+    """
+    job_api = JobAPI(namespace=namespace)
+    logs = job_api.logs(name)
+    for log in logs:
+        click.echo(log)
+        click.echo('\n')
+
+
+def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
     """

@@ -10,10 +10,11 @@ import yaml
 from click_aliases import ClickAliasedGroup
 
 from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
-                                   get_cli_object, print_cluster_table,
-                                   print_endpoints_table, print_filter_table,
-                                   print_job_table, print_link_table,
-                                   print_namespace_table, print_service_table)
+                                   fetch_job_logs, get_cli_object,
+                                   print_cluster_table, print_endpoints_table,
+                                   print_filter_table, print_job_table,
+                                   print_link_table, print_namespace_table,
+                                   print_service_table)
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum
 from skyflow.templates.service_template import ServiceType
@@ -49,10 +50,17 @@ def apply():
     return
 
 
+@click.group(cls=ClickAliasedGroup)
+def logs():
+    """Fetch logs for a job."""
+    return
+
+
 cli.add_command(create)
 cli.add_command(get)
 cli.add_command(delete)
 cli.add_command(apply)
+cli.add_command(logs)
 
 
 def validate_input_string(value: str) -> bool:
@@ -318,6 +326,22 @@ def get_job(name: str, namespace: str, watch: bool):
                                   namespace=namespace,
                                   watch=watch)
     print_job_table(api_response)
+
+
+@click.command(name="logs")
+@click.argument("name", default=None, required=False)
+@click.option(
+    "--namespace",
+    type=str,
+    default="default",
+    help="Namespace corresponding to job's namespace.",
+)
+def job_logs(name: str, namespace: str):
+    """Fetches a job's logs."""
+    fetch_job_logs(name=name, namespace=namespace)
+
+
+cli.add_command(job_logs)
 
 
 @delete.command(name="job", aliases=["jobs"])
