@@ -11,6 +11,7 @@ import yaml
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
@@ -42,6 +43,16 @@ class APIServer:
                 Namespace(metadata=NamespaceMeta(name="default")).model_dump(
                     mode="json"),
             )
+
+    def _fetch_etcd_object(self, link_header: str):
+        """Fetches an object from the ETCD server."""
+        obj_dict = self.etcd_client.read(link_header)
+        if obj_dict is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Object '{link_header}' not found.",
+            )
+        return obj_dict
 
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
@@ -144,12 +155,7 @@ class APIServer:
 
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
-        obj_dict = self.etcd_client.read(f"{link_header}/{object_name}")
-        if obj_dict is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Object '{link_header}/{object_name}' not found.",
-            )
+        obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
 
@@ -282,6 +288,22 @@ class APIServer:
             return obj
 
         return _patch_object
+
+    def job_logs(self, object_name: str, namespace: str = DEFAULT_NAMESPACE):
+        """Returns logs for a given job."""
+        # Fetch cluster/clusters where job is running.
+        job_link_header = f"jobs/{namespace}/{object_name}"
+        job_dict = self._fetch_etcd_object(job_link_header)
+        job_obj = ALL_OBJECTS["jobs"](**job_dict)
+        job_clusters = list(job_obj.status.replica_status.keys())  # pylint: disable=no-member
+        total_logs = []
+        for cluster_name in job_clusters:
+            cluster_link_header = f"clusters/{cluster_name}"
+            cluster_dict = self._fetch_etcd_object(cluster_link_header)
+            cluster_obj = ALL_OBJECTS["clusters"](**cluster_dict)
+            cluster_manager = setup_cluster_manager(cluster_obj)
+            total_logs.extend(cluster_manager.get_job_logs(job_obj))
+        return total_logs
 
     def delete_object(
         self,
@@ -429,6 +451,14 @@ class APIServer:
                 ),
                 methods=["GET"],
             )
+
+        # Job logs
+        self._add_endpoint(
+            endpoint="/{namespace}/jobs/{object_name}/logs",
+            endpoint_name="job_logs",
+            handler=self.job_logs,
+            methods=["GET"],
+        )
 
 
 def startup():

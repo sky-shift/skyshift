@@ -421,11 +421,20 @@ class KubernetesManager(Manager):
                     "externalIP"] = svc.status.load_balancer.ingress[0].ip
         return svc_dict
 
-    def get_job_logs(self, job: Job, rank: int = 0) -> str:
-        """Fetches logs for a job."""
-        k8_job_name = job.status.job_ids[self.cluster_name]
-        return self.core_v1.read_namespaced_pod_log(
-            name=f"{k8_job_name}-{rank}", namespace=job.metadata.namespace)
+    def get_job_logs(self, job: Job) -> List[str]:
+        """Gets logs for a given job."""
+        # Find pods associated with the Job
+        pods = self.core_v1.list_namespaced_pod(
+            self.namespace,
+            label_selector=f"manager=sky_manager,sky_job_id={job.get_name()}")
+        # Fetch and print logs from each Pod
+        logs = []
+        for pod in pods.items:
+            pod_name = pod.metadata.name
+            log = self.core_v1.read_namespaced_pod_log(pod_name,
+                                                       self.namespace)
+            logs.append(log)
+        return logs
 
     def create_or_update_service(self, service: Service) -> None:
         """Creates or updates service on K8 cluster."""
