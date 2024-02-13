@@ -81,9 +81,6 @@ class NamespaceObjectAPI(ObjectAPI):
         if namespace:
             self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
         else:
-        if namespace:
-            self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
-        else:
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
     def create(self, config: dict):
@@ -133,18 +130,12 @@ class NoNamespaceObjectAPI(ObjectAPI):
     def create(self, config: dict):
         response = requests.post(self.url, json=config)
         return verify_response(response)
-        response = requests.post(self.url, json=config)
-        return verify_response(response)
 
     def update(self, config: dict):
         response = requests.put(self.url, json=config)
         return verify_response(response)
-        response = requests.put(self.url, json=config)
-        return verify_response(response)
 
     def list(self):
-        response = requests.get(self.url)
-        return verify_response(response)
         response = requests.get(self.url)
         return verify_response(response)
 
