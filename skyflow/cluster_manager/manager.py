@@ -1,6 +1,8 @@
 """
 Defines compatability layer for generic Managers.
 """
+from typing import List
+
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
 
@@ -51,4 +53,8 @@ class Manager:
 
     def delete_job(self, job: Job):
         """Deletes a job from the underlying cluster manager."""
+        raise NotImplementedError
+    
+    def get_job_logs(self, job: Job) -> List[str]:
+        """Gets logs for a given job."""
         raise NotImplementedError
