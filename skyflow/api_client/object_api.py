@@ -3,8 +3,6 @@ Object API.
 """
 from urllib.parse import quote
 
-from urllib.parse import quote
-
 import requests
 
 from skyflow.utils import load_object, watch_events
@@ -106,8 +104,9 @@ class NamespaceObjectAPI(ObjectAPI):
         return verify_response(response)
 
     def delete(self, name: str):
-        assert self.namespace, "Method `delete` requires a namespace."
-        response = requests.delete(f"{self.url}/{name}")
+        assert self.namespace is not None, "Method `delete` requires namespace."
+        processed_name = process_name(name)
+        response = requests.delete(f"{self.url}/{processed_name}").json()
         return verify_response(response)
 
     def watch(self):
@@ -139,12 +138,16 @@ class NoNamespaceObjectAPI(ObjectAPI):
         return verify_response(response)
 
     def get(self, name: str):
-        response = requests.get(f"{self.url}/{name}")
-        return verify_response(response)
+        processed_name = process_name(name)
+        response = requests.get(f"{self.url}/{processed_name}").json()
+        obj = verify_response(response)
+        return obj
 
     def delete(self, name: str):
-        response = requests.delete(f"{self.url}/{name}")
-        return verify_response(response)
+        processed_name = process_name(name)
+        response = requests.delete(f"{self.url}/{processed_name}").json()
+        obj = verify_response(response)
+        return obj
 
     def watch(self):
         for data in watch_events(f"{self.url}?watch=true"):
