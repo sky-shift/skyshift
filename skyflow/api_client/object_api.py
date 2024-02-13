@@ -34,6 +34,11 @@ def verify_response(input_data):
     return load_object(body)
 
 
+def process_name(name: str):
+    """Processes the name of an object for http request."""
+    return quote(name, safe='')
+
+
 # @TODO(mluo): Introduce different types of API exceptions.
 class APIException(Exception):
     """Generic API Exception."""
@@ -148,11 +153,13 @@ class NoNamespaceObjectAPI(ObjectAPI):
         return verify_response(response)
 
     def get(self, name: str):
-        response = requests.get(f"{self.url}/{name}")
+        processed_name = process_name(name)
+        response = requests.get(f"{self.url}/{processed_name}")
         return verify_response(response)
 
     def delete(self, name: str):
-        response = requests.delete(f"{self.url}/{name}")
+        processed_name = process_name(name)
+        response = requests.delete(f"{self.url}/{processed_name}")
         return verify_response(response)
 
     def watch(self):
