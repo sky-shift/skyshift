@@ -2,7 +2,8 @@
 Skyflow CLI.
 """
 import os
-from typing import List, Tuple
+import re
+from typing import Dict, List, Tuple
 
 import click
 import yaml
@@ -13,6 +14,9 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_endpoints_table, print_filter_table,
                                    print_job_table, print_link_table,
                                    print_namespace_table, print_service_table)
+from skyflow.templates.cluster_template import Cluster
+from skyflow.templates.job_template import RestartPolicyEnum
+from skyflow.templates.service_template import ServiceType
 
 
 @click.group()
@@ -49,6 +53,53 @@ cli.add_command(create)
 cli.add_command(get)
 cli.add_command(delete)
 cli.add_command(apply)
+
+
+def validate_input_string(value: str) -> bool:
+    """Validates if the given value matches the required pattern and is less than 253 characters."""
+    pattern = re.compile(r'^[a-z0-9]([-a-z0-9]{0,251}[a-z0-9])?$')
+    return bool(pattern.fullmatch(value))
+
+
+def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
+    """Validates label selectors."""
+    for key, value in labelselector:
+        if not validate_input_string(key) or not validate_input_string(value):
+            return False
+    return True
+
+
+def cluster_exists(name: str) -> bool:
+    """Checks if the given cluster exists in the database."""
+    api_response: Cluster = get_cli_object(object_type="cluster", name=name)
+    return api_response is not None and api_response.metadata.name == name
+
+
+def validate_image_format(image: str) -> bool:
+    """Validates if the given image matches the Docker image format."""
+    pattern = re.compile(
+        r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
+    )
+    return bool(pattern.fullmatch(image))
+
+
+def validate_resources(resources: Dict[str, float],
+                       accelerators: str | None = None) -> bool:
+    """Validates resource specifications."""
+    valid_resource_types = {"cpus", "gpus", "memory", "disk"}
+    if accelerators:  # If accelerators are specified, validate their format as well
+        if not re.match(r'^[A-Za-z0-9]+:[0-9]+$', accelerators):
+            return False
+        acc_type, _ = accelerators.split(":")
+        valid_resource_types.add(acc_type)
+
+    return all(key in valid_resource_types and value >= 0
+               for key, value in resources.items())
+
+
+def validate_restart_policy(policy: str) -> bool:
+    """Validates if the given restart policy is supported."""
+    return RestartPolicyEnum.has_value(policy)
 
 
 # Apply as CLI
@@ -90,7 +141,11 @@ def create_cluster(name: str, manager: str):
     """Attaches a new cluster."""
     if manager not in ["k8"]:
         click.echo(f"Unsupported manager_type: {manager}")
-        return
+        raise click.BadParameter(f"Unsupported manager_type: {manager}")
+
+    if not validate_input_string(name):
+        click.echo("Error: Name format is invalid.", err=True)
+        raise click.BadParameter("Name format is invalid.")
 
     cluster_dictionary = {
         "kind": "Cluster",
@@ -202,19 +257,31 @@ def create_job(
     run,
     replicas,
     restart_policy,
-):  #pylint: disable=too-many-arguments, too-many-locals
+):  # pylint: disable=too-many-arguments
     """Adds a new job."""
+    # Validate inputs
+    if not validate_input_string(name) or not validate_input_string(namespace):
+        raise click.BadParameter("Invalid name or namespace format.")
+
+    if not validate_label_selector(labels):
+        raise click.BadParameter("Invalid label selector format.")
+
+    if not validate_image_format(image):
+        raise click.BadParameter("Invalid image format.")
+
+    resource_dict = {"cpus": cpus, "gpus": gpus, "memory": memory}
+    if accelerators:
+        if not validate_resources(resource_dict, accelerators):
+            raise click.BadParameter("Invalid resource or accelerator format.")
+    else:
+        if not validate_resources(resource_dict):
+            raise click.BadParameter("Invalid resource format.")
+
+    if not validate_restart_policy(restart_policy):
+        raise click.BadParameter("Invalid restart policy.")
+
     labels = dict(labels)
     envs = dict(envs)
-
-    resource_dict = {
-        "cpus": cpus,
-        "gpus": gpus,
-        "memory": memory,
-    }
-    if accelerators:
-        acc_type, acc_count = accelerators.split(":")
-        resource_dict[acc_type] = int(acc_count)
 
     job_dictionary = {
         "kind": "Job",
@@ -272,6 +339,11 @@ def delete_job(name: str, namespace: str):
 @click.argument("name", required=True)
 def create_namespace(name: str):
     """Creates a new namespace."""
+    # Validate the namespace name
+    if not validate_input_string(name):
+        raise click.BadParameter(f"The namespace name '{name}' is invalid.\
+                  It must match the pattern [a-z0-9]([-a-z0-9]*[a-z0-9])?")
+
     namespace_dictionary = {
         "kind": "Namespace",
         "metadata": {
@@ -334,11 +406,36 @@ def delete_namespace(name: str):
     default=[],
     help="Clusters to exclude in scheduling..",
 )
-def create_filter_policy(name, namespace, labelselector, includecluster,
-                         excludecluster):
+def create_filter_policy(name: str, namespace: str,
+                         labelselector: List[Tuple[str, str]],
+                         includecluster: List[str], excludecluster: List[str]):
     """Adds a new filter policy."""
-    labels = dict(labelselector)
+    # Validate name and namespace
+    if not validate_input_string(name) or not validate_input_string(namespace):
+        click.echo("Error: Name or namespace format is invalid.", err=True)
+        raise click.BadParameter("Name or namespace format is invalid.")
 
+    # Validate label selectors
+    if not validate_label_selector(labelselector):
+        click.echo("Error: Label selector format is invalid.", err=True)
+        raise click.BadParameter("Label selector format is invalid.")
+
+    # Check if any input cluster is also an output cluster and viceversa
+    if any(cluster in includecluster for cluster in excludecluster):
+        click.echo("Error: Clusters cannot be both included and excluded.",
+                   err=True)
+        raise click.BadParameter(
+            "Clusters cannot be both included and excluded.")
+
+    # Check if clusters exist
+    for cluster_name in set(includecluster + excludecluster):
+        if not cluster_exists(cluster_name):
+            click.echo(f"Error: Cluster '{cluster_name}' does not exist.",
+                       err=True)
+            raise click.BadParameter(
+                f"Error: Cluster '{cluster_name}' does not exist.")
+
+    labels = dict(labelselector)
     obj_dictionary = {
         "kind": "FilterPolicy",
         "metadata": {
@@ -368,6 +465,10 @@ def create_filter_policy(name, namespace, labelselector, includecluster,
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 def get_filter_policy(name: str, namespace: str, watch: bool):
     """Fetches a job."""
+    if not validate_input_string(namespace):
+        click.echo("Error: Name or namespace format is invalid.", err=True)
+        raise click.BadParameter("Name or namespace format is invalid.")
+
     api_response = get_cli_object(object_type="filterpolicy",
                                   name=name,
                                   namespace=namespace,
@@ -386,6 +487,10 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
 )
 def delete_filter_policy(name: str, namespace: str):
     """Deletes a job."""
+    if not validate_input_string(name) or not validate_input_string(namespace):
+        click.echo("Error: Name or namespace format is invalid.", err=True)
+        raise click.BadParameter("Name or namespace format is invalid.")
+
     delete_cli_object(object_type="filterpolicy",
                       name=name,
                       namespace=namespace)
@@ -399,6 +504,21 @@ def delete_filter_policy(name: str, namespace: str):
 @click.option("--target", "-t", required=True, help="Target cluster name")
 def create_link(name: str, source: str, target: str):
     """Creates a new link between two clusters."""
+
+    if not validate_input_string(name):
+        raise click.BadParameter("Link name is invalid.")
+
+    if not validate_input_string(source) or not validate_input_string(target):
+        raise click.BadParameter("Source or target cluster name is invalid.")
+
+    if source == target:
+        raise click.BadParameter(
+            "Source and target clusters cannot be the same.")
+
+    if not cluster_exists(source):
+        raise click.BadParameter(f"Source cluster '{source}' does not exist.")
+    if not cluster_exists(target):
+        raise click.BadParameter(f"Target cluster '{target}' does not exist.")
 
     obj_dict = {
         "kind": "Link",
@@ -474,17 +594,49 @@ def create_service(
     selector: List[Tuple[str, str]],
     ports: List[Tuple[int, int]],
     cluster: str,
-):  #pylint: disable=too-many-arguments, too-many-locals
+):  # pylint: disable=too-many-arguments
     """Creates a new service."""
+    # Validate service name and namespace
+    if not validate_input_string(name):
+        raise click.BadParameter("Service name is invalid.")
+    if not validate_input_string(namespace):
+        raise click.BadParameter("Namespace is invalid.")
+
+    # Validate service type
+    if not ServiceType.__members__.get(service_type):
+        raise click.BadParameter(
+            f"Service type '{service_type}' is not supported.")
+
+    if isinstance(selector, tuple):
+        selector = [selector]
+    elif selector is None:
+        selector = []
+
+    # Validate selector
+    if not all(
+            validate_input_string(k) and validate_input_string(v)
+            for k, v in selector):
+        raise click.BadParameter("Selector is invalid.")
+
+    # Validate ports
+    for port, target_port in ports:
+        if not 0 < port <= 65535:
+            raise click.BadParameter(f"Port {port} is out of valid range.")
+        if not 0 < target_port <= 65535:
+            raise click.BadParameter(
+                f"Target port {target_port} is out of valid range.")
+
+    # Validate cluster
+    if cluster != "auto" and not cluster_exists(cluster):
+        raise click.BadParameter(f"Cluster '{cluster}' does not exist.")
+
     ports_list = [{
         "port": port,
         "target_port": target_port,
         "protocol": "TCP"
     } for port, target_port in ports]
-    if isinstance(selector, tuple):
-        selector = [selector]
-    selector_dict = {s[0]: s[1] for s in selector}
-    assert cluster is not None, "Service `cluster` must be specified."
+
+    selector_dict = {s[0]: s[1] for s in selector} if selector else {}
 
     service_dictionary = {
         "kind": "Service",
@@ -535,7 +687,72 @@ def delete_service(name: str, namespace: str):
 
 # ==============================================================================
 # Endpoints API as CLI
-@get.command(name="endpoints", aliases=["endpoint"])
+@create.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
+@click.argument("name", required=True)
+@click.option("--namespace",
+              type=str,
+              default="default",
+              help="Namespace for the endpoints.")
+@click.option("--num_endpoints", type=int, help="Number of endpoints.")
+@click.option("--exposed",
+              is_flag=True,
+              default=False,
+              help="Whether the endpoints are exposed to the cluster.")
+@click.option("--primary_cluster",
+              type=str,
+              default="auto",
+              help="Primary cluster where the endpoints are exposed.")
+@click.option("--selector",
+              multiple=True,
+              type=(str, str),
+              help="Selector key-value pairs.")
+def create_endpoints(  # pylint: disable=too-many-arguments
+        name, namespace, num_endpoints, exposed, primary_cluster, selector):
+    """Creates a new set of endpoints."""
+    # Validate inputs
+    if not validate_input_string(name):
+        raise click.BadParameter("Invalid name for endpoints.")
+
+    if not validate_input_string(namespace):
+        raise click.BadParameter("Invalid namespace name.")
+
+    if num_endpoints is not None and num_endpoints < 0:
+        raise click.BadParameter("Number of endpoints must be non-negative.")
+
+    if exposed and not primary_cluster:
+        raise click.BadParameter(
+            "Exposed endpoints must specify a primary cluster.")
+
+    if primary_cluster != "auto" and not cluster_exists(primary_cluster):
+        raise click.BadParameter("Invalid primary cluster name.")
+
+    selector_dict = dict(selector) if selector else {}
+
+    # Construct the endpoints object
+    endpoints_object = {
+        "kind": "Endpoints",
+        "metadata": {
+            "name": name,
+            "namespace": namespace,
+        },
+        "spec": {
+            "selector": selector_dict,
+            "endpoints": {
+                primary_cluster: {
+                    "num_endpoints":
+                    num_endpoints if num_endpoints is not None else 0,
+                    "exposed_to_cluster":
+                    exposed
+                }
+            } if primary_cluster else {},
+            "primary_cluster": primary_cluster
+        }
+    }
+
+    create_cli_object(endpoints_object)
+
+
+@get.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
 @click.argument("name", required=False, default=None)
 @click.option(
     "--namespace",
@@ -553,7 +770,7 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     print_endpoints_table(api_response)
 
 
-@delete.command(name="endpoints", aliases=["endpoint"])
+@delete.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
