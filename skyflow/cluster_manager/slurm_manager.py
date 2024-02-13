@@ -23,7 +23,8 @@ SLURM_ACTIVE = {'RUNNING,'
 SLURM_INIT = {'CONFIGURING', 'PENDING'}
 SLURM_FAILED = {'FAILED', 'STOPPED', 'TIMEOUT', 'SUSPENDED', 'PREMPTED'}
 SLURM_COMPLETE = {'COMPLETED'}
-
+#Identifying Headers for job submission name
+MANAGER_NAME = "skyflow:slurm"
 
 class ConfigUndefinedError(Exception):
     """ Raised when there is an error in slurmrestd config yaml. """
@@ -130,9 +131,10 @@ class SlurmManager(Manager):
         job_names = []
         for i in range(0, jobCount):
             name = self._get_json_key_val(r, ('jobs', i, 'name'))
-            split_str_ids = name.split('-')[:2]
+            split_str_ids = name.split('-')[:3]
             if len(split_str_ids) > 1:
-                slurm_job_name = f'{split_str_ids[0]}-{split_str_ids[1]}'
+                slurm_job_name = f'{split_str_ids[1]}-{split_str_ids[2]}'
+                print(slurm_job_name, "against", n)
                 if slurm_job_name == n:
                     job_names.append(slurm_job_name)
         return job_names
@@ -157,41 +159,58 @@ class SlurmManager(Manager):
             'shebang': '#!/bin/bash',
             'container_manager': 'nerdctl run --rm ' + image,
             'job_specific_script': 'sleep 3000',
-            'footer': 'echo bye'
+            'footer': 'echo \'bye\''
         }
         submission_script = ''
         for key in script_dict:
             submission_script = submission_script + script_dict[key]
-            submission_script = submission_script + '/n'
-        print(submission_script)
+            submission_script = submission_script + '\\n'
         resources = job.spec.resources
+        submission_script = "#!/bin/bash\\necho 'HELLO'\\nnerdctl run --rm hello-world\\nsleep 3000\\necho 'bye'"
         job_dict = {
             'submission_script': submission_script,
             'name': f'{job.metadata.name}',
-            'path': f'{job.spec.envs['PATH']}',
-            'home': f'{job.spec.envs['HOME']}',
+            'path': '/bin',
+            #'path': f"{job.spec.envs['PATH']}",
+            #'home': f"{job.spec.envs['HOME']}",
+            'account': 'sub1',
+            'home': '/home/cdaron',
             'cpus': int(resources['cpus']),
             'memory_per_cpu':
-            int(resources['memory']) / int(resources['cpus']),
+            int(int(resources['memory']) / int(resources['cpus'])),
             'time_limit': 2400
         }
         job_jinja = slurm_job_template.render(job_dict)
-        return job_jinja
+        json_data = json.loads(job_jinja)
+        return json_data
 
-    def get_jobs_status(self, job: Job) -> JobStatusEnum:
-        """ Gets status of single job.
+    def get_jobs_status(self) -> Dict[str, JobStatusEnum]:
+        """ Gets status of all skyflow managed jobs.    
+            Returns:
+                Dict of statuses of all jobs from slurmrestd
+        """
+        jobs_dict: Dict[str, JobStatusEnum] = {}
+        fetch = self.port + '/jobs'
+        r = self.session.get(fetch).json()
+        jobCount = len(r['jobs'])
+        for i in range(0, jobCount):
+            name = self._get_json_key_val(r, ('jobs', i, 'name'))
+            split_str_ids = name.split('-')[:3]
+            if len(split_str_ids) > 1:
+                if split_str_ids[0] == MANAGER_NAME: #Job is Managed by skyflow
+                    slurm_job_name = f'{split_str_ids[1]}-{split_str_ids[2]}'
+                    state = self._get_json_key_val(r, ('jobs', i, 'job_state'))
+                    job_state = self._get_job_state_enum(state)
+                    jobs_dict[slurm_job_name] = job_state
+        return jobs_dict
+    def _get_job_state_enum(self, job_state:str) -> JobStatusEnum:
+        """ Switch case to match job state to enumerated values.
 
             Args:
-                job: Job object based on Job template
-        
+                job_state: string of job state extracted from json response.
             Returns:
-                Status of job from slurmrestd
+                Enumeration of job status.
         """
-        if 'slurm_job_id' not in job.status.job_ids:
-            return JobStatusEnum.FAILED
-        fetch = self.port + '/job/' + str(job.status.job_ids['slurm_job_id'])
-        r = self.session.get(fetch)
-        job_state = r.json()['job_state']
         if job_state in SLURM_INIT:
             return JobStatusEnum.INIT
         elif job_state in SLURM_ACTIVE:
@@ -202,7 +221,21 @@ class SlurmManager(Manager):
             return JobStatusEnum.FAILED
         else:
             return JobStatusEnum.FAILED
+    def get_single_job_status(self, job:Job) -> JobStatusEnum:
+        """ Gets status of a single job.
 
+            Args:
+                job: job template object containing job properties/
+
+            Returns:
+                Enumeration of job status.
+        """
+        if 'slurm_job_id' not in job.status.job_ids:
+            return JobStatusEnum.FAILED
+        fetch = self.port + '/job/' + str(job.status.job_ids['slurm_job_id'])
+        r = self.session.get(fetch)
+        job_state = r.json()['job_state']
+        return self._get_job_state_enum(job_state)
     def get_service_status(self) -> Dict[str, Dict[str, str]]:
         return {'a': {'b': 'c'}}
 
@@ -216,7 +249,7 @@ class SlurmManager(Manager):
         accelerator_types = {AcceleratorEnum.V100: 1}
         return accelerator_types
 
-    def cluster_resources(self) -> Dict[str, Dict[str, float]]:
+    def cluster_resources(self) -> Dict[str, Dict[str, int]]:
         """ Get total resources of all nodes in the cluster.
 
             Returns:
@@ -238,13 +271,13 @@ class SlurmManager(Manager):
             #node_gpu = self._get_json_key_val(r, ('nodes', i, 'gres'))
             node_gpu = 0
             cluster_resources[node_name] = {
-                ResourceEnum.CPU.value: float(node_cpu),
-                ResourceEnum.MEMORY.value: float(node_memory),
-                ResourceEnum.GPU.value: float(node_gpu)
+                ResourceEnum.CPU.value: int(node_cpu),
+                ResourceEnum.MEMORY.value: int(node_memory),
+                ResourceEnum.GPU.value: int(node_gpu)
             }
         return cluster_resources
 
-    def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
+    def allocatable_resources(self) -> Dict[str, Dict[str, int]]:
         """ Gets currently allocatable resources of all nodes.
 
             Returns:
@@ -267,9 +300,9 @@ class SlurmManager(Manager):
             #node_gpu_used self._get_json_key_val(r, ('nodes', i, 'gres_used'))
             node_gpu = 0
             available_resources[node_name] = {
-                ResourceEnum.CPU.value: float(node_cpu),
-                ResourceEnum.MEMORY.value: float(node_memory),
-                ResourceEnum.GPU.value: float(node_gpu)
+                ResourceEnum.CPU.value: int(node_cpu),
+                ResourceEnum.MEMORY.value: int(node_memory),
+                ResourceEnum.GPU.value: int(node_gpu)
             }
         return available_resources
 
@@ -307,26 +340,21 @@ class SlurmManager(Manager):
             The submitted job name, job ID, and any job submission api responses.
         """
         job_name = job.metadata.name
-
         # Check if the job has already been submitted.
         label_selector = f"manager=sky_manager,sky_job_id={job_name}"
-        current_jobs = self._get_matching_job_names("job_name")
-        #matching_workers = self.__get_all_job_names()
-        if job_name in current_jobs:
+        matching_jobs = self._get_matching_job_names(job_name)
+        if job_name in matching_jobs:
             # Job has already been submitted.
-            first_object = current_jobs[0]
-            split_str_ids = first_object.split('-')[:2]
-            slurm_job_name = f"{split_str_ids[0]}-{split_str_ids[1]}"
+            first_object = matching_jobs[0]
             print('JOB EXISTS DO NOTHING')
-            return {'manager_job_id': slurm_job_name}
+            return {'manager_job_id': first_object}
 
-        slurm_job_name = f"{job_name}-{uuid.uuid4().hex[:8]}"
+        slurm_job_name = f"{MANAGER_NAME}-{job_name}-{uuid.uuid4().hex[:8]}"
         api_responses = []
 
         #deploy_dict = self._convert_to_json(job, slurm_job_name)
         job.metadata.name = slurm_job_name
         json = self._convert_to_job_json(job)
-
         r = self.send_job(json)
 
         api_responses.append(r)
@@ -359,10 +387,17 @@ class SlurmManager(Manager):
         return api_responses
 
 
-# if __name__ == '__main__':
-#     api = SlurmManager()
-#     file_path = './slurm_basic_job.json'
-#     with open(file_path, 'r') as json_file:
-#         json_data = json_file.read()
-#     data = json.loads(json_data)
-#     print(api._print_json(api.send_job(data).json()))
+if __name__ == '__main__':
+    api = SlurmManager()
+    file_path = './slurm_basic_job.json'
+    file_path = "./containerdjob.json"
+    with open(file_path, 'r') as json_file:
+        json_data = json_file.read()
+    data = json.loads(json_data)
+    #print(api._print_json(api.send_job(data).json()))
+    f = open('../../examples/example_simple.yaml')
+    mdict = yaml.safe_load(f)
+    job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
+    api.submit_job(job)
+    #print(api.get_jobs_status())
+

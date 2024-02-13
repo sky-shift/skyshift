@@ -5,13 +5,13 @@
       "account": "{{account}}",
       "hold": false,
       "environment": {
-        "PATH": "{{PATH}}",
-        "HOME": "{{working_directory}}",
+        "PATH": "{{path}}",
+        "HOME": "{{home}}",
         "XDG_RUNTIME_DIR": "/run/user/1000"
       },
-      "tasks": "{{cpus}}",
-      "memory_per_cpu": "{{memory_per_cpu}}",
-      "time_limit": "{{time_limit}}"
+      "tasks": {{cpus}},
+      "memory_per_cpu": {{memory_per_cpu}},
+      "time_limit": {{time_limit}}
     }
   }
   
