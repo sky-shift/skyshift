@@ -1,6 +1,8 @@
 """
 Object API.
 """
+from urllib.parse import quote
+
 import requests
 
 from skyflow.utils import load_object, watch_events
@@ -12,6 +14,11 @@ def verify_response(response):
     if "detail" in response:
         raise APIException(response["detail"])
     return load_object(response)
+
+
+def process_name(name: str):
+    """Processes the name of an object for http request."""
+    return quote(name, safe='')
 
 
 # @TODO(mluo): Introduce different types of API exceptions.
@@ -83,12 +90,14 @@ class NamespaceObjectAPI(ObjectAPI):
 
     def get(self, name: str):
         assert self.namespace is not None, "Method `get` requires a namespace."
-        response = requests.get(f"{self.url}/{name}").json()
+        processed_name = process_name(name)
+        response = requests.get(f"{self.url}/{processed_name}").json()
         return verify_response(response)
 
     def delete(self, name: str):
         assert self.namespace is not None, "Method `delete` requires namespace."
-        response = requests.delete(f"{self.url}/{name}").json()
+        processed_name = process_name(name)
+        response = requests.delete(f"{self.url}/{processed_name}").json()
         return verify_response(response)
 
     def watch(self):
@@ -123,12 +132,14 @@ class NoNamespaceObjectAPI(ObjectAPI):
         return obj
 
     def get(self, name: str):
-        response = requests.get(f"{self.url}/{name}").json()
+        processed_name = process_name(name)
+        response = requests.get(f"{self.url}/{processed_name}").json()
         obj = verify_response(response)
         return obj
 
     def delete(self, name: str):
-        response = requests.delete(f"{self.url}/{name}").json()
+        processed_name = process_name(name)
+        response = requests.delete(f"{self.url}/{processed_name}").json()
         obj = verify_response(response)
         return obj
 

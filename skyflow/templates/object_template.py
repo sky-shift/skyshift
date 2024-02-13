@@ -1,6 +1,7 @@
 """
 Object template.
 """
+import re
 import uuid
 from typing import Dict, Generic, List, TypeVar
 
@@ -39,10 +40,24 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     @field_validator("name")
     @classmethod
     def verify_name(cls, value: str) -> str:
-        """Validates the name field of an object."""
-        if not value:
+        """
+        Validates if the provided name is a valid Skyflow object name.
+        Skyflow object names must:
+        - contain only lowercase alphanumeric characters or '-'
+        - start and end with an alphanumeric character
+        - be no more than 63 characters long
+        """
+        name = value
+        if not name:
             raise ValueError("Object name cannot be empty.")
-        return value
+        pattern = r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        match = bool(re.match(pattern, name)) and len(name) <= 63
+        if match:
+            return name
+        # Regex failed
+        raise ValueError(("Invalid object name. Object names must follow "
+                          f"regex pattern, {pattern}, and must be no more "
+                          "than 63 characters long."))
 
 
 class NamespacedObjectMeta(ObjectMeta):
