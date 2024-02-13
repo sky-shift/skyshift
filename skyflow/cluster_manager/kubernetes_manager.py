@@ -40,7 +40,10 @@ def process_pod_status(pod: client.V1Pod) -> str:
     """Processes pod status."""
     pod_status = pod.status.phase
     if pod_status == "Pending":
-        status = TaskStatusEnum.PENDING.value
+        if pod.spec.node_name is None:
+            status = TaskStatusEnum.INIT.value
+        else:
+            status = TaskStatusEnum.PENDING.value
     elif pod_status == "Running":
         status = TaskStatusEnum.RUNNING.value
     elif pod_status == "Succeeded":
@@ -170,14 +173,7 @@ class KubernetesManager(Manager):
         pods = pods.items
 
         for pod in pods:
-            # Add pending?
-            if (pod.status.phase in [
-                    "Running",
-                    "Pending",
-            ] and pod.metadata.namespace == self.namespace):
-                node_name = pod.spec.node_name
-                if node_name is None:
-                    continue
+            if pod.metadata.namespace == self.namespace and pod.spec.node_name:
                 assert node_name in available_resources, (
                     f"Node {node_name} "
                     "not found in cluster resources.")
