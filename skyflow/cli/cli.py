@@ -548,7 +548,7 @@ def get_links(name: str, watch: bool):
 
 @delete.command(name="link", aliases=["links"])
 @click.argument("name", required=True)
-def delete_link(name):
+def delete_link(name: str):
     """Removes/detaches a cluster from Sky Manager."""
     delete_cli_object(object_type="link", name=name)
 

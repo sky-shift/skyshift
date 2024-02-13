@@ -240,7 +240,6 @@ class APIServer:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Unsupported Content-Type: {content_type}")
-            print(patch_list)
 
             if object_type not in ALL_OBJECTS:
                 raise HTTPException(

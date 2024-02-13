@@ -113,7 +113,14 @@ class SkyletController(Controller):
                         "manager": "k8",
                     },
                 }
-                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
+                try:
+                    cluster_obj = ClusterAPI().create(
+                        config=cluster_dictionary)
+                except APIException as error:
+                    self.logger.error(
+                        "Failed to create cluster: %s. Error: %s",
+                        cluster_name, error)
+                    continue
             self._launch_skylet(cluster_obj)
 
     def _launch_skylet(self, cluster_obj: Cluster):
