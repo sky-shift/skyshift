@@ -1,7 +1,7 @@
 kind: Job
 
 metadata: 
-  name: hello-world7
+  name: hello-world
   labels:
     testing: hello
 
@@ -17,4 +17,4 @@ spec:
 
   run: |
     #!/bin/bash
-    echo $MY_ENV_VAR; sleep 500; echo bye
+    echo $MY_ENV_VAR; sleep 5000; echo bye

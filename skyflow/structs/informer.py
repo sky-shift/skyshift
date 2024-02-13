@@ -20,10 +20,11 @@ from typing import Any, Dict
 from skyflow.templates.event_template import WatchEventEnum
 
 
-class Informer: # pylint: disable=too-many-instance-attributes
+class Informer:  # pylint: disable=too-many-instance-attributes
     """Informer manages the most-recent state of objects in a cache.
     It regularly watches the API server and updates the cache asynchronously.
     """
+
     def __init__(self, api: object):
         from skyflow.structs import Watcher
         self.api = api

@@ -570,3 +570,7 @@ class KubernetesManager(Manager):
                     pass
                 else:
                     raise error
+
+    @staticmethod
+    def convert_yaml(job: Job):
+        raise NotImplementedError

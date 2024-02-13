@@ -3,14 +3,15 @@ import json
 import pytest
 
 from skyflow.cluster_manager.slurm_manager import SlurmManager
+from skyflow.templates.cluster_template import ClusterStatus
 from skyflow.templates.job_template import Job
 from skyflow.templates.resource_template import ResourceEnum
-from skyflow.templates.cluster_template import ClusterStatus
+
 manager = SlurmManager()
 
 
 class TestSlurmManager:
-    
+
     def test_init(self):
         """Tests to see if slurm manager is initialized properly"
 
@@ -78,27 +79,27 @@ class TestSlurmManager:
         nodes_dict = manager.cluster_resources()
         #Iterate through node dict
         for key in values:
-            assert len(key) > 0 #Node has a name
+            assert len(key) > 0  #Node has a name
             assert type(nodes_dict[key][ResourceEnum.CPU.value]) is int
             assert type(nodes_dict[key][ResourceEnum.MEMORY.value]) is int
             assert type(nodes_dict[key][ResourceEnum.GPU.value]) is int
             #System guaranteed to have 1 cpu and 1 ram
-            assert nodes_dict[key][ResourceEnum.CPU.value] > 0 
-            assert nodes_dict[key][ResourceEnum.MEMORY.value] > 0      
+            assert nodes_dict[key][ResourceEnum.CPU.value] > 0
+            assert nodes_dict[key][ResourceEnum.MEMORY.value] > 0
 
     def test_allocatable_resources(self):
         nodes_dict = manager.cluster_resources()
         #Iterate through node dict
         for key in values:
-            assert len(key) > 0 #Node has a name
+            assert len(key) > 0  #Node has a name
             assert type(nodes_dict[key][ResourceEnum.CPU.value]) is int
             assert type(nodes_dict[key][ResourceEnum.MEMORY.value]) is int
             assert type(nodes_dict[key][ResourceEnum.GPU.value]) is int
 
     def test_get_cluster_status(self):
         status = manager.get_cluster_status()
-        assert status.status == ClusterStatus.Enum.ERROR.value or 
-            status.status == ClusterStatus.Enum.READY.value
+        assert status.status == ClusterStatus.Enum.ERROR.value or status.status == ClusterStatus.Enum.READY.value
+
     def test_submit_job(self):
         f = open('../../examples/example_simple.yaml')
         mdict = yaml.safe_load(f)

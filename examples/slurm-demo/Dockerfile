@@ -48,7 +48,7 @@ RUN wget https://github.com/containerd/containerd/releases/download/v1.7.13/cont
     && mkdir -p /containerd \
     && tar Cxzvf /containerd containerd-1.7.13-linux-amd64.tar.gz \
     && wget https://github.com/containerd/nerdctl/releases/download/v1.7.3/nerdctl-1.7.3-linux-amd64.tar.gz \
-    && tar Cxzvvf /usr/local nerdctl-full-1.7.3-linux-amd64.tar.gz 
+    && tar Cxzvvf /containerd nerdctl-1.7.3-linux-amd64.tar.gz 
     #&& containerd-rootless-setuptool.sh install
 #COPY /usr/local/containerd /usr/local/containerd
 
