@@ -3,12 +3,24 @@ Object API.
 """
 from urllib.parse import quote
 
+from urllib.parse import quote
+
 import requests
 
 from skyflow.utils import load_object, watch_events
 from skyflow.utils.utils import load_manager_config
 
 
+def verify_response(response):
+    """Verifies API response to check for error."""
+    if "detail" in response:
+        raise APIException(response["detail"])
+    return load_object(response)
+
+
+def process_name(name: str):
+    """Processes the name of an object for http request."""
+    return quote(name, safe='')
 def verify_response(response):
     """Verifies API response to check for error."""
     if "detail" in response:
