@@ -15,7 +15,7 @@ def verify_response(input_data):
     """
     if hasattr(input_data, 'status_code') and callable(
             getattr(input_data, 'json', None)):
-        if input_data.status_code >= 400:
+        if input_data.status_code >= 300:
             try:
                 body = input_data.json()
             except ValueError:  # In case the response body is not JSON
@@ -23,7 +23,7 @@ def verify_response(input_data):
             error_msg = body.get(
                 'detail',
                 f'HTTP error occurred: Status code {input_data.status_code}')
-            raise APIException(error_msg)
+            raise APIException(input_data.status_code, error_msg)
         body = input_data.json()
     else:
         # Assume input_data is already parsed data for non-Response inputs
@@ -85,19 +85,15 @@ class NamespaceObjectAPI(ObjectAPI):
 
     def create(self, config: dict):
         assert self.namespace, "Method `create` requires a namespace."
-        assert self.namespace, "Method `create` requires a namespace."
         response = requests.post(self.url, json=config)
         return verify_response(response)
 
     def update(self, config: dict):
         assert self.namespace, "Method `update` requires a namespace."
         response = requests.put(self.url, json=config)
-        assert self.namespace, "Method `update` requires a namespace."
-        response = requests.put(self.url, json=config)
         return verify_response(response)
 
     def list(self):
-        response = requests.get(self.url)
         response = requests.get(self.url)
         return verify_response(response)
 

@@ -1,3 +1,14 @@
+"""
+Unit tests for the API client module.
+
+To run the tests, use the following command:
+pytest skyflow/tests/api_client_unit_tests.py
+
+To run one specific test, use the following command:
+pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_success
+
+"""
+from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
 
 import pytest
@@ -7,6 +18,14 @@ from requests import Timeout
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
 
+class ResponseType(Enum):
+    ERROR = "error"
+    TIMEOUT = "timeout"
+    BAD = "bad"
+    SERVER_ERROR = "server-error"
+    DEFAULT = "default"
+    NO_NAMESPACE = "no-namespace"
+    SELECTIVE_LIST = "selective-list"
 
 class MockResponse:
     """A class to mock HTTP responses."""
@@ -43,39 +62,38 @@ def nonamespace_api() -> NoNamespaceObjectAPI:
 def mock_requests(monkeypatch: Any) -> None:
     """Fixture to mock HTTP requests using a predefined response map."""
 
-    response_map: Dict[Tuple[str, str], Any] = {
-        ("post", "error"): ({"detail": "Error occurred"}, 404),
-        ("post", "timeout"): ("timeout", None),
-        ("post", "bad"): ({"detail": "Bad request"}, 400),
-        ("post", "server-error"): (None, 500),
-        ("post", "default"): ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
-        ("put", "default"): ({"kind": "Job", "metadata": {"name": "updated-test-job"}}, 200),
-        ("get", "default"): ([{"kind": "Job", "metadata": {"name": "test-job"}}], 200),
-        ("get", "selective-list"): ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
-        ("post", "no-namespace"): ({"kind": "Cluster", "metadata": {"name": "test-cluster"}}, 200),
-        ("delete", "default"):  ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
+    response_map: Dict[Tuple[str, ResponseType], Any] = {
+        ("post", ResponseType.ERROR): ({"detail": "Error occurred"}, 404),
+        ("post", ResponseType.TIMEOUT): ("timeout", None),
+        ("post", ResponseType.BAD): ({"detail": "Bad request"}, 400),
+        ("post", ResponseType.SERVER_ERROR): (None, 500),
+        ("post", ResponseType.DEFAULT): ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
+        ("put", ResponseType.DEFAULT): ({"kind": "Job", "metadata": {"name": "updated-test-job"}}, 200),
+        ("get", ResponseType.DEFAULT): ([{"kind": "Job", "metadata": {"name": "test-job"}}], 200),
+        ("get", ResponseType.SELECTIVE_LIST): ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
+        ("post", ResponseType.NO_NAMESPACE): ({"kind": "Cluster", "metadata": {"name": "test-cluster"}}, 200),
+        ("delete", ResponseType.DEFAULT): ({"kind": "Job", "metadata": {"name": "test-job"}}, 200),
     }
 
     def mock_request(method: str, url: str, *args: Any, **kwargs: Any) -> MockResponse:
-        """Determines the mock response based on the request method and URL."""
-        key_suffix = "default"
+        key_suffix = ResponseType.DEFAULT
         if "error" in url:
-            key_suffix = "error"
+            key_suffix = ResponseType.ERROR
         elif "timeout" in url:
-            key_suffix = "timeout"
+            key_suffix = ResponseType.TIMEOUT
         elif "bad" in url:
-            key_suffix = "bad"
+            key_suffix = ResponseType.BAD
         elif "server-error" in url:
-            key_suffix = "server-error"
+            key_suffix = ResponseType.SERVER_ERROR
         elif "namespace" not in url:
-            key_suffix = "no-namespace"
+            key_suffix = ResponseType.NO_NAMESPACE
         elif method == "get" and "test-job" in url:
-            key_suffix = "selective-list"
+            key_suffix = ResponseType.SELECTIVE_LIST
 
         key = (method, key_suffix)
         response_data, status_code = response_map.get(key, ({"unexpected": "response"}, 200))
 
-        if key_suffix == "timeout":
+        if key_suffix == ResponseType.TIMEOUT:
             raise requests.exceptions.Timeout("The request timed out")
 
         return MockResponse(response_data, status_code)
@@ -144,7 +162,7 @@ def test_namespace_object_api_create_server_error(namespace_api: NamespaceObject
     """Tests server error handling during object creation with NamespaceObjectAPI."""
     with pytest.raises(APIException) as exc_info:
         namespace_api.create({"key": "value"})
-    assert str(exc_info.value) == "HTTP error occurred: Status code 500"
+    assert "500" in str(exc_info.value)
 
 def test_namespace_object_api_create_bad_request(namespace_api: NamespaceObjectAPI, mock_bad_request: Any) -> None:
     """Tests bad request error handling during object creation with NamespaceObjectAPI."""
