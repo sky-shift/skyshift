@@ -108,6 +108,8 @@ def validate_resources(resources: Dict[str, float],
 def validate_restart_policy(policy: str) -> bool:
     """Validates if the given restart policy is supported."""
     return RestartPolicyEnum.has_value(policy)
+
+
 cli.add_command(logs)
 
 

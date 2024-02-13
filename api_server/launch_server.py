@@ -106,6 +106,7 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 # Faster way to run API server:
 # `gunicorn --log-level error -w 4 -k uvicorn.workers.UvicornWorker
 # -b :50051 api_server.api_server:app`
