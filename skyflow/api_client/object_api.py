@@ -29,7 +29,7 @@ def verify_response(input_data):
         # Assume input_data is already parsed data for non-Response inputs
         body = input_data
         if "detail" in body:
-            raise APIException(body["detail"])
+            raise APIException(input_data.status_code, body["detail"])
 
     return load_object(body)
 
