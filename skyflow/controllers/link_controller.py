@@ -78,12 +78,12 @@ class LinkController(Controller):
             skip_update = False
             try: 
                 if event_type == WatchEventEnum.ADD:
-                    self.logger.info('Creating link between clusters.')
-                    self._create_link(name, source, target)
+                    self.logger.info(f'Creating link between clusters. {source}, {target}')
+                    self._create_link(source, target)
                     link_status = LinkStatusEnum.ACTIVE.value
                 elif event_type == WatchEventEnum.DELETE:
-                    self.logger.info('Deleting link between clusters.')
-                    self._delete_link(name, source)
+                    self.logger.info(f'Deleting link between clusters. {source}, {target}')
+                    self._delete_link(source, target)
                     skip_update = True
             except Exception as e:
                 link_status = LinkStatusEnum.FAILED.value
@@ -94,24 +94,25 @@ class LinkController(Controller):
                 LinkAPI().update(event_object.model_dump(mode='json'))
 
 
-    def _create_link(self, name: str, source: str, target: str) -> bool:
+    def _create_link(self, source: str, target: str) -> bool:
         """Creates a link between two clusters. Returns True if successful, False otherwise."""
         clusters_cache = self.cluster_informer.get_cache()
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
         target_cluster_manager = setup_cluster_manager(clusters_cache[target])
         try:
-            create_link(link_name=name, source_manager = source_cluster_manager, target_manager = target_cluster_manager)
+            create_link(source_manager = source_cluster_manager, target_manager = target_cluster_manager)
         except Exception as e:
             self.logger.error(traceback.format_exc())
             self.logger.error('Failed to create link between clusters.')
             raise e
     
-    def _delete_link(self, name: str, source: str) -> bool:
+    def _delete_link(self, source: str, target: str) -> bool:
         """Deletes a link between two clusters. Returns True if successful, False otherwise."""
         clusters_cache = self.cluster_informer.get_cache()
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
+        target_cluster_manager = setup_cluster_manager(clusters_cache[target])
         try:
-            delete_link(link_name = name, manager=source_cluster_manager)
+            delete_link(source_manager=source_cluster_manager, target_manager = target_cluster_manager)
         except Exception as e:
             self.logger.error(traceback.format_exc())
             self.logger.error('Failed to delete link between clusters.')

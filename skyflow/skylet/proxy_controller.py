@@ -14,7 +14,7 @@ from skyflow.utils.utils import setup_cluster_manager
 from skyflow.templates import Service, Job, WatchEventEnum, EndpointObject
 from skyflow.api_client import *
 from skyflow.utils import match_labels
-from skyflow.network.cluster_linkv2 import export_service, import_service, unexpose_service
+from skyflow.network.cluster_linkv2 import export_service, import_service, delete_export_service, delete_import_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,12 +106,13 @@ class ProxyController(Controller):
         primary_cluster = event_object.spec.primary_cluster
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
-                # Delete the K8 endpoints object.
+                # Delete the K8 endpoints object and delete import of service.
                 self.manager_api.delete_endpoint_slice(event_object)
+                self._delete_import_service(event_object)
             else:
-                # Delete skupper expose (but do not delete link).
+                # Delete clusterlink export of service (but do not delete link).
                 if self.name in event_object.spec.endpoints:
-                    self._unexpose_service(event_object.get_name())
+                    self._delete_export_service(event_object.get_name())
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[event_object.metadata.name]
             # The primary cluster imports the service and creates a k8 endpoints object and attaches it to the remote service.
@@ -137,13 +138,21 @@ class ProxyController(Controller):
                     if import_service(f'{name}', self.manager_api, cluster_name, ports):
                         self.manager_api.create_endpoint_slice(name, cluster_name, endpoint_obj)
 
-                    
+    def _delete_import_service(self, endpoints: 'Endpoints'):
+        name = endpoints.get_name()
+        for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
+            if cluster_name != endpoints.spec.primary_cluster:
+                if endpoint_obj.exposed_to_cluster:
+                    logging.info(f"deleting import of {name}")
+                    delete_import_service(f'{name}', self.manager_api, cluster_name)
 
+                                       
     def _export_service(self, name: str, ports: List[int]):
         export_service(f'{name}', self.manager_api, ports)
 
-    def _unexpose_service(self, name: str):
-        unexpose_service(f'{name}', self.manager_api)
+    def _delete_export_service(self, name: str):
+        delete_export_service(f'{name}', self.manager_api)
+
     
 
 
