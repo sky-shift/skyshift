@@ -4,6 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
+from typing import Dict, List, Union
 
 import requests
 import yaml
@@ -13,14 +14,13 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
-def load_object(response: dict | list[dict]):
+def load_object(response: Union[Dict, List[Dict]]):
     """
     Loads an object or a list of objects (from templates) from a dictionary.
     """
     if isinstance(response, list):
         return [load_single_object(item) for item in response]
     return load_single_object(response)
-
 
 def load_single_object(item: dict):
     """
