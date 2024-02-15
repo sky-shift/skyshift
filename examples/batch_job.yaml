@@ -12,7 +12,6 @@ spec:
     cpus: 1
     memory: 128
   env:
-    - name: HELLO_SKY
-      value: "hello_sky"
+    HELLO_SKY: "hello_sky"
   run: 'echo $HELLO_SKY; sleep 300'
   restartPolicy: Never
