@@ -117,13 +117,12 @@ class ProxyController(Controller):
             # The primary cluster imports the service and creates a k8 endpoints object and attaches it to the remote service.
             print(self.name, primary_cluster)
             if self.name == primary_cluster:
+                logging.info(f"Setting up to import service from {primary_cluster}")
+                print(event_object)
                 self._import_service(event_object, [a.port for a in service_obj.spec.ports])
-                self.manager_api.create_or_update_endpoint_slice(event_object)
             else:
-                # Secondary clusters simply expose the service.
-                if self.name not in event_object.spec.endpoints:
-                    self._unexpose_service(event_object.get_name())
-                else:
+                # Secondary clusters simply export the service.
+                if self.name in event_object.spec.endpoints:
                     if not event_object.spec.endpoints[self.name].exposed_to_cluster:
                         self._export_service(event_object.get_name(), [a.port for a in service_obj.spec.ports])
                         event_object.spec.endpoints[self.name].exposed_to_cluster = True
@@ -132,7 +131,13 @@ class ProxyController(Controller):
     def _import_service(self, endpoints: 'Endpoints', ports: List[int]):
         name = endpoints.get_name()
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
-            import_service(f'{name}', self.manager_api, cluster_name, ports)
+            if cluster_name != endpoints.spec.primary_cluster:
+                if endpoint_obj.exposed_to_cluster:
+                    logging.info(f"{name} is now exported by cluster, and ready to be imported")
+                    if import_service(f'{name}', self.manager_api, cluster_name, ports):
+                        self.manager_api.create_endpoint_slice(name, cluster_name, endpoint_obj)
+
+                    
 
     def _export_service(self, name: str, ports: List[int]):
         export_service(f'{name}', self.manager_api, ports)

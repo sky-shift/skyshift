@@ -226,35 +226,38 @@ def delete_link(link_name: str, manager: Manager):
         delete_link_command= CL_LINK_DELETE_CMD.format(cluster_name=cluster_name, peer=link_name)
         subprocess.check_output(delete_link_command, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        print('Failed delete a link between two clusters.')
-        raise e
+        logging.error('Failed delete a link between two clusters. {e.cmd}')
+        return False
 
 
 def export_service(service_name: str, manager: Manager, ports: List[int]):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
+    logging.info(f"Exporting service {expose_service_name} from {cluster_name}")
     try:
         for port in ports:
             export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name, service_name=expose_service_name, service_target=service_name, port=port)
             subprocess.check_output(export_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        print('Failed to expose service.')
-        raise e
+        logging.error(f'Failed to expose service. {e.cmd}')
+        return False
 
 def import_service(service_name: str, manager: Manager, peer: str, ports: List[int]):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     import_service_name = f'{service_name}-{peer}'
+    logging.info(f"Importing service {import_service_name} from {peer}")
     try:
         for port in ports:
             import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name, service_name=import_service_name, port=port)
             bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name, service_name=import_service_name, peer=peer)
             subprocess.check_output(import_cmd, shell=True).decode('utf-8')
             subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
+            return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        print('Failed to expose service.')
-        raise e
+        logging.error(f'Failed to import service. {e.cmd}')
+        return False
     
 def unexpose_service(service_name: str, manager: Manager):
     namespace = manager.namespace
@@ -265,7 +268,7 @@ def unexpose_service(service_name: str, manager: Manager):
         # Create authetnication token.
         subprocess.check_output(unexpose_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        print('Failed to expose service.')
+        logging.error('Failed to expose service.')
         raise e
 
     
