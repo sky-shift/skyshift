@@ -19,10 +19,11 @@ pip install -e .
 pip install -e .[server]
 ```
 
-Finally, install Skupper. This is the multi-cluster communication fabric we use to expose services across different clusters.
+Finally, install Clusterlink. This is the multi-cluster communication fabric we use to expose services across different clusters.
 
 ```
-curl https://skupper.io/install.sh | sh
+# In skyflow/ base folder
+./skyflow/network/clusterlink_install.sh
 ```
 
 ## Steps to run Sky Manager
