@@ -93,7 +93,6 @@ def cluster_exists(name: str) -> bool:
     api_response: Cluster = get_cli_object(object_type="cluster", name=name)
     return api_response is not None and api_response.metadata.name == name
 
-
 def validate_image_format(image: str) -> bool:
     """Validates if the given image matches the Docker image format."""
     pattern = re.compile(
@@ -101,12 +100,13 @@ def validate_image_format(image: str) -> bool:
     )
     return bool(pattern.fullmatch(image))
 
-
-
 def validate_resources(resources: Dict[str, float]) -> bool:
-    """Validates resource specifications against defined resource types."""
+    """
+    Validates resource specifications.
+    """
     valid_resource_types = {item.value for item in ResourceEnum}
     return all(key in valid_resource_types and value >= 0 for key, value in resources.items())
+
 
 def validate_accelerator(accelerator: Union[str, None]) -> bool:
     """Validates accelerator specification format and checks if it's a valid type."""
@@ -196,6 +196,10 @@ def create_cluster(name: str, manager: str):
               help="Performs a watch.")
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
+
+    if name and not validate_input_string(name):
+        raise click.BadParameter(f"Name format is invalid: {name}")
+
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
@@ -206,6 +210,10 @@ def get_clusters(name: str, watch: bool):
 @click.argument("name", required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
+
+    if not validate_input_string(name):
+        raise click.BadParameter(f"Name format is invalid: {name}")
+
     delete_cli_object(object_type="cluster", name=name)
 
 
@@ -297,9 +305,13 @@ def create_job(
     if not validate_image_format(image):
         raise click.BadParameter("Invalid image format.")
 
-    resource_dict = {ResourceEnum.CPU: cpus, ResourceEnum.GPU: gpus, ResourceEnum.MEMORY: memory}
+    if not validate_restart_policy(restart_policy):
+        raise click.BadParameter("Invalid restart policy.")
+
+    resource_dict = {ResourceEnum.CPU.value: cpus, ResourceEnum.GPU.value: gpus, ResourceEnum.MEMORY.value: memory}
     if not validate_resources(resource_dict):
             raise click.BadParameter("Invalid resource format.")
+    
     if not validate_accelerator(accelerators):
         raise click.BadParameter("Invalid accelerator format.")
 

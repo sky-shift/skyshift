@@ -22,32 +22,30 @@ from skyflow.cli.cli import cli
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
-    temp_data_dir = tempfile.mkdtemp()
-    print("Using temporary data directory for ETCD:", temp_data_dir)
+    with tempfile.TemporaryDirectory() as temp_data_dir:
+        print("Using temporary data directory for ETCD:", temp_data_dir)
 
-    host = launch_server.API_SERVER_HOST
-    port = launch_server.API_SERVER_PORT
-    workers = multiprocessing.cpu_count()
-    data_directory = temp_data_dir
-    command = [
-        "python", "../../api_server/launch_server.py", "--host", host,
-        "--port",
-        str(port), "--workers",
-        str(workers), "--data-directory", data_directory
-    ]
+        host = launch_server.API_SERVER_HOST
+        port = launch_server.API_SERVER_PORT
+        workers = multiprocessing.cpu_count()
+        data_directory = temp_data_dir
+        command = [
+            "python", "../../api_server/launch_server.py", "--host", host,
+            "--port", str(port), "--workers", str(workers), 
+            "--data-directory", data_directory
+        ]
 
-    process = subprocess.Popen(command)
-    time.sleep(5)  # Wait for the server to start
+        process = subprocess.Popen(command)
+        time.sleep(5)  # Wait for the server to start
 
-    yield  # Test execution happens here
+        yield  # Test execution happens here
 
-    # Stop the application and ETCD server
-    process.terminate()
-    process.wait()
-    subprocess.run('pkill -f etcd', shell=True)  # pylint: disable=subprocess-run-check
+        # Stop the application and ETCD server
+        process.terminate()
+        process.wait()
+        subprocess.run('pkill -f etcd', shell=True)  # pylint: disable=subprocess-run-check
 
-    shutil.rmtree(temp_data_dir)
-    print("Cleaned up temporary ETCD data directory.")
+        print("Cleaned up temporary ETCD data directory.")
 
 
 @pytest.fixture
@@ -78,6 +76,7 @@ def test_create_cluster_invalid_input(runner, name, manager):
     cmd = ['create', 'cluster', name, '--manager', manager]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Name format is invalid" in result.output
 
 
 def test_create_cluster_duplicate_name(runner):
@@ -90,6 +89,7 @@ def test_create_cluster_duplicate_name(runner):
     # Second attempt with the same name
     result_second = runner.invoke(cli, cmd)
     assert result_second.exit_code != 0
+    assert "already exists" in result_second.output
 
 
 def test_create_cluster_unsupported_manager(runner):
@@ -112,6 +112,7 @@ def test_get_specific_cluster_not_valid(runner, name='not$$$-valid-cluster'):
     cmd = ['get', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Name format is invalid" in result.output
 
 
 def test_get_all_clusters(runner):
@@ -125,6 +126,7 @@ def test_get_nonexistent_cluster(runner, name='nonexistent-cluster'):
     cmd = ['get', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_delete_cluster_success(runner, name="valid-cluster"):
@@ -138,6 +140,7 @@ def test_delete_cluster_success(runner, name="valid-cluster"):
     assert name not in result.output
     result = runner.invoke(cli, ['delete', 'cluster', name])
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 def test_create_cluster_success_no_manager(runner):
@@ -166,7 +169,7 @@ def test_create_job_success(runner):
         "namespace": "default",
         "image": "gcr.io/sky-burst/skyburst:latest",
         "cpus": 1.0,
-        "memory": 512.0,  # Assuming memory is in MB
+        "memory": 512.0,
         "run": "echo Hello World",
     }
 
@@ -180,6 +183,7 @@ def test_create_job_success(runner):
 
     # Execute the command
     result = runner.invoke(cli, cmd)
+    print(result.output)
     assert result.exit_code == 0, "Job creation failed"
 
 
@@ -191,6 +195,7 @@ def test_create_job_invalid_image(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Invalid image format" in result.output
 
 
 def test_create_job_invalid_resources(runner):
@@ -202,6 +207,7 @@ def test_create_job_invalid_resources(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Invalid resource" in result.output
 
 
 def test_create_job_unsupported_restart_policy(runner):
@@ -212,6 +218,7 @@ def test_create_job_unsupported_restart_policy(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Invalid restart policy" in result.output
 
 
 def test_create_job_duplicate_labels_envs(runner):
@@ -227,6 +234,7 @@ def test_create_job_duplicate_labels_envs(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Invalid label" in result.output or "Duplicate envs" in result.output
 
 
 def test_get_specific_job(runner, name='valid-job', namespace='default'):
@@ -249,6 +257,7 @@ def test_get_job_nonexistent_namespace(runner,
     cmd = ['get', 'job', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_get_nonexistent_job(runner,
@@ -257,6 +266,7 @@ def test_get_nonexistent_job(runner,
     cmd = ['get', 'job', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_delete_job_nonexistent_namespace(runner,
@@ -265,6 +275,7 @@ def test_delete_job_nonexistent_namespace(runner,
     cmd = ['delete', 'job', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not exist" in result.output
 
 
 def test_delete_job_success(runner, name="valid-job", namespace="default"):
@@ -280,6 +291,7 @@ def test_delete_nonexistent_job(runner,
     cmd = ['delete', 'job', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not exist" in result.output
 
 
 def test_delete_job_repeatedly(runner, name="valid-job", namespace="default"):
@@ -287,7 +299,7 @@ def test_delete_job_repeatedly(runner, name="valid-job", namespace="default"):
     cmd = ['delete', 'job', name, '--namespace', namespace]
     result_first = runner.invoke(cli, cmd)
     assert result_first.exit_code != 0
-
+    assert "not exist" in result_first.output
 
 # ==============================================================================
 # Namespace tests
@@ -311,6 +323,7 @@ def test_create_namespace_invalid_name(runner, name):
     cmd = ['create', 'namespace', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "is invalid" in result.output
 
 
 def test_create_duplicate_namespace(runner):
@@ -319,6 +332,7 @@ def test_create_duplicate_namespace(runner):
     # Attempt to create again with the same name
     result_duplicate = runner.invoke(cli, ['create', 'namespace', name])
     assert result_duplicate.exit_code != 0
+    assert "already exists" in result_duplicate.output
 
 
 def test_get_specific_namespace(runner):
@@ -344,6 +358,7 @@ def test_delete_namespace_success(runner):
     assert name in result.output
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 def test_delete_nonexistent_namespace(runner):
@@ -351,6 +366,7 @@ def test_delete_nonexistent_namespace(runner):
     cmd = ['delete', 'namespace', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 # ==============================================================================
@@ -407,6 +423,7 @@ def test_create_filter_policy_missing_required_params(runner, missing_arg):
     result = runner.invoke(cli, missing_arg)
     print(missing_arg)
     assert result.exit_code != 0
+    assert "Missing" in result.output or "Invalid" in result.output or "not found" in result.output or "requires 2 arguments" in result.output
 
 
 def test_create_filter_policy_idempotent(runner):
@@ -416,6 +433,7 @@ def test_create_filter_policy_idempotent(runner):
     result_second = runner.invoke(cli, cmd)
     assert result_first.exit_code == 0
     assert result_second.exit_code != 0
+    assert "already exists" in result_second.output
 
 
 def test_get_specific_filter_policy(runner,
@@ -441,6 +459,7 @@ def test_get_nonexistent_filter_policy(runner,
     cmd = ['get', 'filterPolicy', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_delete_nonexistent_filter_policy(runner,
@@ -449,6 +468,7 @@ def test_delete_nonexistent_filter_policy(runner,
     cmd = ['delete', 'filterPolicy', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not exist" in result.output
 
 
 def test_delete_filter_policy_incorrect_namespace(
@@ -456,6 +476,7 @@ def test_delete_filter_policy_incorrect_namespace(
     cmd = ['delete', 'filterPolicy', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not exist" in result.output
 
 
 def test_delete_filter_policy_repeatedly(runner,
@@ -469,11 +490,13 @@ def test_delete_filter_policy_repeatedly(runner,
     # Second deletion attempt for the same policy
     result_second = runner.invoke(cli, cmd)
     assert result_second.exit_code != 0
+    assert "not exist" in result_second.output
 
     # Attempt to fetch the deleted policy
     get_cmd = ['get', 'filterPolicy', name, '--namespace', namespace]
     get_result = runner.invoke(cli, get_cmd)
     assert get_result.exit_code != 0
+    assert "not found" in get_result.output
 
 
 # ==============================================================================
@@ -505,7 +528,7 @@ def test_create_link_with_duplicate_names(runner):
     assert result_first.exit_code == 0, "First link creation should succeed"
     assert "Created link" in result_first.output
     assert result_second.exit_code != 0, "Duplicate link name should cause failure"
-
+    assert "already exists" in result_second.output
 
 @pytest.mark.parametrize("source, target", [
     ("nonexistent-cluster1", "cluster2"),
@@ -521,6 +544,7 @@ def test_create_link_nonexistent_clusters(runner, source, target):
     cmd = ['create', 'link', name, '--source', source, '--target', target]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output or "Invalid" in result.output or "Missing option" in result.output
 
 
 @pytest.mark.parametrize("name", [
@@ -533,6 +557,7 @@ def test_create_link_with_invalid_names(runner, name):
     ]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "is invalid" in result.output
 
 
 def test_create_link_missing_source_or_target(runner):
@@ -545,7 +570,8 @@ def test_create_link_missing_source_or_target(runner):
 
     assert result_without_source.exit_code != 0, "Missing source should cause failure"
     assert result_without_target.exit_code != 0, "Missing target should cause failure"
-
+    assert "Missing" in result_without_source.output
+    assert "Missing" in result_without_target.output
 
 def test_create_link_same_source_target(runner):
     name = "self-link"
@@ -553,6 +579,7 @@ def test_create_link_same_source_target(runner):
     cmd = ['create', 'link', name, '--source', cluster, '--target', cluster]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "cannot be the same" in result.output
 
 
 def test_get_specific_link(runner, name='valid-link'):
@@ -580,6 +607,7 @@ def test_delete_nonexistent_link(runner, name="nonexistent-link"):
     cmd = ['delete', 'link', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not exist" in result.output
 
 
 # ==============================================================================
@@ -622,6 +650,7 @@ def test_create_service_unsupported_type(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not supported" in result.output
 
 
 @pytest.mark.parametrize("ports", [[-1, 8080], [80, 70000]])
@@ -632,6 +661,7 @@ def test_create_service_invalid_ports(runner, ports):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "out of valid range" in result.output
 
 
 def test_create_service_invalid_selector(runner):
@@ -641,6 +671,7 @@ def test_create_service_invalid_selector(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Selector is invalid" in result.output
 
 
 def test_create_service_invalid_namespace(runner):
@@ -659,6 +690,7 @@ def test_create_service_invalid_namespace(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "is invalid" in result.output
 
 
 @pytest.mark.parametrize("selector", [['', 'myapp'], ['app', '']])
@@ -676,6 +708,7 @@ def test_create_service_empty_selector(runner, selector):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "Selector is invalid" in result.output
 
 
 def test_create_service_duplicate_selector_keys(runner):
@@ -694,6 +727,7 @@ def test_create_service_duplicate_selector_keys(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "unexpected extra arguments" in result.output
 
 
 def test_create_service_nonexistent_cluster(runner):
@@ -704,6 +738,7 @@ def test_create_service_nonexistent_cluster(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_get_specific_service(runner):
@@ -730,6 +765,7 @@ def test_delete_service_success(runner):
     assert name in result.output
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 def test_delete_nonexistent_service(runner):
@@ -738,6 +774,7 @@ def test_delete_nonexistent_service(runner):
     cmd = ['delete', 'service', name, '--namespace', namespace]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 # ==============================================================================
@@ -787,6 +824,7 @@ def test_create_endpoints_negative_number(runner):
         '--num_endpoints', '-1', '--primary_cluster', 'cluster1'
     ])
     assert result.exit_code != 0
+    assert "must be non-negative" in result.output
 
 
 def test_create_endpoints_invalid_selector(runner):
@@ -804,6 +842,7 @@ def test_create_endpoints_invalid_selector(runner):
             'cluster1'
         ])
     assert result.exit_code != 0
+    assert "Got unexpected extra argument" in result.output
 
 
 def test_create_endpoints_exposed_without_primary(runner):
@@ -827,6 +866,7 @@ def test_create_endpoints_invalid_cluster(runner):
         '--primary_cluster', 'fake-cluster'
     ])
     assert result.exit_code != 0
+    assert "not found" in result.output
 
 
 def test_get_specific_endpoints(runner):
@@ -853,6 +893,7 @@ def test_delete_endpoints_success(runner):
     result = runner.invoke(
         cli, ['delete', 'endpoints', name, '--namespace', namespace])
     assert result.exit_code != 0
+    assert "does not exist" in result.output
 
 
 def test_delete_nonexistent_endpoints(runner):
@@ -861,3 +902,4 @@ def test_delete_nonexistent_endpoints(runner):
     result = runner.invoke(
         cli, ['delete', 'endpoints', name, '--namespace', namespace])
     assert result.exit_code != 0
+    assert "does not exist" in result.output
