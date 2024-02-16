@@ -1,8 +1,6 @@
 """
 Object API.
 """
-from urllib.parse import quote
-
 import requests
 
 from skyflow.utils import load_object, watch_events

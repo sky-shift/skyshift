@@ -1,3 +1,4 @@
+# @TODO(mluo,alex): Extend beyond Linux script to support other OS.
 ETCD_VER=v3.5.11
 
 # choose either URL
