@@ -185,10 +185,7 @@ def delete_cluster(name):
               type=float,
               default=0,
               help="Total memory (RAM) per task in MB.")
-@click.option("--run",
-              type=str,
-              default="sleep 10",
-              help="Run command for the job.")
+@click.option("--run", type=str, default="", help="Run command for the job.")
 @click.option("--replicas",
               type=int,
               default=1,
