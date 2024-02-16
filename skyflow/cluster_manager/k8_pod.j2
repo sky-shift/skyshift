@@ -35,12 +35,14 @@ spec:
           value: "{{ value }}"
         {% endfor %}
         {% endif %}
+      {% if run %}
       command:
         - "/bin/sh"
         - "-c"
       args:
         - |         
           {{run}}
+      {% endif %}
       resources:
         limits:
           cpu: {{cpu}}
