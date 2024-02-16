@@ -97,7 +97,7 @@ class APIServer:
                     raise HTTPException(
                         status_code=409,
                         detail=
-                        f"Object '{link_header}/{object_name}' already exists.",
+                        f"Conflict error: Object '{link_header}/{object_name}' already exists.",
                     )
             self.etcd_client.write(f"{link_header}/{object_name}",
                                    object_init.model_dump(mode="json"))

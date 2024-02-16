@@ -5,6 +5,7 @@ from typing import List
 
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
+SUPPORTED_CLUSTER_MANAGERS= ['k8', 'kubernetes', 'slurm']
 
 class ManagerException(Exception):
     """Raised when the manager is invalid."""

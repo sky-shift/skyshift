@@ -1,5 +1,23 @@
 # @TODO(mluo,alex): Extend beyond Linux script to support other OS.
 #!/bin/bash
+# ETCD Installation Script
+#
+# This script downloads and installs ETCD version v3.5.11.
+#
+# Usage:
+#    # To install ETCD with the default data directory.
+#    bash install_etcd.sh
+#    # To install ETCD with a custom data directory.
+#    bash install_etcd.sh <data_dir>
+#
+# Options:
+#    --data_dir: Specify a custom directory for ETCD data storage. If not provided, defaults to ~/.etcd.
+#
+# This script supports downloading ETCD from either Google Cloud Storage or GitHub Releases, defaulting to Google Cloud Storage.
+# It cleans up the downloaded archive and temporary files after installation.
+# Run this script to install or update ETCD to the specified version on your system.
+#
+# Ensure you have curl and tar installed and accessible in your PATH to successfully run this script.
 
 ETCD_VER=v3.5.11
 

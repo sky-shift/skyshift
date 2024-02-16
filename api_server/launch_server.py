@@ -64,7 +64,7 @@ def check_and_install_etcd(data_directory=None):
             )
 
 
-def main(host, port, workers, data_directory=None):
+def main(host: str, port: int, workers: int, data_directory=None):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     check_and_install_etcd(data_directory)

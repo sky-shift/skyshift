@@ -3,7 +3,7 @@ Skyflow CLI.
 """
 import os
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import click
 import yaml
@@ -15,8 +15,10 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_service_table)
+from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum
+from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
 
 
@@ -64,18 +66,27 @@ cli.add_command(logs)
 
 
 def validate_input_string(value: str) -> bool:
-    """Validates if the given value matches the required pattern and is less than 253 characters."""
-    pattern = re.compile(r'^[a-z0-9]([-a-z0-9]{0,251}[a-z0-9])?$')
+    """Validates if the given key matches the required pattern including an optional domain prefix and is less than 253 characters."""
+    if value.startswith("kubernetes.io/") or value.startswith("k8s.io/"):
+        return False 
+    # Regex pattern to match an optional domain prefix (which is a DNS subdomain name followed by a slash) and a valid label key
+    pattern = re.compile(
+        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$' # pylint: disable=line-too-long
+    )
     return bool(pattern.fullmatch(value))
 
+def validate_value_string(value: str) -> bool:
+    """Validates if the given value matches the required pattern and is less than 63 characters."""
+    pattern = re.compile(r'^[a-z0-9]([-a-z0-9-.]{0,61}[a-z0-9])?$')
+    return bool(pattern.fullmatch(value))
 
 def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
     """Validates label selectors."""
     for key, value in labelselector:
-        if not validate_input_string(key) or not validate_input_string(value):
+        if not validate_input_string(key) or not validate_value_string(value):
+            click.echo(f"Error: Invalid label selector: {key}:{value}", err=True)
             return False
     return True
-
 
 def cluster_exists(name: str) -> bool:
     """Checks if the given cluster exists in the database."""
@@ -91,26 +102,32 @@ def validate_image_format(image: str) -> bool:
     return bool(pattern.fullmatch(image))
 
 
-def validate_resources(resources: Dict[str, float],
-                       accelerators: str | None = None) -> bool:
-    """Validates resource specifications."""
-    valid_resource_types = {"cpus", "gpus", "memory", "disk"}
-    if accelerators:  # If accelerators are specified, validate their format as well
-        if not re.match(r'^[A-Za-z0-9]+:[0-9]+$', accelerators):
-            return False
-        acc_type, _ = accelerators.split(":")
-        valid_resource_types.add(acc_type)
 
-    return all(key in valid_resource_types and value >= 0
-               for key, value in resources.items())
+def validate_resources(resources: Dict[str, float]) -> bool:
+    """Validates resource specifications against defined resource types."""
+    valid_resource_types = {item.value for item in ResourceEnum}
+    return all(key in valid_resource_types and value >= 0 for key, value in resources.items())
 
+def validate_accelerator(accelerator: Union[str, None]) -> bool:
+    """Validates accelerator specification format and checks if it's a valid type."""
+    if accelerator is None:
+        return True  # No accelerator specified, considered valid
+    
+    valid_accelerator_types = {item.value for item in AcceleratorEnum}
+    try:
+        acc_type, acc_count_str = accelerator.split(":")
+        acc_count = int(acc_count_str)  # Convert count to integer
+    except ValueError:
+        return False  # Conversion to integer failed or split failed, invalid format
+    
+    if acc_type not in valid_accelerator_types or acc_count < 0:
+        return False  # Invalid accelerator type or negative count
+    
+    return True
 
 def validate_restart_policy(policy: str) -> bool:
     """Validates if the given restart policy is supported."""
     return RestartPolicyEnum.has_value(policy)
-
-
-cli.add_command(logs)
 
 
 # Apply as CLI
@@ -150,7 +167,7 @@ cli.add_command(apply_config)
 )
 def create_cluster(name: str, manager: str):
     """Attaches a new cluster."""
-    if manager not in ["k8"]:
+    if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
 
@@ -268,8 +285,11 @@ def create_job(
 ):  # pylint: disable=too-many-arguments
     """Adds a new job."""
     # Validate inputs
-    if not validate_input_string(name) or not validate_input_string(namespace):
-        raise click.BadParameter("Invalid name or namespace format.")
+    if not validate_input_string(name):
+        raise click.BadParameter("Invalid namespace format.")
+    
+    if not validate_input_string(namespace):
+        raise click.BadParameter("Invalid namespace format.")
 
     if not validate_label_selector(labels):
         raise click.BadParameter("Invalid label selector format.")
@@ -277,16 +297,11 @@ def create_job(
     if not validate_image_format(image):
         raise click.BadParameter("Invalid image format.")
 
-    resource_dict = {"cpus": cpus, "gpus": gpus, "memory": memory}
-    if accelerators:
-        if not validate_resources(resource_dict, accelerators):
-            raise click.BadParameter("Invalid resource or accelerator format.")
-    else:
-        if not validate_resources(resource_dict):
+    resource_dict = {ResourceEnum.CPU: cpus, ResourceEnum.GPU: gpus, ResourceEnum.MEMORY: memory}
+    if not validate_resources(resource_dict):
             raise click.BadParameter("Invalid resource format.")
-
-    if not validate_restart_policy(restart_policy):
-        raise click.BadParameter("Invalid restart policy.")
+    if not validate_accelerator(accelerators):
+        raise click.BadParameter("Invalid accelerator format.")
 
     labels = dict(labels)
     envs = dict(envs)
@@ -365,8 +380,7 @@ def create_namespace(name: str):
     """Creates a new namespace."""
     # Validate the namespace name
     if not validate_input_string(name):
-        raise click.BadParameter(f"The namespace name '{name}' is invalid.\
-                  It must match the pattern [a-z0-9]([-a-z0-9]*[a-z0-9])?")
+        raise click.BadParameter(f"The namespace name '{name}' is invalid.")
 
     namespace_dictionary = {
         "kind": "Namespace",
@@ -530,10 +544,12 @@ def create_link(name: str, source: str, target: str):
     """Creates a new link between two clusters."""
 
     if not validate_input_string(name):
-        raise click.BadParameter("Link name is invalid.")
+        raise click.BadParameter(f"Link name {name} is invalid.")
 
-    if not validate_input_string(source) or not validate_input_string(target):
-        raise click.BadParameter("Source or target cluster name is invalid.")
+    if not validate_input_string(source):
+        raise click.BadParameter(f"Source cluster {source} is invalid.")
+    if not validate_input_string(target):
+        raise click.BadParameter(f"Target cluster {target} is invalid.")
 
     if source == target:
         raise click.BadParameter(
@@ -622,12 +638,12 @@ def create_service(
     """Creates a new service."""
     # Validate service name and namespace
     if not validate_input_string(name):
-        raise click.BadParameter("Service name is invalid.")
+        raise click.BadParameter(f"Service name {name} is invalid.")
     if not validate_input_string(namespace):
-        raise click.BadParameter("Namespace is invalid.")
+        raise click.BadParameter(f"Namespace {namespace} is invalid.")
 
     # Validate service type
-    if not ServiceType.__members__.get(service_type):
+    if not ServiceType.has_value(service_type):
         raise click.BadParameter(
             f"Service type '{service_type}' is not supported.")
 
@@ -650,6 +666,7 @@ def create_service(
             raise click.BadParameter(
                 f"Target port {target_port} is out of valid range.")
 
+    # @TODO(mluo|acuadron): Implement auto
     # Validate cluster
     if cluster != "auto" and not cluster_exists(cluster):
         raise click.BadParameter(f"Cluster '{cluster}' does not exist.")
