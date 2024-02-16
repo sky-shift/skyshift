@@ -31,8 +31,9 @@ def etcd_backup_and_restore():
         data_directory = temp_data_dir
         command = [
             "python", "../../api_server/launch_server.py", "--host", host,
-            "--port", str(port), "--workers", str(workers), 
-            "--data-directory", data_directory
+            "--port",
+            str(port), "--workers",
+            str(workers), "--data-directory", data_directory
         ]
 
         process = subprocess.Popen(command)
@@ -301,6 +302,7 @@ def test_delete_job_repeatedly(runner, name="valid-job", namespace="default"):
     assert result_first.exit_code != 0
     assert "not exist" in result_first.output
 
+
 # ==============================================================================
 # Namespace tests
 
@@ -530,6 +532,7 @@ def test_create_link_with_duplicate_names(runner):
     assert result_second.exit_code != 0, "Duplicate link name should cause failure"
     assert "already exists" in result_second.output
 
+
 @pytest.mark.parametrize("source, target", [
     ("nonexistent-cluster1", "cluster2"),
     ("cluster1", "nonexistent-cluster2"),
@@ -572,6 +575,7 @@ def test_create_link_missing_source_or_target(runner):
     assert result_without_target.exit_code != 0, "Missing target should cause failure"
     assert "Missing" in result_without_source.output
     assert "Missing" in result_without_target.output
+
 
 def test_create_link_same_source_target(runner):
     name = "self-link"

@@ -66,32 +66,39 @@ cli.add_command(logs)
 
 
 def validate_input_string(value: str) -> bool:
-    """Validates if the given key matches the required pattern including an optional domain prefix and is less than 253 characters."""
+    """
+    Validates if the given key matches the required pattern including
+    an optional domain prefix and is less than 253 characters.
+    """
     if value.startswith("kubernetes.io/") or value.startswith("k8s.io/"):
-        return False 
-    # Regex pattern to match an optional domain prefix (which is a DNS subdomain name followed by a slash) and a valid label key
+        return False
     pattern = re.compile(
-        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$' # pylint: disable=line-too-long
+        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$'  # pylint: disable=line-too-long
     )
     return bool(pattern.fullmatch(value))
+
 
 def validate_value_string(value: str) -> bool:
     """Validates if the given value matches the required pattern and is less than 63 characters."""
     pattern = re.compile(r'^[a-z0-9]([-a-z0-9-.]{0,61}[a-z0-9])?$')
     return bool(pattern.fullmatch(value))
 
+
 def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
     """Validates label selectors."""
     for key, value in labelselector:
         if not validate_input_string(key) or not validate_value_string(value):
-            click.echo(f"Error: Invalid label selector: {key}:{value}", err=True)
+            click.echo(f"Error: Invalid label selector: {key}:{value}",
+                       err=True)
             return False
     return True
+
 
 def cluster_exists(name: str) -> bool:
     """Checks if the given cluster exists in the database."""
     api_response: Cluster = get_cli_object(object_type="cluster", name=name)
     return api_response is not None and api_response.metadata.name == name
+
 
 def validate_image_format(image: str) -> bool:
     """Validates if the given image matches the Docker image format."""
@@ -100,30 +107,33 @@ def validate_image_format(image: str) -> bool:
     )
     return bool(pattern.fullmatch(image))
 
+
 def validate_resources(resources: Dict[str, float]) -> bool:
     """
     Validates resource specifications.
     """
     valid_resource_types = {item.value for item in ResourceEnum}
-    return all(key in valid_resource_types and value >= 0 for key, value in resources.items())
+    return all(key in valid_resource_types and value >= 0
+               for key, value in resources.items())
 
 
 def validate_accelerator(accelerator: Union[str, None]) -> bool:
     """Validates accelerator specification format and checks if it's a valid type."""
     if accelerator is None:
         return True  # No accelerator specified, considered valid
-    
+
     valid_accelerator_types = {item.value for item in AcceleratorEnum}
     try:
         acc_type, acc_count_str = accelerator.split(":")
         acc_count = int(acc_count_str)  # Convert count to integer
     except ValueError:
         return False  # Conversion to integer failed or split failed, invalid format
-    
+
     if acc_type not in valid_accelerator_types or acc_count < 0:
         return False  # Invalid accelerator type or negative count
-    
+
     return True
+
 
 def validate_restart_policy(policy: str) -> bool:
     """Validates if the given restart policy is supported."""
@@ -295,7 +305,7 @@ def create_job(
     # Validate inputs
     if not validate_input_string(name):
         raise click.BadParameter("Invalid namespace format.")
-    
+
     if not validate_input_string(namespace):
         raise click.BadParameter("Invalid namespace format.")
 
@@ -308,10 +318,14 @@ def create_job(
     if not validate_restart_policy(restart_policy):
         raise click.BadParameter("Invalid restart policy.")
 
-    resource_dict = {ResourceEnum.CPU.value: cpus, ResourceEnum.GPU.value: gpus, ResourceEnum.MEMORY.value: memory}
+    resource_dict = {
+        ResourceEnum.CPU.value: cpus,
+        ResourceEnum.GPU.value: gpus,
+        ResourceEnum.MEMORY.value: memory
+    }
     if not validate_resources(resource_dict):
-            raise click.BadParameter("Invalid resource format.")
-    
+        raise click.BadParameter("Invalid resource format.")
+
     if not validate_accelerator(accelerators):
         raise click.BadParameter("Invalid accelerator format.")
 

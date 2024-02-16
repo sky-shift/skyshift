@@ -20,7 +20,6 @@ class ServiceType(enum.Enum):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
-    
 
     @classmethod
     def has_value(cls, value):
@@ -28,7 +27,6 @@ class ServiceType(enum.Enum):
         Checks if the specified value is present among the enum values.
         """
         return any(value == item.value for item in cls)
-
 
 
 class ServiceException(ObjectException):
