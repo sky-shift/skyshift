@@ -167,6 +167,7 @@ class ClusterMeta(ObjectMeta):
             raise ValueError("Cluster name cannot be empty.")
         return value
 
+
 class ClusterSpec(ObjectSpec):
     """Spec for a Cluster."""
     manager: str = Field(default="k8", validate_default=True)
