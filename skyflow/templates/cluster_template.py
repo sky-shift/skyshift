@@ -157,7 +157,15 @@ class ClusterStatus(ObjectStatus):
 
 class ClusterMeta(ObjectMeta):
     """Metadata for a Cluster."""
+    name: str = Field(default="cluster", validate_default=True)
 
+    @field_validator("name")
+    @classmethod
+    def verify_name(cls, value: str) -> str:
+        """Validates the name field of a Cluster."""
+        if not value or value.isspace() or len(value) == 0:
+            raise ValueError("Cluster name cannot be empty.")
+        return value
 
 class ClusterSpec(ObjectSpec):
     """Spec for a Cluster."""
