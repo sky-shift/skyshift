@@ -56,10 +56,6 @@ class BasePlugin:
     def spread(self, clusters: List[Cluster], job: Job) -> Tuple[Dict[str, int], PluginStatus]: # pylint: disable=unused-argument, no-self-use
         """Computes the spread of a job's tasks across clusters.
 
-        Input:
-        - clusters: A sorted list, from high to low, of clusters by their score.
-        - job: The job to be scheduled.
-
-        Returns the max number of tasks that can be scheduled on each cluster.
+        Returns the allocated # of tasks that can be scheduled on each cluster.
         """
         return {}, PluginStatus(code=StatusCode.ERROR, message="Spread not implemented.")
