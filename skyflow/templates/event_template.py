@@ -1,13 +1,20 @@
+"""
+Event template for Skyflow.
+"""
 import enum
+from typing import Generic, TypeVar
 
-from pydantic import BaseModel, Field, field_validator, validator, model_validator, root_validator
+from pydantic import BaseModel, Field, field_validator
 
-from typing import Union
-from skyflow.templates import *
 from skyflow.utils.utils import load_object
-from skyflow.templates.service_template import Service
-from skyflow.templates.endpoints_template import Endpoints
+
+GenericType = TypeVar("GenericType")
+
+
 class WatchEventEnum(enum.Enum):
+    """
+    Enum for watch event types.
+    """
     # New object is added.
     ADD = "ADD"
     # An existing object is modified.
@@ -21,21 +28,24 @@ class WatchEventEnum(enum.Enum):
         return super().__eq__(other)
 
 
-class WatchEvent(BaseModel):
-    kind: str = Field(default='WatchEvent')
+class WatchEvent(BaseModel, Generic[GenericType]):
+    """Watch event for Skyflow."""
+    kind: str = Field(default="WatchEvent")
     event_type: str
-    object: Union[Cluster, Job, FilterPolicy, Namespace, Link, Service, Endpoints, Object]
-    
-    @field_validator('event_type')
-    @classmethod    
+    object: GenericType
+
+    @field_validator("event_type")
+    @classmethod
     def verify_event_type(cls, event_type: str):
+        """Validates the event type field of a WatchEvent."""
         if not any(event_type == ev_enum.value for ev_enum in WatchEventEnum):
-            raise ValueError(f'Invalid watch event type, {event_type}.')
+            raise ValueError(f"Invalid watch event type, {event_type}.")
         return event_type
 
-    @field_validator('object', mode='before')
-    def set_correct_object_type(cls, v):
-        if isinstance(v, dict):
-            return load_object(v)
-        return v
-
+    @field_validator("object", mode="before")
+    @classmethod
+    def set_correct_object_type(cls, value):
+        """Converts the object field to the correct type."""
+        if isinstance(value, dict):
+            return load_object(value)
+        return value

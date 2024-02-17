@@ -1,70 +1,128 @@
-from typing import Dict, List
+"""
+Object template.
+"""
+import re
 import uuid
+from typing import Dict, Generic, List, TypeVar
 
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from skyflow.utils.utils import load_object
+
+GenericType = TypeVar("GenericType")
 
 
 class ObjectException(Exception):
+    """Raised when the object dict is invalid."""
 
-    def __init__(self, message='Failed to create object.'):
+    def __init__(self, message="Failed to create object."):
         self.message = message
         super().__init__(self.message)
 
 
 class ObjectStatus(BaseModel):
-    conditions: List[Dict[str, str]] = Field(default=[])
+    """Status of an object."""
+    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
 
     def update_conditions(self, conditions):
+        """Updates the conditions field of an object."""
         self.conditions = conditions
 
 
 class ObjectMeta(BaseModel, validate_assignment=True):
+    """Metadata of an object."""
     name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
     labels: Dict[str, str] = Field(default={})
     annotations: Dict[str, str] = Field(default={})
     # ETCD resource version for an object.
     resource_version: int = Field(default=-1)
 
-    @field_validator('name')
+    @field_validator("name")
     @classmethod
-    def verify_name(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Object name cannot be empty.')
-        return v
+    def verify_name(cls, value: str) -> str:
+        """
+        Validates if the provided name is a valid Skyflow object name.
+        Skyflow object names must:
+        - contain only lowercase alphanumeric characters or '-'
+        - start and end with an alphanumeric character
+        - be no more than 63 characters long
+        """
+        name = value
+        if not name:
+            raise ValueError("Object name cannot be empty.")
+        pattern = r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        match = bool(re.match(pattern, name)) and len(name) <= 63
+        if match:
+            return name
+        # Regex failed
+        raise ValueError(("Invalid object name. Object names must follow "
+                          f"regex pattern, {pattern}, and must be no more "
+                          "than 63 characters long."))
+
+
+class NamespacedObjectMeta(ObjectMeta):
+    """Metadata of a Namespaced Object."""
+    namespace: str = Field(default='default', validate_default=True)
+
+    @field_validator("namespace")
+    @classmethod
+    def verify_namespace(cls, value: str) -> str:
+        """Validates the namespace field of a Service."""
+        if not value:
+            raise ValueError("Namespace cannot be empty.")
+        return value
 
 
 class ObjectSpec(BaseModel):
-    pass
+    """Spec of an object."""
 
 
 class Object(BaseModel):
-    kind: str = Field(default='Object')
+    """Object template."""
+    kind: str = Field(default="Object")
     metadata: ObjectMeta = Field(default=ObjectMeta())
     spec: ObjectSpec = Field(default=ObjectSpec())
     status: ObjectStatus = Field(default=ObjectStatus())
-    
-    @model_validator(mode='before')
+
+    @model_validator(mode="before")
+    @classmethod
     def set_kind(cls, values):
+        """Sets the kind field of an object."""
         if isinstance(values, Object):
             return values
-        values['kind'] = cls.__name__
+        values["kind"] = cls.__name__
         return values
 
     def get_status(self):
-        return self.status.status
-    
+        """Returns the status of an object."""
+        return self.status.status  # pylint: disable=no-member
+
     def get_name(self):
-        return self.metadata.name
+        """Returns the name of an object."""
+        return self.metadata.name  # pylint: disable=no-member
 
 
-class ObjectList(BaseModel):
-    kind: str = None
-    objects: List[Object] = Field(default=[])
+class ObjectList(BaseModel, Generic[GenericType]):
+    """List of objects."""
+    kind: str = Field(default="ObjectList")
+    objects: List[GenericType] = Field(default=[])
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
+    @classmethod
     def set_kind(cls, values):
-        values['kind'] = cls.__name__
+        """Sets the kind field of an object."""
+        values["kind"] = cls.__name__
         return values
-    
-    def add_object(self, obj: Object):
-        self.objects.append(obj)
+
+    @field_validator("objects", mode="before")
+    @classmethod
+    def set_correct_object_type(cls, value):
+        """Sets the correct object type."""
+        for idx, obj in enumerate(value):
+            if isinstance(obj, dict):
+                value[idx] = load_object(obj)
+        return value
+
+    def add_object(self, obj: GenericType):
+        """Adds an object to the list."""
+        self.objects.append(obj)  # pylint: disable=no-member

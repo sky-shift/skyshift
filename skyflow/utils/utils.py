@@ -1,26 +1,47 @@
+"""
+Utility functions for Skyflow.
+"""
 import importlib
 import json
 import os
+from typing import Dict, List, Union
 
 import requests
 import yaml
 
-from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
-from skyflow.templates import Cluster
+API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
-API_SERVER_CONFIG_PATH = '~/.skym/config.yaml'
-OBJECT_TEMPLATES = importlib.import_module('skyflow.templates')
+OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
-def load_object(response: dict):
-    kind = response['kind']
-    object_class = getattr(OBJECT_TEMPLATES, kind)
-    return object_class(**response)
+
+def load_object(response: Union[Dict, List[Dict]]):
+    """
+    Loads an object or a list of objects (from templates) from a dictionary.
+    """
+    if isinstance(response, list):
+        return [load_single_object(item) for item in response]
+    return load_single_object(response)
+
+def load_single_object(item: dict):
+    """
+    Loads a single object (from templates) from a dictionary.
+    """
+    try:
+        kind = item["kind"]
+        object_class = getattr(OBJECT_TEMPLATES, kind)
+        if object_class:
+            return object_class(**item)
+        raise ValueError(f"Unknown kind: {kind}")
+    except KeyError as error:
+        raise ValueError(f"Missing expected key: {error}") from error
+
 
 def watch_events(url: str):
+    """Yields watch events from the given URL."""
     response = requests.get(url, stream=True)
     for line in response.iter_lines():
         if line:
-            data = json.loads(line.decode('utf-8'))
+            data = json.loads(line.decode("utf-8"))
             yield data
 
 
@@ -28,60 +49,26 @@ def match_labels(labels: dict, labels_selector: dict):
     """Returns True if the labels match the label selector."""
     if not labels_selector:
         return True
-    for k, v in labels_selector.items():
-        if k not in labels or labels[k] != v:
+    for key, value in labels_selector.items():
+        if key not in labels or labels[key] != value:
             return False
     return True
-
-def setup_cluster_manager(cluster_obj: Cluster):
-    cluster_type = cluster_obj.spec.manager
-    cluster_name = cluster_obj.get_name()
-
-    if cluster_type in ['k8', 'kubernetes']:
-        cluster_manager_cls = KubernetesManager
-    else:
-        raise ValueError(f"Cluster type {cluster_type} not supported.")
-
-    # Get the constructor of the class
-    constructor = cluster_manager_cls.__init__
-    # Get the parameter names of the constructor
-    class_params = constructor.__code__.co_varnames[1:constructor.__code__.
-                                                    co_argcount]
-
-    # Filter the dictionary keys based on parameter names
-    args = {
-        k: v
-        for k, v in dict(cluster_obj.metadata).items() if k in class_params
-    }
-    # Create an instance of the class with the extracted arguments.
-    return cluster_manager_cls(**args)
-
-def generate_manager_config(host: str, port: int):
-    """Generates the API server config file."""
-    config_dict = {
-        'api_server': {
-            'host': host,
-            'port': port,
-        },
-    }
-    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
-    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-    with open(absolute_path, 'w') as config_file:
-        yaml.dump(config_dict, config_file)
 
 
 def load_manager_config():
     """Loads the API server config file."""
     try:
         with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
-                  'r') as config_file:
+                  "r") as config_file:
             config_dict = yaml.safe_load(config_file)
-        host = config_dict['api_server']['host']
-        port = config_dict['api_server']['port']
-    except FileNotFoundError as e:
+        host = config_dict["api_server"]["host"]
+        port = config_dict["api_server"]["port"]
+    except FileNotFoundError as error:
         raise Exception(
-            f'API server config file not found at {API_SERVER_CONFIG_PATH}.')
-    except KeyError as e:
+            f"API server config file not found at {API_SERVER_CONFIG_PATH}."
+        ) from error
+    except KeyError as error:
         raise Exception(
-            f'API server config file at {API_SERVER_CONFIG_PATH} is invalid.')
+            f"API server config file at {API_SERVER_CONFIG_PATH} is invalid."
+        ) from error
     return host, port

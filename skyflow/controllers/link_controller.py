@@ -1,57 +1,53 @@
-# This controller manages the dynamic links between clusters. This assumes that each cluster has the
-# Cluster link/Skupper software/deployment installed.
-from contextlib import contextmanager
+"""
+Link Controller - Manages the dynamic links between clusters. This assumes
+that each cluster has the Cluster link/Skupper software/deployment installed.
+"""
 import logging
 import queue
-import requests
+import subprocess
 import traceback
-from typing import Dict
 
+from skyflow.api_client import ClusterAPI, LinkAPI
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.structs import Informer
 from skyflow.api_client import *
-from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
 from skyflow.network.cluster_linkv2 import create_link, delete_link
-from skyflow.utils.utils import setup_cluster_manager
+from skyflow.structs import Informer
+from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
-@contextmanager
-def LinkErrorHandler(controller: Controller):
-    """Handles different types of errors from the Skylet Controller."""
-    try:
-        # Yield control back to the calling block
-        yield
-    except requests.exceptions.ConnectionError as e:
-        controller.logger.error(traceback.format_exc())
-        controller.logger.error(
-            'Cannot connect to API server. Retrying.')
-    except Exception as e:
-        controller.logger.error(traceback.format_exc())
 
 class LinkController(Controller):
+    """
+    Link Controller - Manages the dynamic links between clusters. This assumes
+    that each cluster has the Cluster link/Skupper software/deployment installed.
+    """
 
     def __init__(self) -> None:
         super().__init__()
-        self.logger = logging.getLogger('[Link Controller]')
+        self.logger = logging.getLogger("[Link Controller]")
         self.logger.setLevel(logging.INFO)
 
-        #Thread safe queue for Informers to append events to.
-        self.event_queue = queue.Queue()
+        # Thread safe queue for Informers to append events to.
+        self.event_queue: queue.Queue = queue.Queue()
         self.post_init_hook()
 
     def post_init_hook(self):
+
         def add_callback_fn(event):
             self.event_queue.put(event)
-        
+
         def delete_callback_fn(event):
             self.event_queue.put(event)
 
         self.link_informer = Informer(LinkAPI())
         self.link_informer.add_event_callbacks(
-            add_event_callback=add_callback_fn, delete_event_callback=delete_callback_fn)
+            add_event_callback=add_callback_fn,
+            delete_event_callback=delete_callback_fn)
         self.link_informer.start()
 
         self.cluster_informer = Informer(ClusterAPI())
@@ -59,24 +55,21 @@ class LinkController(Controller):
 
     def run(self):
         self.logger.info(
-            'Running Link controller - Creates and deletes links across clusters.'
+            "Running Link controller - Creates and deletes links across clusters."
         )
-        while True:
-            with LinkErrorHandler(self):
-                self.controller_loop()
-    
+        super().run()
 
     def controller_loop(self):
         # Blocks until there is at least 1 element in the queue or until timeout.
         event = self.event_queue.get()
-        event_type = event.event_type 
+        event_type = event.event_type
         event_object = event.object
         if isinstance(event_object, Link):
             source = event_object.spec.source_cluster
             target = event_object.spec.target_cluster
             name = event_object.get_name()
             skip_update = False
-            try: 
+            try:
                 if event_type == WatchEventEnum.ADD:
                     self.logger.info(f'Creating link between clusters. {source}, {target}')
                     self._create_link(source, target)
@@ -85,13 +78,13 @@ class LinkController(Controller):
                     self.logger.info(f'Deleting link between clusters. {source}, {target}')
                     self._delete_link(source, target)
                     skip_update = True
-            except Exception as e:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 link_status = LinkStatusEnum.FAILED.value
-            
+
             # Update the link status.
-            if not skip_update:                 
+            if not skip_update:
                 event_object.status.update_status(link_status)
-                LinkAPI().update(event_object.model_dump(mode='json'))
+                LinkAPI().update(event_object.model_dump(mode="json"))
 
 
     def _create_link(self, source: str, target: str) -> bool:
@@ -115,9 +108,10 @@ class LinkController(Controller):
             delete_link(source_manager=source_cluster_manager, target_manager = target_cluster_manager)
         except Exception as e:
             self.logger.error(traceback.format_exc())
-            self.logger.error('Failed to delete link between clusters.')
-            raise e
+            self.logger.error("Failed to delete link between clusters.")
+            raise error
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     hc = LinkController()
     hc.run()
