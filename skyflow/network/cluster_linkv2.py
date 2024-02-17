@@ -11,8 +11,10 @@ from kubernetes import client, config
 
 logging.basicConfig(
     level=logging.INFO,
-    format='[Clusterlink Controller] - %(asctime)s - %(levelname)s - %(message)s')
+    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
+cl_logger = logging.getLogger("[Clusterlink Controller]")
+cl_logger.setLevel(logging.INFO)
 CL_DIRECTORY = os.path.expanduser('~/.skym/cl/')
 POLICY_FILE = 'allowAll.json'
 CERT = "cert.pem"
@@ -96,7 +98,7 @@ def prepare_cluster(cluster_name: str):
         pass
     except OSError as e:
         # Handle other errors
-        logging.info("Error in preparing cluster: {} - {}.".format(e.filename, e.strerror))
+        cl_logger.info("Error in preparing cluster: {} - {}.".format(e.filename, e.strerror))
 
 def get_clusterlink_gw_target(cluster: str):
     if cluster.startswith(KIND_PREFIX):
@@ -125,7 +127,7 @@ def expose_clusterlink(cluster: str, port="443"):
             clJson=json.loads(subprocess.getoutput(f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"))
             ingress=clJson["items"][0]["status"]["loadBalancer"]
             time.sleep(1)
-        logging.info(f"Clusterlink Dataplane exposed in {ingress}")
+        cl_logger.info(f"Clusterlink Dataplane exposed in {ingress}")
     except subprocess.CalledProcessError as e:
         print(f"Failed to create load balancer : {e.cmd}")
         raise e
@@ -138,28 +140,28 @@ def init_clusterlink_gateway(cluster: str):
         gw_ip, gw_port = get_clusterlink_gw_target(cluster)
 
         cl_init_cmd = CL_INIT_CMD.format(cluster_name=cluster, cl_gw_ip=gw_ip, gw_port=gw_port, certca=certca, cert=cert, key=key)
-        logging.info(f"Initializing Clusterlink gateway: {cl_init_cmd}")
+        cl_logger.info(f"Initializing Clusterlink gateway: {cl_init_cmd}")
         subprocess.check_output(cl_init_cmd, shell=True).decode('utf-8')
         while not clusterlink_gateway_access(cluster):
             time.sleep(1)
         cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster, policy_file=os.path.join(CL_DIRECTORY, POLICY_FILE))
         subprocess.check_output(cl_policy_cmd, shell=True).decode('utf-8')
     except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to init Clusterlink gateway: {e.cmd}")
+        cl_logger.error(f"Failed to init Clusterlink gateway: {e.cmd}")
         raise e
     
 def install_clusterlink():
     try:
-        logging.info("Linking Clusterlink binary to path!")
+        cl_logger.info("Linking Clusterlink binary to path!")
         current_path = os.environ.get('PATH')
         os.environ['PATH'] = f"{CL_INSTALL_DIR}:{current_path}"
     except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to link Clusterlink : {e.cmd}")
+        cl_logger.error(f"Failed to link Clusterlink : {e.cmd}")
         raise e
 
 def launch_network_fabric():
     try:
-        logging.info("Launching network fabric.")
+        cl_logger.info("Launching network fabric.")
         os.makedirs(CL_DIRECTORY, exist_ok=True)
         subprocess.check_output(CLA_FABRIC_CMD, shell=True, cwd=CL_DIRECTORY).decode('utf-8')
         policy_file = json.dumps(policy_allow_all, indent=2)
@@ -167,7 +169,7 @@ def launch_network_fabric():
             file.write(policy_file)
         return True
     except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to launch network fabric : {e.cmd}")
+        cl_logger.error(f"Failed to launch network fabric : {e.cmd}")
         raise e
 
 
@@ -180,7 +182,7 @@ def launch_network(manager: Manager):
         path = shutil.which("cl-adm")
         install_clusterlink()
         if os.path.exists(fabric_cert) != True:
-            logging.info(f"Launching network fabric!")
+            cl_logger.info(f"Launching network fabric!")
             launch_network_fabric()
             
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name, namespace=namespace)
@@ -194,7 +196,7 @@ def launch_network(manager: Manager):
         init_clusterlink_gateway(cluster_name)
         return True
     except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to launch network on `{cluster_name}`: {e.cmd}")
+        cl_logger.error(f"Failed to launch network on `{cluster_name}`: {e.cmd}")
         raise e
         
     
@@ -230,7 +232,7 @@ def create_link(source_manager: Manager, target_manager: Manager):
         create_link_command2 = CL_LINK_CMD.format(cluster_name=target_cluster_name, peer=source_cluster_name, target_ip=source_cluster_ip, target_port=source_cluster_port)
         subprocess.check_output(create_link_command2, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        print('Failed to establish a link between two clusters.')
+        cl_logger.error('Failed to establish a link between two clusters.')
         raise e
 
 def delete_link(source_manager: Manager, target_manager: Manager):
@@ -245,7 +247,7 @@ def delete_link(source_manager: Manager, target_manager: Manager):
         delete_link_command1 = CL_LINK_DELETE_CMD.format(cluster_name=source_cluster_name, peer=target_cluster_name)
         subprocess.check_output(delete_link_command1, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed delete a link between two clusters. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed delete a link between two clusters. {e.cmd.splitlines()[0]}')
         return False
     
     if not check_link_status(target_cluster_name, source_cluster_name):
@@ -254,7 +256,7 @@ def delete_link(source_manager: Manager, target_manager: Manager):
         delete_link_command2 = CL_LINK_DELETE_CMD.format(cluster_name=target_cluster_name, peer=source_cluster_name)
         subprocess.check_output(delete_link_command2, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed delete a link between two clusters. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed delete a link between two clusters. {e.cmd.splitlines()[0]}')
         return False
 
 
@@ -263,18 +265,18 @@ def export_service(service_name: str, manager: Manager, ports: List[int]):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
-    logging.info(f"Exporting service {expose_service_name} from {cluster_name}")
+    cl_logger.info(f"Exporting service {expose_service_name} from {cluster_name}")
     try:
         export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name, service_name=expose_service_name, service_target=service_name, port=ports[0])
         subprocess.check_output(export_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed to expose service. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed to expose service. {e.cmd.splitlines()[0]}')
         return False
 
 def import_service(service_name: str, manager: Manager, peer: str, ports: List[int]):
     cluster_name = manager.cluster_name
     import_service_name = f'{service_name}-{peer}'
-    logging.info(f"Importing service {import_service_name} from {peer}")
+    cl_logger.info(f"Importing service {import_service_name} from {peer}")
     try:
         import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name, service_name=import_service_name, port=ports[0])
         bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name, service_name=import_service_name, peer=peer)
@@ -282,25 +284,25 @@ def import_service(service_name: str, manager: Manager, peer: str, ports: List[i
         subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed to import service. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed to import service. {e.cmd.splitlines()[0]}')
         return False
 
 def delete_export_service(service_name: str, manager: Manager):
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
-    logging.info(f"Removing exported service {expose_service_name} from {cluster_name}")
+    cl_logger.info(f"Removing exported service {expose_service_name} from {cluster_name}")
     try:
         export_cmd = CL_EXPORT_DELETE_CMD.format(cluster_name=cluster_name, service_name=expose_service_name)
         subprocess.check_output(export_cmd, shell=True).decode('utf-8')
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed to delete service. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed to delete service. {e.cmd.splitlines()[0]}')
         return False
 
 def delete_import_service(service_name: str, manager: Manager, peer: str):
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     import_service_name = f'{service_name}-{peer}'
-    logging.info(f"Removing imported service {import_service_name} from {peer}")
+    cl_logger.info(f"Removing imported service {import_service_name} from {peer}")
     try:
         import_cmd = CL_IMPORT_DELETE_CMD.format(cluster_name=cluster_name, service_name=import_service_name)
         bind_cmd = CL_BIND_DELETE_CMD.format(cluster_name=cluster_name, service_name=import_service_name, peer=peer)
@@ -308,5 +310,5 @@ def delete_import_service(service_name: str, manager: Manager, peer: str):
         subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-        logging.error(f'Failed to delete imported service. {e.cmd.splitlines()[0]}')
+        cl_logger.error(f'Failed to delete imported service. {e.cmd.splitlines()[0]}')
         return False    
