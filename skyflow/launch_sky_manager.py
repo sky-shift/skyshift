@@ -4,26 +4,24 @@ Launches the Sky Manager, which is a controller manager akin to that in K8.
 import traceback
 
 from skyflow.controllers.link_controller import LinkController
-from skyflow.controllers.scheduler_controller import SchedulerController
 from skyflow.controllers.skylet_controller import SkyletController
+from skyflow.scheduler.scheduler_controller import SchedulerController
 
 # Servers as the Controller Manager, which runs two controllers.
 SKY_MANAGER_CONTROLLERS = [
-    SkyletController,
-    SchedulerController,
-    LinkController
+    SkyletController, SchedulerController, LinkController
 ]
 
 
 def launch_sky_manager():
     """
-    Launches the Sky Manager, which manages Skylets, Schedulers, and Links.
+    Launches the Skyflow Manager, which manages Skylets, Schedulers, and Links.
     """
     # Launch SkyletController, which manages Skylets.
     print("Launching Skylet Controller Manager.")
     try:
         controllers = [c() for c in SKY_MANAGER_CONTROLLERS]
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         print(traceback.format_exc())
         return
     for cont in controllers:
