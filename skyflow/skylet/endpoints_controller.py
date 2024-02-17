@@ -172,7 +172,7 @@ class EndpointsController(Controller):
             try:
                 end_json: dict = EndpointsAPI(namespace=namespace).get(
                     name=name)
-                return Endpoints.parse_obj(**end_json)
+                return end_json
             except APIException as error:
                 retry += 1
                 self.logger.error("Could not fetch %s. Retrying.", name)

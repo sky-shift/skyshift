@@ -118,10 +118,8 @@ class ProxyController(Controller):
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[event_object.metadata.name]
             # The primary cluster imports the service and creates a k8 endpoints object and attaches it to the remote service.
-            print(self.name, primary_cluster)
             if self.name == primary_cluster:
                 logging.info(f"Setting up to import service from {primary_cluster}")
-                print(event_object)
                 self._import_service(event_object, [a.port for a in service_obj.spec.ports])
             else:
                 # Secondary clusters simply export the service.
