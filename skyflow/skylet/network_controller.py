@@ -13,7 +13,8 @@ import requests
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
-from skyflow.network.cluster_linkv2 import launch_network, status_network
+from skyflow.network.cluster_linkv2 import launch_clusterlink, status_network
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
@@ -32,7 +33,7 @@ def heartbeat_error_handler(controller: "NetworkController"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.update_network_state(False)
         controller.logger.error(
@@ -89,7 +90,7 @@ class NetworkController(Controller):
         # Install Skupper on the cluster.
         if not status_network(self.manager_api):
             self.logger.info('Installing clusterlink software.')
-            launch_network(self.manager_api)
+            launch_clusterlink(self.manager_api)
         self.update_network_state(True)
 
     def update_network_state(self, state):
