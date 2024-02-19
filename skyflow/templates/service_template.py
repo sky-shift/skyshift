@@ -21,6 +21,13 @@ class ServiceType(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+    @classmethod
+    def has_value(cls, value):
+        """
+        Checks if the specified value is present among the enum values.
+        """
+        return any(value == item.value for item in cls)
+
 
 class ServiceException(ObjectException):
     """Raised when the job template is invalid."""
