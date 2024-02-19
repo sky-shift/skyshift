@@ -682,7 +682,7 @@ def create_service(
     if not all(
             validate_input_string(k) and validate_input_string(v)
             for k, v in selector):
-        raise click.BadParameter("Selector is invalid.")
+        raise click.BadParameter(f"Selector {selector} is invalid.")
 
     # Validate ports
     for port, target_port in ports:
@@ -778,10 +778,10 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     """Creates a new set of endpoints."""
     # Validate inputs
     if not validate_input_string(name):
-        raise click.BadParameter("Invalid name for endpoints.")
+        raise click.BadParameter(f"Invalid name {name} for endpoints.")
 
     if not validate_input_string(namespace):
-        raise click.BadParameter("Invalid namespace name.")
+        raise click.BadParameter(f"Invalid namespace name: {namespace}.")
 
     if num_endpoints is not None and num_endpoints < 0:
         raise click.BadParameter("Number of endpoints must be non-negative.")
@@ -791,7 +791,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
             "Exposed endpoints must specify a primary cluster.")
 
     if primary_cluster != "auto" and not cluster_exists(primary_cluster):
-        raise click.BadParameter("Invalid primary cluster name.")
+        raise click.BadParameter(f"Invalid primary cluster name: {primary_cluster}")
 
     selector_dict = dict(selector) if selector else {}
 
