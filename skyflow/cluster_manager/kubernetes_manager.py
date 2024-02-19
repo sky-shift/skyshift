@@ -482,24 +482,24 @@ class KubernetesManager(Manager):
             if error.status != 404:
                 raise error
 
-
-    def create_endpoint_slice(self, name: str, cluster_name, endpoint: 'EndpointObject'):
+    def create_endpoint_slice(self, name: str, cluster_name,
+                              endpoint: 'EndpointObject'):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
-            autoescape=select_autoescape())
-        endpoint_template = jinja_env.get_template('k8_endpointslice.j2')        
+                                autoescape=select_autoescape())
+        endpoint_template = jinja_env.get_template('k8_endpointslice.j2')
         endpoint_dict = {
             'object_name': None,
             "name": name,
             "addresses": [],
             "ports": [],
         }
-        logging.info(f"Creating endpointslice for {name}")
         while True:
             try:
                 # Get the endpoints object.
-                exposed_k8_endpoints = self.core_v1.read_namespaced_endpoints(name=f'{name}-{cluster_name}', namespace=self.namespace)
+                exposed_k8_endpoints = self.core_v1.read_namespaced_endpoints(
+                    name=f'{name}-{cluster_name}', namespace=self.namespace)
                 break
             except client.exceptions.ApiException as e:
                 if e.status == 404:
@@ -509,15 +509,15 @@ class KubernetesManager(Manager):
                 else:
                     raise e
         for _ in range(endpoint.num_endpoints):
-            subsets= exposed_k8_endpoints.subsets
+            subsets = exposed_k8_endpoints.subsets
             assert len(subsets) <= 1, "Only one subset is supported."
             subset = subsets[0]
             # Loop through ports in each subset
-            ports = [p.port for p in subset.ports]   
+            ports = [p.port for p in subset.ports]
             # Loop through addresses in each subset
             for address in subset.addresses:
                 # Get the pod IP
-                pod_ip = address.ip       
+                pod_ip = address.ip
                 endpoint_dict['addresses'].append(pod_ip)
             break
 
@@ -531,14 +531,18 @@ class KubernetesManager(Manager):
         endpoint_dict = yaml.safe_load(endpoint_dict)
         try:
             # Create an EndpointSlice
-            self.discovery_v1.create_namespaced_endpoint_slice(namespace=self.namespace, body=endpoint_dict)
+            self.discovery_v1.create_namespaced_endpoint_slice(
+                namespace=self.namespace, body=endpoint_dict)
         except client.rest.ApiException as e:
             if e.status == 409:
                 # EndpointSlice already exists, update it
                 print("Updating endpointslice since it already exists")
                 print(endpoint_dict)
                 print(endpoint_dict['object_name'])
-                self.discovery_v1.replace_namespaced_endpoint_slice(name=endpoint_dict['object_name'], namespace=self.namespace, body=endpoint_dict)
+                self.discovery_v1.replace_namespaced_endpoint_slice(
+                    name=endpoint_dict['object_name'],
+                    namespace=self.namespace,
+                    body=endpoint_dict)
             else:
                 raise e
 
