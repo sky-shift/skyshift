@@ -1,5 +1,5 @@
 #! /bin/bash
-install_dir=~/.skym/cl
+install_dir=~/.skyconf/cl
 
 pull_and_install_clusterlink() {
     local dir=$1
