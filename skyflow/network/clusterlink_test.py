@@ -18,14 +18,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
-path = shutil.which("cl-adm")
-if path is None:
-    clusterlink.install_clusterlink()
-fabric_cert = os.path.join(clusterlink.CL_DIRECTORY, clusterlink.CERT)
-if os.path.exists(fabric_cert) != True:
-    logging.info(f"Launching network fabric!")
-    clusterlink.launch_network_fabric()
-
 clusterlink_path = os.path.join(clusterlink.CL_DIRECTORY, "clusterlink")
 sys.path.append(clusterlink_path)
 
@@ -124,16 +116,16 @@ if __name__ == '__main__':
 
     print("Lauching Clusterlink network on peer1!\n")
     try:
-        clusterlink.launch_network(cluster1_manager)
+        clusterlink.launch_clusterlink(cluster1_manager)
     except subprocess.CalledProcessError as e:
         print(f"{e.cmd}")
     print("Lauching Clusterlink network on peer2!\n")
     try:
-        clusterlink.launch_network(cluster2_manager)
+        clusterlink.launch_clusterlink(cluster2_manager)
     except subprocess.CalledProcessError as e:
         print(f"{e.cmd}")
 
-    clusterlink.create_link("", cluster1_manager, cluster2_manager)
+    clusterlink.create_link(cluster1_manager, cluster2_manager)
 
     # Create iPerf3 micro-services
     cl1.loadService(cluster1_service, "mlabbe/iperf3",
