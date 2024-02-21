@@ -71,7 +71,7 @@ mluo-onprem                             k8         cpus: 1.93/2.0               
 
 If there are no clusters, add more clusters into your `~/.kube/config` file and run:
 ```
-skyctl create-cluster --name [K8_CONTEXT_NAME] --manager_type k8
+skyctl create cluster --manager k8 [K8_CONTEXT_NAME]
 ```
 
 ### 5. Congrats. Submit jobs!

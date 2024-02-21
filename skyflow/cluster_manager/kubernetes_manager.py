@@ -106,6 +106,21 @@ class KubernetesManager(Manager):
             accelerator_types[node_name] = node_accelerator_type
         return accelerator_types
 
+    def _process_gpu_resources(
+            self, resources: Dict[str,
+                                  Dict[str,
+                                       float]]) -> Dict[str, Dict[str, float]]:
+        # Refetch node accelerator types if the nodes have changed
+        # (such as in cluster autoscaling or admin adds/removes nodes).
+        if not self.accelerator_types or not set(
+                self.accelerator_types).issubset(set(resources.keys())):
+            self.accelerator_types = self.get_accelerator_types()
+
+        for node_name, accelerator_type in self.accelerator_types.items():
+            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
+            resources[node_name][accelerator_type] = gpu_value
+        return resources
+
     @property
     def cluster_resources(self):
         """Gets total cluster resources for each node."""
@@ -129,21 +144,6 @@ class KubernetesManager(Manager):
             }
 
         return self._process_gpu_resources(cluster_resources)
-
-    def _process_gpu_resources(
-            self, resources: Dict[str,
-                                  Dict[str,
-                                       float]]) -> Dict[str, Dict[str, float]]:
-        # Refetch node accelerator types if the nodes have changed
-        # (such as in cluster autoscaling or admin adds/removes nodes).
-        if not self.accelerator_types or not set(
-                self.accelerator_types).issubset(set(resources.keys())):
-            self.accelerator_types = self.get_accelerator_types()
-
-        for node_name, accelerator_type in self.accelerator_types.items():
-            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
-            resources[node_name][accelerator_type] = gpu_value
-        return resources
 
     @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:

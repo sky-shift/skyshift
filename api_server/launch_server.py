@@ -28,8 +28,10 @@ def generate_manager_config(host: str, port: int):
         yaml.dump(config_dict, config_file)
 
 
-def check_and_install_etcd():
-    """Checks if ETCD is installed and running. If not, installs and launches ETCD."""
+def check_and_install_etcd(data_directory=None):
+    """
+    Checks if ETCD is installed and running. If not, installs and launches ETCD.
+    """
     result = subprocess.run(  # pylint: disable=subprocess-run-check
         'ps aux | grep "[e]tcd"',
         shell=True,
@@ -43,10 +45,13 @@ def check_and_install_etcd():
     else:
         print(
             "[Installer] ETCD is not running, automatically installing ETCD.")
-        # Install ETCD (platform-specific code goes here)
-        # Start ETCD in background (platform-specific code goes here)
         relative_dir = os.path.dirname(os.path.realpath(__file__))
-        with subprocess.Popen(f"{relative_dir}/install_etcd.sh",
+        install_command = f"{relative_dir}/install_etcd.sh"
+        # Pass data_directory to the install script if provided
+        if data_directory:
+            install_command += f" {data_directory}"
+
+        with subprocess.Popen(install_command,
                               shell=True,
                               start_new_session=True) as install_process:
             install_process.wait()  # Wait for the script to complete
@@ -59,10 +64,10 @@ def check_and_install_etcd():
             )
 
 
-def main(host, port, workers):
-    """Main function that encapsulates the script logic."""
+def main(host: str, port: int, workers: int, data_directory=None):
+    """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
-    check_and_install_etcd()
+    check_and_install_etcd(data_directory)
     generate_manager_config(host, port)
     uvicorn.run(
         "api_server:app",
@@ -73,9 +78,8 @@ def main(host, port, workers):
 
 
 def parse_args():
-    """Parse and return command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Launch API Service for Sky Manager.")
+    """Parse and return command line arguments, now includes data directory."""
+    parser = argparse.ArgumentParser(description="Launch API Service.")
     parser.add_argument(
         "--host",
         type=str,
@@ -92,7 +96,13 @@ def parse_args():
         "--workers",
         type=int,
         default=multiprocessing.cpu_count(),
-        help="Number of workers running in parallel for the API server (default: %(default)s)",
+        help=
+        "Number of workers running in parallel for the API server (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--data-directory",
+        type=str,
+        help="Optional directory for ETCD data (default: uses ~/.etcd/)",
     )
     return parser.parse_args()
 
@@ -102,4 +112,4 @@ def parse_args():
 # -b :50051 api_server.api_server:app`
 if __name__ == "__main__":
     args = parse_args()
-    main(args.host, args.port, args.workers)
+    main(args.host, args.port, args.workers, args.data_directory)

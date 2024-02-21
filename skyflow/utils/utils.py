@@ -22,6 +22,7 @@ def load_object(response: Union[Dict, List[Dict]]):
         return [load_single_object(item) for item in response]
     return load_single_object(response)
 
+
 def load_single_object(item: dict):
     """
     Loads a single object (from templates) from a dictionary.

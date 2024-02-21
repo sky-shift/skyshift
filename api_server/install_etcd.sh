@@ -1,21 +1,50 @@
 # @TODO(mluo,alex): Extend beyond Linux script to support other OS.
+#!/bin/bash
+# ETCD Installation Script
+#
+# This script downloads and installs ETCD version v3.5.11.
+#
+# Usage:
+#    # To install ETCD with the default data directory.
+#    bash install_etcd.sh
+#    # To install ETCD with a custom data directory.
+#    bash install_etcd.sh <data_dir>
+#
+# Options:
+#    --data_dir: Specify a custom directory for ETCD data storage. If not provided, defaults to ~/.etcd.
+#
+# This script supports downloading ETCD from either Google Cloud Storage or GitHub Releases, defaulting to Google Cloud Storage.
+# It cleans up the downloaded archive and temporary files after installation.
+# Run this script to install or update ETCD to the specified version on your system.
+#
+# Ensure you have curl and tar installed and accessible in your PATH to successfully run this script.
+
 ETCD_VER=v3.5.11
 
-# choose either URL
+# Choose either URL
 GOOGLE_URL=https://storage.googleapis.com/etcd
 GITHUB_URL=https://github.com/etcd-io/etcd/releases/download
 DOWNLOAD_URL=${GOOGLE_URL}
 
+# Check if an argument is passed for data_dir, otherwise use default
+if [ "$#" -eq 1 ]; then
+  DATA_DIR=$1
+else
+  DATA_DIR=~/.etcd
+fi
+
+echo "Using data directory: ${DATA_DIR}"
+
 rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
 rm -rf /tmp/etcd-download-test && mkdir -p /tmp/etcd-download-test
 
-curl -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
+curl -s -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
 tar xzvf /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz -C /tmp/etcd-download-test --strip-components=1
 rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
 
-mkdir -p ~/.etcd
+mkdir -p ${DATA_DIR}
 
-cp /tmp/etcd-download-test/etcd ~/.etcd/
-cp /tmp/etcd-download-test/etcdctl ~/.etcd/
+cp /tmp/etcd-download-test/etcd ${DATA_DIR}/
+cp /tmp/etcd-download-test/etcdctl ${DATA_DIR}/
 
-nohup ~/.etcd/etcd --data-dir ~/.etcd > /dev/null 2>&1 &
+nohup ${DATA_DIR}/etcd --data-dir ${DATA_DIR} > /dev/null 2>&1 &

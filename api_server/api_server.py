@@ -95,9 +95,9 @@ class APIServer:
                 temp_name = obj_dict["metadata"]["name"]
                 if object_name == temp_name:
                     raise HTTPException(
-                        status_code=400,
+                        status_code=409,
                         detail=
-                        f"Object '{link_header}/{object_name}' already exists.",
+                        f"Conflict error: Object '{link_header}/{object_name}' already exists.",
                     )
             self.etcd_client.write(f"{link_header}/{object_name}",
                                    object_init.model_dump(mode="json"))
