@@ -7,7 +7,6 @@ import queue
 import subprocess
 import traceback
 
-from skyflow.api_client import *
 from skyflow.api_client import ClusterAPI, LinkAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller

@@ -25,7 +25,7 @@ KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
 
-CL_ROOT_DIR = os.path.join(CL_DIRECTORY,"clusterlink")
+CL_ROOT_DIR = os.path.join(CL_DIRECTORY, "clusterlink")
 CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin")
 
 CL_PULL_CMD = (
@@ -195,6 +195,7 @@ def _init_clusterlink_gateway(cluster: str):
         cl_logger.error(f"Failed to init Clusterlink gateway: {e.cmd}")
         raise e
 
+
 def _build_clusterlink():
     """Builds Clusterlink binaries if its not already built"""
     try:
@@ -205,6 +206,7 @@ def _build_clusterlink():
     except subprocess.CalledProcessError as e:
         cl_logger.error(f"Failed to build Clusterlink : {e.cmd}")
         raise e
+
 
 def _install_clusterlink():
     """Installs Clusterlink if its not already present"""
@@ -296,8 +298,7 @@ def launch_clusterlink(manager: KubernetesManager):
             cl_logger.info(f"Launching network fabric!")
             _launch_network_fabric()
     except subprocess.CalledProcessError as e:
-        cl_logger.error(
-            f"Failed to Initiate Clusterlink : {e.cmd}")
+        cl_logger.error(f"Failed to Initiate Clusterlink : {e.cmd}")
         raise e
     try:
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name,
