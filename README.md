@@ -19,13 +19,6 @@ pip install -e .
 pip install -e .[server]
 ```
 
-Finally, install Clusterlink. This is the multi-cluster communication fabric we use to expose services across different clusters.
-
-```
-# In skyflow/ base folder
-./skyflow/network/clusterlink_install.sh
-```
-
 ## Steps to run Sky Manager
 
 ### 1. Check Kubernetes Clusters
