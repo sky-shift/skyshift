@@ -25,7 +25,12 @@ KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
 
-CL_INSTALL_DIR = CL_DIRECTORY + "clusterlink/bin/"
+CL_ROOT_DIR = os.path.join(CL_DIRECTORY,"clusterlink")
+CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin")
+
+CL_PULL_CMD = (
+    f"git clone https://github.com/praveingk/clusterlink.git {CL_DIRECTORY}/clusterlink"
+)
 
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("cl-adm create fabric")
@@ -67,7 +72,7 @@ CL_BIND_DELETE_CMD = (
     "gwctl delete binding --myid {cluster_name} --import {service_name} --peer {peer}"
 )
 
-policy_allow_all = {
+POLICY_ALLOW_ALL = {
     "name": "allow-all",
     "privileged": False,
     "action": "allow",
@@ -82,6 +87,7 @@ policy_allow_all = {
 
 # TODO @praveingk to change kubectl to kube APIs
 def _wait_pod(cluster_name, name, namespace="default"):
+    """Waits until the pod status is running"""
     podStatus = ""
     while ("Running" not in podStatus):
         cmd = f"kubectl get pods --context {cluster_name} -l app={name} -n {namespace} " + '--no-headers -o custom-columns=":status.phase"'
@@ -93,7 +99,7 @@ def _wait_pod(cluster_name, name, namespace="default"):
 
 
 def _clusterlink_gateway_status(cluster_name: str):
-    # Check Clusterlink status.
+    """Checks the status of clusterlink gaterway"""
     check_status_command = CL_STATUS_CMD.format(cluster_name=cluster_name)
     status_output = subprocess.getoutput(check_status_command)
     if f'Error' in status_output:
@@ -102,8 +108,8 @@ def _clusterlink_gateway_status(cluster_name: str):
 
 
 def _remove_cluster_certs(cluster_name: str):
+    """Deletes cluster's previous certificates"""
     try:
-        # Delete the cluster's previous certificates
         shutil.rmtree(os.path.join(CL_DIRECTORY, cluster_name))
     except FileNotFoundError:
         # Ignore the error if the directory doesn't exist
@@ -115,6 +121,7 @@ def _remove_cluster_certs(cluster_name: str):
 
 
 def _get_clusterlink_gw_target(cluster: str):
+    """Gets the IP of the clusterlink gateway"""
     if cluster.startswith(KIND_PREFIX):
         clJson = json.loads(
             subprocess.getoutput(
@@ -163,6 +170,7 @@ def _expose_clusterlink(cluster: str, port="443"):
 
 
 def _init_clusterlink_gateway(cluster: str):
+    """Initializes the Clusterlink gateway API server and adds policy to allow communication"""
     try:
         certca = os.path.join(CL_DIRECTORY, CERT)
         cert = os.path.join(CL_DIRECTORY, cluster, CERT)
@@ -187,9 +195,23 @@ def _init_clusterlink_gateway(cluster: str):
         cl_logger.error(f"Failed to init Clusterlink gateway: {e.cmd}")
         raise e
 
-
-def _link_clusterlink_binary():
+def _build_clusterlink():
+    """Builds Clusterlink binaries if its not already built"""
     try:
+        subprocess.check_output("go mod tidy", shell=True,
+                                cwd=CL_ROOT_DIR).decode('utf-8')
+        subprocess.check_output("make build", shell=True,
+                                cwd=CL_ROOT_DIR).decode('utf-8')
+    except subprocess.CalledProcessError as e:
+        cl_logger.error(f"Failed to build Clusterlink : {e.cmd}")
+        raise e
+
+def _install_clusterlink():
+    """Installs Clusterlink if its not already present"""
+    try:
+        subprocess.getoutput(CL_PULL_CMD)
+        if not os.path.exists(f"{CL_INSTALL_DIR}/cl-adm"):
+            _build_clusterlink()
         cl_logger.info("Linking Clusterlink binary to path!")
         current_path = os.environ.get('PATH')
         os.environ['PATH'] = f"{CL_INSTALL_DIR}:{current_path}"
@@ -199,12 +221,13 @@ def _link_clusterlink_binary():
 
 
 def _launch_network_fabric():
+    """Creates the network fabric (Root certificates) to enable secure communication between clusters"""
     try:
         cl_logger.info("Launching network fabric.")
         os.makedirs(CL_DIRECTORY, exist_ok=True)
         subprocess.check_output(CLA_FABRIC_CMD, shell=True,
                                 cwd=CL_DIRECTORY).decode('utf-8')
-        policy_file = json.dumps(policy_allow_all, indent=2)
+        policy_file = json.dumps(POLICY_ALLOW_ALL, indent=2)
         with open(os.path.join(CL_DIRECTORY, POLICY_FILE), "w") as file:
             file.write(policy_file)
         return True
@@ -214,6 +237,7 @@ def _launch_network_fabric():
 
 
 def _create_directional_link(source_cluster_name, target_cluster_name):
+    """Creates a target peer cluster for a given source cluster"""
     if not check_link_status(source_cluster_name, target_cluster_name):
         try:
             target_cluster_ip, target_cluster_port = _get_clusterlink_gw_target(
@@ -234,6 +258,7 @@ def _create_directional_link(source_cluster_name, target_cluster_name):
 
 
 def _delete_directional_link(source_cluster_name, target_cluster_name):
+    """Deletes a target cluster as a peer"""
     if check_link_status(source_cluster_name, target_cluster_name):
         try:
             delete_link_command = CL_LINK_DELETE_CMD.format(
@@ -262,13 +287,19 @@ def launch_clusterlink(manager: KubernetesManager):
     cluster_name = manager.cluster_name
 
     try:
+        os.makedirs(CL_DIRECTORY, exist_ok=True)
         fabric_cert = os.path.join(CL_DIRECTORY, CERT)
         path = shutil.which("cl-adm")
-        _link_clusterlink_binary()
+        if path is None:
+            _install_clusterlink()
         if os.path.exists(fabric_cert) != True:
             cl_logger.info(f"Launching network fabric!")
             _launch_network_fabric()
-
+    except subprocess.CalledProcessError as e:
+        cl_logger.error(
+            f"Failed to Initiate Clusterlink : {e.cmd}")
+        raise e
+    try:
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name,
                                               namespace=namespace)
         cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
@@ -349,6 +380,7 @@ def export_service(service_name: str, manager: KubernetesManager,
                                           service_target=service_name,
                                           port=ports[0])
         subprocess.check_output(export_cmd, shell=True).decode('utf-8')
+        return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         cl_logger.error(f'Failed to expose service. {e.cmd.splitlines()[0]}')
         return False

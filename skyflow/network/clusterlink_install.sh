@@ -3,13 +3,17 @@ install_dir=~/.skyconf/cl
 
 pull_and_install_clusterlink() {
     local dir=$1
-    git clone https://github.com/praveingk/clusterlink.git $dir/clusterlink
-    cd $dir/clusterlink
-    mkdir -p deploy/
-    make prereqs
-    go mod tidy
-    make build
-    cd -
+    if [ ! -d $dir/clusterlink ]; then
+        git clone https://github.com/praveingk/clusterlink.git $dir/clusterlink
+    fi
+
+    if [ ! -f $dir/clusterlink/bin/cl-adm ]; then
+        cd $dir/clusterlink
+        make prereqs
+        go mod tidy
+        make build
+        cd -
+    fi
     export PATH=$PATH:$dir/clusterlink/bin
 }
 
