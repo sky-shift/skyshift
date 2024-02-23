@@ -79,10 +79,10 @@ class ClusterController(Controller):
         # request specific accelerators such as T4 GPU.
         try:
             self.accelerator_types = self.manager_api.get_accelerator_types()
-        except Exception: # pylint: disable=broad-except #TODO(acuadron): Add specific exception
+        except Exception:  # pylint: disable=broad-except #TODO(acuadron): Add specific exception
             self.logger.error("Failed to fetch accelerator types.")
             self.update_unhealthy_cluster()
-        
+
         self.logger.setLevel(logging.INFO)
 
     def run(self):
@@ -95,8 +95,9 @@ class ClusterController(Controller):
             end = time.time()
             if end - start < self.heartbeat_interval:
                 time.sleep(self.heartbeat_interval - (end - start))
-                
+
     def controller_loop(self):
+        """Main loop for the Cluster Controller. Updates the cluster state."""
         cluster_status = self.manager_api.get_cluster_status()
         if cluster_status.status == ClusterStatusEnum.ERROR.value:
             self.update_unhealthy_cluster()
