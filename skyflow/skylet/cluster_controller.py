@@ -67,18 +67,22 @@ class ClusterController(Controller):
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
+        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
+        self.logger.info("Initializing Cluster Controller: %s", self.name)
 
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
-
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
         # request specific accelerators such as T4 GPU.
-        self.accelerator_types = self.manager_api.get_accelerator_types()
-
-        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
+        try:
+            self.accelerator_types = self.manager_api.get_accelerator_types()
+        except Exception: # pylint: disable=broad-except #TODO(acuadron): Add specific exception
+            self.logger.error("Failed to fetch accelerator types.")
+            self.update_unhealthy_cluster()
+        
         self.logger.setLevel(logging.INFO)
 
     def run(self):
@@ -91,9 +95,12 @@ class ClusterController(Controller):
             end = time.time()
             if end - start < self.heartbeat_interval:
                 time.sleep(self.heartbeat_interval - (end - start))
-
+                
     def controller_loop(self):
         cluster_status = self.manager_api.get_cluster_status()
+        if cluster_status.status == ClusterStatusEnum.ERROR.value:
+            self.update_unhealthy_cluster()
+            return
         self.update_healthy_cluster(cluster_status)
         self.logger.info("Updated cluster state.")
 

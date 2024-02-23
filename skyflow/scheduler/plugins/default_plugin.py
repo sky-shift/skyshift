@@ -20,7 +20,7 @@ def is_subset_and_values_smaller(dict1: dict, dict2: dict) -> bool:
 
 
 class DefaultPlugin(BasePlugin):
-    """DefaultPlugin impelements the `filter` and `score` methods."""
+    """DefaultPlugin implements the `filter` and `score` methods."""
 
     def filter(self, cluster: Cluster, job: Job) -> PluginStatus:
         """This filter plugin checks if the cluster has sufficient capacity."""
