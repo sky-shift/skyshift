@@ -28,8 +28,10 @@ class DefaultPlugin(BasePlugin):
         cluster_resources = cluster.status.allocatable_capacity
         for node_resources in cluster_resources.values():
             if is_subset_and_values_smaller(node_resources, job_resuources):
-                return PluginStatus(code=StatusCode.SUCCESS, message="Sufficient capacity.")
-        return PluginStatus(code=StatusCode.UNSCHEDULABLE, message="Insufficient capacity.")
+                return PluginStatus(code=StatusCode.SUCCESS,
+                                    message="Sufficient capacity.")
+        return PluginStatus(code=StatusCode.UNSCHEDULABLE,
+                            message="Insufficient capacity.")
 
     def score(self, cluster: Cluster, _) -> Tuple[float, PluginStatus]:
         """Returns a score based on the dot product between cluster and job resources.
@@ -47,10 +49,11 @@ class DefaultPlugin(BasePlugin):
                     score += 10 * resource_count
                 elif resource_type in acc_types:
                     score += 10 * resource_count
-        return score, PluginStatus(code=StatusCode.SUCCESS, message="Score computed.")
+        return score, PluginStatus(code=StatusCode.SUCCESS,
+                                   message="Score computed.")
 
-
-    def spread(self, clusters: List[Cluster], job: Job) -> Tuple[Dict[str, int], PluginStatus]:
+    def spread(self, clusters: List[Cluster],
+               job: Job) -> Tuple[Dict[str, int], PluginStatus]:
         """Compute the number of replicas that should be placed on each cluster.
 
         It greedily assigns replicas to clusters based on the available capacity.
@@ -70,7 +73,8 @@ class DefaultPlugin(BasePlugin):
                 while True:
                     if total_cluster_replicas == job_replicas:
                         break
-                    if is_subset_and_values_smaller(node_resource, job_resource):
+                    if is_subset_and_values_smaller(node_resource,
+                                                    job_resource):
                         for resource_type in node_resource:
                             if resource_type in job_resource:
                                 node_resource[resource_type] -= job_resource[
@@ -84,7 +88,9 @@ class DefaultPlugin(BasePlugin):
                 break
         # Can't schedule job. Returns a null dict.
         if total_cluster_replicas < job_replicas:
-            return {}, PluginStatus(code=StatusCode.UNSCHEDULABLE, message="Insufficient capacity.")
+            return {}, PluginStatus(code=StatusCode.UNSCHEDULABLE,
+                                    message="Insufficient capacity.")
 
-        success = PluginStatus(code=StatusCode.SUCCESS, message="Spread computed.")
+        success = PluginStatus(code=StatusCode.SUCCESS,
+                               message="Spread computed.")
         return {k: v for k, v in job_clusters.items() if v > 0}, success

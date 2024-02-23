@@ -13,16 +13,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 
 from skyflow.cluster_manager.manager import Manager
-from skyflow.templates import (AcceleratorEnum, ClusterStatus, ClusterStatusEnum, Endpoints, Job, ResourceEnum,
+from skyflow.templates import (AcceleratorEnum, ClusterStatus,
+                               ClusterStatusEnum, Endpoints, Job, ResourceEnum,
                                Service, TaskStatusEnum)
-from skyflow.templates.cluster_template import ClusterStatusEnum
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
-
-
 
 
 def parse_resource_cpu(resource_str):
@@ -64,7 +62,7 @@ class K8ConnectionError(config.config_exception.ConfigException):
     """Raised when there is an error connecting to the Kubernetes cluster."""
 
 
-class KubernetesManager(Manager):
+class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
     def __init__(self, name: str):
@@ -103,11 +101,10 @@ class KubernetesManager(Manager):
         try:
             node_list = self.core_v1.list_node()
         except Exception as error:  #pylint: disable=broad-except
-            self.logger.error(
-                "Failed to fetch node list. Error: %s", error)
+            self.logger.error("Failed to fetch node list. Error: %s", error)
             raise Exception(
                 "Failed to fetch node list. Check kubeconfig.") from error
-        
+
         for node in node_list.items:
             node_name = node.metadata.name
             node_accelerator_type = node.metadata.labels.get(
@@ -118,7 +115,7 @@ class KubernetesManager(Manager):
                 "-")[-1].upper()
             accelerator_types[node_name] = node_accelerator_type
         return accelerator_types
-    
+
     def get_cluster_status(self):
         """
         Returns the current status of a Kubernetes cluster.
@@ -137,7 +134,7 @@ class KubernetesManager(Manager):
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        except Exception as error: #pylint: disable=broad-except
+        except Exception as error:  #pylint: disable=broad-except
             # Catch-all for any other exception, which likely indicates an ERROR state
             print(f"Unexpected error: {error}")
             return ClusterStatus(

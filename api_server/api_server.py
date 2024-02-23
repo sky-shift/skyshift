@@ -11,7 +11,6 @@ import yaml
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from kubernetes import client, config
-from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
@@ -55,28 +54,34 @@ class APIServer:
                 detail=f"Object '{link_header}' not found.",
             )
         return obj_dict
-    
-    def _check_cluster_connectivity(self, obj_dict):
+
+    def _check_cluster_connectivity(self, obj_dict):  # pylint: disable=no-self-use
         try:
             # Load the kubeconfig file for the specified context
-            config.load_kube_config(context=obj_dict["metadata"]["name"], persist_config=False)
-            
+            config.load_kube_config(context=obj_dict["metadata"]["name"],
+                                    persist_config=False)
+
             # Create a client for the CoreV1API
-            v1 = client.CoreV1Api()
+            core = client.CoreV1Api()
             # Try to list namespaces as a connectivity check
-            v1.list_namespace(timeout_seconds=10)
+            core.list_namespace(timeout_seconds=10)
         except config.ConfigException as error:
             raise HTTPException(
                 status_code=400,
-                detail=f'Could not load configuration for Kubernetes cluster {obj_dict["metadata"]["name"]}.') from error
+                detail=f'Could not load configuration for Kubernetes cluster\
+                      {obj_dict["metadata"]["name"]}.') from error
         except client.exceptions.ApiException as error:
             raise HTTPException(
                 status_code=400,
-                detail=f'Could not connect to Kubernetes cluster {obj_dict["metadata"]["name"]}, check connectivity and permissions.') from error
+                detail=
+                f'Could not connect to Kubernetes cluster {obj_dict["metadata"]["name"]},\
+                      check connectivity and permissions.') from error
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=400,
-                detail=f'An error occurred while trying to connect to the Kubernetes cluster {obj_dict["metadata"]["name"]}.') from error
+                detail=
+                f'An error occurred while trying to connect to the Kubernetes cluster\
+                     {obj_dict["metadata"]["name"]}.') from error
 
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
@@ -123,7 +128,7 @@ class APIServer:
                         detail=
                         f"Conflict error: Object '{link_header}/{object_name}' already exists.",
                     )
-                
+
             # Check if object type is cluster and if it is accessible.
             if object_type == "clusters":
                 self._check_cluster_connectivity(object_specs)
