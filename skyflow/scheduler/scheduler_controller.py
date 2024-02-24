@@ -16,6 +16,7 @@ from skyflow.controllers import Controller
 from skyflow.scheduler.plugins import ClusterAffinityPlugin, DefaultPlugin
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, Job, JobStatusEnum, TaskStatusEnum
+from skyflow.templates.cluster_template import ClusterStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -161,7 +162,10 @@ class SchedulerController(Controller):
         cached_clusters = deepcopy(self.cluster_informer.get_cache())
         # Convert to list of clusters
         self.logger.info("Cached clusters: %s", cached_clusters)
-        clusters = [cluster for cluster in cached_clusters.values() if cluster.status.status != 'ERROR']
+        clusters = [
+            cluster for cluster in cached_clusters.values()
+            if cluster.status.status != ClusterStatusEnum.ERROR.value
+        ]
         self.logger.info("Clusters: (list) %s", clusters)
         idx_list = []
         for job_idx, job in enumerate(self.workload_queue):
