@@ -30,31 +30,31 @@ cluster2_service = "iperf3-server"
 destPort = 5000
 
 
-def delete_cluster(name):
-    """ Deletes a KIND Cluster """
-    os.system(f"kind delete cluster --name={name}")
+def _cleanup_clusters():
 
+    def _delete_cluster(name):
+        """ Deletes a KIND Cluster """
+        os.system(f"kind delete cluster --name={name}")
 
-def cleanup_clusters():
     """ Cleans up test environment """
-    delete_cluster(cl1)
-    delete_cluster(cl2)
+    _delete_cluster(cl1)
+    _delete_cluster(cl2)
 
 
-def create_cluster(name):
-    """ Creates a KIND Cluster """
-    os.system(f"kind create cluster  --name={name}")
-
-
-def setup_clusters():
+def _setup_clusters():
     """ Sets up KIND Cluster for test environment """
-    create_cluster(cl1)
+
+    def _create_cluster(name):
+        """ Creates a KIND Cluster """
+        os.system(f"kind create cluster  --name={name}")
+
+    _create_cluster(cl1)
     time.sleep(1)
-    create_cluster(cl2)
+    _create_cluster(cl2)
     time.sleep(1)
 
 
-def load_services():
+def _load_services():
     """ Loads the services in clusters to be used for connectivity tests """
     os.system(f"kubectl config use-context {cl1Name}")
     os.system(f"kubectl run iperf3-client --image {test_service}")
@@ -65,7 +65,7 @@ def load_services():
     os.system("kubectl create service nodeport iperf3-server --tcp=5000:5000")
 
 
-def try_connection():
+def _try_connection():
     """ Tries connecting to iperf3 server from the iperf3 client """
     os.system(f"kubectl config use-context {cl1Name}")
     try:
@@ -83,17 +83,18 @@ def try_connection():
 
 def test_create_cluster():
     """Tests connectivity using clusterlink APIs in KIND environment"""
-    cleanup_clusters()
-    setup_clusters()
+    _cleanup_clusters()
+    _setup_clusters()
     cluster1_manager = KubernetesManager(cl1Name)
     cluster2_manager = KubernetesManager(cl2Name)
     assert launch_clusterlink(cluster1_manager) is True
     assert launch_clusterlink(cluster2_manager) is True
     assert create_link(cluster1_manager, cluster2_manager) is True
-    load_services()
+    _load_services()
     assert export_service(cluster2_service, cluster2_manager,
                           [destPort]) is True
     assert import_service(cluster2_service, cluster1_manager,
                           cluster2_manager.cluster_name, [destPort]) is True
-    assert try_connection() is True
-    cleanup_clusters()
+    time.sleep(5)
+    assert _try_connection() is True
+    _cleanup_clusters()
