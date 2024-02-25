@@ -102,7 +102,7 @@ def _clusterlink_gateway_status(cluster_name: str):
     """Checks the status of clusterlink gaterway"""
     check_status_command = CL_STATUS_CMD.format(cluster_name=cluster_name)
     status_output = subprocess.getoutput(check_status_command)
-    if f'Error' in status_output:
+    if 'Error' in status_output or 'not found' in status_output:
         return False
     return True
 
@@ -277,7 +277,6 @@ def _delete_directional_link(source_cluster_name, target_cluster_name):
 
 def status_network(manager: KubernetesManager):
     """Checks if clusterlink gateway is running on a cluster."""
-    namespace = manager.namespace
     cluster_name = manager.cluster_name
     # Check Clusterlink status.
     return _clusterlink_gateway_status(cluster_name)
@@ -326,7 +325,7 @@ def check_link_status(source_cluster_name: str, target_cluster_name: str):
     status_link_command = CL_LINK_STATUS_CMD.format(
         cluster_name=source_cluster_name, peer=target_cluster_name)
     status_output = subprocess.getoutput(status_link_command)
-    if f'Error' in status_output:
+    if 'Error' in status_output or 'not found' in status_output:
         return False
     return True
 

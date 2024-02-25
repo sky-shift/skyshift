@@ -483,7 +483,7 @@ class KubernetesManager(Manager):
                 raise error
 
     def create_endpoint_slice(self, name: str, cluster_name,
-                              endpoint: 'EndpointObject'):
+                              endpoint: Endpoints):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
