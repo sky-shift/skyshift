@@ -37,9 +37,9 @@ def load_single_object(item: dict):
         raise ValueError(f"Missing expected key: {error}") from error
 
 
-def watch_events(url: str):
+def watch_events(url: str, headers: dict = {}):
     """Yields watch events from the given URL."""
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, headers=headers)
     for line in response.iter_lines():
         if line:
             data = json.loads(line.decode("utf-8"))
@@ -55,21 +55,14 @@ def match_labels(labels: dict, labels_selector: dict):
             return False
     return True
 
-
 def load_manager_config():
     """Loads the API server config file."""
     try:
         with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
                   "r") as config_file:
             config_dict = yaml.safe_load(config_file)
-        host = config_dict["api_server"]["host"]
-        port = config_dict["api_server"]["port"]
     except FileNotFoundError as error:
         raise Exception(
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."
         ) from error
-    except KeyError as error:
-        raise Exception(
-            f"API server config file at {API_SERVER_CONFIG_PATH} is invalid."
-        ) from error
-    return host, port
+    return config_dict
