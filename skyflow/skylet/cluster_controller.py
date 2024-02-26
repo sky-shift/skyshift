@@ -6,6 +6,7 @@ These controllers are launched in Skylet.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -67,19 +68,26 @@ class ClusterController(Controller):
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
+        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
+        self.logger.info("Initializing Cluster Controller: %s", self.name)
 
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
-
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
         # request specific accelerators such as T4 GPU.
-        self.accelerator_types = self.manager_api.get_accelerator_types()
+        # @TODO(acuadron): Add specific exception
+        try:
+            self.accelerator_types = self.manager_api.get_accelerator_types()
+        except Exception:  # pylint: disable=broad-except
+            self.logger.error("Failed to fetch accelerator types.")
+            self.update_unhealthy_cluster()
 
-        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def run(self):
         self.logger.info(
@@ -93,9 +101,13 @@ class ClusterController(Controller):
                 time.sleep(self.heartbeat_interval - (end - start))
 
     def controller_loop(self):
+        """Main loop for the Cluster Controller. Updates the cluster state."""
         cluster_status = self.manager_api.get_cluster_status()
+        if cluster_status.status == ClusterStatusEnum.ERROR.value:
+            self.update_unhealthy_cluster()
+            return
         self.update_healthy_cluster(cluster_status)
-        self.logger.info("Updated cluster state.")
+        self.logger.debug("Updated cluster state.")
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         """Updates the healthy cluster status (READY)."""

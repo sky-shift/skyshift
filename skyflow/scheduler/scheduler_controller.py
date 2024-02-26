@@ -7,6 +7,7 @@ the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 
 import logging
+import os
 import queue
 from copy import deepcopy
 from typing import Dict, List
@@ -16,6 +17,7 @@ from skyflow.controllers import Controller
 from skyflow.scheduler.plugins import ClusterAffinityPlugin, DefaultPlugin
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, Job, JobStatusEnum, TaskStatusEnum
+from skyflow.templates.cluster_template import ClusterStatusEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +34,7 @@ def aggregate_job_status(replica_status: Dict[str, Dict[str, int]]):
             merged_status[task_status] += count
     return merged_status
 
+
 class SchedulerController(Controller):
     """
     Scheduler controller determines which cluster (or spread of clusters)
@@ -41,7 +44,9 @@ class SchedulerController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Scheduler Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
@@ -50,14 +55,15 @@ class SchedulerController(Controller):
         self.event_queue: queue.Queue = queue.Queue()
 
         # Initialize informers.
-        self.cluster_informer: Informer = Informer(ClusterAPI())
-        self.job_informer: Informer = Informer(JobAPI(namespace=''))
+        self.cluster_informer: Informer = Informer(ClusterAPI(),
+                                                   logger=self.logger)
+        self.job_informer: Informer = Informer(JobAPI(namespace=''),
+                                               logger=self.logger)
         self.prev_alloc_capacity: Dict[str, Dict[str, float]] = {}
 
         # Load scheduler plugins
         # @TODO(mluo): Make this dynamic.
         self.plugins = [DefaultPlugin(), ClusterAffinityPlugin()]
-
 
     def post_init_hook(self):
 
@@ -102,7 +108,8 @@ class SchedulerController(Controller):
         )
         super().run()
 
-    def apply_filter_plugins(self, job: Job, clusters: List[Cluster]) -> List[Cluster]:
+    def apply_filter_plugins(self, job: Job,
+                             clusters: List[Cluster]) -> List[Cluster]:
         """Applies filter plugins to filter out unschedulable clusters."""
         filtered_clusters = []
         for cluster in clusters:
@@ -130,7 +137,10 @@ class SchedulerController(Controller):
                     break
             score_tuples.append((cluster, total_score))
         # Sort tuple by score and get the list of clusters
-        return [x[0] for x in sorted(score_tuples, key=lambda x: x[1], reverse=True)]
+        return [
+            x[0]
+            for x in sorted(score_tuples, key=lambda x: x[1], reverse=True)
+        ]
 
     def apply_spread_plugins(self, job: Job, clusters: List[Cluster]):
         """Applies spread plugins to spread the job across clusters."""
@@ -156,7 +166,12 @@ class SchedulerController(Controller):
         # Main Scheduling loop.
         cached_clusters = deepcopy(self.cluster_informer.get_cache())
         # Convert to list of clusters
-        clusters = list(cached_clusters.values())
+        self.logger.debug("Cached clusters: %s", cached_clusters)
+        clusters = [
+            cluster for cluster in cached_clusters.values()
+            if cluster.status.status != ClusterStatusEnum.ERROR.value
+        ]
+        self.logger.debug("Clusters: (list) %s", clusters)
         idx_list = []
         for job_idx, job in enumerate(self.workload_queue):
             # Filter for valid clusters based on filter plugins.
@@ -165,6 +180,10 @@ class SchedulerController(Controller):
             ranked_clusters = self.apply_score_plugins(job, filtered_clusters)
             # Compute spread. Defaults to the spread plugin in DefaultPlugin.
             spread_replicas = self.apply_spread_plugins(job, ranked_clusters)
+            self.logger.debug("Spread replicas: %s", spread_replicas)
+            self.logger.debug("Job status: %s", job.status.replica_status)
+            self.logger.debug("Ranked clusters: %s", ranked_clusters)
+            self.logger.debug("Filtered clusters: %s", filtered_clusters)
             if spread_replicas:
                 job.status.update_replica_status({
                     c_name: {

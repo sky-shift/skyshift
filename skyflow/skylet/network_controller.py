@@ -4,6 +4,7 @@ healthy and runs on the corresponding cluster.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -33,7 +34,7 @@ def heartbeat_error_handler(controller: "NetworkController"):
     except requests.exceptions.ConnectionError:
         controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
-    except Exception: # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         controller.logger.error(traceback.format_exc())
         controller.update_network_state(False)
         controller.logger.error(
@@ -72,7 +73,9 @@ class NetworkController(Controller):
         self.manager_api = setup_cluster_manager(cluster_obj)
 
         self.logger = logging.getLogger(f"[{self.name} - Network Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def run(self):
         self.logger.info(
