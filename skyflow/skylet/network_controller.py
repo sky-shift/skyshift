@@ -4,6 +4,7 @@ healthy and runs on the corresponding cluster.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -72,7 +73,8 @@ class NetworkController(Controller):
         self.manager_api = setup_cluster_manager(cluster_obj)
 
         self.logger = logging.getLogger(f"[{self.name} - Network Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+
 
     def run(self):
         self.logger.info(

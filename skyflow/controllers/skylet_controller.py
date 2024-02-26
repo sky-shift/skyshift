@@ -7,6 +7,7 @@ the cluster's state. If a cluster is deleted, the corresponding Skylet is termin
 
 import logging
 import multiprocessing
+import os
 import time
 from queue import Queue
 
@@ -42,27 +43,27 @@ class SkyletController(Controller):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger("[Skylet Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
-        self.cluster_informer = Informer(ClusterAPI())
+        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
 
         def add_callback_fn(event):
-            self.logger.info("Cluster added: %s", event.object.get_name())
+            self.logger.debug("Cluster added: %s", event.object.get_name())
             self.event_queue.put(event)
 
         def update_callback_fn(_, event):
             event_object = event.object
-            self.logger.info("Cluster status: %s", event_object.get_status())
+            self.logger.debug("Cluster status: %s", event_object.get_status())
             if event_object.get_status() == ClusterStatusEnum.ERROR:
                 self.event_queue.put(event)
 
         def delete_callback_fn(event):
-            self.logger.info("Cluster deleted: %s", event.object.get_name())
+            self.logger.debug("Cluster deleted: %s", event.object.get_name())
             self.event_queue.put(event)
 
         # Add to event queue if cluster is added (or modified) or deleted.

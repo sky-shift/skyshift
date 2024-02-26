@@ -31,9 +31,9 @@ class Informer:  # pylint: disable=too-many-instance-attributes
     It regularly watches the API server and updates the cache asynchronously.
     """
 
-    def __init__(self, api: object):
+    def __init__(self, api: object, logger=logging.getLogger(f"[Informer]")):
         self.api = api
-        self.logger = logging.getLogger(f"[Informer-{type(api).__name__}]")
+        self.logger = logger
         self.watcher = Watcher(self.api)
         self.informer_queue: queue.Queue = queue.Queue()
         self.lock = threading.Lock()
@@ -117,7 +117,7 @@ class Informer:  # pylint: disable=too-many-instance-attributes
     def get_cache(self):
         """Returns the informer cache. at a given point in time."""
         with self.lock:
-            self.logger.info("Cache: %s", self.cache)
+            self.logger.debug("Cache: %s", self.cache)
             return self.cache
 
 

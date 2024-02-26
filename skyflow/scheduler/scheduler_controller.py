@@ -7,6 +7,7 @@ the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 
 import logging
+import os
 import queue
 from copy import deepcopy
 from typing import Dict, List
@@ -43,7 +44,7 @@ class SchedulerController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Scheduler Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
@@ -52,8 +53,8 @@ class SchedulerController(Controller):
         self.event_queue: queue.Queue = queue.Queue()
 
         # Initialize informers.
-        self.cluster_informer: Informer = Informer(ClusterAPI())
-        self.job_informer: Informer = Informer(JobAPI(namespace=''))
+        self.cluster_informer: Informer = Informer(ClusterAPI(), logger=self.logger)
+        self.job_informer: Informer = Informer(JobAPI(namespace=''), logger=self.logger)
         self.prev_alloc_capacity: Dict[str, Dict[str, float]] = {}
 
         # Load scheduler plugins
@@ -161,12 +162,12 @@ class SchedulerController(Controller):
         # Main Scheduling loop.
         cached_clusters = deepcopy(self.cluster_informer.get_cache())
         # Convert to list of clusters
-        self.logger.info("Cached clusters: %s", cached_clusters)
+        self.logger.debug("Cached clusters: %s", cached_clusters)
         clusters = [
             cluster for cluster in cached_clusters.values()
             if cluster.status.status != ClusterStatusEnum.ERROR.value
         ]
-        self.logger.info("Clusters: (list) %s", clusters)
+        self.logger.debug("Clusters: (list) %s", clusters)
         idx_list = []
         for job_idx, job in enumerate(self.workload_queue):
             # Filter for valid clusters based on filter plugins.
@@ -175,10 +176,10 @@ class SchedulerController(Controller):
             ranked_clusters = self.apply_score_plugins(job, filtered_clusters)
             # Compute spread. Defaults to the spread plugin in DefaultPlugin.
             spread_replicas = self.apply_spread_plugins(job, ranked_clusters)
-            self.logger.info("Spread replicas: %s", spread_replicas)
-            self.logger.info("Job status: %s", job.status.replica_status)
-            self.logger.info("ranked clusters: %s", ranked_clusters)
-            self.logger.info("filtered clusters: %s", filtered_clusters)
+            self.logger.debug("Spread replicas: %s", spread_replicas)
+            self.logger.debug("Job status: %s", job.status.replica_status)
+            self.logger.debug("Ranked clusters: %s", ranked_clusters)
+            self.logger.debug("Filtered clusters: %s", filtered_clusters)
             if spread_replicas:
                 job.status.update_replica_status({
                     c_name: {
@@ -191,7 +192,7 @@ class SchedulerController(Controller):
                 self.logger.info("Sending job %s to clusters %s.",
                                  job.get_name(), spread_replicas)
             else:
-                self.logger.info(
+                self.logger.warn(
                     "Unable to schedule job %s. Marking it as failed.",
                     job.get_name())
                 idx_list.append(job_idx)

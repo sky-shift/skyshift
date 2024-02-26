@@ -6,6 +6,7 @@ These controllers are launched in Skylet.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -84,7 +85,8 @@ class ClusterController(Controller):
             self.logger.error("Failed to fetch accelerator types.")
             self.update_unhealthy_cluster()
 
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+
 
     def run(self):
         self.logger.info(
@@ -104,7 +106,7 @@ class ClusterController(Controller):
             self.update_unhealthy_cluster()
             return
         self.update_healthy_cluster(cluster_status)
-        self.logger.info("Updated cluster state.")
+        self.logger.debug("Updated cluster state.")
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         """Updates the healthy cluster status (READY)."""

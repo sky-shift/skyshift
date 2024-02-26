@@ -10,7 +10,8 @@ import jsonpatch
 import yaml
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from kubernetes import client, config
+from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
+from skyflow.cluster_manager.manager import Manager
 
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
@@ -57,25 +58,14 @@ class APIServer:
 
     def _check_cluster_connectivity(self, obj_dict):  # pylint: disable=no-self-use
         try:
-            # Load the kubeconfig file for the specified context
-            config.load_kube_config(context=obj_dict["metadata"]["name"],
-                                    persist_config=False)
-
-            # Create a client for the CoreV1API
-            core = client.CoreV1Api()
-            # Try to list namespaces as a connectivity check
-            core.list_namespace(timeout_seconds=10)
-        except config.ConfigException as error:
+            cluster_name = obj_dict["metadata"]["name"]
+            cluster_manager = Manager(cluster_name)
+            cluster_manager.get_cluster_status()
+        except K8ConnectionError as error:
             raise HTTPException(
                 status_code=400,
                 detail=f'Could not load configuration for Kubernetes cluster\
                       {obj_dict["metadata"]["name"]}.') from error
-        except client.exceptions.ApiException as error:
-            raise HTTPException(
-                status_code=400,
-                detail=
-                f'Could not connect to Kubernetes cluster {obj_dict["metadata"]["name"]},\
-                      check connectivity and permissions.') from error
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=400,

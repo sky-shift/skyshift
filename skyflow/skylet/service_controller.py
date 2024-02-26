@@ -3,6 +3,7 @@ Service controller.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -88,9 +89,10 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.service_status = self.manager_api.get_service_status()
-        self.informer = Informer(ServiceAPI(namespace=''))
+        self.informer = Informer(ServiceAPI(namespace=''), logger=self.logger)
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+
 
     def post_init_hook(self):
         # Keeps track of cached job state.
