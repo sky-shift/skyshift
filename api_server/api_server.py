@@ -12,12 +12,12 @@ from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
-from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
+from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.event_template import WatchEvent
 from skyflow.utils import load_object
 
@@ -56,22 +56,21 @@ class APIServer:
             )
         return obj_dict
 
-    def _check_cluster_connectivity(self, obj_dict):  # pylint: disable=no-self-use
+    def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
         try:
-            cluster_name = obj_dict["metadata"]["name"]
-            cluster_manager = Manager(cluster_name)
+            cluster_manager = setup_cluster_manager(cluster)
             cluster_manager.get_cluster_status()
         except K8ConnectionError as error:
             raise HTTPException(
                 status_code=400,
                 detail=f'Could not load configuration for Kubernetes cluster\
-                      {obj_dict["metadata"]["name"]}.') from error
+                      {cluster.get_name()}.') from error
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=400,
                 detail=
                 f'An error occurred while trying to connect to the Kubernetes cluster\
-                     {obj_dict["metadata"]["name"]}.') from error
+                     {cluster.get_name()}.') from error
 
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
@@ -120,8 +119,8 @@ class APIServer:
                     )
 
             # Check if object type is cluster and if it is accessible.
-            if object_type == "clusters":
-                self._check_cluster_connectivity(object_specs)
+            if isinstance(object_init, Cluster):
+                self._check_cluster_connectivity(object_init)
 
             self.etcd_client.write(f"{link_header}/{object_name}",
                                    object_init.model_dump(mode="json"))
