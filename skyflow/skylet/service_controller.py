@@ -91,8 +91,9 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         self.service_status = self.manager_api.get_service_status()
         self.informer = Informer(ServiceAPI(namespace=''), logger=self.logger)
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
-
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
         # Keeps track of cached job state.

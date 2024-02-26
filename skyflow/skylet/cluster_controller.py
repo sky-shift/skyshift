@@ -85,8 +85,9 @@ class ClusterController(Controller):
             self.logger.error("Failed to fetch accelerator types.")
             self.update_unhealthy_cluster()
 
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
-
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def run(self):
         self.logger.info(

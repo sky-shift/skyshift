@@ -29,8 +29,9 @@ class LinkController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Link Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
-
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
         # Thread safe queue for Informers to append events to.
         self.event_queue: queue.Queue = queue.Queue()

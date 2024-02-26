@@ -43,7 +43,9 @@ class SkyletController(Controller):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger("[Skylet Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}

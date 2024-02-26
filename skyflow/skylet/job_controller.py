@@ -69,8 +69,9 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.job_status = self.manager_api.get_jobs_status()
 
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
-
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
         # Keeps track of cached job state.

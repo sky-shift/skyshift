@@ -48,7 +48,8 @@ class FlowController(Controller):
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: Queue = Queue()
         self.job_informer = Informer(JobAPI(namespace=''), logger=self.logger)
-        self.policy_informer = Informer(FilterPolicyAPI(namespace=''), logger=self.logger)
+        self.policy_informer = Informer(FilterPolicyAPI(namespace=''),
+                                        logger=self.logger)
 
         logging.basicConfig(
             level=logging.INFO,
@@ -56,8 +57,9 @@ class FlowController(Controller):
         )
 
         self.logger = logging.getLogger(f"[{self.name} - Flow Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
-
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 

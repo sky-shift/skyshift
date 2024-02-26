@@ -44,7 +44,9 @@ class SchedulerController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Scheduler Controller]")
-        self.logger.setLevel(getattr(logging, os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
@@ -53,8 +55,10 @@ class SchedulerController(Controller):
         self.event_queue: queue.Queue = queue.Queue()
 
         # Initialize informers.
-        self.cluster_informer: Informer = Informer(ClusterAPI(), logger=self.logger)
-        self.job_informer: Informer = Informer(JobAPI(namespace=''), logger=self.logger)
+        self.cluster_informer: Informer = Informer(ClusterAPI(),
+                                                   logger=self.logger)
+        self.job_informer: Informer = Informer(JobAPI(namespace=''),
+                                               logger=self.logger)
         self.prev_alloc_capacity: Dict[str, Dict[str, float]] = {}
 
         # Load scheduler plugins
@@ -192,7 +196,7 @@ class SchedulerController(Controller):
                 self.logger.info("Sending job %s to clusters %s.",
                                  job.get_name(), spread_replicas)
             else:
-                self.logger.warn(
+                self.logger.info(
                     "Unable to schedule job %s. Marking it as failed.",
                     job.get_name())
                 idx_list.append(job_idx)
