@@ -7,7 +7,7 @@ import click
 from tabulate import tabulate
 
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
-                                JobAPI, LinkAPI, NamespaceAPI, ServiceAPI)
+                                JobAPI, LinkAPI, NamespaceAPI, RoleAPI, ServiceAPI)
 # Import API parent class.
 from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
@@ -26,6 +26,7 @@ NON_NAMESPACED_API_OBJECTS = {
     "cluster": ClusterAPI,
     "namespace": NamespaceAPI,
     "link": LinkAPI,
+    "role": RoleAPI,
 }
 ALL_API_OBJECTS = {**NON_NAMESPACED_API_OBJECTS, **NAMESPACED_API_OBJECTS}
 
@@ -369,6 +370,25 @@ def print_endpoints_table(endpoints_list):
         for cluster, endpoint_obj in endpoints.items():
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
         table_data.append([name, namespace, endpoints_str])
+
+    table = tabulate(table_data, field_names, tablefmt="plain")
+    click.echo(f"{table}\r")
+
+
+def print_role_table(roles_list):
+    """
+    Prints out a table of Roles.
+    """
+    if isinstance(roles_list, ObjectList):
+        roles_lists = roles_list.objects
+    else:
+        roles_lists = [roles_list]
+    field_names = ["NAME",]
+    table_data = []
+
+    for entry in roles_lists:
+        name = entry.get_name()
+        table_data.append([name,])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")

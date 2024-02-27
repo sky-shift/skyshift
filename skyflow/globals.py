@@ -2,7 +2,7 @@
 Globals contains variables used across the Skyflow.
 """
 from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
-                               Namespace, Service)
+                               Namespace, Service, Role)
 
 DEFAULT_NAMESPACE = "default"
 
@@ -16,5 +16,6 @@ NON_NAMESPACED_OBJECTS = {
     "clusters": Cluster,
     "namespaces": Namespace,
     "links": Link,
+    "roles": Role,
 }
 ALL_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}

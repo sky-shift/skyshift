@@ -26,6 +26,7 @@ from skyflow.templates.object_template import (Object, ObjectException,
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import (Service, ServiceException,
                                                 ServiceList, ServiceMeta)
+from skyflow.templates.rbac_template import Role, RoleList
 
 __all__ = [
     "AcceleratorEnum",
@@ -58,6 +59,8 @@ __all__ = [
     "NamespaceMeta",
     "NamespaceList",
     "ResourceEnum",
+    "Role",
+    "RoleList",
     "Service",
     "ServiceException",
     "ServiceList",

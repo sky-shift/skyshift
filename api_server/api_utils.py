@@ -23,7 +23,10 @@ def create_access_token(data: dict, secret_key: Optional[str] = None, expires_de
     encoded_jwt = jwt.encode(to_encode, secret_key, algorithm='HS256')
     return encoded_jwt
 
-def authenticate_request(token: str = Depends(OAUTH2_SCHEME)):
+def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
+    """Authenticates the request using the provided token.
+    
+    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
     global CACHED_SECRET_KEY
     credentials_exception = HTTPException(
         status_code=401,

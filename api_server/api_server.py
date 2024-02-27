@@ -5,6 +5,7 @@ import json
 import signal
 import sys
 from functools import partial
+from typing import List
 
 import jsonpatch
 import yaml
@@ -44,9 +45,9 @@ class APIServer:
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
-        self.post_init_hook()
+        self.installation_hook()
 
-    def post_init_hook(self):
+    def installation_hook(self):
         all_namespaces = self.etcd_client.read_prefix("namespaces")
         # Hack: Create Default Namespace if it does not exist.
         if DEFAULT_NAMESPACE not in all_namespaces:
@@ -59,9 +60,50 @@ class APIServer:
         admin_user = User(username= 'admin', password = 'admin', email= 'N/A')
         try:
             self.register_user(admin_user)
-        except Exception:
+        except Exception: # pylint: disable=broad-except
             pass
         self._login_user(admin_user.username, admin_user.password)
+        # Create roles for admin.
+        roles_dict = {
+            "kind": "Role",
+            "metadata": {
+                "name": "admin-role",
+                "namespaces": ["*"],
+            },
+            "rules": [
+                {
+                    "resources": ["*"],
+                    "actions": ["*"],
+                },
+            ],
+            "users": [
+                "admin",
+            ]
+        }
+        # turn roles_dict into json dict
+        roles_json = json.dumps(roles_dict)
+        self.etcd_client.write(
+            "roles/admin-role",
+            roles_json,
+        )
+
+    def _authenticate_role(self, action: str, user: str, object_type: str, namespace: str) -> bool:
+        def _verify_subset(key: str, values: List[str]) -> bool:
+            return "*" in values or key in values
+        is_namespace = object_type in NAMESPACED_OBJECTS
+        roles = self.etcd_client.read_prefix("roles")
+
+        for role in roles:
+            if user not in role['users']:
+                continue
+            if is_namespace and not _verify_subset(namespace, role['metadata']['namespaces']):
+                continue
+            rules = role['rules']
+            for rule in rules:
+                if _verify_subset(action, rule['actions']) and _verify_subset(object_type, rule['resources']):
+                    return True
+
+        raise HTTPException(status_code=401, detail="Unauthorized access")
 
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""
@@ -142,7 +184,8 @@ class APIServer:
 
         async def _create_object(request: Request,
                                  namespace: str = DEFAULT_NAMESPACE,
-                                 auth = Depends(authenticate_request)):
+                                 user: str = Depends(authenticate_request)):
+            self._authenticate_role("create", user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -194,11 +237,12 @@ class APIServer:
             object_type: str,
             namespace: str = DEFAULT_NAMESPACE,
             watch: bool = Query(False),
-            auth = Depends(authenticate_request),
+            user: str = Depends(authenticate_request),
     ):
         """
         Lists all objects of a given type.
         """
+        self._authenticate_role("list", user, object_type, namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -224,11 +268,12 @@ class APIServer:
             object_name: str,
             namespace: str = DEFAULT_NAMESPACE,
             watch: bool = Query(False),
-            auth = Depends(authenticate_request),
+            user: str = Depends(authenticate_request),
     ):
         """
         Returns a specific object, raises Error otherwise.
         """
+        self._authenticate_role("get", user, object_type, namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -254,8 +299,9 @@ class APIServer:
         async def _update_object(
             request: Request,
             namespace: str = DEFAULT_NAMESPACE,
-            auth = Depends(authenticate_request),
+            user: str = Depends(authenticate_request),
         ):
+            self._authenticate_role("update", user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -322,8 +368,9 @@ class APIServer:
             request: Request,
             object_name: str,
             namespace: str = DEFAULT_NAMESPACE,
-            auth = Depends(authenticate_request),
+            user: str = Depends(authenticate_request),
         ):
+            self._authenticate_role("patch", user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -377,8 +424,9 @@ class APIServer:
 
         return _patch_object
 
-    def job_logs(self, object_name: str, namespace: str = DEFAULT_NAMESPACE, auth = Depends(authenticate_request)):
+    def job_logs(self, object_name: str, namespace: str = DEFAULT_NAMESPACE, user: str = Depends(authenticate_request)):
         """Returns logs for a given job."""
+        self._authenticate_role("get", user, "jobs", namespace)
         # Fetch cluster/clusters where job is running.
         job_link_header = f"jobs/{namespace}/{object_name}"
         job_dict = self._fetch_etcd_object(job_link_header)
@@ -395,12 +443,14 @@ class APIServer:
 
     def delete_object(
         self,
+        request: Request,
         object_type: str,
         object_name: str,
         namespace: str = DEFAULT_NAMESPACE,
-        auth = Depends(authenticate_request),
+        user: str = Depends(authenticate_request),
     ):
         """Deletes an object of a given type."""
+        self._authenticate_role("delete", user, object_type, namespace)
         if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
