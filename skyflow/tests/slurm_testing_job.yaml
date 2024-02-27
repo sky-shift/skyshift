@@ -1,7 +1,7 @@
 kind: Job
 
 metadata: 
-  name: hello-world7
+  name: hello-tester
   labels:
     testing: hello
 
