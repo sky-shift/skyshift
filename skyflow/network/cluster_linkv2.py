@@ -35,7 +35,7 @@ CL_PULL_CMD = (
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("cl-adm create fabric")
 CLA_PEER_CMD = (
-    "cl-adm create peer --name {cluster_name} --namespace {namespace} --container-registry quay.io/mcnet")
+    "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet")
 CL_DEPLOY_CMD = (
     "kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml")
 
