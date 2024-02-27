@@ -62,6 +62,7 @@ def _load_services():
     os.system(
         f"kubectl run iperf3-server --image {test_service} --port 5000 -l app=iperf3-server -- -s -p 5000"
     )
+    os.system("kubectl wait --for=condition=Ready pod/iperf3-server")
     os.system("kubectl create service nodeport iperf3-server --tcp=5000:5000")
 
 
