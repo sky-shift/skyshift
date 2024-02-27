@@ -3,6 +3,7 @@ Job controllers track the state of running jobs on clusters.
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -60,7 +61,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.name = name
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
-        self.informer = Informer(JobAPI(namespace=''))
+        self.informer = Informer(JobAPI(namespace=''), logger=self.logger)
         self.retry_counter = 0
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
@@ -68,7 +69,9 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.job_status = self.manager_api.get_jobs_status()
 
         self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
         # Keeps track of cached job state.

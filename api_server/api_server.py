@@ -15,11 +15,13 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
+from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
+from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.event_template import WatchEvent
 from skyflow.utils import load_object
 from api_utils import create_access_token, load_manager_config, update_manager_config, authenticate_request
@@ -104,6 +106,22 @@ class APIServer:
 
         raise HTTPException(status_code=401, detail="Unauthorized access. User does not have the required role.")
 
+    def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
+        try:
+            cluster_manager = setup_cluster_manager(cluster)
+            cluster_manager.get_cluster_status()
+        except K8ConnectionError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=f'Could not load configuration for Kubernetes cluster\
+                      {cluster.get_name()}.') from error
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=400,
+                detail=
+                f'An error occurred while trying to connect to the Kubernetes cluster\
+                     {cluster.get_name()}.') from error
+
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""
         obj_dict = self.etcd_client.read(link_header)
@@ -113,6 +131,7 @@ class APIServer:
                 detail=f"Object '{link_header}' not found.",
             )
         return obj_dict
+
 
     def _login_user(self, username: str, password: str):
         """Helper method that logs in a user."""
@@ -210,12 +229,12 @@ class APIServer:
                     detail=f"Invalid {object_type} template.") from error
 
             object_name = object_init.get_name()
+
             # Read all objects of the same type and check if the object already exists.
             if object_type in NAMESPACED_OBJECTS:
                 link_header = f"{object_type}/{namespace}"
             else:
                 link_header = object_type
-
             list_response = self.etcd_client.read_prefix(link_header)
             for obj_dict in list_response:
                 temp_name = obj_dict["metadata"]["name"]
@@ -225,6 +244,11 @@ class APIServer:
                         detail=
                         f"Conflict error: Object '{link_header}/{object_name}' already exists.",
                     )
+
+            # Check if object type is cluster and if it is accessible.
+            if isinstance(object_init, Cluster):
+                self._check_cluster_connectivity(object_init)
+
             self.etcd_client.write(f"{link_header}/{object_name}",
                                    object_init.model_dump(mode="json"))
             return object_init

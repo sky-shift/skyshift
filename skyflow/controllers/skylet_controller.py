@@ -7,6 +7,7 @@ the cluster's state. If a cluster is deleted, the corresponding Skylet is termin
 
 import logging
 import multiprocessing
+import os
 import time
 from queue import Queue
 
@@ -37,29 +38,34 @@ def terminate_process(pid: int):
 
 
 class SkyletController(Controller):
-    """Skylet Controller - Spwans Skylets for each cluster."""
+    """Skylet Controller - Spawns Skylets for each cluster."""
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger("[Skylet Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
-        self.cluster_informer = Informer(ClusterAPI())
+        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
 
         def add_callback_fn(event):
+            self.logger.debug("Cluster added: %s", event.object.get_name())
             self.event_queue.put(event)
 
         def update_callback_fn(_, event):
             event_object = event.object
+            self.logger.debug("Cluster status: %s", event_object.get_status())
             if event_object.get_status() == ClusterStatusEnum.ERROR:
                 self.event_queue.put(event)
 
         def delete_callback_fn(event):
+            self.logger.debug("Cluster deleted: %s", event.object.get_name())
             self.event_queue.put(event)
 
         # Add to event queue if cluster is added (or modified) or deleted.
@@ -101,6 +107,7 @@ class SkyletController(Controller):
     def _load_clusters(self):
         existing_clusters = lookup_kube_config()
         for cluster_name in existing_clusters:
+            self.logger.info("Found existing cluster: %s.", cluster_name)
             try:
                 cluster_obj = ClusterAPI().get(cluster_name)
             except APIException:
@@ -129,6 +136,7 @@ class SkyletController(Controller):
         if cluster_name in self.skylets:
             return
         # Launch a Skylet to manage the cluster state.
+        self.logger.info("Launching Skylet for cluster: %s.", cluster_name)
         skylet_process = multiprocessing.Process(target=launch_skylet,
                                                  args=(cluster_name, ))
         skylet_process.start()

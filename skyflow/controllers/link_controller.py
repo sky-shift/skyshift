@@ -3,6 +3,7 @@ Link Controller - Manages the dynamic links between clusters. This assumes
 that each cluster has the Cluster link/Skupper software/deployment installed.
 """
 import logging
+import os
 import queue
 import subprocess
 import traceback
@@ -28,7 +29,9 @@ class LinkController(Controller):
     def __init__(self) -> None:
         super().__init__()
         self.logger = logging.getLogger("[Link Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
         # Thread safe queue for Informers to append events to.
         self.event_queue: queue.Queue = queue.Queue()
@@ -42,13 +45,13 @@ class LinkController(Controller):
         def delete_callback_fn(event):
             self.event_queue.put(event)
 
-        self.link_informer = Informer(LinkAPI())
+        self.link_informer = Informer(LinkAPI(), logger=self.logger)
         self.link_informer.add_event_callbacks(
             add_event_callback=add_callback_fn,
             delete_event_callback=delete_callback_fn)
         self.link_informer.start()
 
-        self.cluster_informer = Informer(ClusterAPI())
+        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
         self.cluster_informer.start()
 
     def run(self):
