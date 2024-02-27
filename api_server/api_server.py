@@ -80,7 +80,7 @@ class APIServer:
                 "admin",
             ]
         }
-        # turn roles_dict into json dict
+        # Turn roles_dict into json dict
         roles_json = json.dumps(roles_dict)
         self.etcd_client.write(
             "roles/admin-role",
@@ -92,7 +92,6 @@ class APIServer:
             return "*" in values or key in values
         is_namespace = object_type in NAMESPACED_OBJECTS
         roles = self.etcd_client.read_prefix("roles")
-
         for role in roles:
             if user not in role['users']:
                 continue
@@ -103,7 +102,7 @@ class APIServer:
                 if _verify_subset(action, rule['actions']) and _verify_subset(object_type, rule['resources']):
                     return True
 
-        raise HTTPException(status_code=401, detail="Unauthorized access")
+        raise HTTPException(status_code=401, detail="Unauthorized access. User does not have the required role.")
 
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""

@@ -39,8 +39,8 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     else:
         secret_key = CACHED_SECRET_KEY
     try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
-        username: str = payload.get("sub")
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])   
+        username: str = payload.get("sub", None)
         if username is None:
             raise credentials_exception
         # Check if time out
