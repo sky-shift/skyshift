@@ -36,6 +36,8 @@ CL_PULL_CMD = (
 CLA_FABRIC_CMD = ("cl-adm create fabric")
 CLA_PEER_CMD = (
     "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet")
+CL_UNDEPLOY_CMD = (
+    "kubectl delete --context {cluster_name} -f {cluster_name}/k8s.yaml")
 CL_DEPLOY_CMD = (
     "kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml")
 
@@ -140,9 +142,9 @@ def _get_clusterlink_gw_target(cluster: str):
 
 def _expose_clusterlink(cluster: str, port="443"):
     """Creates a loadbalancer to expose clusterlink to the external world."""
-    try:
-        # Testing purpose on KIND Cluster
-        if cluster.startswith(KIND_PREFIX):
+    if cluster.startswith(KIND_PREFIX):
+        try:
+            # Testing purpose on KIND Cluster
             subprocess.check_output(
                 f"kubectl delete service --context={cluster} cl-dataplane",
                 shell=True).decode('utf-8')
@@ -151,6 +153,17 @@ def _expose_clusterlink(cluster: str, port="443"):
                 shell=True).decode('utf-8')
             time.sleep(0.1)
             return
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create load balancer : {e.cmd}")
+            raise e
+    try:
+        # Cleanup any previous stray loadbalancer initialized by earlier installation
+        subprocess.check_output(
+            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer", shell=True).decode('utf-8')
+    except:
+        # Ignore if not present
+        pass
+    try:
         # On Cloud/on-prem deployments, loadbalancer is usually provisioned
         ingress = ""
         subprocess.check_output(
@@ -282,6 +295,25 @@ def status_network(manager: KubernetesManager):
     return _clusterlink_gateway_status(cluster_name)
 
 
+def _deploy_clusterlink_gateway(cluster_name: str):
+    """Deploys the clusterlink gateway and its components on a cluster."""
+    cl_undeploy_command = CL_UNDEPLOY_CMD.format(cluster_name=cluster_name)
+    cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
+    try:
+        subprocess.check_output(cl_undeploy_command,
+                                shell=True,
+                                cwd=CL_DIRECTORY, timeout=60).decode('utf-8')  
+    except subprocess.CalledProcessError:
+        # Ignore if some components were not found
+        pass
+    try:    
+        subprocess.check_output(cl_deploy_command,
+                                shell=True,
+                                cwd=CL_DIRECTORY).decode('utf-8')
+    except subprocess.CalledProcessError as e:
+        cl_logger.error(
+            f"Failed to deploy clusterlink gateway on `{cluster_name}`: {e.cmd}") 
+
 def launch_clusterlink(manager: KubernetesManager):
     """Launches clusterlink gateway on a cluster's namespace."""
     namespace = manager.namespace
@@ -302,13 +334,10 @@ def launch_clusterlink(manager: KubernetesManager):
     try:
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name,
                                               namespace=namespace)
-        cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
         _remove_cluster_certs(cluster_name)
         subprocess.check_output(cl_peer_command, shell=True,
                                 cwd=CL_DIRECTORY).decode('utf-8')
-        subprocess.check_output(cl_deploy_command,
-                                shell=True,
-                                cwd=CL_DIRECTORY).decode('utf-8')
+        _deploy_clusterlink_gateway(cluster_name)
         _wait_pod(cluster_name, "cl-controlplane")
         _wait_pod(cluster_name, "cl-dataplane")
         _expose_clusterlink(cluster_name)
