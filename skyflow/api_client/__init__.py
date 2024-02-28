@@ -7,8 +7,8 @@ from skyflow.api_client.filter_policy import FilterPolicyAPI
 from skyflow.api_client.job_api import JobAPI
 from skyflow.api_client.link_api import LinkAPI
 from skyflow.api_client.namespace_api import NamespaceAPI
-from skyflow.api_client.service_api import ServiceAPI
 from skyflow.api_client.role_api import RoleAPI
+from skyflow.api_client.service_api import ServiceAPI
 
 __all__ = [
     "ClusterAPI",

@@ -1,9 +1,10 @@
+"""Role template."""
 import enum
-
-from pydantic import BaseModel, Field, field_validator
 from typing import List
 
-from skyflow.templates.object_template import ObjectMeta, ObjectList
+from pydantic import BaseModel, Field, field_validator
+
+from skyflow.templates.object_template import ObjectList, ObjectMeta
 
 VALID_OBJECT_CLASSES = [
     'jobs',
@@ -16,6 +17,7 @@ VALID_OBJECT_CLASSES = [
     'roles',
     'rolebindings',
 ]
+
 
 class ActionEnum(enum.Enum):
     """Types of actions performed on Skyflow objects."""
@@ -31,59 +33,56 @@ class ActionEnum(enum.Enum):
             return self.value == other
         return super().__eq__(other)
 
+
 class Rule(BaseModel):
-    name: str  = Field(default="",
-                        validate_default=True)
-    resources: List[str] = Field(default=[],
-                                 validate_default=True)
-    actions: List[str] = Field(default=[],
-                               validate_default=True)
-    
+    """Specifies the rules of a role."""
+    name: str = Field(default="", validate_default=True)
+    resources: List[str] = Field(default=[], validate_default=True)
+    actions: List[str] = Field(default=[], validate_default=True)
+
     @field_validator('resources')
     @classmethod
-    def validate_resources(cls, resources: str) -> str:
+    def validate_resources(cls, resources: List[str]) -> List[str]:
         """
         Validates the resources field.
         """
-        print(resources)
         if "*" in resources:
-            if len(resources) !=1:
+            if len(resources) != 1:
                 raise ValueError(f"Invalid resources: {resources}")
-            else:
-                return resources
-        for r in resources:
-            if r not in VALID_OBJECT_CLASSES:
+            return resources
+        for res in resources:
+            if res not in VALID_OBJECT_CLASSES:
                 raise ValueError(f"Invalid resources: {resources}")
         return resources
 
     @field_validator('actions')
     @classmethod
-    def validate_rules(cls, rules: List[str]) -> str:
+    def validate_actions(cls, actions: List[str]) -> List[str]:
         """
         Validates the rules field.
         """
         possible_actions = [a.value for a in ActionEnum]
-        if "*" in rules:
-            if len(rules) != 1:
-                raise ValueError(f"Invalid actions: {rules}")
-            else:
-                return rules
-        for r in rules:
-            if r not in possible_actions:
-                raise ValueError(f"Invalid actions: {rules}")
-        return rules
+        if "*" in actions:
+            if len(actions) != 1:
+                raise ValueError(f"Invalid actions: {actions}")
+            return actions
+        for act in actions:
+            if act not in possible_actions:
+                raise ValueError(f"Invalid actions: {actions}")
+        return actions
+
 
 class RoleMeta(ObjectMeta):
     """Metadata of a job."""
-    namespaces: List[str] = Field(default=[],
-                                  validate_default=True)
+    namespaces: List[str] = Field(default=[], validate_default=True)
+
 
 class Role(BaseModel):
+    """Specifies the role of a user."""
     kind: str = Field(default="Role")
     metadata: RoleMeta = Field(default=RoleMeta())
     rules: List[Rule]
-    users: List[str] = Field(default=[],
-                             validate_default=True)
+    users: List[str] = Field(default=[], validate_default=True)
 
     def get_name(self):
         """Returns the name of an object."""
@@ -93,6 +92,3 @@ class Role(BaseModel):
 class RoleList(ObjectList):
     """List of role objects."""
     kind: str = Field(default="RoleList")
-
-if __name__ == '__main__':
-    Role()

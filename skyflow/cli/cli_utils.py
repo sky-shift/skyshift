@@ -7,7 +7,8 @@ import click
 from tabulate import tabulate
 
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
-                                JobAPI, LinkAPI, NamespaceAPI, RoleAPI, ServiceAPI)
+                                JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
+                                ServiceAPI)
 # Import API parent class.
 from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
@@ -383,12 +384,16 @@ def print_role_table(roles_list):
         roles_lists = roles_list.objects
     else:
         roles_lists = [roles_list]
-    field_names = ["NAME",]
+    field_names = [
+        "NAME",
+    ]
     table_data = []
 
     for entry in roles_lists:
         name = entry.get_name()
-        table_data.append([name,])
+        table_data.append([
+            name,
+        ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")

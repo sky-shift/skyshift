@@ -31,7 +31,9 @@ def verify_response(input_data):
 
     return load_object(body)
 
-def fetch_auth_token(admin_config):
+
+def fetch_auth_token(admin_config: dict) -> str:
+    """Fetches the auth token from the Skyflow config."""
     target_user = admin_config.get('current_user', None)
     users = admin_config.get('users', [])
     if not users:
@@ -41,8 +43,8 @@ def fetch_auth_token(admin_config):
             user_name = user.get('name', None)
             if user_name == target_user:
                 return user['access_token']
-    else:
-        return users[0]['access_token']
+        raise APIException(f"User {target_user} not found in config file")
+    return users[0]['access_token']
 
 
 # @TODO(mluo): Introduce different types of API exceptions.
@@ -96,18 +98,23 @@ class NamespaceObjectAPI(ObjectAPI):
             self.url = f"http://{self.host}:{self.port}/{self.namespace}/{self.object_type}"
         else:
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
-        
+
         self.auth_headers = {
-    "Authorization": f"Bearer {fetch_auth_token(admin_config)}"}
+            "Authorization": f"Bearer {fetch_auth_token(admin_config)}"
+        }
 
     def create(self, config: dict):
         assert self.namespace, "Method `create` requires a namespace."
-        response = requests.post(self.url, json=config, headers=self.auth_headers)
+        response = requests.post(self.url,
+                                 json=config,
+                                 headers=self.auth_headers)
         return verify_response(response)
 
     def update(self, config: dict):
         assert self.namespace, "Method `update` requires a namespace."
-        response = requests.put(self.url, json=config, headers=self.auth_headers)
+        response = requests.put(self.url,
+                                json=config,
+                                headers=self.auth_headers)
         return verify_response(response)
 
     def list(self):
@@ -116,17 +123,19 @@ class NamespaceObjectAPI(ObjectAPI):
 
     def get(self, name: str):
         assert self.namespace, "Method `get` requires a namespace."
-        response = requests.get(f"{self.url}/{name}", headers=self.auth_headers)
+        response = requests.get(f"{self.url}/{name}",
+                                headers=self.auth_headers)
         return verify_response(response)
 
     def delete(self, name: str):
         assert self.namespace, "Method `delete` requires a namespace."
-        response = requests.delete(f"{self.url}/{name}", headers=self.auth_headers)
+        response = requests.delete(f"{self.url}/{name}",
+                                   headers=self.auth_headers)
         return verify_response(response)
 
     def watch(self):
         watch_url = f"{self.url}?watch=true"
-        for data in watch_events(watch_url, headers = self.auth_headers):
+        for data in watch_events(watch_url, headers=self.auth_headers):
             yield verify_response(data)
 
 
@@ -142,14 +151,19 @@ class NoNamespaceObjectAPI(ObjectAPI):
         self.port = admin_config["api_server"]["port"]
         self.url = f"http://{self.host}:{self.port}/{self.object_type}"
         self.auth_headers = {
-    "Authorization": f"Bearer {fetch_auth_token(admin_config)}"}
+            "Authorization": f"Bearer {fetch_auth_token(admin_config)}"
+        }
 
     def create(self, config: dict):
-        response = requests.post(self.url, json=config, headers=self.auth_headers)
+        response = requests.post(self.url,
+                                 json=config,
+                                 headers=self.auth_headers)
         return verify_response(response)
 
     def update(self, config: dict):
-        response = requests.put(self.url, json=config, headers=self.auth_headers)
+        response = requests.put(self.url,
+                                json=config,
+                                headers=self.auth_headers)
         return verify_response(response)
 
     def list(self):
@@ -157,13 +171,16 @@ class NoNamespaceObjectAPI(ObjectAPI):
         return verify_response(response)
 
     def get(self, name: str):
-        response = requests.get(f"{self.url}/{name}", headers=self.auth_headers)
+        response = requests.get(f"{self.url}/{name}",
+                                headers=self.auth_headers)
         return verify_response(response)
 
     def delete(self, name: str):
-        response = requests.delete(f"{self.url}/{name}", headers=self.auth_headers)
+        response = requests.delete(f"{self.url}/{name}",
+                                   headers=self.auth_headers)
         return verify_response(response)
 
     def watch(self):
-        for data in watch_events(f"{self.url}?watch=true", headers=self.auth_headers):
+        for data in watch_events(f"{self.url}?watch=true",
+                                 headers=self.auth_headers):
             yield verify_response(data)

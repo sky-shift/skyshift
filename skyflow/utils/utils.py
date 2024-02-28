@@ -4,7 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import requests
 import yaml
@@ -37,9 +37,12 @@ def load_single_object(item: dict):
         raise ValueError(f"Missing expected key: {error}") from error
 
 
-def watch_events(url: str, headers: dict = {}):
+def watch_events(url: str, headers: Optional[dict] = None):
     """Yields watch events from the given URL."""
-    response = requests.get(url, stream=True, headers=headers)
+    if headers:
+        response = requests.get(url, stream=True, headers=headers)
+    else:
+        response = requests.get(url, stream=True)
     for line in response.iter_lines():
         if line:
             data = json.loads(line.decode("utf-8"))
@@ -54,6 +57,7 @@ def match_labels(labels: dict, labels_selector: dict):
         if key not in labels or labels[key] != value:
             return False
     return True
+
 
 def load_manager_config():
     """Loads the API server config file."""

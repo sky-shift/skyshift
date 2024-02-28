@@ -7,8 +7,6 @@ import os
 import subprocess
 
 import uvicorn
-import yaml
-
 from api_utils import generate_manager_config
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
