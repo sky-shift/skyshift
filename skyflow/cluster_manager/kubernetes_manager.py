@@ -97,18 +97,18 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
     def get_accelerator_types(self) -> Dict[str, str]:
         """Fetches accelerator types for each node."""
         # For now overfit to GKE cluster. TODO(mluo): Replace with a more general solution.
+        accelerator_labels = [
+            "nvidia.com/gpu.product", "cloud.google.com/gke-accelerator"
+        ]
         accelerator_types = {}
-        try:
-            node_list = self.core_v1.list_node()
-        except Exception as error:  #pylint: disable=broad-except
-            self.logger.error("Failed to fetch node list. Error: %s", error)
-            raise Exception(
-                "Failed to fetch node list. Check kubeconfig.") from error
-
+        node_list = self.core_v1.list_node()
         for node in node_list.items:
             node_name = node.metadata.name
-            node_accelerator_type = node.metadata.labels.get(
-                "cloud.google.com/gke-accelerator", None)
+            # Fetch type from list of labels. None otherwise.
+            for label in accelerator_labels:
+                node_accelerator_type = node.metadata.labels.get(label, None)
+                if node_accelerator_type:
+                    break
             if node_accelerator_type is None:
                 continue
             node_accelerator_type = node_accelerator_type.split(
