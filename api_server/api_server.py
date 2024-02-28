@@ -11,11 +11,13 @@ import yaml
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
+from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
+from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.event_template import WatchEvent
 from skyflow.utils import load_object
 
@@ -54,6 +56,22 @@ class APIServer:
             )
         return obj_dict
 
+    def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
+        try:
+            cluster_manager = setup_cluster_manager(cluster)
+            cluster_manager.get_cluster_status()
+        except K8ConnectionError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=f'Could not load configuration for Kubernetes cluster\
+                      {cluster.get_name()}.') from error
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=400,
+                detail=
+                f'An error occurred while trying to connect to the Kubernetes cluster\
+                     {cluster.get_name()}.') from error
+
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
 
@@ -84,12 +102,12 @@ class APIServer:
                     detail=f"Invalid {object_type} template.") from error
 
             object_name = object_init.get_name()
+
             # Read all objects of the same type and check if the object already exists.
             if object_type in NAMESPACED_OBJECTS:
                 link_header = f"{object_type}/{namespace}"
             else:
                 link_header = object_type
-
             list_response = self.etcd_client.read_prefix(link_header)
             for obj_dict in list_response:
                 temp_name = obj_dict["metadata"]["name"]
@@ -99,6 +117,11 @@ class APIServer:
                         detail=
                         f"Conflict error: Object '{link_header}/{object_name}' already exists.",
                     )
+
+            # Check if object type is cluster and if it is accessible.
+            if isinstance(object_init, Cluster):
+                self._check_cluster_connectivity(object_init)
+
             self.etcd_client.write(f"{link_header}/{object_name}",
                                    object_init.model_dump(mode="json"))
             return object_init

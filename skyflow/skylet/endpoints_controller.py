@@ -2,6 +2,7 @@
 Endpoints controller manages updating available endpoints over diff clusters.
 """
 import logging
+import os
 import queue
 import time
 import traceback
@@ -47,7 +48,8 @@ class EndpointsController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: queue.Queue = queue.Queue()
-        self.service_informer = Informer(ServiceAPI(namespace=''))
+        self.service_informer = Informer(ServiceAPI(namespace=''),
+                                         logger=self.logger)
 
         logging.basicConfig(
             level=logging.INFO,
@@ -56,7 +58,9 @@ class EndpointsController(Controller):
 
         self.logger = logging.getLogger(
             f"[{self.name} - Endpoints Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 

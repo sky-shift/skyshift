@@ -13,11 +13,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 
 from skyflow.cluster_manager.manager import Manager
-from skyflow.templates import (AcceleratorEnum, Endpoints, Job, ResourceEnum,
+from skyflow.templates import (AcceleratorEnum, ClusterStatus,
+                               ClusterStatusEnum, Endpoints, Job, ResourceEnum,
                                Service, TaskStatusEnum)
 
 client.rest.logger.setLevel(logging.WARNING)
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 def parse_resource_cpu(resource_str):
@@ -59,11 +62,12 @@ class K8ConnectionError(config.config_exception.ConfigException):
     """Raised when there is an error connecting to the Kubernetes cluster."""
 
 
-class KubernetesManager(Manager):
+class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
     def __init__(self, name: str):
         super().__init__(name)
+        self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
         # Load kubernetes config for the given context.
         try:
             config.load_kube_config(context=self.cluster_name)
@@ -93,18 +97,51 @@ class KubernetesManager(Manager):
     def get_accelerator_types(self) -> Dict[str, str]:
         """Fetches accelerator types for each node."""
         # For now overfit to GKE cluster. TODO(mluo): Replace with a more general solution.
+        accelerator_labels = [
+            "nvidia.com/gpu.product", "cloud.google.com/gke-accelerator"
+        ]
         accelerator_types = {}
         node_list = self.core_v1.list_node()
         for node in node_list.items:
             node_name = node.metadata.name
-            node_accelerator_type = node.metadata.labels.get(
-                "cloud.google.com/gke-accelerator", None)
+            # Fetch type from list of labels. None otherwise.
+            for label in accelerator_labels:
+                node_accelerator_type = node.metadata.labels.get(label, None)
+                if node_accelerator_type:
+                    break
             if node_accelerator_type is None:
                 continue
             node_accelerator_type = node_accelerator_type.split(
                 "-")[-1].upper()
             accelerator_types[node_name] = node_accelerator_type
         return accelerator_types
+
+    def get_cluster_status(self):
+        """
+        Returns the current status of a Kubernetes cluster.
+        """
+        try:
+            self.core_v1.list_node()
+            return ClusterStatus(
+                status=ClusterStatusEnum.READY.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
+        except config.ConfigException:
+            # If there's a configuration issue, it might mean the cluster is not set up yet
+            return ClusterStatus(
+                status=ClusterStatusEnum.INIT.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
+        except Exception as error:  #pylint: disable=broad-except
+            # Catch-all for any other exception, which likely indicates an ERROR state
+            print(f"Unexpected error: {error}")
+            return ClusterStatus(
+                status=ClusterStatusEnum.ERROR.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
 
     def _process_gpu_resources(
             self, resources: Dict[str,

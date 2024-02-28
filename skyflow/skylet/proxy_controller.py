@@ -2,6 +2,7 @@
 Proxy Controller - Exposes services to other clusters.
 """
 import logging
+import os
 import traceback
 from contextlib import contextmanager
 from queue import Queue
@@ -53,11 +54,15 @@ class ProxyController(Controller):
             level=logging.INFO,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
-        self.service_informer = Informer(ServiceAPI(namespace=''))
-        self.endpoints_informer = Informer(EndpointsAPI(namespace=''))
+        self.service_informer = Informer(ServiceAPI(namespace=''),
+                                         logger=self.logger)
+        self.endpoints_informer = Informer(EndpointsAPI(namespace=''),
+                                           logger=self.logger)
 
         self.logger = logging.getLogger(f"[{self.name} - Proxy Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 
