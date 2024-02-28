@@ -97,6 +97,9 @@ class SlurmManager(Manager):
         #store resource values
         self.curr_allocatable = None
         self.total_resources = None
+        self.allocatable_resources()
+        self.cluster_resources()
+        
         self.node_accelerators = self.get_gpu_config(config_dict)
 
     def get_gpu_config(self, config_dict):
@@ -224,7 +227,6 @@ class SlurmManager(Manager):
                     accelerator_types[curr_node] = most_appearing_gpu
         return accelerator_types
 
-    @property
     def cluster_resources(self) -> Dict[str, Dict[str, float]]:
         """ Get total resources of all nodes in the cluster.
 
@@ -258,7 +260,6 @@ class SlurmManager(Manager):
         self.total_resources = cluster_resources
         return cluster_resources
 
-    @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """ Gets currently allocatable resources of all nodes.
 
@@ -277,11 +278,13 @@ class SlurmManager(Manager):
                                                 ('nodes', i, 'idle_cpus'))
             allocatable_memory = get_json_key_val(response,
                                                   ('nodes', i, 'free_memory'))
-            node_gpu = get_json_key_val(response, ('nodes', i, 'gres_used'))
-            if node_gpu == '':
+            node_gres = get_json_key_val(response, ('nodes', i, 'gres_used'))
+            node_gres_used = get_json_key_val(response, ('nodes', i, 'gres_used'))
+            if node_gres == '':
                 allocatable_gpus = 0
             gpu_count = 0
-            if node_gres != '':  #gres is configured
+            #TODO Need to see HPC gres
+            if node_gres_used != '':  #gres is configured
                 gpu_arr = re.findall(r'gpu:[^:]+:(\d+)', node_gres)
                 for gpus in gpu_arr:
                     gpu_count = gpu_count + int(gpus)
@@ -458,7 +461,7 @@ def _convert_to_job_json(job: Job) -> str:
     return compat_layer._create_slurm_json(job)
 
 
-if __name__ == '__main__':
+#if __name__ == '__main__':
     #api = SlurmManager()
     #api.get_accelerator_types()
     #print(api.cluster_resources())

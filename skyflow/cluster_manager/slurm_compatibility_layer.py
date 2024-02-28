@@ -184,18 +184,18 @@ class SlurmCompatiblityLayer( object ):
             'time_limit': 2400
         }
         return job_dict
-if __name__ == "__main__":
-    SLURMRESTD_CONFIG_PATH = '~/.skyconf/slurmrestd.yaml'
-    absolute_path = os.path.expanduser(SLURMRESTD_CONFIG_PATH)
-    with open(absolute_path, 'r') as config_file:
-            try:
-                config_dict = yaml.safe_load(config_file)
-            except ValueError as exception:
-                raise Exception(
-                    f'Unable to load {SLURMRESTD_CONFIG_PATH}, check if file exists.'
-                ) from exception
-    layer = SlurmCompatiblityLayer(config_dict)
-    f = open('../../examples/redis_example.yaml')
-    mdict = yaml.safe_load(f)
-    job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
-    layer._create_slurm_json(job, ContainerEnum.DOCKER)
+#if __name__ == "__main__":
+    # SLURMRESTD_CONFIG_PATH = '~/.skyconf/slurmrestd.yaml'
+    # absolute_path = os.path.expanduser(SLURMRESTD_CONFIG_PATH)
+    # with open(absolute_path, 'r') as config_file:
+    #         try:
+    #             config_dict = yaml.safe_load(config_file)
+    #         except ValueError as exception:
+    #             raise Exception(
+    #                 f'Unable to load {SLURMRESTD_CONFIG_PATH}, check if file exists.'
+    #             ) from exception
+    # layer = SlurmCompatiblityLayer(config_dict)
+    # f = open('../../examples/redis_example.yaml')
+    # mdict = yaml.safe_load(f)
+    # job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
+    # layer._create_slurm_json(job, ContainerEnum.DOCKER)

@@ -23,6 +23,7 @@ def setup_cluster_manager(
             Instance of the desired cluster manager class.
 
     """
+    is_slurm_manager = False
     cluster_type = cluster_obj.spec.manager.lower()
     if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")

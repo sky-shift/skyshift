@@ -22,14 +22,13 @@ class Manager:
         self.cluster_name = name
         self.namespace = None
 
-    @property
+
     def cluster_resources(self):
         """
         Fetches total cluster resources.
         """
         raise NotImplementedError
 
-    @property
     def allocatable_resources(self):
         """
         Fetches allocatable cluster resources.

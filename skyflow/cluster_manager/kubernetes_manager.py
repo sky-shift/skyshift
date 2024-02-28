@@ -103,7 +103,6 @@ class KubernetesManager(Manager):
             accelerator_types[node_name] = node_accelerator_type
         return accelerator_types
 
-    @property
     def cluster_resources(self):
         """Gets total cluster resources for each node."""
         limit = None
@@ -142,7 +141,6 @@ class KubernetesManager(Manager):
             resources[node_name][accelerator_type] = gpu_value
         return resources
 
-    @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """Get allocatable resources per node."""
         # Get the nodes and running pods
