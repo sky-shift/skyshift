@@ -14,7 +14,7 @@ setup(
         "pydantic>=2.5.0",
         "pytest",
         "pyyaml",
-        "requests",
+        "requests>=2.31.0",
         "rich",
         "tabulate",
         "types-psutil",
