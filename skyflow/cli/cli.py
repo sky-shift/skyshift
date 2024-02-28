@@ -14,7 +14,7 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_cluster_table, print_endpoints_table,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
-                                   print_service_table)
+                                   print_role_table, print_service_table)
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum
@@ -791,7 +791,8 @@ def create_endpoints(  # pylint: disable=too-many-arguments
             "Exposed endpoints must specify a primary cluster.")
 
     if primary_cluster != "auto" and not cluster_exists(primary_cluster):
-        raise click.BadParameter(f"Invalid primary cluster name: {primary_cluster}")
+        raise click.BadParameter(
+            f"Invalid primary cluster name: {primary_cluster}")
 
     selector_dict = dict(selector) if selector else {}
 
@@ -848,3 +849,82 @@ def get_endpoints(name: str, namespace: str, watch: bool):
 def delete_endpoints(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
     delete_cli_object(object_type="endpoints", namespace=namespace, name=name)
+
+
+# ==============================================================================
+# Role API as CLI
+
+
+@create.command(name="role", aliases=["roles"])
+@click.argument("name", required=True)
+@click.option("--action",
+              "-a",
+              type=str,
+              multiple=True,
+              default=[],
+              help="Actions for the role.")
+@click.option("--resource",
+              "-r",
+              type=str,
+              multiple=True,
+              default=[],
+              help="Resources for the role.")
+@click.option("--namespace",
+              "-n",
+              type=str,
+              multiple=True,
+              default=[],
+              help="Namespaces for the role.")
+@click.option("--users",
+              "-u",
+              type=str,
+              multiple=True,
+              default=[],
+              help="Users for the role.")
+def create_role(name: str, action: List[str], resource: List[str],
+                namespace: List[str], users: List[str]):
+    """Create a new role."""
+
+    if not validate_input_string(name):
+        raise click.BadParameter(f"Name format is invalid: {name}")
+
+    # Construct the endpoints object
+    role_object = {
+        "kind": "Role",
+        "metadata": {
+            "name": name,
+            "namespaces": namespace,
+        },
+        "rules": [{
+            "name": name,
+            "resources": resource,
+            "actions": action,
+        }],
+        "users": users,
+    }
+    create_cli_object(role_object)
+
+
+@get.command(name="role", aliases=["roles"])
+@click.argument("name", required=False, default=None)
+@click.option("--watch",
+              "-w",
+              default=False,
+              is_flag=True,
+              help="Performs a watch.")
+def get_roles(name: str, watch: bool):
+    """Gets a role (or all roles if None is specified)."""
+    if name and not validate_input_string(name):
+        raise click.BadParameter(f"Name format is invalid: {name}")
+
+    api_response = get_cli_object(object_type="role", name=name, watch=watch)
+    print_role_table(api_response)
+
+
+@delete.command(name="role", aliases=["roles"])
+@click.argument("name", required=True)
+def delete_role(name):
+    """Removes a role."""
+    if not validate_input_string(name):
+        raise click.BadParameter(f"Name format is invalid: {name}")
+    delete_cli_object(object_type="role", name=name)

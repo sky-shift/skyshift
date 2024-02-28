@@ -5,11 +5,18 @@ import json
 import signal
 import sys
 from functools import partial
+from typing import List
 
 import jsonpatch
 import yaml
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from api_utils import (authenticate_request,  # pylint: disable=import-error
+                       create_access_token, load_manager_config,
+                       update_manager_config)
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from fastapi.security import OAuth2PasswordRequestForm
+from passlib.context import CryptContext
+from pydantic import BaseModel
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -19,7 +26,18 @@ from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.event_template import WatchEvent
+from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object
+
+# Hashing password
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class User(BaseModel):
+    """Represents a user for SkyFlow."""
+    username: str
+    email: str
+    password: str
 
 
 class APIServer:
@@ -33,10 +51,11 @@ class APIServer:
     def __init__(self, etcd_port=ETCD_PORT):
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
-        self._create_endpoints()
-        self._post_init_hook()
+        self.create_endpoints()
+        self.installation_hook()
 
-    def _post_init_hook(self):
+    def installation_hook(self):
+        """Primes the API server with default objects and roles."""
         all_namespaces = self.etcd_client.read_prefix("namespaces")
         # Hack: Create Default Namespace if it does not exist.
         if DEFAULT_NAMESPACE not in all_namespaces:
@@ -45,18 +64,65 @@ class APIServer:
                 Namespace(metadata=NamespaceMeta(name="default")).model_dump(
                     mode="json"),
             )
+        # Create system admin user and create authentication token.
+        admin_user = User(username='admin', password='admin', email='N/A')
+        try:
+            self.register_user(admin_user)
+        except HTTPException:  # pylint: disable=broad-except
+            pass
+        self._login_user(admin_user.username, admin_user.password)
+        # Create roles for admin.
+        roles_dict = {
+            "kind": "Role",
+            "metadata": {
+                "name": "admin-role",
+                "namespaces": ["*"],
+            },
+            "rules": [
+                {
+                    "resources": ["*"],
+                    "actions": ["*"],
+                },
+            ],
+            "users": [
+                "admin",
+            ]
+        }
+        # Turn roles_dict into json dict
+        roles_json = json.dumps(roles_dict)
+        self.etcd_client.write(
+            "roles/admin-role",
+            roles_json,
+        )
 
-    def _fetch_etcd_object(self, link_header: str):
-        """Fetches an object from the ETCD server."""
-        obj_dict = self.etcd_client.read(link_header)
-        if obj_dict is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Object '{link_header}' not found.",
-            )
-        return obj_dict
+    def _authenticate_role(self, action: str, user: str, object_type: str,
+                           namespace: str) -> bool:
+        """Authenticates the role of a user based on the Role objects."""
+
+        def _verify_subset(key: str, values: List[str]) -> bool:
+            return "*" in values or key in values
+
+        is_namespace = object_type in NAMESPACED_OBJECTS
+        roles = self.etcd_client.read_prefix("roles")
+        for role in roles:
+            if user not in role['users']:
+                continue
+            if is_namespace and not _verify_subset(
+                    namespace, role['metadata']['namespaces']):
+                continue
+            rules = role['rules']
+            for rule in rules:
+                if _verify_subset(action, rule['actions']) and _verify_subset(
+                        object_type, rule['resources']):
+                    return True
+
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized access. User does not have the required role."
+        )
 
     def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
+        """Checks if the cluster is accessible."""
         try:
             cluster_manager = setup_cluster_manager(cluster)
             cluster_manager.get_cluster_status()
@@ -68,15 +134,95 @@ class APIServer:
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=400,
-                detail=
-                f'An error occurred while trying to connect to the Kubernetes cluster\
+                detail=f'An error occurred while trying to connect to cluster\
                      {cluster.get_name()}.') from error
 
+    def _fetch_etcd_object(self, link_header: str):
+        """Fetches an object from the ETCD server."""
+        obj_dict = self.etcd_client.read(link_header)
+        if obj_dict is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Object '{link_header}' not found.",
+            )
+        return obj_dict
+
+    def _login_user(self, username: str, password: str):
+        """Helper method that logs in a user."""
+        try:
+            user_dict = self._fetch_etcd_object(f"users/{username}")
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Incorrect username or password",
+            ) from error
+        if not pwd_context.verify(password, user_dict['password']):
+            raise HTTPException(
+                status_code=400,
+                detail="Incorrect username or password",
+            )
+        access_token = create_access_token(
+            data={
+                "sub": username,
+            },
+            secret_key=load_manager_config()['api_server']['secret'],
+        )
+        access_dict = {'name': username, 'access_token': access_token}
+        # Update access token in admin config.
+        admin_config = load_manager_config()
+        found_user = False
+        for user in admin_config['users']:
+            if user['name'] == username:
+                user['access_token'] = access_token
+                found_user = True
+                break
+        if not found_user:
+            admin_config['users'].append(access_dict)
+        update_manager_config(admin_config)
+        return access_dict
+
+    # Authentication/RBAC Methods
+    def register_user(self, user: User):
+        """Registers a user into Skyflow."""
+        try:
+            self._fetch_etcd_object(f"users/{user.username}")
+        except HTTPException as error:
+            if error.status_code == 404:
+                user.password = pwd_context.hash(user.password)
+                self.etcd_client.write(
+                    f"users/{user.username}",
+                    user.model_dump(mode="json"),
+                )
+                return {
+                    "message": "User registered successfully",
+                    "user": user
+                }
+            raise HTTPException(
+                status_code=400,
+                detail="Unusual error occurred.",
+            ) from error
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"User '{user.username}' already exists.",
+            )
+
+    def login_for_access_token(
+        self, form_data: OAuth2PasswordRequestForm = Depends()):
+        """Logs in a user and returns an access token."""
+        username = form_data.username
+        password = form_data.password
+        return self._login_user(username, password)
+
+    # General methods over objects.
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
 
         async def _create_object(request: Request,
-                                 namespace: str = DEFAULT_NAMESPACE):
+                                 namespace: str = DEFAULT_NAMESPACE,
+                                 user: str = Depends(authenticate_request)):
+            self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
+                                    namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -133,10 +279,13 @@ class APIServer:
             object_type: str,
             namespace: str = DEFAULT_NAMESPACE,
             watch: bool = Query(False),
+            user: str = Depends(authenticate_request),
     ):
         """
         Lists all objects of a given type.
         """
+        self._authenticate_role(ActionEnum.LIST.value, user, object_type,
+                                namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -157,15 +306,18 @@ class APIServer:
         return obj_list
 
     def get_object(
-            self,
-            object_type: str,
-            object_name: str,
-            namespace: str = DEFAULT_NAMESPACE,
-            watch: bool = Query(False),
-    ):
+        self,
+        object_type: str,
+        object_name: str,
+        namespace: str = DEFAULT_NAMESPACE,
+        watch: bool = Query(False),
+        user: str = Depends(authenticate_request),
+    ):  # pylint: disable=too-many-arguments
         """
         Returns a specific object, raises Error otherwise.
         """
+        self._authenticate_role(ActionEnum.GET.value, user, object_type,
+                                namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -189,9 +341,13 @@ class APIServer:
         """Updates an object of a given type."""
 
         async def _update_object(
-            request: Request,
-            namespace: str = DEFAULT_NAMESPACE,
+                request: Request,
+                namespace: str = DEFAULT_NAMESPACE,
+                user: str = Depends(authenticate_request),
         ):
+            """Processes request to update an object."""
+            self._authenticate_role(ActionEnum.UPDATE.value, user, object_type,
+                                    namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -255,10 +411,13 @@ class APIServer:
         """Patches an object of a given type."""
 
         async def _patch_object(
-            request: Request,
-            object_name: str,
-            namespace: str = DEFAULT_NAMESPACE,
+                request: Request,
+                object_name: str,
+                namespace: str = DEFAULT_NAMESPACE,
+                user: str = Depends(authenticate_request),
         ):
+            self._authenticate_role(ActionEnum.PATCH.value, user, object_type,
+                                    namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -312,8 +471,12 @@ class APIServer:
 
         return _patch_object
 
-    def job_logs(self, object_name: str, namespace: str = DEFAULT_NAMESPACE):
+    def job_logs(self,
+                 object_name: str,
+                 namespace: str = DEFAULT_NAMESPACE,
+                 user: str = Depends(authenticate_request)):
         """Returns logs for a given job."""
+        self._authenticate_role(ActionEnum.GET.value, user, "jobs", namespace)
         # Fetch cluster/clusters where job is running.
         job_link_header = f"jobs/{namespace}/{object_name}"
         job_dict = self._fetch_etcd_object(job_link_header)
@@ -333,8 +496,11 @@ class APIServer:
         object_type: str,
         object_name: str,
         namespace: str = DEFAULT_NAMESPACE,
-    ):
+        user: str = Depends(authenticate_request),
+    ):  # pylint: disable=too-many-arguments
         """Deletes an object of a given type."""
+        self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
+                                namespace)
         if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
@@ -377,7 +543,8 @@ class APIServer:
             name=endpoint_name,
         )
 
-    def _create_endpoints(self):
+    def create_endpoints(self):
+        """Creates FastAPI endpoints over different types of objects."""
         for object_type in NON_NAMESPACED_OBJECTS:
             self._add_endpoint(
                 endpoint=f"/{object_type}",
@@ -482,6 +649,20 @@ class APIServer:
             handler=self.job_logs,
             methods=["GET"],
         )
+        # Register User
+        self._add_endpoint(
+            endpoint="/register_user",
+            endpoint_name="register_user",
+            handler=self.register_user,
+            methods=["POST"],
+        )
+        # Login for users to receive their access tokens
+        self._add_endpoint(
+            endpoint="/token",
+            endpoint_name="login_for_access_token",
+            handler=self.login_for_access_token,
+            methods=["POST"],
+        )
 
 
 def startup():
@@ -491,6 +672,7 @@ def startup():
 
 app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
+
 api_server = APIServer()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
