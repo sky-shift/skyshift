@@ -8,6 +8,7 @@ To run one specific test, use the following command:
 pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_success
 
 """
+import os
 from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
 
@@ -15,8 +16,22 @@ import pytest
 import requests
 from requests import Timeout
 
+from api_server.launch_server import (API_SERVER_CONFIG_PATH,
+                                      generate_manager_config)
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_api_config_exists():
+    """Ensure the API server configuration file exists before running tests."""
+    # Check if the config file already exists
+    if not os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
+        test_host = "127.0.0.1"
+        test_port = 8080
+        # If not, generate the configuration file
+        generate_manager_config(test_host, test_port)
+    yield
 
 
 class ResponseType(Enum):
