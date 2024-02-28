@@ -20,7 +20,7 @@ def create_access_token(data: dict, secret_key: Optional[str] = None, expires_de
         # 10 years
         expire = datetime.utcnow() + timedelta(minutes=315360000)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm='HS256')
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm='HS512')
     return encoded_jwt
 
 def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
@@ -39,7 +39,7 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     else:
         secret_key = CACHED_SECRET_KEY
     try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS256'])   
+        payload = jwt.decode(token, secret_key, algorithms=['HS512'])   
         username: str = payload.get("sub", None)
         if username is None:
             raise credentials_exception
@@ -53,6 +53,31 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     except jwt.JWTError:
         raise credentials_exception
     return username
+
+def generate_manager_config(host: str, port: int):
+    """Generates the API server config file."""
+    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
+    # If path exists, check if host and port are identical
+    if os.path.exists(absolute_path):
+        with open(absolute_path, "r") as config_file:
+            config_dict = yaml.safe_load(config_file)
+
+            if (config_dict["api_server"]["host"] == host and config_dict["api_server"]["port"] == port and "secret" in config_dict["api_server"]):
+                print(f"API server config already exists. Skipping generation.")
+                return
+    
+    config_dict = {
+    "api_server": {
+        "host": host,
+        "port": port,
+        "secret": os.urandom(256).hex(),
+    },
+    "users": [],
+}
+    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
+    with open(absolute_path, "w") as config_file:
+        yaml.dump(config_dict, config_file)
+
 
 def load_manager_config():
     """Loads the API server config file."""

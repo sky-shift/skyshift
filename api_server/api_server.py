@@ -23,6 +23,7 @@ from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.event_template import WatchEvent
+from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object
 from api_utils import create_access_token, load_manager_config, update_manager_config, authenticate_request
 
@@ -50,6 +51,7 @@ class APIServer:
         self.installation_hook()
 
     def installation_hook(self):
+        """Primes the API server with default objects and roles."""
         all_namespaces = self.etcd_client.read_prefix("namespaces")
         # Hack: Create Default Namespace if it does not exist.
         if DEFAULT_NAMESPACE not in all_namespaces:
@@ -62,7 +64,7 @@ class APIServer:
         admin_user = User(username= 'admin', password = 'admin', email= 'N/A')
         try:
             self.register_user(admin_user)
-        except Exception: # pylint: disable=broad-except
+        except HTTPException: # pylint: disable=broad-except
             pass
         self._login_user(admin_user.username, admin_user.password)
         # Create roles for admin.
@@ -90,6 +92,7 @@ class APIServer:
         )
 
     def _authenticate_role(self, action: str, user: str, object_type: str, namespace: str) -> bool:
+        """Authenticates the role of a user based on the Role objects."""
         def _verify_subset(key: str, values: List[str]) -> bool:
             return "*" in values or key in values
         is_namespace = object_type in NAMESPACED_OBJECTS
@@ -107,6 +110,7 @@ class APIServer:
         raise HTTPException(status_code=401, detail="Unauthorized access. User does not have the required role.")
 
     def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
+        """Checks if the cluster is accessible."""
         try:
             cluster_manager = setup_cluster_manager(cluster)
             cluster_manager.get_cluster_status()
@@ -119,7 +123,7 @@ class APIServer:
             raise HTTPException(
                 status_code=400,
                 detail=
-                f'An error occurred while trying to connect to the Kubernetes cluster\
+                f'An error occurred while trying to connect to cluster\
                      {cluster.get_name()}.') from error
 
     def _fetch_etcd_object(self, link_header: str):
@@ -148,7 +152,7 @@ class APIServer:
                 detail="Incorrect username or password",
             )
         access_token = create_access_token(
-            data={"sub": username, 'password': password},
+            data={"sub": username,},
             secret_key= load_manager_config()['api_server']['secret'],
         )
         access_dict = {'name': username, 'access_token': access_token}
@@ -203,7 +207,7 @@ class APIServer:
         async def _create_object(request: Request,
                                  namespace: str = DEFAULT_NAMESPACE,
                                  user: str = Depends(authenticate_request)):
-            self._authenticate_role("create", user, object_type, namespace)
+            self._authenticate_role(ActionEnum.DELETE.value, user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -265,7 +269,7 @@ class APIServer:
         """
         Lists all objects of a given type.
         """
-        self._authenticate_role("list", user, object_type, namespace)
+        self._authenticate_role(ActionEnum.LIST.value, user, object_type, namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -296,7 +300,7 @@ class APIServer:
         """
         Returns a specific object, raises Error otherwise.
         """
-        self._authenticate_role("get", user, object_type, namespace)
+        self._authenticate_role(ActionEnum.GET.value, user, object_type, namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -324,7 +328,8 @@ class APIServer:
             namespace: str = DEFAULT_NAMESPACE,
             user: str = Depends(authenticate_request),
         ):
-            self._authenticate_role("update", user, object_type, namespace)
+            """Processes request to update an object."""
+            self._authenticate_role(ActionEnum.UPDATE.value, user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -393,7 +398,7 @@ class APIServer:
             namespace: str = DEFAULT_NAMESPACE,
             user: str = Depends(authenticate_request),
         ):
-            self._authenticate_role("patch", user, object_type, namespace)
+            self._authenticate_role(ActionEnum.PATCH.value, user, object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -449,7 +454,7 @@ class APIServer:
 
     def job_logs(self, object_name: str, namespace: str = DEFAULT_NAMESPACE, user: str = Depends(authenticate_request)):
         """Returns logs for a given job."""
-        self._authenticate_role("get", user, "jobs", namespace)
+        self._authenticate_role(ActionEnum.GET.value, user, "jobs", namespace)
         # Fetch cluster/clusters where job is running.
         job_link_header = f"jobs/{namespace}/{object_name}"
         job_dict = self._fetch_etcd_object(job_link_header)
@@ -473,7 +478,7 @@ class APIServer:
         user: str = Depends(authenticate_request),
     ):
         """Deletes an object of a given type."""
-        self._authenticate_role("delete", user, object_type, namespace)
+        self._authenticate_role(ActionEnum.DELETE.value, user, object_type, namespace)
         if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
@@ -517,6 +522,7 @@ class APIServer:
         )
 
     def create_endpoints(self):
+        """Creates FastAPI endpoints over different types of objects."""
         for object_type in NON_NAMESPACED_OBJECTS:
             self._add_endpoint(
                 endpoint=f"/{object_type}",

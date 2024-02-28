@@ -21,6 +21,7 @@ class ActionEnum(enum.Enum):
     """Types of actions performed on Skyflow objects."""
     CREATE = "create"
     GET = "get"
+    LIST = "list"
     UPDATE = "update"
     PATCH = "patch"
     DELETE = "delete"
