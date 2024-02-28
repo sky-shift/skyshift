@@ -17,7 +17,7 @@ from skyflow.network.cluster_linkv2 import (delete_export_service,
                                             delete_import_service,
                                             export_service, import_service)
 from skyflow.structs import Informer
-from skyflow.templates import WatchEventEnum
+from skyflow.templates import Endpoints, WatchEventEnum
 
 logging.basicConfig(
     level=logging.INFO,
@@ -145,7 +145,7 @@ class ProxyController(Controller):
                             namespace=event_object.get_namespace()).update(
                                 config=event_object.model_dump(mode='json'))
 
-    def _import_service(self, endpoints: 'Endpoints', ports: List[int]):
+    def _import_service(self, endpoints: Endpoints, ports: List[int]):
         name = endpoints.get_name()
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
             if cluster_name != endpoints.spec.primary_cluster:
@@ -158,7 +158,7 @@ class ProxyController(Controller):
                         self.manager_api.create_endpoint_slice(
                             name, cluster_name, endpoint_obj)
 
-    def _delete_import_service(self, endpoints: 'Endpoints'):
+    def _delete_import_service(self, endpoints: Endpoints):
         name = endpoints.get_name()
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
             if cluster_name != endpoints.spec.primary_cluster:

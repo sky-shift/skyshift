@@ -14,8 +14,8 @@ from kubernetes import client, config
 
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
-                               ClusterStatusEnum, Endpoints, Job, ResourceEnum,
-                               Service, TaskStatusEnum)
+                               ClusterStatusEnum, EndpointObject, Endpoints,
+                               Job, ResourceEnum, Service, TaskStatusEnum)
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -520,18 +520,27 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 raise error
 
     def create_endpoint_slice(self, name: str, cluster_name,
-                              endpoint: Endpoints):
+                              endpoint: EndpointObject):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
                                 autoescape=select_autoescape())
         endpoint_template = jinja_env.get_template('k8_endpointslice.j2')
-        endpoint_dict = {
-            'object_name': None,
+
+        class EndpointDict(TypedDict):
+            """Endpoint dictionary to be passed into Jinja template."""
+            addresses: List[str]
+            ports: List[int]
+            object_name: str
+            name: str
+
+        endpoint_dict: EndpointDict = {
+            "object_name": "",
             "name": name,
             "addresses": [],
             "ports": [],
         }
+
         while True:
             try:
                 # Get the endpoints object.
@@ -563,23 +572,21 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         if not endpoint_dict['addresses']:
             return False
 
-        endpoint_dict = endpoint_template.render(endpoint_dict)
-        print(endpoint_dict)
-        endpoint_dict = yaml.safe_load(endpoint_dict)
+        endpoint_jinja = endpoint_template.render(endpoint_dict)
+        print(endpoint_jinja)
+        endpoint_yaml = yaml.safe_load(endpoint_jinja)
         try:
             # Create an EndpointSlice
             self.discovery_v1.create_namespaced_endpoint_slice(
-                namespace=self.namespace, body=endpoint_dict)
+                namespace=self.namespace, body=endpoint_yaml)
         except client.rest.ApiException as e:
             if e.status == 409:
                 # EndpointSlice already exists, update it
-                print("Updating endpointslice since it already exists")
-                print(endpoint_dict)
-                print(endpoint_dict['object_name'])
+                logging.info("Updating endpointslice since it already exists")
                 self.discovery_v1.replace_namespaced_endpoint_slice(
                     name=endpoint_dict['object_name'],
                     namespace=self.namespace,
-                    body=endpoint_dict)
+                    body=endpoint_yaml)
             else:
                 raise e
 
