@@ -15,7 +15,7 @@ CACHED_SECRET_KEY = None
 
 
 def create_access_token(data: dict,
-                        secret_key: Optional[str] = None,
+                        secret_key: str,
                         expires_delta: Optional[timedelta] = None):
     """Creates access token for users."""
     to_encode = data.copy()

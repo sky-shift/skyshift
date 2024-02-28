@@ -7,7 +7,7 @@ import os
 import subprocess
 
 import uvicorn
-from api_utils import generate_manager_config
+from api_utils import generate_manager_config  # pylint: disable=import-error
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
