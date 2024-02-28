@@ -26,16 +26,18 @@ DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
 
 CL_ROOT_DIR = os.path.join(CL_DIRECTORY, "clusterlink")
-CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin")
+CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin/")
 
 CL_PULL_CMD = (
     f"git clone https://github.com/praveingk/clusterlink.git {CL_DIRECTORY}/clusterlink"
 )
 
 # Clusterlink deployment commands to deploy on a cluster
-CLA_FABRIC_CMD = ("cl-adm create fabric")
+CLA_FABRIC_CMD = (CL_INSTALL_DIR + "cl-adm create fabric")
 CLA_PEER_CMD = (
-    "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet")
+    CL_INSTALL_DIR +
+    "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet"
+)
 CL_UNDEPLOY_CMD = (
     "kubectl delete --context {cluster_name} -f {cluster_name}/k8s.yaml")
 CL_DEPLOY_CMD = (
@@ -44,33 +46,44 @@ CL_DEPLOY_CMD = (
 # Clusterlink core CLI
 # Initialization & Status
 CL_INIT_CMD = (
+    CL_INSTALL_DIR +
     "gwctl init --id {cluster_name} --gwIP {cl_gw_ip} --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}"
 )
-CL_STATUS_CMD = ("gwctl get all --myid {cluster_name}")
+CL_STATUS_CMD = (CL_INSTALL_DIR + "gwctl get all --myid {cluster_name}")
 # Link/Peer management
 CL_LINK_CMD = (
+    CL_INSTALL_DIR +
     "gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
 )
-CL_LINK_STATUS_CMD = ("gwctl get peer --myid {cluster_name} --name {peer}")
-CL_LINK_DELETE_CMD = ("gwctl delete peer --myid {cluster_name} --name {peer}")
+CL_LINK_STATUS_CMD = (CL_INSTALL_DIR +
+                      "gwctl get peer --myid {cluster_name} --name {peer}")
+CL_LINK_DELETE_CMD = (CL_INSTALL_DIR +
+                      "gwctl delete peer --myid {cluster_name} --name {peer}")
 # Service Management
 CL_EXPORT_CMD = (
+    CL_INSTALL_DIR +
     "gwctl create export --myid {cluster_name} --name {service_name} --host {service_target} --port {port}"
 )
 CL_IMPORT_CMD = (
+    CL_INSTALL_DIR +
     "gwctl create import --myid {cluster_name} --name {service_name} --host {service_name} --port {port}"
 )
 CL_BIND_CMD = (
+    CL_INSTALL_DIR +
     "gwctl create binding --myid {cluster_name} --import {service_name} --peer {peer}"
 )
 CL_POLICY_CMD = (
+    CL_INSTALL_DIR +
     "gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}"
 )
 CL_EXPORT_DELETE_CMD = (
+    CL_INSTALL_DIR +
     "gwctl delete export --myid {cluster_name} --name {service_name}")
 CL_IMPORT_DELETE_CMD = (
+    CL_INSTALL_DIR +
     "gwctl delete import --myid {cluster_name} --name {service_name}")
 CL_BIND_DELETE_CMD = (
+    CL_INSTALL_DIR +
     "gwctl delete binding --myid {cluster_name} --import {service_name} --peer {peer}"
 )
 
@@ -159,7 +172,9 @@ def _expose_clusterlink(cluster: str, port="443"):
     try:
         # Cleanup any previous stray loadbalancer initialized by earlier installation
         subprocess.check_output(
-            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer", shell=True).decode('utf-8')
+            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer",
+            stderr=subprocess.DEVNULL,
+            shell=True).decode('utf-8')
     except:
         # Ignore if not present
         pass
@@ -225,11 +240,7 @@ def _install_clusterlink():
     """Installs Clusterlink if its not already present"""
     try:
         subprocess.getoutput(CL_PULL_CMD)
-        if not os.path.exists(f"{CL_INSTALL_DIR}/cl-adm"):
-            _build_clusterlink()
-        cl_logger.info("Linking Clusterlink binary to path!")
-        current_path = os.environ.get('PATH')
-        os.environ['PATH'] = f"{CL_INSTALL_DIR}:{current_path}"
+        _build_clusterlink()
     except subprocess.CalledProcessError as e:
         cl_logger.error(f"Failed to link Clusterlink : {e.cmd}")
         raise e
@@ -302,17 +313,21 @@ def _deploy_clusterlink_gateway(cluster_name: str):
     try:
         subprocess.check_output(cl_undeploy_command,
                                 shell=True,
-                                cwd=CL_DIRECTORY, timeout=60).decode('utf-8')  
+                                cwd=CL_DIRECTORY,
+                                stderr=subprocess.DEVNULL,
+                                timeout=60).decode('utf-8')
     except subprocess.CalledProcessError:
         # Ignore if some components were not found
         pass
-    try:    
+    try:
         subprocess.check_output(cl_deploy_command,
                                 shell=True,
                                 cwd=CL_DIRECTORY).decode('utf-8')
     except subprocess.CalledProcessError as e:
         cl_logger.error(
-            f"Failed to deploy clusterlink gateway on `{cluster_name}`: {e.cmd}") 
+            f"Failed to deploy clusterlink gateway on `{cluster_name}`: {e.cmd}"
+        )
+
 
 def launch_clusterlink(manager: KubernetesManager):
     """Launches clusterlink gateway on a cluster's namespace."""
@@ -322,8 +337,7 @@ def launch_clusterlink(manager: KubernetesManager):
     try:
         os.makedirs(CL_DIRECTORY, exist_ok=True)
         fabric_cert = os.path.join(CL_DIRECTORY, CERT)
-        path = shutil.which("cl-adm")
-        if path is None:
+        if not os.path.exists(f"{CL_INSTALL_DIR}/cl-adm"):
             _install_clusterlink()
         if os.path.exists(fabric_cert) != True:
             cl_logger.info(f"Launching network fabric!")

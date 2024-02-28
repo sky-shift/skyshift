@@ -155,7 +155,7 @@ def expose_service(service_name: str, manager: KubernetesManager,
     expose_service_name = f"{service_name}-{cluster_name}"
     expose_cmd = (f"skupper expose service {service_name}.{namespace} "
                   f"--address {expose_service_name} --context {cluster_name} "
-                  f"--namespace {namespace}")
+                  f"--namespace {namespace} ")
     for port in ports:
         expose_cmd += f"--port {port} --target-port {port} "
     try:
