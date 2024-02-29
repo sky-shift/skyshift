@@ -14,6 +14,7 @@ setup(
         "protobuf==3.20.0",
         "python-jose",
         "pydantic>=2.5.0",
+        'python-multipart',
         "pytest",
         "pyyaml",
         "requests>=2.31.0",
