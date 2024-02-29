@@ -26,6 +26,7 @@ setup(
         "types-PyYAML",
         "types-requests",
         "skypilot[aws,gcp,azure,kubernetes]",
+        "bcrypt==4.0.1",
     ],
     extras_require={
         "server": [
