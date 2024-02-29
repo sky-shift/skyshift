@@ -125,10 +125,11 @@ class ProxyController(Controller):
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[
                 event_object.metadata.name]
-            # The primary cluster imports the service and creates a k8 endpoints object and attaches it to the remote service.
+            # The primary cluster imports the service and 
+            # creates a k8 endpoints object and attaches it to the remote service.
             if self.name == primary_cluster:
                 logging.info(
-                    f"Setting up to import service from {primary_cluster}")
+                    "Setting up to import service from %s", primary_cluster)
                 self._import_service(event_object,
                                      [a.port for a in service_obj.spec.ports])
             else:
@@ -151,7 +152,7 @@ class ProxyController(Controller):
             if cluster_name != endpoints.spec.primary_cluster:
                 if endpoint_obj.exposed_to_cluster:
                     logging.info(
-                        f"{name} is now exported by cluster, and ready to be imported"
+                        "%s is now exported by cluster, and ready to be imported", name
                     )
                     if import_service(f'{name}', self.manager_api,
                                       cluster_name, ports):
@@ -163,7 +164,7 @@ class ProxyController(Controller):
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
             if cluster_name != endpoints.spec.primary_cluster:
                 if endpoint_obj.exposed_to_cluster:
-                    logging.info(f"deleting import of {name}")
+                    logging.info("Deleting import of %s", name)
                     delete_import_service(f'{name}', self.manager_api,
                                           cluster_name)
 

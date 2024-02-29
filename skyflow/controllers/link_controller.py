@@ -68,17 +68,16 @@ class LinkController(Controller):
         if isinstance(event_object, Link):
             source = event_object.spec.source_cluster
             target = event_object.spec.target_cluster
-            name = event_object.get_name()
             skip_update = False
             try:
                 if event_type == WatchEventEnum.ADD:
                     self.logger.info(
-                        f'Creating link between clusters. {source}, {target}')
+                        'Creating link between clusters: [%s, %s]',source, target)
                     self._create_link(source, target)
                     link_status = LinkStatusEnum.ACTIVE.value
                 elif event_type == WatchEventEnum.DELETE:
                     self.logger.info(
-                        f'Deleting link between clusters. {source}, {target}')
+                        'Deleting link between clusters: [%s, %s]',source, target)
                     self._delete_link(source, target)
                     skip_update = True
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):

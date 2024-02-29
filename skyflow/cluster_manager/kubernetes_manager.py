@@ -519,8 +519,12 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             if error.status != 404:
                 raise error
 
-    def create_endpoint_slice(self, name: str, cluster_name,
-                              endpoint: EndpointObject):
+    def create_endpoint_slice(   # pylint: disable=too-many-locals, too-many-branches
+            self,
+            name: str,
+            cluster_name,
+            endpoint: EndpointObject):
+        """Creates/updates an endpint slice."""
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
             os.path.abspath(dir_path)),
@@ -547,13 +551,11 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 exposed_k8_endpoints = self.core_v1.read_namespaced_endpoints(
                     name=f'{name}-{cluster_name}', namespace=self.namespace)
                 break
-            except client.exceptions.ApiException as e:
-                if e.status == 404:
+            except client.exceptions.ApiException as error:
+                if error.status == 404:
                     # Endpoints object does not exist yet.
                     time.sleep(0.1)
                     continue
-                else:
-                    raise e
         for _ in range(endpoint.num_endpoints):
             subsets = exposed_k8_endpoints.subsets
             assert len(subsets) <= 1, "Only one subset is supported."
@@ -579,8 +581,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             # Create an EndpointSlice
             self.discovery_v1.create_namespaced_endpoint_slice(
                 namespace=self.namespace, body=endpoint_yaml)
-        except client.rest.ApiException as e:
-            if e.status == 409:
+        except client.rest.ApiException as error:
+            if error.status == 409:
                 # EndpointSlice already exists, update it
                 logging.info("Updating endpointslice since it already exists")
                 self.discovery_v1.replace_namespaced_endpoint_slice(
@@ -588,7 +590,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                     namespace=self.namespace,
                     body=endpoint_yaml)
             else:
-                raise e
+                raise error
 
     def delete_endpoint_slice(self, endpoints: Endpoints):
         """Deletes an endpoint slice object from K8 cluster."""
