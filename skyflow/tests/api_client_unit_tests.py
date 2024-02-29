@@ -15,11 +15,37 @@ from typing import Any, Dict, Generator, List, Tuple, Union
 import pytest
 import requests
 from requests import Timeout
-
-from api_server.launch_server import (API_SERVER_CONFIG_PATH,
-                                      generate_manager_config)
+import yaml
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
+from skyflow.utils.utils import API_SERVER_CONFIG_PATH
+
+
+def generate_manager_config(host: str, port: int):
+    """Generates the API server config file."""
+    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
+    # If path exists, check if host and port are identical
+    if os.path.exists(absolute_path):
+        with open(absolute_path, "r") as config_file:
+            config_dict = yaml.safe_load(config_file)
+
+            if (config_dict["api_server"]["host"] == host
+                    and config_dict["api_server"]["port"] == port
+                    and "secret" in config_dict["api_server"]):
+                print("API server config already exists. Skipping generation.")
+                return
+
+    config_dict = {
+        "api_server": {
+            "host": host,
+            "port": port,
+            "secret": os.urandom(256).hex(),
+        },
+        "users": [],
+    }
+    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
+    with open(absolute_path, "w") as config_file:
+        yaml.dump(config_dict, config_file)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -296,20 +322,17 @@ def test_namespace_object_api_delete_success(namespace_api: NamespaceObjectAPI,
     assert response.kind == "Job" and response.metadata.name == "test-job"
 
 
-def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI,
-                                    monkeypatch: Any) -> None:
+def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI, monkeypatch: Any) -> None:
     """Tests the watch functionality of NamespaceObjectAPI."""
 
-    def mock_watch_events(url: str) -> Generator[Dict[str, Any], None, None]:
+    def mock_watch_events(url: str, headers: Dict[str, Any] = None) -> Generator[Dict[str, Any], None, None]:
         yield {"kind": "Job", "metadata": {"name": "watched-test-job"}}
 
-    monkeypatch.setattr("skyflow.api_client.object_api.watch_events",
-                        mock_watch_events)
+    monkeypatch.setattr("skyflow.api_client.object_api.watch_events", mock_watch_events)
 
     for response in namespace_api.watch():
         assert response.kind == "Job" and response.metadata.name == "watched-test-job"
         break
-
 
 def test_no_namespace_object_api_create_success(
         nonamespace_api: NoNamespaceObjectAPI, mock_requests: Any) -> None:
