@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import yaml
 
 from api_server import launch_server
+from skyflow.utils.utils import generate_manager_config
 
 
 class TestLaunchAPIServer(unittest.TestCase):
@@ -47,7 +48,7 @@ class TestLaunchAPIServer(unittest.TestCase):
         mock_yaml_safe_load.return_value = mock_config_dict
 
         # Call the function with test data
-        launch_server.generate_manager_config(test_host, test_port)
+        generate_manager_config(test_host, test_port)
 
         # Expected configuration dictionary with a mocked 'secret'
         expected_config = mock_config_dict  # Or construct this as needed

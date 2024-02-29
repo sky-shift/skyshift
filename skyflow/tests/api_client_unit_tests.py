@@ -14,39 +14,11 @@ from typing import Any, Dict, Generator, List, Tuple, Union
 
 import pytest
 import requests
-import yaml
 from requests import Timeout
 
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
-from skyflow.utils.utils import API_SERVER_CONFIG_PATH
-
-
-def generate_manager_config(host: str, port: int):
-    """Generates the API server config file."""
-    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
-    # If path exists, check if host and port are identical
-    if os.path.exists(absolute_path):
-        with open(absolute_path, "r") as config_file:
-            config_dict = yaml.safe_load(config_file)
-
-            if (config_dict["api_server"]["host"] == host
-                    and config_dict["api_server"]["port"] == port
-                    and "secret" in config_dict["api_server"]):
-                print("API server config already exists. Skipping generation.")
-                return
-
-    config_dict = {
-        "api_server": {
-            "host": host,
-            "port": port,
-            "secret": os.urandom(256).hex(),
-        },
-        "users": [],
-    }
-    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-    with open(absolute_path, "w") as config_file:
-        yaml.dump(config_dict, config_file)
+from skyflow.utils.utils import API_SERVER_CONFIG_PATH, generate_manager_config
 
 
 @pytest.fixture(scope="session", autouse=True)
