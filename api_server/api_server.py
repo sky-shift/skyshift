@@ -55,7 +55,6 @@ class APIServer:
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
-        self.installation_hook()
 
     def installation_hook(self):
         """Primes the API server with default objects and roles."""
@@ -88,7 +87,7 @@ class APIServer:
                 },
             ],
             "users": [
-                "admin",
+                ADMIN_USER,
             ]
         }
         # Turn roles_dict into json dict
@@ -679,6 +678,6 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer()
-api_server.etcd_client.delete_all()
+api_server.installation_hook()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
