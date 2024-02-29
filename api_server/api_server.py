@@ -170,6 +170,8 @@ class APIServer:
         # Update access token in admin config.
         admin_config = load_manager_config()
         found_user = False
+        if 'users' not in admin_config:
+            admin_config['users'] = []
         for user in admin_config['users']:
             if user['name'] == username:
                 user['access_token'] = access_token
