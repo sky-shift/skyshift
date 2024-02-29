@@ -13,6 +13,7 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 
+
 def generate_manager_config(host: str, port: int):
     """Generates the API server config file."""
     absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
@@ -38,6 +39,7 @@ def generate_manager_config(host: str, port: int):
     os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
     with open(absolute_path, "w") as config_file:
         yaml.dump(config_dict, config_file)
+
 
 def check_and_install_etcd(data_directory=None):
     """

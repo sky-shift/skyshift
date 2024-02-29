@@ -26,9 +26,8 @@ def etcd_backup_and_restore():
         workers = multiprocessing.cpu_count()
         data_directory = temp_data_dir
         command = [
-            "python", "../../api_server/launch_server.py",
-            "--workers", str(workers),
-            "--data-directory", data_directory
+            "python", "../../api_server/launch_server.py", "--workers",
+            str(workers), "--data-directory", data_directory
         ]
 
         process = subprocess.Popen(command)

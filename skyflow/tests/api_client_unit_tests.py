@@ -14,8 +14,9 @@ from typing import Any, Dict, Generator, List, Tuple, Union
 
 import pytest
 import requests
-from requests import Timeout
 import yaml
+from requests import Timeout
+
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
 from skyflow.utils.utils import API_SERVER_CONFIG_PATH
@@ -322,17 +323,22 @@ def test_namespace_object_api_delete_success(namespace_api: NamespaceObjectAPI,
     assert response.kind == "Job" and response.metadata.name == "test-job"
 
 
-def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI, monkeypatch: Any) -> None:
+def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI,
+                                    monkeypatch: Any) -> None:
     """Tests the watch functionality of NamespaceObjectAPI."""
 
-    def mock_watch_events(url: str, headers: Dict[str, Any] = None) -> Generator[Dict[str, Any], None, None]:
+    def mock_watch_events(
+            url: str,
+            headers: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
         yield {"kind": "Job", "metadata": {"name": "watched-test-job"}}
 
-    monkeypatch.setattr("skyflow.api_client.object_api.watch_events", mock_watch_events)
+    monkeypatch.setattr("skyflow.api_client.object_api.watch_events",
+                        mock_watch_events)
 
     for response in namespace_api.watch():
         assert response.kind == "Job" and response.metadata.name == "watched-test-job"
         break
+
 
 def test_no_namespace_object_api_create_success(
         nonamespace_api: NoNamespaceObjectAPI, mock_requests: Any) -> None:

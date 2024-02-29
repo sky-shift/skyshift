@@ -13,17 +13,22 @@ from api_server import launch_server
 
 class TestLaunchAPIServer(unittest.TestCase):
 
-    @patch('os.urandom', return_value=b'\x00' * 32)  # Mocks os.urandom to return a predictable value.
+    @patch('os.urandom', return_value=b'\x00' * 32
+           )  # Mocks os.urandom to return a predictable value.
     @patch('os.makedirs')
-    @patch('builtins.open', new_callable=mock_open, read_data="")  # Mocks file opening, read_data can simulate file content.
-    @patch('yaml.safe_load')  # Mocks yaml.safe_load to control its return value.
-    def test_generate_manager_config(self, mock_yaml_safe_load, mock_file, mock_makedirs, mock_urandom):
+    @patch('builtins.open', new_callable=mock_open, read_data=""
+           )  # Mocks file opening, read_data can simulate file content.
+    @patch('yaml.safe_load'
+           )  # Mocks yaml.safe_load to control its return value.
+    def test_generate_manager_config(self, mock_yaml_safe_load, mock_file,
+                                     mock_makedirs, mock_urandom):
         """
         Test if the manager configuration file is generated correctly.
         """
-        
+
         # Remove the API_SERVER_CONFIG_PATH file if it exists
-        if os.path.exists(os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH)):
+        if os.path.exists(
+                os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH)):
             os.remove(os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH))
 
         test_host = "127.0.0.1"
@@ -32,11 +37,12 @@ class TestLaunchAPIServer(unittest.TestCase):
             "api_server": {
                 "host": test_host,
                 "port": test_port,
-                "secret": '00' * 32,  # Corresponds to the mocked os.urandom output
+                "secret":
+                '00' * 32,  # Corresponds to the mocked os.urandom output
             },
             "users": [],
         }
-        
+
         # Mock yaml.safe_load to return the mock_config_dict
         mock_yaml_safe_load.return_value = mock_config_dict
 
@@ -51,7 +57,8 @@ class TestLaunchAPIServer(unittest.TestCase):
             launch_server.API_SERVER_CONFIG_PATH)
 
         # Verify if the directories were created
-        mock_makedirs.assert_called_with(os.path.dirname(expected_file_path), exist_ok=True)
+        mock_makedirs.assert_called_with(os.path.dirname(expected_file_path),
+                                         exist_ok=True)
 
         # Verify if the file was opened correctly
         mock_file.assert_called_with(expected_file_path, "w")
