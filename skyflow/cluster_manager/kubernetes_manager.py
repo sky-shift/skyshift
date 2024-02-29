@@ -12,10 +12,13 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 
+from skyflow.api_client.cluster_api import ClusterAPI
+from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, Service, TaskStatusEnum)
+from skyflow.templates.cluster_template import Cluster
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -68,9 +71,17 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
     def __init__(self, name: str):
         super().__init__(name)
         self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
+
+        cluster_obj: Cluster = ClusterAPI().get(self.cluster_name)
         # Load kubernetes config for the given context.
         try:
-            config.load_kube_config(context=self.cluster_name)
+            if not cluster_obj.spec.attached:
+                config.load_kube_config(
+                    config_file=
+                    f"{cloud_cluster_dir(self.cluster_name)}/kube_config_rke_cluster.yml",
+                    context=self.cluster_name)
+            else:
+                config.load_kube_config()
         except config.config_exception.ConfigException as error:
             error_msg = str(error)
             # Invalid Kubeconfig file.

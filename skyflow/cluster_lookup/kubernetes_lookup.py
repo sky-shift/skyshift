@@ -5,8 +5,11 @@ from typing import List
 
 from kubernetes import config
 
+from skyflow.api_client.cluster_api import ClusterAPI
+from skyflow.cloud.utils import cloud_cluster_dir
 
-def lookup_kube_config() -> List[dict]:
+
+def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
     """
     Loads clusters listed under the Kube config file.
     """
@@ -14,6 +17,14 @@ def lookup_kube_config() -> List[dict]:
     try:
         contexts, _ = config.list_kube_config_contexts(
             config_file='~/.kube/config')
+        for cluster in cluster_api.list().objects:
+            try:
+                more_contexts, _ = config.list_kube_config_contexts(
+                    config_file=cluster.spec.config_path)
+                contexts.extend(more_contexts)
+            except Exception:  # pylint: disable=broad-except
+                # can we just delete here if unable to find/connect via loading kubeconfig?
+                cluster_api.delete(cluster.metadata.name)
     except config.config_exception.ConfigException as error:
         error_msg = str(error)
         # Invalid Kubeconfig file.

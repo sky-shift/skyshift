@@ -3,7 +3,7 @@ Cluster Template - Defines the Cluster object.
 """
 import enum
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import Field, field_validator
 
@@ -17,11 +17,15 @@ class ClusterStatusEnum(enum.Enum):
     """Enum for Cluster status."""
     # Setting up cluster.
     INIT = "INIT"
+    # Cluster is being provisioned.
+    PROVISIONING = "PROVISIONING"
     # Cluster is ready to accept jobs.
     READY = "READY"
     # Cluster is in error state.
     # This state is reached when the cluster fails several heartbeats or is not a valid cluster.
     ERROR = "ERROR"
+    # Cluster is being deleted.
+    DELETING = "DELETING"
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -37,6 +41,7 @@ class ClusterStatus(ObjectStatus):
     """Status of a Cluster."""
     status: str = Field(default=ClusterStatusEnum.INIT.value,
                         validate_default=True)
+    conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     # Allocatable capacity of the cluser.
     allocatable_capacity: Dict[str, Dict[str,
                                          float]] = Field(default={},
@@ -162,6 +167,30 @@ class ClusterMeta(ObjectMeta):
 class ClusterSpec(ObjectSpec):
     """Spec for a Cluster."""
     manager: str = Field(default="k8", validate_default=True)
+    cloud: Optional[str] = Field(default=None, validate_default=True)
+    region: Optional[str] = Field(default=None, validate_default=True)
+    cpus: Optional[str] = Field(default=None, validate_default=True)
+    memory: Optional[str] = Field(default=None, validate_default=True)
+    disk_size: Optional[int] = Field(default=None, validate_default=True)
+    accelerators: Optional[str] = Field(default=None, validate_default=True)
+    ports: List[str] = Field(default=[], validate_default=True)
+    num_nodes: int = Field(default=1, validate_default=True)
+    attached: bool = Field(default=True, validate_default=True)
+    config_path: str = Field(default="~/.kube/config", validate_default=True)
+
+    @field_validator('accelerators')
+    @classmethod
+    def verify_accelerators(cls, accelerators: str) -> str:
+        """Validates the accelerators field of a ClusterResources."""
+        if accelerators is None:
+            return accelerators
+        accelerator_type, num = accelerators.split(':')
+        if accelerator_type not in AcceleratorEnum.__members__:
+            raise ValueError(
+                f'Invalid accelerator accelerator_type: {accelerator_type}.')
+        if not num.isdigit():
+            raise ValueError(f'Invalid accelerator number: {num}.')
+        return accelerators
 
     @field_validator("manager")
     @classmethod
