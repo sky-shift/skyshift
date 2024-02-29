@@ -38,8 +38,8 @@ CLA_PEER_CMD = (
     CL_INSTALL_DIR +
     "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet"
 )
-CL_UNDEPLOY_CMD = (
-    "kubectl delete --context {cluster_name} -f {cluster_name}/k8s.yaml --wait=true")
+CL_UNDEPLOY_CMD = ("kubectl delete --context {cluster_name} -f " +
+                   CL_DIRECTORY + "{cluster_name}/k8s.yaml --wait=true  2>&1")
 CL_DEPLOY_CMD = (
     "kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml")
 
@@ -169,15 +169,10 @@ def _expose_clusterlink(cluster: str, port="443"):
         except subprocess.CalledProcessError as e:
             print(f"Failed to create load balancer : {e.cmd}")
             raise e
-    try:
-        # Cleanup any previous stray loadbalancer initialized by earlier installation
-        subprocess.check_output(
-            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer",
-            stderr=subprocess.DEVNULL,
-            shell=True).decode('utf-8')
-    except:
-        # Ignore if not present
-        pass
+    # Cleanup any previous stray loadbalancer initialized by earlier installation
+    subprocess.getoutput(
+        f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer --wait=true 2>&1"
+    )
     try:
         # On Cloud/on-prem deployments, loadbalancer is usually provisioned
         ingress = ""
@@ -310,15 +305,11 @@ def _deploy_clusterlink_gateway(cluster_name: str):
     """Deploys the clusterlink gateway and its components on a cluster."""
     cl_undeploy_command = CL_UNDEPLOY_CMD.format(cluster_name=cluster_name)
     cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
-    try:
-        subprocess.check_output(cl_undeploy_command,
-                                shell=True,
-                                cwd=CL_DIRECTORY,
-                                stderr=subprocess.DEVNULL,
-                                timeout=60).decode('utf-8')
-    except subprocess.CalledProcessError:
-        # Ignore if some components were not found
-        pass
+    subprocess.getoutput(cl_undeploy_command)
+    # Workaround to wait for gwctl to terminate
+    # (this pod would be gone in upcoming release)
+    subprocess.getoutput(
+        f"kubectl wait --for=delete pod/gwctl --context={cluster_name}")
     try:
         subprocess.check_output(cl_deploy_command,
                                 shell=True,
