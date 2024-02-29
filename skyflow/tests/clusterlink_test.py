@@ -16,6 +16,8 @@ sys.path.append('path')
 
 from skyflow.cluster_manager import KubernetesManager
 from skyflow.network.cluster_linkv2 import (CL_DIRECTORY, create_link,
+                                            delete_export_service,
+                                            delete_import_service,
                                             export_service, import_service,
                                             launch_clusterlink)
 
@@ -98,4 +100,17 @@ def test_create_cluster():
                           cluster2_manager.cluster_name, [destPort]) is True
     time.sleep(5)
     assert _try_connection() is True
+
+    # Test deletion and export/import again
+    assert delete_export_service(cluster2_service, cluster2_manager) is True
+    assert delete_import_service(cluster2_service, cluster1_manager,
+                                 cluster2_manager.cluster_name)
+
+    assert export_service(cluster2_service, cluster2_manager,
+                          [destPort]) is True
+    assert import_service(cluster2_service, cluster1_manager,
+                          cluster2_manager.cluster_name, [destPort]) is True
+    time.sleep(5)
+    assert _try_connection() is True
+
     _cleanup_clusters()

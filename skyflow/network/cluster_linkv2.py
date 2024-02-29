@@ -29,7 +29,7 @@ CL_ROOT_DIR = os.path.join(CL_DIRECTORY, "clusterlink")
 CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin/")
 
 CL_PULL_CMD = (
-    f"git clone https://github.com/praveingk/clusterlink.git {CL_DIRECTORY}/clusterlink"
+    f"git clone -b skyflow https://github.com/praveingk/clusterlink.git {CL_DIRECTORY}/clusterlink"
 )
 
 # Clusterlink deployment commands to deploy on a cluster
@@ -460,6 +460,7 @@ def delete_export_service(service_name: str, manager: KubernetesManager):
         export_cmd = CL_EXPORT_DELETE_CMD.format(
             cluster_name=cluster_name, service_name=expose_service_name)
         subprocess.check_output(export_cmd, shell=True).decode('utf-8')
+        return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         cl_logger.error(f'Failed to delete service. {e.cmd.splitlines()[0]}')
         return False
