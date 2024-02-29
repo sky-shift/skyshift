@@ -404,7 +404,7 @@ def export_service(service_name: str, manager: KubernetesManager,
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
     cl_logger.info(
-        "Exporting service %s from %s, expose_service_name, cluster_name")
+        "Exporting service %s from %s", expose_service_name, cluster_name)
     try:
         export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name,
                                           service_name=expose_service_name,
