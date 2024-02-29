@@ -15,7 +15,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from api_server.api_utils import (authenticate_request, create_access_token,
+from api_utils import (authenticate_request, create_access_token,
                                   load_manager_config, update_manager_config)
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager

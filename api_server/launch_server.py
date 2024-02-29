@@ -8,7 +8,7 @@ import subprocess
 
 import uvicorn
 
-from api_server.api_utils import generate_manager_config
+from api_utils import generate_manager_config
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
