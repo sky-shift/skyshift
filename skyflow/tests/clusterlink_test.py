@@ -83,7 +83,10 @@ def _try_connection():
         return False
     return False
 
-
+def _wait():
+    subprocess.getoutput(
+        f"kubectl exec -i gwctl --context {cl1Name} -- timeout 30 sh -c 'until nc -z iperf3-server-{cl2Name} {destPort}; do sleep 0.1; done'")
+    
 def test_create_cluster():
     """Tests connectivity using clusterlink APIs in KIND environment"""
     _cleanup_clusters()
@@ -98,19 +101,19 @@ def test_create_cluster():
                           [destPort]) is True
     assert import_service(cluster2_service, cluster1_manager,
                           cluster2_manager.cluster_name, [destPort]) is True
-    time.sleep(5)
+    _wait()
     assert _try_connection() is True
 
     # Test deletion and export/import again
     assert delete_export_service(cluster2_service, cluster2_manager) is True
     assert delete_import_service(cluster2_service, cluster1_manager,
                                  cluster2_manager.cluster_name)
-
+    time.sleep(1)
     assert export_service(cluster2_service, cluster2_manager,
                           [destPort]) is True
     assert import_service(cluster2_service, cluster1_manager,
                           cluster2_manager.cluster_name, [destPort]) is True
-    time.sleep(5)
+    _wait()
     assert _try_connection() is True
 
-    _cleanup_clusters()
+    #_cleanup_clusters()

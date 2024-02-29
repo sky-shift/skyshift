@@ -39,7 +39,7 @@ CLA_PEER_CMD = (
     "cl-adm create peer --name {cluster_name} --dataplane-type go --namespace {namespace} --container-registry quay.io/mcnet"
 )
 CL_UNDEPLOY_CMD = (
-    "kubectl delete --context {cluster_name} -f {cluster_name}/k8s.yaml")
+    "kubectl delete --context {cluster_name} -f {cluster_name}/k8s.yaml --wait=true")
 CL_DEPLOY_CMD = (
     "kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml")
 
@@ -159,12 +159,12 @@ def _expose_clusterlink(cluster: str, port="443"):
         try:
             # Testing purpose on KIND Cluster
             subprocess.check_output(
-                f"kubectl delete service --context={cluster} cl-dataplane",
+                f"kubectl delete service --context={cluster} cl-dataplane --wait=true",
                 shell=True).decode('utf-8')
             subprocess.check_output(
                 f"kubectl create service nodeport --context={cluster} cl-dataplane --tcp={port}:{port} --node-port=30443",
                 shell=True).decode('utf-8')
-            time.sleep(0.1)
+            time.sleep(5)
             return
         except subprocess.CalledProcessError as e:
             print(f"Failed to create load balancer : {e.cmd}")
@@ -190,7 +190,7 @@ def _expose_clusterlink(cluster: str, port="443"):
                     f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"
                 ))
             ingress = clJson["items"][0]["status"]["loadBalancer"]
-            time.sleep(0.1)
+            time.sleep(1)
         cl_logger.info(f"Clusterlink Dataplane exposed in {ingress}")
     except subprocess.CalledProcessError as e:
         print(f"Failed to create load balancer : {e.cmd}")
