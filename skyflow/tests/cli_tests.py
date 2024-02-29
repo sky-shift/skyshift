@@ -57,8 +57,6 @@ def test_create_cluster_success(runner):
     manager = "k8"
     cmd = ['create', 'cluster', name, '--manager', manager]
     result = runner.invoke(cli, cmd)
-    print(result.output)
-    print(result.exit_code)
     assert result.exit_code == 0
     assert name in result.output
 
