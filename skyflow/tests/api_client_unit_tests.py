@@ -16,10 +16,9 @@ import pytest
 import requests
 from requests import Timeout
 
-from api_server.launch_server import (API_SERVER_CONFIG_PATH,
-                                      generate_manager_config)
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
+from skyflow.utils.utils import API_SERVER_CONFIG_PATH, generate_manager_config
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -300,7 +299,9 @@ def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI,
                                     monkeypatch: Any) -> None:
     """Tests the watch functionality of NamespaceObjectAPI."""
 
-    def mock_watch_events(url: str) -> Generator[Dict[str, Any], None, None]:
+    def mock_watch_events(
+            url: str,
+            headers: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
         yield {"kind": "Job", "metadata": {"name": "watched-test-job"}}
 
     monkeypatch.setattr("skyflow.api_client.object_api.watch_events",

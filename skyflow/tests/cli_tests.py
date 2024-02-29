@@ -16,7 +16,6 @@ import time
 import pytest
 from click.testing import CliRunner
 
-from api_server import launch_server
 from skyflow.cli.cli import cli
 
 
@@ -24,15 +23,10 @@ from skyflow.cli.cli import cli
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         print("Using temporary data directory for ETCD:", temp_data_dir)
-
-        host = launch_server.API_SERVER_HOST
-        port = launch_server.API_SERVER_PORT
         workers = multiprocessing.cpu_count()
         data_directory = temp_data_dir
         command = [
-            "python", "../../api_server/launch_server.py", "--host", host,
-            "--port",
-            str(port), "--workers",
+            "python", "../../api_server/launch_server.py", "--workers",
             str(workers), "--data-directory", data_directory
         ]
 
@@ -675,7 +669,7 @@ def test_create_service_invalid_selector(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Selector is invalid" in result.output
+    assert "Invalid value: Selector" in result.output
 
 
 def test_create_service_invalid_namespace(runner):
@@ -712,7 +706,7 @@ def test_create_service_empty_selector(runner, selector):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Selector is invalid" in result.output
+    assert "Invalid value: Selector" in result.output
 
 
 def test_create_service_duplicate_selector_keys(runner):

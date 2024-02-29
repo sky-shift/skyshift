@@ -2,8 +2,10 @@
 Specifies the API server and its endpoints for Skyflow.
 """
 import json
+import os
 import signal
 import sys
+import time
 from functools import partial
 from typing import List
 
@@ -24,7 +26,7 @@ from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
-from skyflow.templates.cluster_template import Cluster
+from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object
@@ -41,6 +43,35 @@ class User(BaseModel):
     username: str
     email: str
     password: str
+
+
+def check_or_wait_initialization():
+    """Creates the necessary configuration files"""
+    lock_file_path = "/tmp/api_server_init.lock"
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        return
+
+    while os.path.exists(lock_file_path):
+        # Initialization in progress by another worker, wait...
+        time.sleep(1)
+
+    if not os.path.exists(completion_flag_path):
+        # This worker is responsible for initialization
+        open(lock_file_path, 'a').close()
+        try:
+            api_server.installation_hook()
+            open(completion_flag_path,
+                 'a').close()  # Mark initialization as complete
+        finally:
+            os.remove(lock_file_path)
+
+
+def remove_flag_file():
+    """Removes the flag file to indicate that the API server has been shut down."""
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        os.remove(completion_flag_path)
 
 
 class APIServer:
@@ -269,7 +300,9 @@ class APIServer:
                     )
 
             # Check if object type is cluster and if it is accessible.
-            if isinstance(object_init, Cluster):
+            if isinstance(
+                    object_init, Cluster
+            ) and object_init.status.status == ClusterStatusEnum.READY.value:
                 self._check_cluster_connectivity(object_init)
 
             self.etcd_client.write(f"{link_header}/{object_name}",
@@ -678,6 +711,7 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer()
-api_server.installation_hook()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
+app.add_event_handler("startup", check_or_wait_initialization)
+app.add_event_handler("shutdown", remove_flag_file)
