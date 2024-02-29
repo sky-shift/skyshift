@@ -37,6 +37,7 @@ def remove_prefix(input_string: str, prefix: str = DEFAULT_CLIENT_NAME):
         input_string = input_string[len(prefix):]  # Remove the prefix
     return input_string
 
+
 def convert_to_json(etcd_value: bytes) -> dict:
     """Converts etcd value to json dict."""
     etcd_dict = json.loads(etcd_value.decode("utf-8"))
@@ -59,10 +60,12 @@ def update_resource_version(etcd_value: dict, resource_version: int) -> dict:
     etcd_value["metadata"]["resource_version"] = resource_version
     return etcd_value
 
-def watch_generator_fn(watch_iter) -> Generator[Tuple[WatchEventEnum, dict], None, None]:
+
+def watch_generator_fn(
+        watch_iter) -> Generator[Tuple[WatchEventEnum, dict], None, None]:
     """Generator function that yields ETCD watch events."""
     for event in watch_iter:
-        grpc_event = event._event # pylint: disable=protected-access
+        grpc_event = event._event  # pylint: disable=protected-access
         if grpc_event.type == 0:
             # PUT event
             version = int(grpc_event.kv.version)
@@ -80,12 +83,14 @@ def watch_generator_fn(watch_iter) -> Generator[Tuple[WatchEventEnum, dict], Non
         else:
             raise ValueError(f"Unknown event type: {event.type}")
         etcd_value = convert_to_json(key_value.value)
-        etcd_value = update_resource_version(etcd_value, key_value.mod_revision)
+        etcd_value = update_resource_version(etcd_value,
+                                             key_value.mod_revision)
         yield (event_type, etcd_value)
 
 
 class ConflictError(Exception):
     """Exception raised when there is a conflict in the ETCD store."""
+
     def __init__(self, msg: str, resource_version: Optional[int] = None):
         self.msg = msg
         self.resource_version = resource_version
@@ -217,7 +222,8 @@ class ETCDClient:
             assert len(etcd_response.prev_kvs) == 1
             key_value = etcd_response.prev_kvs[0]
             etcd_value = convert_to_json(key_value.value)
-            etcd_value = update_resource_version(etcd_value, key_value.mod_revision)
+            etcd_value = update_resource_version(etcd_value,
+                                                 key_value.mod_revision)
             return etcd_value
         return None
 
@@ -230,7 +236,7 @@ class ETCDClient:
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
-        etcd_response = self.etcd_client.delete_prefix(key, prev_kv=True) # pylint: disable=unexpected-keyword-arg
+        etcd_response = self.etcd_client.delete_prefix(key, prev_kv=True)  # pylint: disable=unexpected-keyword-arg
         if etcd_response.deleted:
             delete_list = []
             for key_value in etcd_response.prev_kvs:
