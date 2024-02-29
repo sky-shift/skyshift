@@ -9,14 +9,15 @@ from typing import List
 
 import jsonpatch
 import yaml
+from api_utils import (authenticate_request,  # pylint: disable=import-error
+                       create_access_token, load_manager_config,
+                       update_manager_config)
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from api_utils import (authenticate_request, create_access_token,
-                                  load_manager_config, update_manager_config)
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
@@ -30,6 +31,9 @@ from skyflow.utils import load_object
 
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+ADMIN_USER = "admin"
+ADMIN_PWD = "admin"
 
 
 class User(BaseModel):
@@ -64,12 +68,12 @@ class APIServer:
                     mode="json"),
             )
         # Create system admin user and create authentication token.
-        admin_user = User(username='admin', password='admin', email='N/A')
+        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='N/A')
         try:
             self.register_user(admin_user)
         except HTTPException:  # pylint: disable=broad-except
             pass
-        self._login_user(admin_user.username, admin_user.password)
+        self._login_user(ADMIN_USER, ADMIN_PWD)
         # Create roles for admin.
         roles_dict = {
             "kind": "Role",
@@ -675,5 +679,6 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer()
+api_server.etcd_client.delete_all()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
