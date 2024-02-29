@@ -1,6 +1,7 @@
 """Provisioner Controller
 """
 import logging
+import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -55,7 +56,9 @@ class ProvisionerController(Controller):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger('[Provisioner Controller]')
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(
+            getattr(logging,
+                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.cluster_api = ClusterAPI()
