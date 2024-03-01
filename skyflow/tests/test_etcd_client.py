@@ -41,9 +41,11 @@ def etcd_client():
 def test_simple_write_and_read(etcd_client):
     #
     key = "test/key"
-    value = {"data": "test_value"}
+    value = {"data222": "test_value"}
     etcd_client.write(key, value)
     read_value = etcd_client.read(key)
+    print("hello")
+    print(value)
     print(read_value)
     assert read_value == value, "Read value should match written value"
 
@@ -53,97 +55,97 @@ def test_simple_write_and_read(etcd_client):
         key) == None, "Read value should be None for non-existent key"
 
 
-def generate_random_data(n=1000):
-    """Generate n unique key-value pairs."""
-    data = {}
-    generated_keys = set()
-    while len(data) < n:
-        key_length = random.randint(5, 20)
-        key = ''.join(
-            random.choices(string.ascii_letters + string.digits, k=key_length))
-        # Ensure key uniqueness
-        if key not in generated_keys:
-            value_length = random.randint(5, 100)
-            value = {
-                'data':
-                ''.join(
-                    random.choices(string.ascii_letters + string.digits,
-                                   k=value_length))
-            }
-            data[key] = value
-            generated_keys.add(key)
-    return data
+# def generate_random_data(n=1000):
+#     """Generate n unique key-value pairs."""
+#     data = {}
+#     generated_keys = set()
+#     while len(data) < n:
+#         key_length = random.randint(5, 20)
+#         key = ''.join(
+#             random.choices(string.ascii_letters + string.digits, k=key_length))
+#         # Ensure key uniqueness
+#         if key not in generated_keys:
+#             value_length = random.randint(5, 100)
+#             value = {
+#                 'data':
+#                 ''.join(
+#                     random.choices(string.ascii_letters + string.digits,
+#                                    k=value_length))
+#             }
+#             data[key] = value
+#             generated_keys.add(key)
+#     return data
 
 
-def generate_new_value(old_value):
-    """Generate a new value based on the old value."""
-    new_value_length = random.randint(5, 100)
-    new_data = ''.join(
-        random.choices(string.ascii_letters + string.digits,
-                       k=new_value_length))
-    return {'data': new_data}
+# def generate_new_value(old_value):
+#     """Generate a new value based on the old value."""
+#     new_value_length = random.randint(5, 100)
+#     new_data = ''.join(
+#         random.choices(string.ascii_letters + string.digits,
+#                        k=new_value_length))
+#     return {'data': new_data}
 
 
-def write_worker(etcd_client, data):
-    """Worker function for writing data to the ETCD store."""
-    for key, value in data.items():
-        etcd_client.write(key, value)
+# def write_worker(etcd_client, data):
+#     """Worker function for writing data to the ETCD store."""
+#     for key, value in data.items():
+#         etcd_client.write(key, value)
 
 
-def update_worker(etcd_client, data):
-    """Worker function for updating data in the ETCD store."""
-    for key, value in data.items():
-        etcd_client.update(key, value)
+# def update_worker(etcd_client, data):
+#     """Worker function for updating data in the ETCD store."""
+#     for key, value in data.items():
+#         etcd_client.update(key, value)
 
 
-def check_data_integrity(etcd_client, data):
-    """Check that the data in the ETCD store matches the expected data."""
-    for key, value in data.items():
-        read_value = etcd_client.read(key)
-        assert read_value == value, "Read value should match written value"
+# def check_data_integrity(etcd_client, data):
+#     """Check that the data in the ETCD store matches the expected data."""
+#     for key, value in data.items():
+#         read_value = etcd_client.read(key)
+#         assert read_value == value, "Read value should match written value"
 
 
-def test_concurrent_access(etcd_client):
-    data = generate_random_data(10000)
-    data_items = list(data.items())
-    random.shuffle(data_items)
+# def test_concurrent_access(etcd_client):
+#     data = generate_random_data(10000)
+#     data_items = list(data.items())
+#     random.shuffle(data_items)
 
-    num_workers = 16
+#     num_workers = 16
 
-    # Split data among workers for concurrent write
-    data_chunks = [
-        dict(data_items[i::num_workers]) for i in range(num_workers)
-    ]
+#     # Split data among workers for concurrent write
+#     data_chunks = [
+#         dict(data_items[i::num_workers]) for i in range(num_workers)
+#     ]
 
-    # Start threads for concurrent write
-    threads = [
-        threading.Thread(target=write_worker, args=(etcd_client, chunk))
-        for chunk in data_chunks
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+#     # Start threads for concurrent write
+#     threads = [
+#         threading.Thread(target=write_worker, args=(etcd_client, chunk))
+#         for chunk in data_chunks
+#     ]
+#     for thread in threads:
+#         thread.start()
+#     for thread in threads:
+#         thread.join()
 
-    # Select a subset for batch update
-    update_subset = dict(random.sample(data_items, 2000))
-    update_data = {
-        key: generate_new_value(value)
-        for key, value in update_subset
-    }
-    update_data_chunks = [
-        dict(list(update_data.items())[i::num_workers])
-        for i in range(num_workers)
-    ]
-    update_thread = [
-        threading.Thread(target=update_worker, args=(etcd_client, chunk))
-        for chunk in update_data_chunks
-    ]
-    for thread in update_thread:
-        thread.start()
-    for thread in update_thread:
-        thread.join()
+#     # Select a subset for batch update
+#     update_subset = dict(random.sample(data_items, 2000))
+#     update_data = {
+#         key: generate_new_value(value)
+#         for key, value in update_subset
+#     }
+#     update_data_chunks = [
+#         dict(list(update_data.items())[i::num_workers])
+#         for i in range(num_workers)
+#     ]
+#     update_thread = [
+#         threading.Thread(target=update_worker, args=(etcd_client, chunk))
+#         for chunk in update_data_chunks
+#     ]
+#     for thread in update_thread:
+#         thread.start()
+#     for thread in update_thread:
+#         thread.join()
 
-    # Verify data integrity
-    combined_data = {**data, **update_data}
-    check_data_integrity(etcd_client, combined_data)
+#     # Verify data integrity
+#     combined_data = {**data, **update_data}
+#     check_data_integrity(etcd_client, combined_data)

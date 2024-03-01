@@ -114,7 +114,7 @@ class ETCDClient:
 
         Args:
             key (str): The key to write to.
-            value (str): The value to write to the key.
+            value (dict): The value to write to the key.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -133,7 +133,7 @@ class ETCDClient:
 
         Args:
             key (str): The key to update.
-            value (str): The value to update the key with.
+            value (dict): The value to update the key with.
         """
         if not resource_version:
             resource_version = get_resource_version(value)
