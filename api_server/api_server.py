@@ -2,28 +2,31 @@
 Specifies the API server and its endpoints for Skyflow.
 """
 import json
+import os
 import signal
 import sys
+import time
 from functools import partial
 from typing import List
 
 import jsonpatch
 import yaml
+from api_utils import (authenticate_request,  # pylint: disable=import-error
+                       create_access_token, load_manager_config,
+                       update_manager_config)
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-from api_server.api_utils import (authenticate_request, create_access_token,
-                                  load_manager_config, update_manager_config)
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
-from skyflow.templates.cluster_template import Cluster
+from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object
@@ -31,12 +34,44 @@ from skyflow.utils import load_object
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+ADMIN_USER = "admin"
+ADMIN_PWD = "admin"
+
 
 class User(BaseModel):
     """Represents a user for SkyFlow."""
     username: str
     email: str
     password: str
+
+
+def check_or_wait_initialization():
+    """Creates the necessary configuration files"""
+    lock_file_path = "/tmp/api_server_init.lock"
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        return
+
+    while os.path.exists(lock_file_path):
+        # Initialization in progress by another worker, wait...
+        time.sleep(1)
+
+    if not os.path.exists(completion_flag_path):
+        # This worker is responsible for initialization
+        open(lock_file_path, 'a').close()
+        try:
+            api_server.installation_hook()
+            open(completion_flag_path,
+                 'a').close()  # Mark initialization as complete
+        finally:
+            os.remove(lock_file_path)
+
+
+def remove_flag_file():
+    """Removes the flag file to indicate that the API server has been shut down."""
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        os.remove(completion_flag_path)
 
 
 class APIServer:
@@ -51,7 +86,6 @@ class APIServer:
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
-        self.installation_hook()
 
     def installation_hook(self):
         """Primes the API server with default objects and roles."""
@@ -64,12 +98,12 @@ class APIServer:
                     mode="json"),
             )
         # Create system admin user and create authentication token.
-        admin_user = User(username='admin', password='admin', email='N/A')
+        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='N/A')
         try:
             self.register_user(admin_user)
         except HTTPException:  # pylint: disable=broad-except
             pass
-        self._login_user(admin_user.username, admin_user.password)
+        self._login_user(ADMIN_USER, ADMIN_PWD)
         # Create roles for admin.
         roles_dict = {
             "kind": "Role",
@@ -84,7 +118,7 @@ class APIServer:
                 },
             ],
             "users": [
-                "admin",
+                ADMIN_USER,
             ]
         }
         # Turn roles_dict into json dict
@@ -170,6 +204,8 @@ class APIServer:
         # Update access token in admin config.
         admin_config = load_manager_config()
         found_user = False
+        if 'users' not in admin_config:
+            admin_config['users'] = []
         for user in admin_config['users']:
             if user['name'] == username:
                 user['access_token'] = access_token
@@ -264,7 +300,9 @@ class APIServer:
                     )
 
             # Check if object type is cluster and if it is accessible.
-            if isinstance(object_init, Cluster):
+            if isinstance(
+                    object_init, Cluster
+            ) and object_init.status.status == ClusterStatusEnum.READY.value:
                 self._check_cluster_connectivity(object_init)
 
             self.etcd_client.write(f"{link_header}/{object_name}",
@@ -675,3 +713,5 @@ app = FastAPI(debug=True)
 api_server = APIServer()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
+app.add_event_handler("startup", check_or_wait_initialization)
+app.add_event_handler("shutdown", remove_flag_file)
