@@ -64,6 +64,7 @@ cli.add_command(delete)
 cli.add_command(apply)
 cli.add_command(logs)
 
+
 def sanitize_cluster_name(value: str) -> str:
     """
     Validates the name field of a Cluster, ensuring
@@ -72,8 +73,9 @@ def sanitize_cluster_name(value: str) -> str:
     if not value or value.isspace() or len(value) == 0:
         raise click.BadParameter(f"Name format is invalid: {value}")
     sanitized_value = value.replace(" ", "-").replace("/", "-")
-    
+
     return sanitized_value
+
 
 def validate_input_string(value: str) -> bool:
     """

@@ -162,17 +162,20 @@ class ClusterMeta(ObjectMeta):
     @field_validator("name")
     @classmethod
     def verify_name(cls, value: str) -> str:
-        """Validates the name field of a Cluster, ensuring it does not contain whitespaces or '/'."""
+        """Validates the name field of a Cluster,
+        ensuring it does not contain whitespaces or '/'."""
         if not value or value.isspace() or len(value) == 0:
             raise ValueError("Cluster name cannot be empty.")
 
         sanitized_value = value.replace(" ", "-").replace("/", "-")
 
         # Additional check to ensure the replacement does not result in an empty string
-        if not sanitized_value or sanitized_value.isspace() or len(sanitized_value) == 0:
+        if not sanitized_value or sanitized_value.isspace() or len(
+                sanitized_value) == 0:
             raise ValueError("Cluster name cannot be just whitespaces or '/'.")
-        
+
         return sanitized_value
+
 
 class ClusterSpec(ObjectSpec):
     """Spec for a Cluster."""

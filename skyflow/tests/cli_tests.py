@@ -24,7 +24,7 @@ def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         # Kill any running sky_manager processes
         subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
-        
+
         print("Using temporary data directory for ETCD:", temp_data_dir)
         workers = multiprocessing.cpu_count()
         data_directory = temp_data_dir
