@@ -24,6 +24,7 @@ KEY = "key.pem"
 KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
+RECOVER = True
 
 CL_ROOT_DIR = os.path.join(CL_DIRECTORY, "clusterlink")
 CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin/")
@@ -113,6 +114,14 @@ def _wait_pod(cluster_name, name, namespace="default"):
             break
 
 
+def _parse_clusterlink_op(output: str):
+    if 'object already exists' in output:
+        return True
+    if 'Error' in output:
+        return False
+    return True
+
+
 def _clusterlink_gateway_status(cluster_name: str):
     """Checks the status of clusterlink gaterway"""
     check_status_command = CL_STATUS_CMD.format(cluster_name=cluster_name)
@@ -171,9 +180,10 @@ def _expose_clusterlink(cluster: str, port="443"):
             print("Failed to create load balancer : %s", error.cmd)
             raise error
     # Cleanup any previous stray loadbalancer initialized by earlier installation
-    subprocess.getoutput(
-        f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer --wait=true 2>&1"
-    )
+    if not RECOVER:
+        subprocess.getoutput(
+            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer --wait=true 2>&1"
+        )
     try:
         # On Cloud/on-prem deployments, loadbalancer is usually provisioned
         ingress = ""
@@ -181,18 +191,18 @@ def _expose_clusterlink(cluster: str, port="443"):
             f"kubectl expose deployment --context={cluster} cl-dataplane"
             f" --name=cl-dataplane-load-balancer --port={port}"
             f" --target-port={port} --type=LoadBalancer",
-            shell=True).decode('utf-8')
-        while "ingress" not in ingress:
-            cl_json = json.loads(
-                subprocess.getoutput(
-                    f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"
-                ))
-            ingress = cl_json["items"][0]["status"]["loadBalancer"]
-            time.sleep(1)
-        cl_logger.info("Clusterlink Dataplane exposed in %s", ingress)
+            shell=True,
+            stderr=subprocess.DEVNULL).decode('utf-8')
     except subprocess.CalledProcessError as error:
-        print("Failed to create load balancer : %s", error.cmd)
-        raise error
+        cl_logger.error("Failed to create load balancer")
+    while "ingress" not in ingress:
+        cl_json = json.loads(
+            subprocess.getoutput(
+                f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"
+            ))
+        ingress = cl_json["items"][0]["status"]["loadBalancer"]
+        time.sleep(1)
+    cl_logger.info("Clusterlink Dataplane exposed in %s", ingress)
 
 
 def _init_clusterlink_gateway(cluster: str):
@@ -216,7 +226,8 @@ def _init_clusterlink_gateway(cluster: str):
         cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster,
                                              policy_file=os.path.join(
                                                  CL_DIRECTORY, POLICY_FILE))
-        subprocess.check_output(cl_policy_cmd, shell=True).decode('utf-8')
+        subprocess.getoutput(cl_policy_cmd)
+        return True
     except subprocess.CalledProcessError as error:
         cl_logger.error("Failed to init Clusterlink gateway: %s", error.cmd)
         raise error
@@ -263,39 +274,32 @@ def _launch_network_fabric():
 
 def _create_directional_link(cluster_name, peer):
     """Creates a target peer cluster for a given source cluster"""
-    if not check_link_status(cluster_name, peer):
-        try:
-            peer_cluster_ip, peer_cluster_port = _get_clusterlink_gw_target(
-                peer)
-            create_link_command = CL_LINK_CMD.format(
-                cluster_name=cluster_name,
-                peer=peer,
-                target_ip=peer_cluster_ip,
-                target_port=peer_cluster_port)
-            subprocess.check_output(create_link_command,
-                                    shell=True).decode('utf-8')
-        except (subprocess.CalledProcessError,
-                subprocess.TimeoutExpired) as error:
-            cl_logger.error(
-                "Failed to establish a link between two clusters : %s",
-                error.cmd.splitlines()[0])
-            raise error
+    if check_link_status(cluster_name, peer):
+        return True
+    peer_cluster_ip, peer_cluster_port = _get_clusterlink_gw_target(peer)
+    create_link_command = CL_LINK_CMD.format(cluster_name=cluster_name,
+                                             peer=peer,
+                                             target_ip=peer_cluster_ip,
+                                             target_port=peer_cluster_port)
+    output = subprocess.getoutput(create_link_command)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to establish a link between two clusters: %s",
+                        output.splitlines()[0])
+        return False
     return True
 
 
 def _delete_directional_link(cluster_name, peer):
     """Deletes a cluster as a peer"""
-    if check_link_status(cluster_name, peer):
-        try:
-            delete_link_command = CL_LINK_DELETE_CMD.format(
-                cluster_name=cluster_name, peer=peer)
-            subprocess.check_output(delete_link_command,
-                                    shell=True).decode('utf-8')
-        except (subprocess.CalledProcessError,
-                subprocess.TimeoutExpired) as error:
-            cl_logger.error("Failed delete a link between two clusters : %s",
-                            error.cmd.splitlines()[0])
-            raise error
+    if not check_link_status(cluster_name, peer):
+        return True
+    delete_link_command = CL_LINK_DELETE_CMD.format(cluster_name=cluster_name,
+                                                    peer=peer)
+    output = subprocess.getoutput(delete_link_command)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to delete a link between two clusters: %s",
+                        output.splitlines()[0])
+        return False
     return True
 
 
@@ -308,20 +312,23 @@ def status_network(manager: KubernetesManager):
 
 def _deploy_clusterlink_gateway(cluster_name: str):
     """Deploys the clusterlink gateway and its components on a cluster."""
-    cl_undeploy_command = CL_UNDEPLOY_CMD.format(cluster_name=cluster_name)
+    if not RECOVER:
+        cl_logger.info("Cleaning up previous install")
+        cl_undeploy_command = CL_UNDEPLOY_CMD.format(cluster_name=cluster_name)
+        subprocess.getoutput(cl_undeploy_command)
+        # Workaround to wait for gwctl to terminate
+        # (this pod would be gone in upcoming release)
+        subprocess.getoutput(
+            f"kubectl wait --for=delete pod/gwctl --context={cluster_name}")
     cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
-    subprocess.getoutput(cl_undeploy_command)
-    # Workaround to wait for gwctl to terminate
-    # (this pod would be gone in upcoming release)
-    subprocess.getoutput(
-        f"kubectl wait --for=delete pod/gwctl --context={cluster_name}")
     try:
         subprocess.check_output(cl_deploy_command,
                                 shell=True,
-                                cwd=CL_DIRECTORY).decode('utf-8')
+                                cwd=CL_DIRECTORY,
+                                stderr=subprocess.DEVNULL).decode('utf-8')
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to deploy clusterlink gateway on  %s : %s",
-                        cluster_name, error.cmd)
+        # Exception could occur due to previously installed components
+        cl_logger.error(error.cmd)
 
 
 def launch_clusterlink(manager: KubernetesManager):
@@ -351,10 +358,11 @@ def launch_clusterlink(manager: KubernetesManager):
         _wait_pod(cluster_name, "cl-dataplane")
         _expose_clusterlink(cluster_name)
         _init_clusterlink_gateway(cluster_name)
+        cl_logger.info("Clusterlink successfully setup on %s", cluster_name)
         return True
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to launch network on  %s : %s", cluster_name,
-                        error.cmd)
+        cl_logger.error("Failed to launch Clusterlink on  %s : %s",
+                        cluster_name, error.cmd)
         raise error
 
 
@@ -363,23 +371,19 @@ def check_link_status(source_cluster_name: str, target_cluster_name: str):
     status_link_command = CL_LINK_STATUS_CMD.format(
         cluster_name=source_cluster_name, peer=target_cluster_name)
     status_output = subprocess.getoutput(status_link_command)
-    if 'Error' in status_output or 'not found' in status_output:
-        return False
-    return True
+    return _parse_clusterlink_op(status_output)
 
 
 def create_link(source_manager: KubernetesManager,
                 target_manager: KubernetesManager):
     """Creates a link between two clusters."""
-    # @praveingk use namespace-local cluster-cluster links
+    # Need to do  namespace-local cluster-cluster links
     # cluster_name would then be defined by cluster_name+namespace
-
     source_cluster_name = source_manager.cluster_name
     target_cluster_name = target_manager.cluster_name
-    try:
-        _create_directional_link(source_cluster_name, target_cluster_name)
-        _create_directional_link(target_cluster_name, source_cluster_name)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    if not _create_directional_link(source_cluster_name, target_cluster_name):
+        return False
+    if not _create_directional_link(target_cluster_name, source_cluster_name):
         return False
     return True
 
@@ -389,10 +393,10 @@ def delete_link(source_manager: KubernetesManager,
     """Deletes a link between two clusters."""
     source_cluster_name = source_manager.cluster_name
     target_cluster_name = target_manager.cluster_name
-    try:
-        _delete_directional_link(source_cluster_name, target_cluster_name)
-        _delete_directional_link(target_cluster_name, source_cluster_name)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    if not _delete_directional_link(source_cluster_name, target_cluster_name):
+        return False
+
+    if not _delete_directional_link(target_cluster_name, source_cluster_name):
         return False
     return True
 
@@ -403,19 +407,17 @@ def export_service(service_name: str, manager: KubernetesManager,
     # @praveingk use namespace speific to cluster
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
-    cl_logger.info(
-        "Exporting service %s from %s", expose_service_name, cluster_name)
-    try:
-        export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name,
-                                          service_name=expose_service_name,
-                                          service_target=service_name,
-                                          port=ports[0])
-        subprocess.check_output(export_cmd, shell=True).decode('utf-8')
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        cl_logger.error("Failed to expose service : %s",
-                        error.cmd.splitlines()[0])
+    cl_logger.info("Exporting service %s from %s", expose_service_name,
+                   cluster_name)
+    export_cmd = CL_EXPORT_CMD.format(cluster_name=cluster_name,
+                                      service_name=expose_service_name,
+                                      service_target=service_name,
+                                      port=ports[0])
+    output = subprocess.getoutput(export_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to export service: %s", output.splitlines()[0])
         return False
+    return True
 
 
 def import_service(service_name: str, manager: KubernetesManager, peer: str,
@@ -424,20 +426,21 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
     cluster_name = manager.cluster_name
     import_service_name = f'{service_name}-{peer}'
     cl_logger.info("Importing service %s from %s", import_service_name, peer)
-    try:
-        import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name,
-                                          service_name=import_service_name,
-                                          port=ports[0])
-        bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name,
+    import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name,
                                       service_name=import_service_name,
-                                      peer=peer)
-        subprocess.check_output(import_cmd, shell=True).decode('utf-8')
-        subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        cl_logger.error("Failed to import service : %s",
-                        error.cmd.splitlines()[0])
+                                      port=ports[0])
+    bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name,
+                                  service_name=import_service_name,
+                                  peer=peer)
+    output = subprocess.getoutput(import_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to import service: %s", output.splitlines()[0])
         return False
+    output = subprocess.getoutput(bind_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to import service: %s", output.splitlines()[0])
+        return False
+    return True
 
 
 def delete_export_service(service_name: str, manager: KubernetesManager):
@@ -446,15 +449,14 @@ def delete_export_service(service_name: str, manager: KubernetesManager):
     expose_service_name = f'{service_name}-{cluster_name}'
     cl_logger.info("Removing exported service %s from %s", expose_service_name,
                    cluster_name)
-    try:
-        export_cmd = CL_EXPORT_DELETE_CMD.format(
-            cluster_name=cluster_name, service_name=expose_service_name)
-        subprocess.check_output(export_cmd, shell=True).decode('utf-8')
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        cl_logger.error("Failed to delete service : %s",
-                        error.cmd.splitlines()[0])
+    export_cmd = CL_EXPORT_DELETE_CMD.format(cluster_name=cluster_name,
+                                             service_name=expose_service_name)
+    output = subprocess.getoutput(export_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to delete export of service: %s",
+                        output.splitlines()[0])
         return False
+    return True
 
 
 def delete_import_service(service_name: str, manager: KubernetesManager,
@@ -464,16 +466,19 @@ def delete_import_service(service_name: str, manager: KubernetesManager,
     import_service_name = f'{service_name}-{peer}'
     cl_logger.info("Removing imported service %s from %s", import_service_name,
                    peer)
-    try:
-        import_cmd = CL_IMPORT_DELETE_CMD.format(
-            cluster_name=cluster_name, service_name=import_service_name)
-        bind_cmd = CL_BIND_DELETE_CMD.format(cluster_name=cluster_name,
-                                             service_name=import_service_name,
-                                             peer=peer)
-        subprocess.check_output(import_cmd, shell=True).decode('utf-8')
-        subprocess.check_output(bind_cmd, shell=True).decode('utf-8')
-        return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        cl_logger.error("Failed to delete imported service: %s",
-                        error.cmd.splitlines()[0])
+    import_cmd = CL_IMPORT_DELETE_CMD.format(cluster_name=cluster_name,
+                                             service_name=import_service_name)
+    bind_cmd = CL_BIND_DELETE_CMD.format(cluster_name=cluster_name,
+                                         service_name=import_service_name,
+                                         peer=peer)
+    output = subprocess.getoutput(import_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to delete import of service: %s",
+                        output.splitlines()[0])
         return False
+    output = subprocess.getoutput(bind_cmd)
+    if not _parse_clusterlink_op(output):
+        cl_logger.error("Failed to delete import of service: %s",
+                        output.splitlines()[0])
+        return False
+    return True
