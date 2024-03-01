@@ -22,6 +22,9 @@ from skyflow.cli.cli import cli
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
+        # Kill any running sky_manager processes
+        subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
+        
         print("Using temporary data directory for ETCD:", temp_data_dir)
         workers = multiprocessing.cpu_count()
         data_directory = temp_data_dir
@@ -65,12 +68,12 @@ def test_create_cluster_success(runner):
     "name,manager",
     [
         ("", "k8"),  # Empty name
-        ("$pecial&Name", "k8"),  # Special characters in name
     ])
 def test_create_cluster_invalid_input(runner, name, manager):
     cmd = ['create', 'cluster', name, '--manager', manager]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
+    print(result.output)
     assert "Name format is invalid" in result.output
 
 
@@ -103,7 +106,7 @@ def test_get_specific_cluster(runner, name='valid-cluster'):
     assert name in result.output
 
 
-def test_get_specific_cluster_not_valid(runner, name='not$$$-valid-cluster'):
+def test_get_specific_cluster_not_valid(runner, name=''):
     cmd = ['get', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
