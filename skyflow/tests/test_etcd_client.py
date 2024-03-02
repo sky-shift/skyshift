@@ -15,6 +15,48 @@ import pytest
 from skyflow.etcd_client.etcd_client import ETCDClient
 
 
+
+"""
+Unit Tests
+Initialization Test
+Test if the ETCDClient initializes with the correct default and custom parameters.
+Update Operation
+Test updating an existing key with a new value and verify if the update is successful.
+Test updating a non-existent key to ensure proper handling of the error or response.
+Test conditional updates based on resource versions to ensure concurrency control.
+Delete Operation
+Test deleting an existing key and verify it's removed from the store.
+Test deleting a non-existent key to ensure it handles the operation gracefully.
+Delete Prefix Operation
+Test deleting keys with a specific prefix and verify all matching keys are removed.
+Test deleting with a non-existent prefix to ensure no unintended deletions occur.
+Read Prefix Operation
+Test reading keys with a specific prefix to ensure it returns all matching key-value pairs.
+Test reading with a non-existent prefix to verify it returns an empty list or appropriate response.
+Conflict Error Handling
+Test the update operation with an outdated resource version to ensure it raises a ConflictError.
+Thread Safety
+Test concurrent reads and writes to verify the thread safety of the client.
+Integration Tests
+End-to-End CRUD Operations
+Perform a series of CRUD operations in a specific sequence to verify the system behaves as expected in a real-world scenario.
+Concurrent Access Patterns
+Simulate multiple clients performing concurrent operations on the same keys to verify proper synchronization and conflict resolution mechanisms.
+Performance Benchmarks
+Measure the latency and throughput of CRUD operations under various load conditions to ensure the client meets performance requirements.
+Recovery and Fault Tolerance
+Test the client's ability to handle network failures, ETCD cluster failures, and other unexpected errors gracefully.
+Security and Authentication
+If applicable, test that the client correctly implements security measures such as TLS encryption and authentication mechanisms.
+Load Tests
+Stress Testing
+Stress the ETCD server by performing a high volume of operations over an extended period to identify potential bottlenecks or memory leaks.
+Scalability Testing
+Verify that the ETCD client scales well with the size of the data and the number of clients, ensuring performance doesn't degrade unexpectedly.
+Longevity Testing
+Run the ETCD client continuously under a moderate load for an extended period to ensure there are no issues with long-term operation, such as resource leaks.
+"""
+
 @pytest.fixture(scope="module")
 def etcd_client():
     with tempfile.TemporaryDirectory() as temp_data_dir:
@@ -37,22 +79,50 @@ def etcd_client():
         process.wait()
         print("Cleaned up temporary ETCD data directory.")
 
+def generate_random_key():
+    key_length = random.randint(5, 20)
+    key = ''.join(
+        random.choices(string.ascii_letters + string.digits, k=key_length))
+    return key
 
-def test_simple_write_and_read(etcd_client):
-    #
-    key = "test/key"
-    value = {"data222": "test_value"}
+def generate_random_value():
+    value_length = random.randint(5, 100)
+    value = {
+        'value_key':
+        ''.join(
+            random.choices(string.ascii_letters + string.digits,
+                           k=value_length))
+    }
+    return value
+
+def test_simple(etcd_client):
+    # Test writing a key-value pair to the store and assert it's correctly stored.
+    # Test reading a previously written key-value pair.
+    key = generate_random_key()
+    value = generate_random_value()
     etcd_client.write(key, value)
     read_value = etcd_client.read(key)
-    print("hello")
-    print(value)
-    print(read_value)
-    assert read_value == value, "Read value should match written value"
+    
+    assert read_value["value_key"] == value["value_key"], "Read value should match written value"
 
-    # Test read non-existent key
-    key = "test/nonexistent_key"
-    assert etcd_client.read(
-        key) == None, "Read value should be None for non-existent key"
+    # Test reading a non-existent key to ensure it returns None or an appropriate response.
+    new_key = generate_random_key()
+    while new_key == key:
+        new_key = generate_random_key()
+        
+    assert etcd_client.read(new_key) == None, "Read value should be None for non-existent key"
+    
+    # Test updating an existing key with a new value and verify if the update is successful.
+    new_value = generate_random_value()
+    while new_value == value:
+        new_value = generate_random_value()
+    
+    etcd_client.update(key, new_value)
+    
+    assert etcd_client.read(key)["value_key"] == new_value["value_key"], "Read value should match updated value"
+    
+    # Test updating a non-existent key to ensure proper handling of the error or response.
+    assert etcd_client.update(new_key, new_value) == None, "Update should return None for non-existent key"
 
 
 # def generate_random_data(n=1000):
