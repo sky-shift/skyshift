@@ -138,18 +138,14 @@ class ETCDClient:
         if not resource_version:
             resource_version = get_resource_version(value)
         if self.log_name not in key:
-            # print("I'm log_name")
-            # print(key)
             key = f"{self.log_name}{key}"
-            # print(key, value, resource_version)
-            # print(self.log_name)
+            
         try:
             if resource_version == -1:
                 # Override the prior value, this is ok.
                 self.etcd_client.put(key, json.dumps(value))
                 success = True
             else:
-                print("I'm here")
                 success, _ = self.etcd_client.transaction(
                     compare=[
                         self.etcd_client.transactions.mod(key) ==
