@@ -111,7 +111,7 @@ class ProxyController(Controller):
         event = self.worker_queue.get()
         event_key = event.event_type
         event_object = event.object
-
+        
         primary_cluster = event_object.spec.primary_cluster
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
@@ -128,7 +128,7 @@ class ProxyController(Controller):
             # The primary cluster imports the service and 
             # creates a k8 endpoints object and attaches it to the remote service.
             if self.name == primary_cluster:
-                logging.info(
+                self.logger.info(
                     "Setting up to import service from %s", primary_cluster)
                 self._import_service(event_object,
                                      [a.port for a in service_obj.spec.ports])
@@ -151,7 +151,7 @@ class ProxyController(Controller):
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
             if cluster_name != endpoints.spec.primary_cluster:
                 if endpoint_obj.exposed_to_cluster:
-                    logging.info(
+                    self.logger.info(
                         "%s is now exported by cluster, and ready to be imported", name
                     )
                     if import_service(f'{name}', self.manager_api,
@@ -164,7 +164,7 @@ class ProxyController(Controller):
         for cluster_name, endpoint_obj in endpoints.spec.endpoints.items():
             if cluster_name != endpoints.spec.primary_cluster:
                 if endpoint_obj.exposed_to_cluster:
-                    logging.info("Deleting import of %s", name)
+                    self.logger.info("Deleting import of %s", name)
                     delete_import_service(f'{name}', self.manager_api,
                                           cluster_name)
 

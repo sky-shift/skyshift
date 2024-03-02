@@ -73,7 +73,6 @@ def _try_connection():
     os.system(f"kubectl config use-context {cl1Name}")
     try:
         os.system("kubectl wait --for=condition=Ready pod/iperf3-client")
-        
         direct_output = subprocess.check_output(
             f"kubectl exec -i iperf3-client -- timeout 30 sh -c "
             f"'until iperf3 -c iperf3-server-{cl2Name} -p {destPort} -t 1; do sleep 0.1; done'",
@@ -86,14 +85,20 @@ def _try_connection():
         return False
     return False
 
+
 def _delete_clusterlink_deployment():
-    subprocess.getoutput(f"kubectl delete deployment cl-controlplane --context {cl1Name}")
-    subprocess.getoutput(f"kubectl delete deployment cl-controlplane --context {cl2Name}")
+    subprocess.getoutput(
+        f"kubectl delete deployment cl-controlplane --context {cl1Name}")
+    subprocess.getoutput(
+        f"kubectl delete deployment cl-controlplane --context {cl2Name}")
+
 
 def _wait():
     subprocess.getoutput(
-        f"kubectl exec -i gwctl --context {cl1Name} -- timeout 30 sh -c 'until nc -z iperf3-server-{cl2Name} {destPort}; do sleep 0.1; done'")
-    
+        f"kubectl exec -i gwctl --context {cl1Name} -- timeout 30 sh -c 'until nc -z iperf3-server-{cl2Name} {destPort}; do sleep 0.1; done'"
+    )
+
+
 def test_clusterlink():
     """Tests connectivity using clusterlink APIs in KIND environment"""
     _cleanup_clusters()

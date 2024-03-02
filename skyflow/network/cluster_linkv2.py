@@ -177,7 +177,8 @@ def _expose_clusterlink(cluster: str, port="443"):
             time.sleep(5)
             return
         except subprocess.CalledProcessError as error:
-            print("Failed to create load balancer : %s", error.cmd)
+            cl_logger.error("Failed to create load balancer : %s",
+                            error.stderr.decode())
             raise error
     # Cleanup any previous stray loadbalancer initialized by earlier installation
     if not RECOVER:
@@ -192,9 +193,11 @@ def _expose_clusterlink(cluster: str, port="443"):
             f" --name=cl-dataplane-load-balancer --port={port}"
             f" --target-port={port} --type=LoadBalancer",
             shell=True,
-            stderr=subprocess.DEVNULL).decode('utf-8')
+            stderr=subprocess.STDOUT).decode('utf-8')
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to create load balancer")
+        if "AlreadyExists" not in error.output.decode('utf-8'):
+            cl_logger.error("Failed to create load balancer : %s",
+                            error.output.decode('utf-8'))
     while "ingress" not in ingress:
         cl_json = json.loads(
             subprocess.getoutput(
@@ -202,7 +205,6 @@ def _expose_clusterlink(cluster: str, port="443"):
             ))
         ingress = cl_json["items"][0]["status"]["loadBalancer"]
         time.sleep(1)
-    cl_logger.info("Clusterlink Dataplane exposed in %s", ingress)
 
 
 def _init_clusterlink_gateway(cluster: str):
@@ -219,8 +221,9 @@ def _init_clusterlink_gateway(cluster: str):
                                          certca=certca,
                                          cert=cert,
                                          key=key)
-        cl_logger.info("Initializing Clusterlink gateway: %s", cl_init_cmd)
-        subprocess.check_output(cl_init_cmd, shell=True).decode('utf-8')
+        subprocess.check_output(cl_init_cmd,
+                                shell=True,
+                                stderr=subprocess.STDOUT).decode('utf-8')
         while not _clusterlink_gateway_status(cluster):
             time.sleep(0.1)
         cl_policy_cmd = CL_POLICY_CMD.format(cluster_name=cluster,
@@ -229,19 +232,25 @@ def _init_clusterlink_gateway(cluster: str):
         subprocess.getoutput(cl_policy_cmd)
         return True
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to init Clusterlink gateway: %s", error.cmd)
+        cl_logger.error("Failed to init Clusterlink gateway: %s",
+                        error.output.decode('utf-8'))
         raise error
 
 
 def _build_clusterlink():
     """Builds Clusterlink binaries if its not already built"""
     try:
-        subprocess.check_output("go mod tidy", shell=True,
+        subprocess.check_output("go mod tidy",
+                                shell=True,
+                                stderr=subprocess.STDOUT,
                                 cwd=CL_ROOT_DIR).decode('utf-8')
-        subprocess.check_output("make build", shell=True,
+        subprocess.check_output("make build",
+                                shell=True,
+                                stderr=subprocess.STDOUT,
                                 cwd=CL_ROOT_DIR).decode('utf-8')
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to build Clusterlink : %s", error.cmd)
+        cl_logger.error("Failed to build Clusterlink : %s",
+                        error.output.decode('utf-8'))
         raise error
 
 
@@ -251,7 +260,7 @@ def _install_clusterlink():
         subprocess.getoutput(CL_PULL_CMD)
         _build_clusterlink()
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to link Clusterlink : %s", error.cmd)
+        cl_logger.error("Failed to build Clusterlink")
         raise error
 
 
@@ -259,16 +268,19 @@ def _launch_network_fabric():
     """Creates the network fabric (Root certificates)
        to enable secure communication between clusters"""
     try:
-        cl_logger.info("Launching network fabric.")
+        cl_logger.info("Launching network fabric")
         os.makedirs(CL_DIRECTORY, exist_ok=True)
-        subprocess.check_output(CLA_FABRIC_CMD, shell=True,
+        subprocess.check_output(CLA_FABRIC_CMD,
+                                shell=True,
+                                stderr=subprocess.STDOUT,
                                 cwd=CL_DIRECTORY).decode('utf-8')
         policy_file = json.dumps(POLICY_ALLOW_ALL, indent=2)
         with open(os.path.join(CL_DIRECTORY, POLICY_FILE), "w") as file:
             file.write(policy_file)
         return True
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to launch network fabric : %s", error.cmd)
+        cl_logger.error("Failed to launch network fabric : %s",
+                        error.output.decode('utf-8'))
         raise error
 
 
@@ -325,10 +337,12 @@ def _deploy_clusterlink_gateway(cluster_name: str):
         subprocess.check_output(cl_deploy_command,
                                 shell=True,
                                 cwd=CL_DIRECTORY,
-                                stderr=subprocess.DEVNULL).decode('utf-8')
+                                stderr=subprocess.STDOUT).decode('utf-8')
     except subprocess.CalledProcessError as error:
         # Exception could occur due to previously installed components
-        cl_logger.error(error.cmd)
+        if "AlreadyExists" not in error.output.decode('utf-8'):
+            cl_logger.error("Failed to deploy clusterlink gateway %s",
+                            error.output.decode('utf-8'))
 
 
 def launch_clusterlink(manager: KubernetesManager):
@@ -345,13 +359,15 @@ def launch_clusterlink(manager: KubernetesManager):
             cl_logger.info("Launching network fabric!")
             _launch_network_fabric()
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to Initiate Clusterlink : %s", error.cmd)
+        cl_logger.error("Failed to launch Clusterlink")
         raise error
     try:
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name,
                                               namespace=namespace)
         _remove_cluster_certs(cluster_name)
-        subprocess.check_output(cl_peer_command, shell=True,
+        subprocess.check_output(cl_peer_command,
+                                shell=True,
+                                stderr=subprocess.STDOUT,
                                 cwd=CL_DIRECTORY).decode('utf-8')
         _deploy_clusterlink_gateway(cluster_name)
         _wait_pod(cluster_name, "cl-controlplane")
@@ -362,7 +378,7 @@ def launch_clusterlink(manager: KubernetesManager):
         return True
     except subprocess.CalledProcessError as error:
         cl_logger.error("Failed to launch Clusterlink on  %s : %s",
-                        cluster_name, error.cmd)
+                        cluster_name, error.output.decode('utf-8'))
         raise error
 
 
