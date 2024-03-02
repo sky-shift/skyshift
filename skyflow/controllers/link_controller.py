@@ -11,7 +11,7 @@ import traceback
 from skyflow.api_client import ClusterAPI, LinkAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
-from skyflow.network.cluster_link import create_link, delete_link
+from skyflow.network.cluster_linkv2 import create_link, delete_link
 from skyflow.structs import Informer
 from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
 
@@ -68,16 +68,17 @@ class LinkController(Controller):
         if isinstance(event_object, Link):
             source = event_object.spec.source_cluster
             target = event_object.spec.target_cluster
-            name = event_object.get_name()
             skip_update = False
             try:
                 if event_type == WatchEventEnum.ADD:
-                    self.logger.info("Creating link between clusters.")
-                    self._create_link(name, source, target)
+                    self.logger.info(
+                        'Creating link between clusters: [%s, %s]',source, target)
+                    self._create_link(source, target)
                     link_status = LinkStatusEnum.ACTIVE.value
                 elif event_type == WatchEventEnum.DELETE:
-                    self.logger.info("Deleting link between clusters.")
-                    self._delete_link(name, source)
+                    self.logger.info(
+                        'Deleting link between clusters: [%s, %s]',source, target)
+                    self._delete_link(source, target)
                     skip_update = True
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 link_status = LinkStatusEnum.FAILED.value
@@ -87,29 +88,28 @@ class LinkController(Controller):
                 event_object.status.update_status(link_status)
                 LinkAPI().update(event_object.model_dump(mode="json"))
 
-    def _create_link(self, name: str, source: str, target: str) -> None:
+    def _create_link(self, source: str, target: str) -> bool:
         """Creates a link between two clusters. Returns True if successful, False otherwise."""
         clusters_cache = self.cluster_informer.get_cache()
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
         target_cluster_manager = setup_cluster_manager(clusters_cache[target])
         try:
-            create_link(
-                link_name=name,
-                source_manager=source_cluster_manager,
-                target_manager=target_cluster_manager,
-            )
+            return create_link(source_manager=source_cluster_manager,
+                               target_manager=target_cluster_manager)
         except (subprocess.CalledProcessError,
                 subprocess.TimeoutExpired) as error:
             self.logger.error(traceback.format_exc())
-            self.logger.error("Failed to create link between clusters.")
+            self.logger.error('Failed to create link between clusters.')
             raise error
 
-    def _delete_link(self, name: str, source: str) -> None:
+    def _delete_link(self, source: str, target: str) -> bool:
         """Deletes a link between two clusters. Returns True if successful, False otherwise."""
         clusters_cache = self.cluster_informer.get_cache()
         source_cluster_manager = setup_cluster_manager(clusters_cache[source])
+        target_cluster_manager = setup_cluster_manager(clusters_cache[target])
         try:
-            delete_link(link_name=name, manager=source_cluster_manager)
+            return delete_link(source_manager=source_cluster_manager,
+                               target_manager=target_cluster_manager)
         except (subprocess.CalledProcessError,
                 subprocess.TimeoutExpired) as error:
             self.logger.error(traceback.format_exc())
