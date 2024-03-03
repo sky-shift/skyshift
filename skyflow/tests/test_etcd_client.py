@@ -12,19 +12,18 @@ import time
 
 import pytest
 
-from skyflow.etcd_client.etcd_client import ETCDClient
+from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version, ConflictError, KeyNotFoundError
 
 # NOTE:
 # In the following test, we assume that the key for the value dictionary is always "value_key". This is hard-coded.
 
 """
+TODO:
 Unit Tests
 Initialization Test
 Test if the ETCDClient initializes with the correct default and custom parameters.
 
-Delete Operation
-Test deleting an existing key and verify it's removed from the store.
-Test deleting a non-existent key to ensure it handles the operation gracefully.
+
 Delete Prefix Operation
 Test deleting keys with a specific prefix and verify all matching keys are removed.
 Test deleting with a non-existent prefix to ensure no unintended deletions occur.
@@ -61,6 +60,7 @@ def etcd_client():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         print("Using temporary data directory for ETCD:", temp_data_dir)
         data_directory = temp_data_dir
+        # FIXME: We might need to change the path to "api_server/install_etcd.sh"
         command = [
             "bash",
             "../../api_server/install_etcd.sh",
@@ -79,6 +79,8 @@ def etcd_client():
         print("Cleaned up temporary ETCD data directory.")
 
 
+#### Helper methods ####
+
 def generate_random_string(min_length=10, max_length=100):
     key_length = random.randint(min_length, max_length)
     key = "".join(random.choices(string.ascii_letters + string.digits, k=key_length))
@@ -86,7 +88,7 @@ def generate_random_string(min_length=10, max_length=100):
     return key
 
 
-def generate_random_key(used_keys):
+def generate_random_key():
     key = generate_random_string(10, 20)
     while key in used_keys:
         key = generate_random_string(10, 20)
@@ -101,7 +103,7 @@ def generate_random_value_dict():
     return value
 
 
-def generate_random_value_dict_keep_metainfo(target_value_dict):
+def generate_random_value_dict_keep_metadata(target_value_dict):
     new_value = generate_random_string(20, 100)
     while new_value == target_value_dict["value_key"]:
         new_value = generate_random_string(20, 100)
@@ -109,56 +111,99 @@ def generate_random_value_dict_keep_metainfo(target_value_dict):
 
     return target_value_dict
 
+def generate_random_resource_version(old_resource_version):
+    new_resource_version = random.randint(1, 10000)
+    while new_resource_version == old_resource_version:
+        new_resource_version = random.randint(1, 10000)
+    return new_resource_version
 
-def test_simple(etcd_client):
-    used_keys = set()
+
+used_keys = set()    
+
+
+#### Test Section ####
+
+def test_simple_read_write_update(etcd_client):
     
     # Test writing a key-value pair to the store and assert it's correctly stored.
     # Test reading a previously written key-value pair.
-    key = generate_random_key(used_keys)
+    key = generate_random_key()
     write_value = generate_random_value_dict()
     etcd_client.write(key, write_value)
-    read_value = etcd_client.read(key)
+    read_value = etcd_client.read(key)  # This contains the resource_version metadata.
 
     assert (
         read_value["value_key"] == write_value["value_key"]
-    ), "Test simple write and read operations."
+    )
 
 
-    # Test reading a non-existent key to ensure it returns None.
-    new_key = generate_random_key(used_keys)
+    # Test reading a non-existent key, expect KeyNotFoundError.
+    new_key = generate_random_key()
 
-    assert etcd_client.read(new_key) == None, "Test reading a non-existent key."
+    with pytest.raises(KeyNotFoundError):
+        etcd_client.read(new_key)
 
 
-    # Test updating an existing key with a new value that has resource_version and verify if the update is successful.
-    read_value = generate_random_value_dict_keep_metainfo(read_value)
-    etcd_client.update(key, read_value)
+    # Test conditional updating an existing key based on resource versions to ensure concurrency control.
+    new_value = generate_random_value_dict()
+    etcd_client.update(key, new_value, get_resource_version(read_value))
 
     assert (
-        etcd_client.read(key)["value_key"] == read_value["value_key"]
-    ), "Test updating an existing key with a new value that has resource_version."
+        etcd_client.read(key)["value_key"] == new_value["value_key"]
+    )
 
 
-    # Test updating an existing key with a new value and verify if the update is successful.
+    # Test updating an existing key that doesn't have resource_version, aka. test for bypasses optimistic concurrency control.
     new_value = generate_random_value_dict()
 
     etcd_client.update(key, new_value)
 
     assert (
         etcd_client.read(key)["value_key"] == new_value["value_key"]
-    ), "Test updating an existing key with a new value that doesn't have resource_version, aka. test for bypasses optimistic concurrency control."
+    )
+    assert (get_resource_version(etcd_client.read(key)) > get_resource_version(read_value))
+    
+    
+    # Test conditional updating an existing key with the wrong resource_version, expect ConflictError.
+    new_value = generate_random_value_dict()
+    ner_resource_version = generate_random_resource_version(get_resource_version(read_value))
+    
+    with pytest.raises(ConflictError):
+        etcd_client.update(key, new_value, ner_resource_version)
 
 
-    # Test updating a non-existent key to ensure proper handling of the error or response.
-    new_key = generate_random_key(used_keys)
-    etcd_client.update(new_key, new_value) # This should fail, why not?
+    # Test updating a non-existent key, expect KeyNotFoundError.
+    new_key = generate_random_key()
     
-    assert etcd_client.read(new_key) == None, "Test updating a non-existent key."
+    with pytest.raises(KeyNotFoundError):
+        etcd_client.update(new_key, new_value) 
+    
+    with pytest.raises(KeyNotFoundError):
+        etcd_client.read(new_key)
     
     
-    # Test conditional updates based on resource versions to ensure concurrency control.
+def test_simple_delete(etcd_client):
+
+    key = generate_random_key()
+    write_value = generate_random_value_dict()
+    etcd_client.write(key, write_value)
+    read_value = etcd_client.read(key)  # This contains the resource_version metadata.
+
+    assert (
+        read_value["value_key"] == write_value["value_key"]
+    )
+
+    # Test deleting a non-existent key, expect KeyNotFoundError.
+    with pytest.raises(KeyNotFoundError):
+        etcd_client.delete(generate_random_key())
+        
+    # Test deleting an existing key and verify it's removed from the store.
+    etcd_client.delete(key)
     
+    with pytest.raises(KeyNotFoundError):
+        etcd_client.read(key)
+        
+        
 
 
 # def generate_random_data(n=1000):

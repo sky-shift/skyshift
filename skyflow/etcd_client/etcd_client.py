@@ -97,6 +97,14 @@ class ConflictError(Exception):
         super().__init__(self.msg)
 
 
+class KeyNotFoundError(Exception):
+    """Exception raised when a requested key does not exist."""
+    def __init__(self, key, msg="The requested key does not exist."):
+        self.key = key
+        self.msg = msg
+        super().__init__(self.msg)
+
+
 class ETCDClient:
     """ETCD client for Sky Manager, managed by the API server."""
 
@@ -109,7 +117,6 @@ class ETCDClient:
         """
         Write a key-value pairs to the etcd store.
 
-        If value is a dict, recursively write the key-value pairs.
         This method is threadsafe, with locks on all leaf nodes.
 
         Args:
@@ -129,19 +136,35 @@ class ETCDClient:
                value: dict,
                resource_version: Optional[int] = None):
         """
-        Update a key-value pair in the etcd store.
+        Update a key-value pair in the etcd store. The key must exist.
+        The update is only successful in the following two scenarios:
+        1. The resource_version is not provided by the user, in which case we will override the prior resource_version stored in the etcd server.
+        2. The resource_version is provided by the user, in which case we will compare the resource_version with the one stored in the etcd server. 
+            If the resource_version user provides is outdated, we will raise a ConflictError.
 
         Args:
             key (str): The key to update.
-            value (dict): The value to update the key with.
+            value (dict): The value to update the key with. User DOES NOT need to provide the metadata in the dict. We will ignore it.
         """
-        if not resource_version:
-            resource_version = get_resource_version(value)
+
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
             
+        server_data = self.read(key)
+        if server_data is None:
+            # Disallow update for non-existent keys.
+            raise KeyNotFoundError(
+                key=key,
+                msg=f"Failed to update key `{key}` - Key does not exist."
+            )
+            
+        allow_bypass = True
+        if resource_version:
+            allow_bypass = False
+            user_resource_version = resource_version
+
         try:
-            if resource_version == -1:
+            if allow_bypass:
                 # Override the prior value, this is ok.
                 self.etcd_client.put(key, json.dumps(value))
                 success = True
@@ -149,7 +172,7 @@ class ETCDClient:
                 success, _ = self.etcd_client.transaction(
                     compare=[
                         self.etcd_client.transactions.mod(key) ==
-                        resource_version
+                        user_resource_version
                     ],
                     success=[
                         self.etcd_client.transactions.put(
@@ -190,15 +213,22 @@ class ETCDClient:
     def read(self, key: str):
         """
         Read key-value pairs from the etcd store.
+        If key does not exist, raise a KeyNotFoundError.
 
         Args:
             key (str): The key to read from.
+        
+        Returns:
+            The value (dict) corresponds the key, with all metadata included (such as resource_version).
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
         kv_tuple = self.etcd_client.get(key)
         if kv_tuple[0] is None:
-            return None
+            raise KeyNotFoundError(
+                key=key,
+                msg=f"Failed to read key `{key}` - Key does not exist."
+            )
         # Returns a json dictionary.
         etcd_value = convert_to_json(kv_tuple[0])
         version_id = kv_tuple[1].mod_revision
@@ -212,7 +242,7 @@ class ETCDClient:
         etcd store.
 
         Returns:
-        the deleted (key, value) if it exists, otherwise None.
+            The deleted (key, value) if it exists, otherwise return KeyNotFoundError.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -226,7 +256,11 @@ class ETCDClient:
             etcd_value = update_resource_version(etcd_value,
                                                  key_value.mod_revision)
             return etcd_value
-        return None
+        else:
+            raise KeyNotFoundError(
+                key=key,
+                msg=f"Failed to delete key `{key}` - Key does not exist."
+            )
 
     def delete_prefix(self, key: str) -> List[dict]:
         """
