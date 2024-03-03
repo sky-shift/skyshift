@@ -23,28 +23,20 @@ Unit Tests
 Initialization Test
 Test if the ETCDClient initializes with the correct default and custom parameters.
 
-
-Delete Prefix Operation
-Test deleting keys with a specific prefix and verify all matching keys are removed.
-Test deleting with a non-existent prefix to ensure no unintended deletions occur.
-Read Prefix Operation
-Test reading keys with a specific prefix to ensure it returns all matching key-value pairs.
-Test reading with a non-existent prefix to verify it returns an empty list or appropriate response.
-Conflict Error Handling
-Test the update operation with an outdated resource version to ensure it raises a ConflictError.
 Thread Safety
 Test concurrent reads and writes to verify the thread safety of the client.
-Integration Tests
-End-to-End CRUD Operations
-Perform a series of CRUD operations in a specific sequence to verify the system behaves as expected in a real-world scenario.
+
 Concurrent Access Patterns
 Simulate multiple clients performing concurrent operations on the same keys to verify proper synchronization and conflict resolution mechanisms.
 Performance Benchmarks
 Measure the latency and throughput of CRUD operations under various load conditions to ensure the client meets performance requirements.
+End-to-End CRUD Operations
+Perform a series of CRUD operations in a specific sequence to verify the system behaves as expected in a real-world scenario.
 Recovery and Fault Tolerance
 Test the client's ability to handle network failures, ETCD cluster failures, and other unexpected errors gracefully.
 Security and Authentication
 If applicable, test that the client correctly implements security measures such as TLS encryption and authentication mechanisms.
+
 Load Tests
 Stress Testing
 Stress the ETCD server by performing a high volume of operations over an extended period to identify potential bottlenecks or memory leaks.
@@ -118,7 +110,16 @@ def generate_random_resource_version(old_resource_version):
     return new_resource_version
 
 
-used_keys = set()    
+def generate_prefix_key(num=5):
+    prefix = generate_random_string(5, 10)
+    result = []
+    for _ in range(num):
+        result.append(prefix + "_" + generate_random_string(10, 20))
+        used_keys.add(result[-1])
+    return prefix, result
+
+
+used_keys = set()  # Keep track of used keys to ensure uniqueness throughout the tests.
 
 
 #### Test Section ####
@@ -140,8 +141,7 @@ def test_simple_read_write_update(etcd_client):
     # Test reading a non-existent key, expect KeyNotFoundError.
     new_key = generate_random_key()
 
-    with pytest.raises(KeyNotFoundError):
-        etcd_client.read(new_key)
+    assert etcd_client.read(new_key) == None
 
 
     # Test conditional updating an existing key based on resource versions to ensure concurrency control.
@@ -178,8 +178,7 @@ def test_simple_read_write_update(etcd_client):
     with pytest.raises(KeyNotFoundError):
         etcd_client.update(new_key, new_value) 
     
-    with pytest.raises(KeyNotFoundError):
-        etcd_client.read(new_key)
+    assert etcd_client.read(new_key) == None
     
     
 def test_simple_delete(etcd_client):
@@ -200,10 +199,82 @@ def test_simple_delete(etcd_client):
     # Test deleting an existing key and verify it's removed from the store.
     etcd_client.delete(key)
     
-    with pytest.raises(KeyNotFoundError):
-        etcd_client.read(key)
+    assert etcd_client.read(key) == None
         
         
+def test_simple_prefix_read_delete(etcd_client):
+    # Read using prefix_1, then delete using prefix_2.
+    
+    prefix_1, keys_1 = generate_prefix_key(10)
+    write_values_1 = [generate_random_value_dict() for _ in range(len(keys_1))]
+    for i in range(len(keys_1)):
+        etcd_client.write(keys_1[i], write_values_1[i])
+        
+    prefix_2, keys_2 = generate_prefix_key(10) # This is to create some keys that are not part of the prefix.
+    write_values_2 = [generate_random_value_dict() for _ in range(len(keys_2))]
+    for i in range(len(keys_2)):
+        etcd_client.write(keys_2[i], write_values_2[i])
+        
+    read_values_expected = []
+    for i in range(len(keys_1)):
+        read_value = etcd_client.read(keys_1[i])
+        assert (
+            read_value["value_key"] == write_values_1[i]["value_key"]
+        )
+        read_values_expected.append(read_value)
+    read_values_expected.sort(key=lambda x: x['value_key'])
+     
+    
+    # Test reading keys with a specific prefix to ensure it returns all matching key-value pairs.
+    read_prefix_result = etcd_client.read_prefix(prefix_1)
+    read_prefix_result.sort(key=lambda x: x['value_key'])
+    
+    assert len(read_prefix_result) == len(keys_1)
+    assert read_prefix_result == read_values_expected
+
+    
+    # Test reading with a non-existent prefix to verify it returns an empty list or appropriate response.
+    new_key = generate_random_key()
+    
+    assert etcd_client.read_prefix(new_key) == []
+    
+    
+    # Test deleting with a non-existent prefix to ensure no unintended deletions occur.
+    new_key = generate_random_key()
+    
+    assert etcd_client.delete_prefix(new_key) == []
+    
+    for i in range(len(keys_1)):
+        assert etcd_client.read(keys_1[i]) != None
+    for i in range(len(keys_2)):
+        assert etcd_client.read(keys_2[i]) != None
+    
+    
+    # Test deleting keys with a specific prefix and verify all matching keys are removed.
+    delete_prefix_result_expected = etcd_client.read_prefix(prefix_2)
+    delete_prefix_result_expected.sort(key=lambda x: x['value_key'])
+    
+    delete_prefix_result = etcd_client.delete_prefix(prefix_2)
+    delete_prefix_result.sort(key=lambda x: x['value_key'])
+    
+    assert len(delete_prefix_result) == len(keys_2)
+    assert delete_prefix_result == delete_prefix_result_expected
+    for i in range(len(keys_2)):
+        assert etcd_client.read(keys_2[i]) == None
+        
+    assert etcd_client.read_prefix(prefix_2) == []
+    assert sorted(etcd_client.read_prefix(prefix_1), key=lambda x: x['value_key']) == read_values_expected
+
+
+def test_delete_all(etcd_client):
+    
+    # Test deleting all keys and verify the store is empty.
+    etcd_client.delete_all()
+    
+    assert len(etcd_client.read_prefix("")) == 0
+    
+    
+    
 
 
 # def generate_random_data(n=1000):

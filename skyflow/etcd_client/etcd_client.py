@@ -197,6 +197,9 @@ class ETCDClient:
 
         Args:
             key (str): The key to read from.
+            
+        Returns:
+            A list of values (dict) corresponds the key that has the prefix, with all metadata included (such as resource_version).
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -213,7 +216,7 @@ class ETCDClient:
     def read(self, key: str):
         """
         Read key-value pairs from the etcd store.
-        If key does not exist, raise a KeyNotFoundError.
+        If key does not exist, return None.
 
         Args:
             key (str): The key to read from.
@@ -225,10 +228,7 @@ class ETCDClient:
             key = f"{self.log_name}{key}"
         kv_tuple = self.etcd_client.get(key)
         if kv_tuple[0] is None:
-            raise KeyNotFoundError(
-                key=key,
-                msg=f"Failed to read key `{key}` - Key does not exist."
-            )
+            return None
         # Returns a json dictionary.
         etcd_value = convert_to_json(kv_tuple[0])
         version_id = kv_tuple[1].mod_revision
