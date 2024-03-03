@@ -15,7 +15,8 @@ from skyflow.templates.filter_policy import (FilterPolicy,
                                              FilterPolicyList)
 from skyflow.templates.job_template import (Job, JobException, JobList,
                                             JobStatusEnum, RestartPolicyEnum,
-                                            TaskStatusEnum)
+                                            TaskStatusEnum, MatchExpression,
+                                            LabelSelectorOperatorEnum)
 from skyflow.templates.link_template import (Link, LinkException, LinkList,
                                              LinkStatus, LinkStatusEnum)
 from skyflow.templates.namespace_template import (Namespace,

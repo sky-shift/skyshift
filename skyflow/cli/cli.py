@@ -92,12 +92,11 @@ def validate_value_string(value: str) -> bool:
     return bool(pattern.fullmatch(value))
 
 
-def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
-    """Validates label selectors."""
-    for key, value in labelselector:
+def validate_labels(labels: List[Tuple[str, str]]) -> bool:
+    """Validates list of labels."""
+    for key, value in labels:
         if not validate_input_string(key) or not validate_value_string(value):
-            click.echo(f"Error: Invalid label selector: {key}:{value}",
-                       err=True)
+            click.echo(f"Error: Invalid label: {key}:{value}", err=True)
             return False
     return True
 
@@ -176,6 +175,14 @@ cli.add_command(apply_config)
 # Cluster API as CLI
 @create.command(name="cluster", aliases=["clusters"])
 @click.argument('name', required=True)
+@click.option(
+    "--labels",
+    "-l",
+    type=(str, str),
+    multiple=True,
+    default=[],
+    help="Key-value pairs for cluster labels",
+)
 @click.option('--manager',
               default='k8',
               show_default=True,
@@ -229,9 +236,9 @@ cli.add_command(apply_config)
               is_flag=True,
               help='True if cluster needs to be provisioned on the cloud.')
 def create_cluster(  # pylint: disable=too-many-arguments
-        name: str, manager: str, cpus: str, memory: str, disk_size: int,
-        accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, provision: bool):
+        name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
+        memory: str, disk_size: int, accelerators: str, ports: List[str],
+        num_nodes: int, cloud: str, region: str, provision: bool):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
@@ -242,13 +249,19 @@ def create_cluster(  # pylint: disable=too-many-arguments
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
 
+    if not validate_labels(labels):
+        raise click.BadParameter("Invalid label format.")
+
     if ports:
         ports = list(ports)
+
+    labels_dict = dict(labels)
 
     cluster_dictionary = {
         "kind": "Cluster",
         "metadata": {
             "name": name,
+            "labels": labels_dict,
         },
         "spec": {
             "manager":
@@ -395,8 +408,8 @@ def create_job(
     if not validate_input_string(namespace):
         raise click.BadParameter("Invalid namespace format.")
 
-    if not validate_label_selector(labels):
-        raise click.BadParameter("Invalid label selector format.")
+    if not validate_labels(labels):
+        raise click.BadParameter("Invalid label format.")
 
     if not validate_image_format(image):
         raise click.BadParameter("Invalid image format.")
@@ -578,7 +591,7 @@ def create_filter_policy(name: str, namespace: str,
         raise click.BadParameter("Name or namespace format is invalid.")
 
     # Validate label selectors
-    if not validate_label_selector(labelselector):
+    if not validate_labels(labelselector):
         click.echo("Error: Label selector format is invalid.", err=True)
         raise click.BadParameter("Label selector format is invalid.")
 
