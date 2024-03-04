@@ -2,14 +2,12 @@
 Tests for ETCD interface.
 """
 
-import json
 import random
 import string
 import subprocess
 import tempfile
 import threading
 import time
-
 import pytest
 
 from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version, ConflictError, KeyNotFoundError
@@ -17,34 +15,8 @@ from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version, Co
 # NOTE:
 # In the following test, we assume that the key for the value dictionary is always "value_key". This is hard-coded.
 
-"""
-TODO:
-Unit Tests
-Initialization Test
-Test if the ETCDClient initializes with the correct default and custom parameters.
-
-Thread Safety
-Test concurrent reads and writes to verify the thread safety of the client.
-
-Concurrent Access Patterns
-Simulate multiple clients performing concurrent operations on the same keys to verify proper synchronization and conflict resolution mechanisms.
-Performance Benchmarks
-Measure the latency and throughput of CRUD operations under various load conditions to ensure the client meets performance requirements.
-End-to-End CRUD Operations
-Perform a series of CRUD operations in a specific sequence to verify the system behaves as expected in a real-world scenario.
-Recovery and Fault Tolerance
-Test the client's ability to handle network failures, ETCD cluster failures, and other unexpected errors gracefully.
-Security and Authentication
-If applicable, test that the client correctly implements security measures such as TLS encryption and authentication mechanisms.
-
-Load Tests
-Stress Testing
-Stress the ETCD server by performing a high volume of operations over an extended period to identify potential bottlenecks or memory leaks.
-Scalability Testing
-Verify that the ETCD client scales well with the size of the data and the number of clients, ensuring performance doesn't degrade unexpectedly.
-Longevity Testing
-Run the ETCD client continuously under a moderate load for an extended period to ensure there are no issues with long-term operation, such as resource leaks.
-"""
+# To run the test, use the following command:
+# pytest skyflow/tests/test_etcd_client.py
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +27,7 @@ def etcd_client():
         # FIXME: We might need to change the path to "api_server/install_etcd.sh"
         command = [
             "bash",
-            "../../api_server/install_etcd.sh",
+            "./api_server/install_etcd.sh",
             data_directory,
         ]
 
@@ -73,6 +45,7 @@ def etcd_client():
 
 #### Helper methods ####
 
+## For Basic Functionality ##
 def generate_random_string(min_length=10, max_length=100):
     key_length = random.randint(min_length, max_length)
     key = "".join(random.choices(string.ascii_letters + string.digits, k=key_length))
@@ -103,14 +76,22 @@ def generate_random_value_dict_keep_metadata(target_value_dict):
 
     return target_value_dict
 
-def generate_random_resource_version(old_resource_version):
-    new_resource_version = random.randint(1, 10000)
-    while new_resource_version == old_resource_version:
-        new_resource_version = random.randint(1, 10000)
-    return new_resource_version
+def generate_random_resource_version(old_resource_version, num=1):
+    if num == 1:
+        new_resource_version = random.randint(1, 100000)
+        while new_resource_version == old_resource_version or new_resource_version == old_resource_version + 1:
+            new_resource_version = random.randint(1, 100000)
+        return new_resource_version
+    result = []
+    for _ in range(num):
+        new_resource_version = random.randint(1, 100000)
+        while new_resource_version == old_resource_version or new_resource_version in result or new_resource_version - 1 in result:
+            new_resource_version = random.randint(1, 100000)
+        result.append(new_resource_version)
+    return result
 
 
-def generate_prefix_key(num=5):
+def generate_prefix_key(num=5, ensure_uniqueness=True):
     prefix = generate_random_string(5, 10)
     result = []
     for _ in range(num):
@@ -119,10 +100,58 @@ def generate_prefix_key(num=5):
     return prefix, result
 
 
-used_keys = set()  # Keep track of used keys to ensure uniqueness throughout the tests.
+## For Concurrency Test ##
+def concurrent_write(client, key, thread_id, barrier):
+    value_dict = {"value_key": thread_id}
+    barrier.wait()  # Wait for all threads to be ready
+    client.write(key, value_dict)
+
+def concurrent_read(client, key, expect_value, barrier):
+    barrier.wait()  # Wait for all threads to be ready
+    assert client.read(key)["value_key"] == expect_value
+
+def concurrent_update(client, key, resource_version, chosen_index, thread_id, barrier):
+    value_dict = {"value_key": thread_id}
+    barrier.wait()  # Wait for all threads to be ready
+    if thread_id == chosen_index:
+        client.update(key, value_dict, resource_version)
+    else:
+        resource_version = generate_random_resource_version(resource_version)
+        with pytest.raises(ConflictError):
+            client.update(key, value_dict, resource_version)
+
+
+## For Stress Test ##
+def write_worker(etcd_client, keys_list, values_list, thread_id):
+    """Worker function for writing data to the ETCD store."""
+    worker_keys_list = keys_list[thread_id::NUM_THREADS]
+    worker_values_list = values_list[thread_id::NUM_THREADS]
+    for key, value in zip(worker_keys_list, worker_values_list):
+        etcd_client.write(key, value)
+
+
+def update_worker(etcd_client, keys_list, values_list, metadata_list, update_index, thread_id):
+    """Worker function for updating data in the ETCD store."""
+    worker_update_index = update_index[thread_id::NUM_THREADS]
+    for index in worker_update_index:
+        etcd_client.update(keys_list[index], values_list[index], metadata_list[index])
+
+
+def check_data_integrity(etcd_client, keys_list, values_list):
+    """Check that the data in the ETCD store matches the expected data. Return the metadata list for further testing."""
+    metadata_list = []
+    for key, value in zip(keys_list, values_list):
+        read_value = etcd_client.read(key)
+        assert read_value["value_key"] == value["value_key"]
+        metadata_list.append(get_resource_version(read_value))
+    return metadata_list
 
 
 #### Test Section ####
+
+used_keys = set()  # Keep track of used keys to ensure uniqueness throughout the tests.
+NUM_THREADS = 50 
+NUM_OPERATIONS_PER_THREAD = 1000 
 
 def test_simple_read_write_update(etcd_client):
     
@@ -146,11 +175,22 @@ def test_simple_read_write_update(etcd_client):
 
     # Test conditional updating an existing key based on resource versions to ensure concurrency control.
     new_value = generate_random_value_dict()
+    old_resource_version = get_resource_version(read_value)
     etcd_client.update(key, new_value, get_resource_version(read_value))
-
+    read_value = etcd_client.read(key)
+    
     assert (
-        etcd_client.read(key)["value_key"] == new_value["value_key"]
+        read_value["value_key"] == new_value["value_key"]
     )
+    
+    
+    # Test conditional updating an existing key with the old resource_version, expect ConflictError.
+    assert old_resource_version != get_resource_version(read_value)
+    
+    new_value = generate_random_value_dict()
+    
+    with pytest.raises(ConflictError):
+        etcd_client.update(key, new_value, old_resource_version)
 
 
     # Test updating an existing key that doesn't have resource_version, aka. test for bypasses optimistic concurrency control.
@@ -166,10 +206,10 @@ def test_simple_read_write_update(etcd_client):
     
     # Test conditional updating an existing key with the wrong resource_version, expect ConflictError.
     new_value = generate_random_value_dict()
-    ner_resource_version = generate_random_resource_version(get_resource_version(read_value))
+    new_resource_version = generate_random_resource_version(get_resource_version(read_value))
     
     with pytest.raises(ConflictError):
-        etcd_client.update(key, new_value, ner_resource_version)
+        etcd_client.update(key, new_value, new_resource_version)
 
 
     # Test updating a non-existent key, expect KeyNotFoundError.
@@ -272,102 +312,131 @@ def test_delete_all(etcd_client):
     etcd_client.delete_all()
     
     assert len(etcd_client.read_prefix("")) == 0
+
+
+def test_concurrent_read_write_update(etcd_client):
+    # Simulate multiple clients performing concurrent operations on the same keys to verify proper synchronization and conflict resolution mechanisms.
     
+    key = generate_random_key()
+    barrier = threading.Barrier(NUM_THREADS)  
+
+    threads = [
+        threading.Thread(target=concurrent_write, args=(etcd_client, key, i, barrier))
+        for i in range(NUM_THREADS)
+    ]
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+        
+
+    final_value = etcd_client.read(key)
+
+    # Test concurrent reads to verify the final value is consistent.
+    barrier.reset()
+    threads = [
+        threading.Thread(target=concurrent_read, args=(etcd_client, key, final_value["value_key"], barrier))
+        for i in range(NUM_THREADS)
+    ]
     
+    for thread in threads:
+        thread.start()
+        
+    for thread in threads:
+        thread.join()
+        
+    # Test concurrent conditional updates to verify the final value is consistent.
+    # Only 1 thread will get the correct resource_version and update the value. All other threads should fail.
+    barrier.reset()
+    chosen_index = random.randint(0, NUM_THREADS - 1)
+    old_version = get_resource_version(final_value)
+    threads = [
+        threading.Thread(target=concurrent_update, args=(etcd_client, key, old_version, chosen_index, i, barrier))
+        for i in range(NUM_THREADS)
+    ]
     
+    for thread in threads:
+        thread.start()
+        
+    for thread in threads:
+        thread.join()
+        
+    assert old_version + 1 == get_resource_version(etcd_client.read(key))
+    assert etcd_client.read(key)["value_key"] == chosen_index
 
 
-# def generate_random_data(n=1000):
-#     """Generate n unique key-value pairs."""
-#     data = {}
-#     generated_keys = set()
-#     while len(data) < n:
-#         key_length = random.randint(5, 20)
-#         key = ''.join(
-#             random.choices(string.ascii_letters + string.digits, k=key_length))
-#         # Ensure key uniqueness
-#         if key not in generated_keys:
-#             value_length = random.randint(5, 100)
-#             value = {
-#                 'data':
-#                 ''.join(
-#                     random.choices(string.ascii_letters + string.digits,
-#                                    k=value_length))
-#             }
-#             data[key] = value
-#             generated_keys.add(key)
-#     return data
+def test_concurrent_access(etcd_client):
+    # Stress Test the ETCD client by simulating concurrent read, write and update operations.
+
+    
+    prefix_list = []
+    keys_list = []
+    values_list = []
+    
+    for i in range(NUM_THREADS):
+        prefix, keys = generate_prefix_key(NUM_OPERATIONS_PER_THREAD)
+        prefix_list.append(prefix)
+        keys_list.extend(keys)
+
+    values_list = [generate_random_value_dict() for _ in range(NUM_THREADS * NUM_OPERATIONS_PER_THREAD)]
+
+    # Start threads for concurrent write
+    threads = [
+        threading.Thread(target=write_worker, args=(etcd_client, keys_list, values_list, i)) for i in range(NUM_THREADS)
+    ]
+    
+    for thread in threads:
+        thread.start()
+        
+    for thread in threads:
+        thread.join()
+        
+    # Verify data integrity
+    metadata_list = check_data_integrity(etcd_client, keys_list, values_list)
+
+    # Select a subset for batch update
+    update_index = random.sample(range(NUM_THREADS * NUM_OPERATIONS_PER_THREAD), 10 * NUM_OPERATIONS_PER_THREAD)
+    for i in update_index:
+        values_list[i] = generate_random_value_dict()
+        
+    update_thread = [
+        threading.Thread(target=update_worker, args=(etcd_client, keys_list, values_list, metadata_list, update_index, i)) for i in range(NUM_THREADS)
+    ]
+    
+    for thread in update_thread:
+        thread.start()
+        
+    for thread in update_thread:
+        thread.join()
+
+    # Verify data integrity
+    check_data_integrity(etcd_client, keys_list, values_list)
 
 
-# def generate_new_value(old_value):
-#     """Generate a new value based on the old value."""
-#     new_value_length = random.randint(5, 100)
-#     new_data = ''.join(
-#         random.choices(string.ascii_letters + string.digits,
-#                        k=new_value_length))
-#     return {'data': new_data}
+"""
+TODO:
+Future Improvements:
 
+Thread Safety
+Test concurrent reads and writes to verify the thread safety of the client.
 
-# def write_worker(etcd_client, data):
-#     """Worker function for writing data to the ETCD store."""
-#     for key, value in data.items():
-#         etcd_client.write(key, value)
+Performance Benchmarks
+Measure the latency and throughput of CRUD operations under various load conditions to ensure the client meets performance requirements.
 
+End-to-End CRUD Operations
+Perform a series of CRUD operations in a specific sequence to verify the system behaves as expected in a real-world scenario.
 
-# def update_worker(etcd_client, data):
-#     """Worker function for updating data in the ETCD store."""
-#     for key, value in data.items():
-#         etcd_client.update(key, value)
+Recovery and Fault Tolerance
+Test the client's ability to handle network failures, ETCD cluster failures, and other unexpected errors gracefully.
 
+Stress Testing
+Stress the ETCD server by performing a high volume of operations over an extended period to identify potential bottlenecks or memory leaks.
 
-# def check_data_integrity(etcd_client, data):
-#     """Check that the data in the ETCD store matches the expected data."""
-#     for key, value in data.items():
-#         read_value = etcd_client.read(key)
-#         assert read_value == value, "Read value should match written value"
+Scalability Testing
+Verify that the ETCD client scales well with the size of the data and the number of clients, ensuring performance doesn't degrade unexpectedly.
 
-
-# def test_concurrent_access(etcd_client):
-#     data = generate_random_data(10000)
-#     data_items = list(data.items())
-#     random.shuffle(data_items)
-
-#     num_workers = 16
-
-#     # Split data among workers for concurrent write
-#     data_chunks = [
-#         dict(data_items[i::num_workers]) for i in range(num_workers)
-#     ]
-
-#     # Start threads for concurrent write
-#     threads = [
-#         threading.Thread(target=write_worker, args=(etcd_client, chunk))
-#         for chunk in data_chunks
-#     ]
-#     for thread in threads:
-#         thread.start()
-#     for thread in threads:
-#         thread.join()
-
-#     # Select a subset for batch update
-#     update_subset = dict(random.sample(data_items, 2000))
-#     update_data = {
-#         key: generate_new_value(value)
-#         for key, value in update_subset
-#     }
-#     update_data_chunks = [
-#         dict(list(update_data.items())[i::num_workers])
-#         for i in range(num_workers)
-#     ]
-#     update_thread = [
-#         threading.Thread(target=update_worker, args=(etcd_client, chunk))
-#         for chunk in update_data_chunks
-#     ]
-#     for thread in update_thread:
-#         thread.start()
-#     for thread in update_thread:
-#         thread.join()
-
-#     # Verify data integrity
-#     combined_data = {**data, **update_data}
-#     check_data_integrity(etcd_client, combined_data)
+Longevity Testing
+Run the ETCD client continuously under a moderate load for an extended period to ensure there are no issues with long-term operation, such as resource leaks.
+"""
