@@ -31,6 +31,8 @@ from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object
 
+from skyflow.etcd_client.etcd_client import KeyNotFoundError, ConflictError
+
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -425,12 +427,16 @@ class APIServer:
                             f"{link_header}/{object_name}",
                             obj_instance.model_dump(mode="json"),
                         )
-                    except Exception as error:
+                    except KeyNotFoundError as error:
+                        raise HTTPException(
+                            status_code=400,
+                            detail= error.msg
+                        )
+                    except ConflictError as error:
                         raise HTTPException(
                             status_code=409,
-                            detail=
-                            f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                        ) from error
+                            detail= error.msg
+                        )
                     return obj_instance
             raise HTTPException(
                 status_code=400,
@@ -498,12 +504,16 @@ class APIServer:
                     f"{link_header}/{object_name}",
                     obj.model_dump(mode="json"),
                 )
+            except KeyNotFoundError as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail= error.msg
+                )
             except Exception as error:
                 raise HTTPException(
                     status_code=409,
-                    detail=
-                    f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                ) from error
+                    detail= error.msg
+                )
             return obj
 
         return _patch_object
@@ -542,7 +552,13 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-        obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        try:
+            obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        except KeyNotFoundError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=error.msg,
+            )
         if obj_dict:
             return obj_dict
         raise HTTPException(
