@@ -72,8 +72,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         try:
             config.load_kube_config(context=self.cluster_name)
         except config.config_exception.ConfigException as error:
+            error_msg = str(error)
+            # Invalid Kubeconfig file.
+            if 'current-context' in error_msg:
+                raise K8ConnectionError(
+                    'Invalid kubeconfig file. Set `current-context` in your '
+                    'kube-config file by running `kubectl config use-context [NAME]`.'
+                ) from error
             raise K8ConnectionError(
-                "Could not connect to Kubernetes cluster "
+                "Invalid kubeconfig file for cluster: "
                 f"{self.cluster_name}, check kubeconfig.") from error
         all_contexts = config.list_kube_config_contexts()[0]
         self.context = None
@@ -519,11 +526,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             if error.status != 404:
                 raise error
 
-    def create_endpoint_slice(   # pylint: disable=too-many-locals, too-many-branches
-            self,
-            name: str,
-            cluster_name,
-            endpoint: EndpointObject):
+    def create_endpoint_slice(  # pylint: disable=too-many-locals, too-many-branches
+            self, name: str, cluster_name, endpoint: EndpointObject):
         """Creates/updates an endpint slice."""
         dir_path = os.path.dirname(os.path.realpath(__file__))
         jinja_env = Environment(loader=FileSystemLoader(
