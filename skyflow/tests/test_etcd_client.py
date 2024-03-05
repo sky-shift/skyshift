@@ -375,7 +375,7 @@ def test_concurrent_read_write_update(etcd_client):
     assert etcd_client.read(key)["value_key"] == chosen_index
 
 
-def concurrent_access(etcd_client):
+def test_concurrent_access(etcd_client):
     # Stress Test the ETCD client by simulating concurrent read, write and update operations.
 
     
