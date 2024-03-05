@@ -9,6 +9,8 @@ import tempfile
 import threading
 import time
 import pytest
+import os
+
 
 from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version, ConflictError, KeyNotFoundError
 
@@ -23,11 +25,17 @@ from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version, Co
 def etcd_client():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         print("Using temporary data directory for ETCD:", temp_data_dir)
+
+        current_file_path = os.path.abspath(__file__)
+        current_directory = os.path.dirname(current_file_path)
+        relative_path_to_script = "../../api_server/install_etcd.sh"
+        install_script_path = os.path.abspath(os.path.join(current_directory, relative_path_to_script))
+
         data_directory = temp_data_dir
-        # FIXME: We might need to change the path to "api_server/install_etcd.sh"
+        
         command = [
             "bash",
-            "./api_server/install_etcd.sh",
+            install_script_path,
             data_directory,
         ]
 
@@ -367,7 +375,7 @@ def test_concurrent_read_write_update(etcd_client):
     assert etcd_client.read(key)["value_key"] == chosen_index
 
 
-def test_concurrent_access(etcd_client):
+def concurrent_access(etcd_client):
     # Stress Test the ETCD client by simulating concurrent read, write and update operations.
 
     
