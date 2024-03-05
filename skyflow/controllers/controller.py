@@ -32,16 +32,16 @@ class Controller:
     """
 
     def __init__(self) -> None:
-        self.logger = logging.getLogger("[Generic Controller]")
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.controller_process: threading.Thread = threading.Thread(
             target=self.run)
 
-    def post_init_hook(self):
+    def post_init_hook(self):  # pylint: disable=no-self-use
         """Hook that is called after the controller is initialized.
 
         This method is usually called to initialize informers and watches.
         """
-        self.logger.info('No post init hook defined for controller.')
+        return
 
     def run(self):
         """Main control loop for the controller."""

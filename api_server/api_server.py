@@ -12,9 +12,9 @@ from typing import List
 import jsonpatch
 import yaml
 from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
 from api_utils import update_manager_config  # pylint: disable=import-error
-from api_utils import (create_access_token,  # pylint: disable=import-error
-                       load_manager_config)
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm

@@ -6,22 +6,18 @@ gang/coscheduling, colocation, and governance requirements that are not possible
 the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 
-import logging
-import os
 import queue
 from copy import deepcopy
 from typing import Dict, List
 
 from skyflow.api_client import ClusterAPI, JobAPI
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.scheduler.plugins import ClusterAffinityPlugin, DefaultPlugin
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, Job, JobStatusEnum, TaskStatusEnum
 from skyflow.templates.cluster_template import ClusterStatusEnum
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 def aggregate_job_status(replica_status: Dict[str, Dict[str, int]]):
@@ -43,10 +39,9 @@ class SchedulerController(Controller):
 
     def __init__(self) -> None:
         super().__init__()
-        self.logger = logging.getLogger("[Scheduler Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger = create_controller_logger(
+            title="[Scheduler Controller]",
+            log_path=f'{SKYCONF_DIR}/scheduler_controller.log')
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
