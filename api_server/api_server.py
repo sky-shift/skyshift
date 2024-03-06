@@ -393,7 +393,6 @@ class APIServer:
                     except StopIteration:
                         break
             except asyncio.CancelledError:
-                print("I got cancelled")
                 cancel_watch_fn()
             else:
                 cancel_watch_fn()
