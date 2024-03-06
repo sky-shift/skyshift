@@ -99,6 +99,7 @@ def load_manager_config():
         ) from error
     return config_dict
 
+
 def delete_unused_cluster_config(cluster_name: str):
     """Deletes the cluster config directory from the Skyconf directory."""
     shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")

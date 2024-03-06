@@ -1,6 +1,7 @@
 """
 SkyPilot + RKE provisioning script for cloud clusters.
 """
+from copy import deepcopy
 import os
 import threading
 from typing import Any, Dict
@@ -63,13 +64,14 @@ def _construct_skypilot_task_yaml(cluster_name: str,
     """
     Construct a SkyPilot task YAML for the provided ClusterSpec.
     """
+    spec = deepcopy(spec)
     spec.ports = list(set(spec.ports + RKE_PORTS))
     try:
         del spec.manager
         del spec.num_nodes
         del spec.attached
         del spec.config_path
-    except Exception:  # pylint: disable=broad-except
+    except AttributeError:
         pass
     data = {
         "name": f"sky-{cluster_name}-{num}",
@@ -77,9 +79,11 @@ def _construct_skypilot_task_yaml(cluster_name: str,
         "setup": setup,
         "run": run,
     }
+    # Create directioy if it does not exist
+    provision_dir = f"{cloud_cluster_dir(cluster_name)}/provision"
+    os.makedirs(provision_dir, exist_ok=True)
 
-    with open(
-            f"{cloud_cluster_dir(cluster_name)}/skypilot_task_{cluster_name}_{num}.yml",
+    with open(f"{provision_dir}/skypilot_task_{cluster_name}_{num}.yml",
             "w") as file:
         yaml.dump(data, file)
 
@@ -92,20 +96,20 @@ def _provision_resources(cluster_name: str, num_nodes: int, run_command: str,
     run_command = run_command or ""
     spec = spec or ClusterSpec()
 
-    def create_resource(num):
+    def _create_resource(num):
         _construct_skypilot_task_yaml(cluster_name,
                                       num,
                                       spec,
                                       setup="",
                                       run=run_command)
         task = sky.Task.from_yaml(
-            f"{cloud_cluster_dir(cluster_name)}/skypilot_task_{cluster_name}_{num}.yml"
+            f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_task_{cluster_name}_{num}.yml"
         )
         sky.launch(task, f"sky-{cluster_name}-{num}")
 
     threads: list[threading.Thread] = []
     for i in range(num_nodes):
-        thread = threading.Thread(target=create_resource, args=(i, ))
+        thread = threading.Thread(target=_create_resource, args=(i, ))
         thread.start()
         threads.append(thread)
 
@@ -164,9 +168,12 @@ def _cleanup_config_dir(cluster_name: str, num_nodes: int):
     Cleans up the config directory after provisioning a cluster.
     """
     for i in range(num_nodes):
-        os.remove(
-            f"{cloud_cluster_dir(cluster_name)}/skypilot_task_{cluster_name}_{i}.yml"
-        )
+        try:
+            os.remove(
+                f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_task_{cluster_name}_{i}.yml"
+            )
+        except FileNotFoundError:
+            pass
 
 
 def provision_new_kubernetes_cluster(
@@ -180,28 +187,31 @@ def provision_new_kubernetes_cluster(
     num_nodes = cluster_obj.spec.num_nodes
     spec = cluster_obj.spec
 
-    # @TODO(jc): add /cloud/region to path
     os.makedirs(cloud_cluster_dir(cluster_name))
+    # Provision Skypilot cloud resources.
     _provision_resources(cluster_name, num_nodes, run, spec)
+    # Create RKE YAML to run on the Skypilot-provisioned cluster.
     _construct_rke_cluster_yaml(cluster_name, num_nodes)
+    # Launch RKE on Skypilot cluster.
+    # Assumes RKE is already installed: https://rke.docs.rancher.com/installation#download-the-rke-binary
     os.system(
         f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml")
-    _cleanup_config_dir(cluster_name, num_nodes)
 
 
 def delete_kubernetes_cluster(cluster_name: str, num_nodes: int):
     """
     Deletes a Kubernetes cluster.
     """
-
-    def create_resource(num):
+    def _delete_resource(num):
         sky.down(f"sky-{cluster_name}-{num}")
 
     threads: list[threading.Thread] = []
     for i in range(num_nodes):
-        thread = threading.Thread(target=create_resource, args=(i, ))
+        thread = threading.Thread(target=_delete_resource, args=(i, ))
         thread.start()
         threads.append(thread)
+    # Clean up Skypilot config files.
+    _cleanup_config_dir(cluster_name, num_nodes)
 
     for thread in threads:
         thread.join()

@@ -173,18 +173,19 @@ cli.add_command(apply_config)
               default='k8',
               show_default=True,
               required=True,
-              help='Type of cluster manager')
+              help='Cluster manager type (e.g. k8, slurm).')
 @click.option('--cpus',
               default=None,
-              type=int,
+              type=str,
               required=False,
-              help='Number of vCPUs each instance must have')
-@click.option('--memory',
-              default=None,
-              type=int,
-              required=False,
-              help='Amount of memory each instance must have in GB')
-@click.option('--disk-size',
+              help='Number of vCPUs per node (e.g. 1, 1+).')
+@click.option(
+    '--memory',
+    default=None,
+    type=str,
+    required=False,
+    help='Amount of memory each instance must have in GB. (e.g. 32, 32+).')
+@click.option('--disk_size',
               default=None,
               type=int,
               required=False,
@@ -196,7 +197,8 @@ cli.add_command(apply_config)
               help='Type and number of GPU accelerators to use')
 @click.option('--ports',
               default=[],
-              type=list[str],
+              type=str,
+              multiple=True,
               required=False,
               help='Ports to open on the cluster')
 @click.option('--num_nodes',
@@ -219,11 +221,10 @@ cli.add_command(apply_config)
 @click.option(
     '--attached',
     is_flag=True,
-    help=
-    'True if cluster is already created and needs to be attached to Skyflow.')
+    help='True if cluster is already created and needs to be attached to Skyflow.')
 def create_cluster(  # pylint: disable=too-many-arguments
-        name: str, manager: str, cpus: int, memory: int, disk_size: int,
-        accelerators: str, ports: list[str], num_nodes: int, cloud: str,
+        name: str, manager: str, cpus: str, memory: str, disk_size: int,
+        accelerators: str, ports: List[str], num_nodes: int, cloud: str,
         region: str, attached: bool):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
@@ -233,6 +234,9 @@ def create_cluster(  # pylint: disable=too-many-arguments
     if not validate_input_string(name):
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
+
+    if ports:
+        ports = list(ports)
 
     cluster_dictionary = {
         "kind": "Cluster",
@@ -335,8 +339,7 @@ def delete_cluster(name):
     "--gpus",
     type=int,
     default=0,
-    help=
-    "Number of GPUs per task. Note that these GPUs can be any type of GPU.",
+    help="Number of GPUs per task. Note that these GPUs can be any type of GPU.",
 )
 @click.option(
     "--accelerators",
@@ -716,8 +719,7 @@ def delete_link(name: str):
     type=(int, int),
     multiple=True,
     default=[],
-    help=
-    "Port pairs for service (<port>:<containerPort/targetPort>). Defaults to TCP connection.",
+    help="Port pairs for service (<port>:<containerPort/targetPort>). Defaults to TCP connection.",
 )
 @click.option("--cluster",
               "-c",

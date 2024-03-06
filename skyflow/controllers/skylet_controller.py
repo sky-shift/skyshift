@@ -95,8 +95,10 @@ class SkyletController(Controller):
         # Launch Skylet for clusters that are finished provisioning.
         if event_type == WatchEventEnum.UPDATE and cluster_obj.get_status(
         ) == ClusterStatusEnum.READY:
-            self._launch_skylet(cluster_obj)
-            self.logger.info('Launched Skylet for cluster: %s.', cluster_name)
+            if cluster_name not in self.skylets:
+                self._launch_skylet(cluster_obj)
+                self.logger.info('Launched Skylet for cluster: %s.',
+                                 cluster_name)
         else:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)

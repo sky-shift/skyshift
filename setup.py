@@ -25,7 +25,7 @@ setup(
         "types-tabulate",
         "types-PyYAML",
         "types-requests",
-        "skypilot-nightly",
+        "skypilot==0.5.0",
         "bcrypt==4.0.1",
     ],
     extras_require={

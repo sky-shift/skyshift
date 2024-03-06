@@ -192,6 +192,18 @@ class ClusterSpec(ObjectSpec):
             raise ValueError(f'Invalid accelerator number: {num}.')
         return accelerators
 
+    @field_validator('cpus')
+    @classmethod
+    def verify_cpus(cls, cpus: str) -> str:
+        """Validates the cpus field of a ClusterResources."""
+        if cpus is None:
+            return cpus
+        if cpus.isdigit():
+            return cpus
+        if cpus[-1] == '+' and cpus[:-1].isdigit():
+            return cpus
+        raise ValueError(f'Invalid cpus: {cpus}.')
+
     @field_validator("manager")
     @classmethod
     def verify_manager(cls, manager: str) -> str:
