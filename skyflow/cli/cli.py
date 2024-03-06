@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Skyflow CLI.
 """
@@ -221,7 +222,8 @@ cli.add_command(apply_config)
 @click.option(
     '--attached',
     is_flag=True,
-    help='True if cluster is already created and needs to be attached to Skyflow.')
+    help=
+    'True if cluster is already created and needs to be attached to Skyflow.')
 def create_cluster(  # pylint: disable=too-many-arguments
         name: str, manager: str, cpus: str, memory: str, disk_size: int,
         accelerators: str, ports: List[str], num_nodes: int, cloud: str,
@@ -339,7 +341,8 @@ def delete_cluster(name):
     "--gpus",
     type=int,
     default=0,
-    help="Number of GPUs per task. Note that these GPUs can be any type of GPU.",
+    help=
+    "Number of GPUs per task. Note that these GPUs can be any type of GPU.",
 )
 @click.option(
     "--accelerators",
@@ -719,7 +722,8 @@ def delete_link(name: str):
     type=(int, int),
     multiple=True,
     default=[],
-    help="Port pairs for service (<port>:<containerPort/targetPort>). Defaults to TCP connection.",
+    help=
+    "Port pairs for service (<port>:<containerPort/targetPort>). Defaults to TCP connection.",
 )
 @click.option("--cluster",
               "-c",

@@ -12,12 +12,10 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 
-from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, Service, TaskStatusEnum)
-from skyflow.templates.cluster_template import Cluster
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -71,21 +69,12 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         super().__init__(name)
         self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
 
-        # Load kubernetes config for the given context.
         try:
-            # Hack: Try the cloud cluster config path.
-            config_path = f"{cloud_cluster_dir(self.cluster_name)}/kube_config_rke_cluster.yml"
-            config.load_kube_config(
-                config_file=config_path,
-                context=self.cluster_name)
-        except config.config_exception.ConfigException:
-            try:
-                config_path = '~/.kube/config'
-                config.load_kube_config(config_file=config_path)
-            except config.config_exception.ConfigException as error:
-                raise K8ConnectionError(
-                    "Could not connect to Kubernetes cluster "
-                    f"{self.cluster_name}, check kubeconfig.") from error
+            config.load_kube_config(config_file=config_path)
+        except config.config_exception.ConfigException as error:
+            raise K8ConnectionError(
+                "Could not connect to Kubernetes cluster "
+                f"{self.cluster_name}, check kubeconfig.") from error
         all_contexts = config.list_kube_config_contexts(
             config_file=config_path)[0]
         self.context = None

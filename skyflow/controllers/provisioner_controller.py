@@ -14,11 +14,11 @@ from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cloud.skypilot_provisioning import (
     delete_kubernetes_cluster, provision_new_kubernetes_cluster)
+from skyflow.cloud.utils import delete_unused_cluster_config
 from skyflow.controllers.controller import Controller
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent, WatchEventEnum
-from skyflow.cloud.utils import delete_unused_cluster_config
 
 PROVISIONER_CONTROLLER_INTERVAL = 0.5
 
@@ -97,20 +97,22 @@ class ProvisionerController(Controller):
             # Launch Skylet if it is a newly added cluster.
             cluster_name = cluster_obj.get_name()
             if cluster_obj.spec.attached:
-                self.logger.info(f'Cluster {cluster_name} is `attached`, '
-                                 'skipping provisioning.')
+                self.logger.info(
+                    'Cluster %s is `attached`, '
+                    'skipping provisioning.', cluster_name)
                 self.update_cluster_obj_status(cluster_name,
                                                ClusterStatusEnum.READY)
                 return
 
             try:
-                self.logger.info(f'Provisioning cluster {cluster_name}...')
+                self.logger.info('Provisioning cluster %s...', cluster_name)
                 self.update_cluster_obj_status(cluster_name,
                                                ClusterStatusEnum.PROVISIONING)
                 provision_new_kubernetes_cluster(cluster_obj=cluster_obj)
             except Exception as error:  # pylint: disable=broad-except
-                self.logger.info(f'Error provisioning cluster {cluster_name}.'
-                                 'Removing cluster resources.')
+                self.logger.info(
+                    'Error provisioning cluster %s.'
+                    'Removing cluster resources.', cluster_name)
                 self.logger.error(error)
                 delete_unused_cluster_config(cluster_name)
                 self.update_cluster_obj_status(cluster_name,
@@ -119,7 +121,7 @@ class ProvisionerController(Controller):
             self.update_cluster_obj_status(cluster_name,
                                            ClusterStatusEnum.READY)
         elif watch_event.event_type == WatchEventEnum.DELETE and not cluster_obj.spec.attached:
-            self.logger.info(f'Terminating cluster {cluster_name}...')
+            self.logger.info('Terminating cluster %s...', cluster_name)
             delete_unused_cluster_config(cluster_name)
             delete_kubernetes_cluster(cluster_name, cluster_obj.spec.num_nodes)
 

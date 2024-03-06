@@ -6,7 +6,6 @@ from typing import List
 from kubernetes import config
 
 from skyflow.api_client.cluster_api import ClusterAPI
-from skyflow.cloud.utils import cloud_cluster_dir
 
 
 def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
