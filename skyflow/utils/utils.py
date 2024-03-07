@@ -4,6 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
+import shutil
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -12,6 +13,19 @@ import yaml
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
+
+
+def sanitize_cluster_name(value: str) -> str:
+    """
+    Validates the name field of a Cluster, ensuring
+    it does not contain whitespaces, @ or '/'.
+    """
+    if not value or value.isspace() or len(value) == 0:
+        raise ValueError(f"Name format is invalid: {value}")
+    sanitized_value = value.replace(" ", "-space-").replace("/",
+                                                            "-dash-").replace(
+                                                                "@", "-at-")
+    return sanitized_value
 
 
 def generate_manager_config(host: str, port: int):
@@ -97,3 +111,8 @@ def load_manager_config():
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."
         ) from error
     return config_dict
+
+
+def delete_unused_cluster_config(cluster_name: str):
+    """Deletes the cluster config directory from the Skyconf directory."""
+    shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")

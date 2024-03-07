@@ -12,8 +12,11 @@ def setup_cluster_manager(cluster_obj: Cluster):
     """
     cluster_type = cluster_obj.spec.manager
 
+    args = {}
+
     if cluster_type in ["k8", "kubernetes"]:
         cluster_manager_cls = KubernetesManager
+        args["config_path"] = cluster_obj.spec.config_path
     else:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
 
@@ -24,9 +27,10 @@ def setup_cluster_manager(cluster_obj: Cluster):
                                                     co_argcount]
 
     # Filter the dictionary keys based on parameter names
-    args = {
+    args.update({
         k: v
         for k, v in dict(cluster_obj.metadata).items() if k in class_params
-    }
+    })
+
     # Create an instance of the class with the extracted arguments.
     return cluster_manager_cls(**args)
