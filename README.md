@@ -19,12 +19,6 @@ pip install -e .
 pip install -e .[server]
 ```
 
-Finally, install Skupper. This is the multi-cluster communication fabric we use to expose services across different clusters.
-
-```
-curl https://skupper.io/install.sh | sh
-```
-
 ## Steps to run Sky Manager
 
 ### 1. Check Kubernetes Clusters
