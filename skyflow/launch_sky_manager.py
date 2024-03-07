@@ -4,12 +4,16 @@ Launches the Sky Manager, which is a controller manager akin to that in K8.
 import traceback
 
 from skyflow.controllers.link_controller import LinkController
+from skyflow.controllers.provisioner_controller import ProvisionerController
 from skyflow.controllers.skylet_controller import SkyletController
 from skyflow.scheduler.scheduler_controller import SchedulerController
 
 # Servers as the Controller Manager, which runs two controllers.
 SKY_MANAGER_CONTROLLERS = [
-    SkyletController, SchedulerController, LinkController
+    LinkController,
+    ProvisionerController,
+    SchedulerController,
+    SkyletController,
 ]
 
 

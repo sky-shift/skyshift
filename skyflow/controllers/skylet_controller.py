@@ -49,19 +49,18 @@ class SkyletController(Controller):
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
-        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
+        self.cluster_api = ClusterAPI()
+        self.cluster_informer = Informer(self.cluster_api, logger=self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
 
-        def add_callback_fn(event):
-            self.logger.debug("Cluster added: %s", event.object.get_name())
-            self.event_queue.put(event)
-
         def update_callback_fn(_, event):
             event_object = event.object
             self.logger.debug("Cluster status: %s", event_object.get_status())
-            if event_object.get_status() == ClusterStatusEnum.ERROR:
+            if event_object.get_status() in [
+                    ClusterStatusEnum.ERROR, ClusterStatusEnum.READY
+            ]:
                 self.event_queue.put(event)
 
         def delete_callback_fn(event):
@@ -70,7 +69,6 @@ class SkyletController(Controller):
 
         # Add to event queue if cluster is added (or modified) or deleted.
         self.cluster_informer.add_event_callbacks(
-            add_event_callback=add_callback_fn,
             update_event_callback=update_callback_fn,
             delete_event_callback=delete_callback_fn,
         )
@@ -94,18 +92,21 @@ class SkyletController(Controller):
         event_type = watch_event.event_type
         cluster_obj = watch_event.object
         cluster_name = cluster_obj.get_name()
-        # Launch Skylet if it is a newly added cluster.
-        if event_type == WatchEventEnum.ADD:
-            self._launch_skylet(cluster_obj)
-            self.logger.info("Launched Skylet for cluster: %s.", cluster_name)
-        elif event_type in [WatchEventEnum.DELETE, WatchEventEnum.UPDATE]:
+        # Launch Skylet for clusters that are finished provisioning.
+        if event_type == WatchEventEnum.UPDATE and cluster_obj.get_status(
+        ) == ClusterStatusEnum.READY:
+            if cluster_name not in self.skylets:
+                self._launch_skylet(cluster_obj)
+                self.logger.info('Launched Skylet for cluster: %s.',
+                                 cluster_name)
+        else:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
             self.logger.info("Terminated Skylet for cluster: %s.",
                              cluster_name)
 
     def _load_clusters(self):
-        existing_clusters = lookup_kube_config()
+        existing_clusters = lookup_kube_config(self.cluster_api)
         for cluster_name in existing_clusters:
             self.logger.info("Found existing cluster: %s.", cluster_name)
             try:
