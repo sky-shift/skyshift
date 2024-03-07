@@ -73,7 +73,6 @@ class ClusterController(Controller):
 
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
-        # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that

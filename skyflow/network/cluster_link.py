@@ -8,7 +8,7 @@ import os
 import subprocess
 from typing import List
 
-from skyflow.cluster_manager import KubernetesManager
+from skyflow.cluster_manager import Manager
 
 TOKEN_DIRECTORY = "~/.skyconf/link_secrets"
 INSTALL_CMD = ("skupper init --context {cluster_name} "
@@ -28,7 +28,7 @@ LINK_STATUS_CMD = (
 )
 
 
-def status_network(manager: KubernetesManager):
+def status_network(manager: Manager):
     """Checks if a Skupper router is running on a cluster."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
@@ -49,7 +49,7 @@ def status_network(manager: KubernetesManager):
         raise error
 
 
-def launch_network(manager: KubernetesManager):
+def launch_network(manager: Manager):
     """Launches a Skupper router on a cluster."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
@@ -62,7 +62,7 @@ def launch_network(manager: KubernetesManager):
         raise error
 
 
-def check_link_status(link_name: str, manager: KubernetesManager):
+def check_link_status(link_name: str, manager: Manager):
     """Checks if a link exists between two clusters."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
@@ -84,8 +84,8 @@ def check_link_status(link_name: str, manager: KubernetesManager):
         raise error
 
 
-def create_link(link_name: str, source_manager: KubernetesManager,
-                target_manager: KubernetesManager):
+def create_link(link_name: str, source_manager: Manager,
+                target_manager: Manager):
     """Creates a link between two clusters."""
     source_namespace = source_manager.namespace
     source_cluster_name = source_manager.cluster_name
@@ -125,7 +125,7 @@ def create_link(link_name: str, source_manager: KubernetesManager,
         raise error
 
 
-def delete_link(link_name: str, manager: KubernetesManager):
+def delete_link(link_name: str, manager: Manager):
     """Deletes a link between two clusters."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
@@ -147,15 +147,18 @@ def delete_link(link_name: str, manager: KubernetesManager):
         raise error
 
 
-def expose_service(service_name: str, manager: KubernetesManager,
-                   ports: List[int]):
+def expose_service(service_name: str, manager: Manager, ports: List[int]):
     """Exposes a service on the Skupper network."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
     expose_service_name = f"{service_name}-{cluster_name}"
     expose_cmd = (f"skupper expose service {service_name}.{namespace} "
                   f"--address {expose_service_name} --context {cluster_name} "
+<<<<<<< HEAD
                   f"--namespace {namespace} ")
+=======
+                  f"--namespace {namespace}")
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
     for port in ports:
         expose_cmd += f"--port {port} --target-port {port} "
     try:
@@ -166,7 +169,7 @@ def expose_service(service_name: str, manager: KubernetesManager,
         raise error
 
 
-def unexpose_service(service_name: str, manager: KubernetesManager):
+def unexpose_service(service_name: str, manager: Manager):
     """Removes the exposed service from the Skupper network."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name

@@ -123,6 +123,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             accelerator_types[node_name] = node_accelerator_type
         return accelerator_types
 
+<<<<<<< HEAD
     def get_cluster_status(self):
         """
         Returns the current status of a Kubernetes cluster.
@@ -166,6 +167,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         return resources
 
     @property
+=======
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
     def cluster_resources(self):
         """Gets total cluster resources for each node."""
         limit = None
@@ -189,7 +192,25 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         return self._process_gpu_resources(cluster_resources)
 
+<<<<<<< HEAD
     @property
+=======
+    def _process_gpu_resources(
+            self, resources: Dict[str,
+                                  Dict[str,
+                                       float]]) -> Dict[str, Dict[str, float]]:
+        # Refetch node accelerator types if the nodes have changed
+        # (such as in cluster autoscaling or admin adds/removes nodes).
+        if not self.accelerator_types or not set(
+                self.accelerator_types).issubset(set(resources.keys())):
+            self.accelerator_types = self.get_accelerator_types()
+
+        for node_name, accelerator_type in self.accelerator_types.items():
+            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
+            resources[node_name][accelerator_type] = gpu_value
+        return resources
+
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """Get allocatable resources per node."""
         # Get the nodes and running pods
@@ -613,3 +634,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                     pass
                 else:
                     raise error
+
+    @staticmethod
+    def convert_yaml(job: Job):
+        raise NotImplementedError

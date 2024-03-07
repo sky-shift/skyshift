@@ -4,6 +4,7 @@ Init module for Skyflow object templates.
 from skyflow.templates.cluster_template import (Cluster, ClusterException,
                                                 ClusterList, ClusterStatus,
                                                 ClusterStatusEnum)
+from skyflow.templates.container_template import ContainerEnum
 from skyflow.templates.endpoints_template import (EndpointObject, Endpoints,
                                                   EndpointsException,
                                                   EndpointsList, EndpointsMeta,
@@ -29,6 +30,7 @@ from skyflow.templates.service_template import (Service, ServiceException,
                                                 ServiceList, ServiceMeta)
 
 __all__ = [
+<<<<<<< HEAD
     "AcceleratorEnum",
     "Cluster",
     "ClusterException",
@@ -74,4 +76,17 @@ __all__ = [
     "TaskStatusEnum",
     "WatchEvent",
     "WatchEventEnum",
+=======
+    "AcceleratorEnum", "Cluster", "ClusterException", "ClusterList",
+    "ClusterStatus", "ClusterStatusEnum", "Endpoints", "EndpointsException",
+    "EndpointsList", "EndpointsMeta", "EndpointsSpec", "EndpointsStatus",
+    "EndpointObject", "FilterPolicy", "FilterPolicyException",
+    "FilterPolicyList", "Job", "JobException", "JobList", "JobStatusEnum",
+    "Link", "LinkException", "LinkList", "LinkStatus", "LinkStatusEnum",
+    "Namespace", "NamespaceException", "NamespaceMeta", "NamespaceList",
+    "ResourceEnum", "Service", "ServiceException", "ServiceList",
+    "ServiceMeta", "Object", "ObjectException", "ObjectList", "ObjectMeta",
+    "ObjectSpec", "ObjectStatus", "TaskStatusEnum", "WatchEvent",
+    "WatchEventEnum", "ContainerEnum"
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
 ]

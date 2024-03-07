@@ -1,0 +1,20 @@
+kind: Job
+
+metadata: 
+  name: hello-world
+  labels:
+    testing: hello
+
+spec:
+  image: ubuntu
+  resources:
+    cpus: 1
+    gpus: 0
+    memory: 128
+  envs:
+    MY_ENV_VAR: "hello"
+    PATH: "/bin"
+
+  run: |
+    #!/bin/bash
+    echo $MY_ENV_VAR; sleep 5000; echo bye

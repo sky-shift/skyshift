@@ -18,20 +18,27 @@ import threading
 import time
 from typing import Any, Dict
 
-from skyflow.structs import Watcher
 from skyflow.templates.event_template import WatchEventEnum
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
 class Informer:  # pylint: disable=too-many-instance-attributes
     """Informer manages the most-recent state of objects in a cache.
     It regularly watches the API server and updates the cache asynchronously.
     """
 
+<<<<<<< HEAD
     def __init__(self, api: object, logger=logging.getLogger("[Informer]")):
+=======
+    def __init__(self, api: object):
+        from skyflow.structs import Watcher
+>>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
         self.api = api
         self.logger = logger
         self.watcher = Watcher(self.api)
