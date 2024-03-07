@@ -35,8 +35,7 @@ class LinkController(Controller):
 
         # Thread safe queue for Informers to append events to.
         self.event_queue: queue.Queue = queue.Queue()
-        self.link_informer = Informer(LinkAPI(), logger=self.logger)
-        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
+        self.post_init_hook()
 
     def post_init_hook(self):
 
@@ -46,10 +45,13 @@ class LinkController(Controller):
         def delete_callback_fn(event):
             self.event_queue.put(event)
 
+        self.link_informer = Informer(LinkAPI(), logger=self.logger)
         self.link_informer.add_event_callbacks(
             add_event_callback=add_callback_fn,
             delete_event_callback=delete_callback_fn)
         self.link_informer.start()
+
+        self.cluster_informer = Informer(ClusterAPI(), logger=self.logger)
         self.cluster_informer.start()
 
     def run(self):
@@ -70,14 +72,12 @@ class LinkController(Controller):
             try:
                 if event_type == WatchEventEnum.ADD:
                     self.logger.info(
-                        'Creating link between clusters: [%s, %s]', source,
-                        target)
+                        'Creating link between clusters: [%s, %s]',source, target)
                     self._create_link(source, target)
                     link_status = LinkStatusEnum.ACTIVE.value
                 elif event_type == WatchEventEnum.DELETE:
                     self.logger.info(
-                        'Deleting link between clusters: [%s, %s]', source,
-                        target)
+                        'Deleting link between clusters: [%s, %s]',source, target)
                     self._delete_link(source, target)
                     skip_update = True
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
