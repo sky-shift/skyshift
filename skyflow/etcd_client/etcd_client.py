@@ -116,12 +116,7 @@ class ETCDClient:
     def write(self, key: str, value: dict):
         """
         Write a key-value pairs to the etcd store.
-
         This method is threadsafe, with locks on all leaf nodes.
-
-        Args:
-            key (str): The key to write to.
-            value (dict): The value to write to the key.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -141,10 +136,6 @@ class ETCDClient:
         1. The resource_version is not provided by the user, in which case we will override the prior resource_version stored in the etcd server.
         2. The resource_version is provided by the user, in which case we will compare the resource_version with the one stored in the etcd server. 
             If the resource_version user provides is outdated, we will raise a ConflictError.
-
-        Args:
-            key (str): The key to update.
-            value (dict): The value to update the key with. User DOES NOT need to provide the metadata in the dict. We will ignore it.
         """
 
         if self.log_name not in key:
@@ -194,12 +185,6 @@ class ETCDClient:
     def read_prefix(self, key: str):
         """
         Read key-value pairs from the etcd store.
-
-        Args:
-            key (str): The key to read from.
-            
-        Returns:
-            A list of values (dict) corresponds the key that has the prefix, with all metadata included (such as resource_version).
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -240,9 +225,6 @@ class ETCDClient:
         """
         Remove a key-value pair (or all corresponding key values) from the
         etcd store.
-
-        Returns:
-            The deleted (key, value) if it exists, otherwise return KeyNotFoundError.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -265,9 +247,6 @@ class ETCDClient:
     def delete_prefix(self, key: str) -> List[dict]:
         """
         Remove a set of prefixed keys from the system.
-
-        Returns:
-            A list of deleted (key, value) tuples, otherwise None.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -285,18 +264,12 @@ class ETCDClient:
     def delete_all(self) -> List[dict]:
         """
         Remove all KVs from the system.
-
-        Returns:
-            A list containing all deleted KV pairs.
         """
         return self.delete_prefix(self.log_name)
 
     def watch(self, key: str):
         """
         Watches over a set of keys (or a single key).
-
-        Returns:
-            A generator that yields (event_type, key, value) tuples.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
