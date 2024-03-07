@@ -15,6 +15,19 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
+def sanitize_cluster_name(value: str) -> str:
+    """
+    Validates the name field of a Cluster, ensuring
+    it does not contain whitespaces, @ or '/'.
+    """
+    if not value or value.isspace() or len(value) == 0:
+        raise ValueError(f"Name format is invalid: {value}")
+    sanitized_value = value.replace(" ", "-space-").replace("/",
+                                                            "-dash-").replace(
+                                                                "@", "-at-")
+    return sanitized_value
+
+
 def generate_manager_config(host: str, port: int):
     """Generates the API server config file."""
     absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
