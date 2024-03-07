@@ -15,7 +15,7 @@ class ResourceEnum(enum.Enum):
     # Memory is expressed in MB.
     MEMORY: str = "memory"
     # Disk is also expressed in MB.
-    DISK: str = "DISK"
+    DISK: str = 'disk'
 
 
 # @TODO(mluo): Expand list of accelerators

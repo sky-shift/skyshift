@@ -4,6 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
+import shutil
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -97,3 +98,8 @@ def load_manager_config():
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."
         ) from error
     return config_dict
+
+
+def delete_unused_cluster_config(cluster_name: str):
+    """Deletes the cluster config directory from the Skyconf directory."""
+    shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")

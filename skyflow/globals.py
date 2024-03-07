@@ -1,10 +1,16 @@
 """
 Globals contains variables used across the Skyflow.
 """
+import os
+
 from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
                                Namespace, Role, Service)
 
 DEFAULT_NAMESPACE = "default"
+
+USER_SSH_PATH = os.path.expanduser("~/.ssh")
+
+SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 NAMESPACED_OBJECTS = {
     "jobs": Job,
