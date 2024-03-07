@@ -11,7 +11,6 @@ from typing import Dict, List, Tuple
 import requests
 import requests_unixsocket
 import yaml
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from skyflow.cluster_manager import Manager
 from skyflow.cluster_manager.slurm_compatibility_layer import \
@@ -83,7 +82,8 @@ class SlurmManager(Manager):
                     f'Define port slurmrestd is listening on in {SLURMRESTD_CONFIG_PATH}.'
                 ) from exception
 
-        compat_layer = SlurmCompatiblityLayer(config_dict)
+        self.compat_layer = SlurmCompatiblityLayer(config_dict,
+                                                   SLURMRESTD_CONFIG_PATH)
         if 'sock' in self.port.lower():
             is_unix_socket = True
         if is_unix_socket:
@@ -99,29 +99,6 @@ class SlurmManager(Manager):
         self.total_resources = None
         self.allocatable_resources()
         self.cluster_resources()
-        
-        self.node_accelerators = self.get_gpu_config(config_dict)
-
-    def get_gpu_config(self, config_dict):
-        accelerator_types = {}
-        #This one needs to be changed to gres parsing. Asymetrical nodes and clusters with hundreds-thousands of nodes cannot rely on config
-        for node in config_dict:
-            if "node_" in node:
-                try:
-                    gpus = config_dict[node]['gpus']
-                except ConfigUndefinedError as exception:
-                    raise ConfigUndefinedError(
-                        f'Failed to process GPUs.') from exception
-                gpu_arr = gpus.replace(' ', '').split(',')
-                accel_list = []
-                for gpu_type in gpu_arr:
-                    accel_list.append(gpu_type)
-                gpu_count = len(accel_list)
-                if gpu_count == 0:
-                    accel_list.append("None")
-                node_gpu_props = NodeGpus(gpu_count, accel_list)
-                accelerator_types[node] = node_gpu_props
-        return accelerator_types
 
     def send_job(self, json_data: str):
         """Submit JSON job file.
@@ -278,17 +255,16 @@ class SlurmManager(Manager):
                                                 ('nodes', i, 'idle_cpus'))
             allocatable_memory = get_json_key_val(response,
                                                   ('nodes', i, 'free_memory'))
-            node_gres = get_json_key_val(response, ('nodes', i, 'gres_used'))
-            node_gres_used = get_json_key_val(response, ('nodes', i, 'gres_used'))
-            if node_gres == '':
-                allocatable_gpus = 0
-            gpu_count = 0
-            #TODO Need to see HPC gres
-            if node_gres_used != '':  #gres is configured
-                gpu_arr = re.findall(r'gpu:[^:]+:(\d+)', node_gres)
-                for gpus in gpu_arr:
-                    gpu_count = gpu_count + int(gpus)
-            #node_gpu_used get_json_key_val(response, ('nodes', i, 'gres_used'))
+            node_gres_used = get_json_key_val(response,
+                                              ('nodes', i, 'gres_used'))
+            used_gpu_count = 0
+            if node_gres_used == '':
+                used_gpu_count = 0
+            else:  #gres is configured
+                used_gpu_arr = re.findall(r'gpu:[^:]+:(\d+)', node_gres_used)
+                for used_gpus in used_gpu_arr:
+                    used_gpu_count = used_gpu_count + int(used_gpus)
+            allocatable_gpus = self.total_resources[node_name] - used_gpu_count
             available_resources[node_name] = {
                 ResourceEnum.CPU.value: float(allocatable_cpus),
                 ResourceEnum.MEMORY.value: float(allocatable_memory),
@@ -343,14 +319,13 @@ class SlurmManager(Manager):
                 'manager_job_id': first_object,
                 'slurm_job_id': 0,
                 'api_responses': api_responses,
-            
             }
 
         slurm_job_name = f"{MANAGER_NAME}-{job_name}-{uuid.uuid4().hex[:8]}"
 
         #deploy_dict = self._convert_to_json(job, slurm_job_name)
         job.metadata.name = slurm_job_name
-        json_data = _convert_to_job_json(job)
+        json_data = self.convert_to_job_json(job)
         response = self.send_job(json_data)
 
         api_responses.append(response)
@@ -380,6 +355,18 @@ class SlurmManager(Manager):
         response = self.session.delete(url)
         api_responses.append(response)
         return api_responses
+
+    def convert_to_job_json(self, job: Job) -> str:
+        """ Converts job object into slurm json format.
+
+            Args:
+
+                job: job object to be cond verted.
+
+            Returns:
+                Json file to be submitted.
+        """
+        return self.compat_layer._create_slurm_json(job)
 
     @staticmethod
     def convert_yaml(job: Job):
@@ -448,31 +435,18 @@ def _print_json(data: str):
     print(json.dumps(data, indent=4, sort_keys=True))
 
 
-def _convert_to_job_json(job: Job) -> str:
-    """ Converts job object into slurm json format.
-
-        Args:
-
-            job: job object to be cond verted.
-
-        Returns:
-            Json file to be submitted.
-    """
-    return compat_layer._create_slurm_json(job)
-
-
 #if __name__ == '__main__':
-    #api = SlurmManager()
-    #api.get_accelerator_types()
-    #print(api.cluster_resources())
-    # file_path = './slurm_basic_job.json'
-    # file_path = "./containerdjob.json"
-    # with open(file_path, 'r') as json_file:
-    #     json_data = json_file.read()
-    # data = json.loads(json_data)
-    # #print(api._print_json(api.send_job(data).json()))
-    # f = open('../../examples/example_simple.yaml')
-    # mdict = yaml.safe_load(f)
-    # job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
-    # api.submit_job(job)
-    # #print(api.get_jobs_status())
+#api = SlurmManager()
+#api.get_accelerator_types()
+#print(api.cluster_resources())
+# file_path = './slurm_basic_job.json'
+# file_path = "./containerdjob.json"
+# with open(file_path, 'r') as json_file:
+#     json_data = json_file.read()
+# data = json.loads(json_data)
+# #print(api._print_json(api.send_job(data).json()))
+# f = open('../../examples/example_simple.yaml')
+# mdict = yaml.safe_load(f)
+# job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
+# api.submit_job(job)
+# #print(api.get_jobs_status())
