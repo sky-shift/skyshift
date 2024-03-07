@@ -1,6 +1,7 @@
 """
 Specifies the API server and its endpoints for Skyflow.
 """
+import asyncio
 import json
 import os
 import signal
@@ -12,9 +13,9 @@ from typing import List
 import jsonpatch
 import yaml
 from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
 from api_utils import update_manager_config  # pylint: disable=import-error
-from api_utils import (create_access_token,  # pylint: disable=import-error
-                       load_manager_config)
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -314,7 +315,7 @@ class APIServer:
 
         return _create_object
 
-    def list_objects(
+    async def list_objects(
             self,
             object_type: str,
             namespace: str = DEFAULT_NAMESPACE,
@@ -336,7 +337,7 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return self._watch_key(link_header)
+            return await self._watch_key(link_header)
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -345,7 +346,7 @@ class APIServer:
         })
         return obj_list
 
-    def get_object(
+    async def get_object(
         self,
         object_type: str,
         object_name: str,
@@ -369,10 +370,37 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return self._watch_key(f"{link_header}/{object_name}")
+            return await self._watch_key(f"{link_header}/{object_name}")
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
+
+    async def _watch_key(self, key: str):
+        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
+
+        async def generate_events():
+            try:
+                while True:
+                    try:
+                        event = await asyncio.to_thread(
+                            next, events_iterator, None)
+                        if event is None:
+                            break
+                        event_type, event_value = event
+                        event_value = load_object(event_value)
+                        # Check and validate event type.
+                        watch_event = WatchEvent(event_type=event_type.value,
+                                                 object=event_value)
+                        yield watch_event.model_dump_json() + "\n"
+                    except StopIteration:
+                        break
+            except asyncio.CancelledError:
+                cancel_watch_fn()
+            else:
+                cancel_watch_fn()
+
+        return StreamingResponse(generate_events(),
+                                 media_type="application/x-ndjson")
 
     def update_object(
         self,
@@ -566,24 +594,6 @@ class APIServer:
             status_code=400,
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
-
-    def _watch_key(self, key: str):
-        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
-
-        def generate_events():
-            try:
-                for event in events_iterator:
-                    event_type, event_value = event
-                    event_value = load_object(event_value)
-                    # Check and validate event type.
-                    watch_event = WatchEvent(event_type=event_type.value,
-                                             object=event_value)
-                    yield watch_event.model_dump_json() + "\n"
-            finally:
-                cancel_watch_fn()
-
-        return StreamingResponse(generate_events(),
-                                 media_type="application/x-ndjson")
 
     def _add_endpoint(self,
                       endpoint=None,
