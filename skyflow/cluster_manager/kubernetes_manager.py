@@ -15,7 +15,8 @@ from kubernetes import client, config
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
-                               Job, ResourceEnum, Service, TaskStatusEnum)
+                               Job, ResourceEnum, RestartPolicyEnum, Service,
+                               TaskStatusEnum)
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -269,7 +270,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         k8_job_name = f"{job_name}-{uuid.uuid4().hex[:8]}"
         api_responses = []
-        if job.spec.restart_policy == "Always":
+        if job.spec.restart_policy == RestartPolicyEnum.ALWAYS.value:
             deploy_dict = self._convert_to_deployment_yaml(job, k8_job_name)
             response = self.apps_v1.create_namespaced_deployment(
                 namespace=self.namespace, body=deploy_dict)
@@ -289,7 +290,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
     def delete_job(self, job: Job) -> None:
         # List all the pods in the namespace with the given label
-        if job.spec.restart_policy == "Always":
+        if job.spec.restart_policy == RestartPolicyEnum.ALWAYS.value:
             # Delete the deployment
             self.apps_v1.delete_namespaced_deployment(
                 name=job.status.job_ids[self.cluster_name],
@@ -450,7 +451,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # K8 services.
         sky_svcs = self.core_v1.list_namespaced_service(
             self.namespace,
-            label_selector="manager=sky_manager,primary_service=hello")
+            label_selector="manager=sky_manager,primary_service=skyservice")
 
         svc_dict: Dict[str, Dict[str, str]] = {}
         for svc in sky_svcs.items:
@@ -490,7 +491,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         service_jinja_template = jinja_env.get_template("k8_service.j2")
         if service.spec.primary_cluster == self.cluster_name:
             service_type = service.spec.type
-            primary_service = "hello"
+            primary_service = "skyservice"
         else:
             service_type = "ClusterIP"
             primary_service = "bye"
