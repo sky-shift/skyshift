@@ -284,9 +284,6 @@ def create_cluster(  # pylint: disable=too-many-arguments
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
 
-    if name and not validate_input_string(name):
-        raise click.BadParameter(f"Name format is invalid: {name}")
-
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
@@ -297,10 +294,6 @@ def get_clusters(name: str, watch: bool):
 @click.argument("name", required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
-
-    if not validate_input_string(name):
-        raise click.BadParameter(f"Name format is invalid: {name}")
-
     delete_cli_object(object_type="cluster", name=name)
 
 
