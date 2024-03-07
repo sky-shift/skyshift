@@ -11,15 +11,15 @@ from typing import List
 
 import jsonpatch
 import yaml
-from api_utils import (authenticate_request,  # pylint: disable=import-error
-                       create_access_token, load_manager_config,
-                       update_manager_config)
+from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
+from api_utils import update_manager_config  # pylint: disable=import-error
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from skyflow import utils
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -30,7 +30,7 @@ from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
-from skyflow.utils import load_object
+from skyflow.utils import load_object, sanitize_cluster_name
 
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -367,7 +367,7 @@ class APIServer:
             link_header = f"{object_type}"
 
         if object_type == "clusters":
-                object_name = utils.sanitize_cluster_name(object_name)
+            object_name = sanitize_cluster_name(object_name)
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
@@ -546,7 +546,7 @@ class APIServer:
         else:
             link_header = f"{object_type}"
         if object_type == "clusters":
-            object_name = utils.sanitize_cluster_name(object_name)
+            object_name = sanitize_cluster_name(object_name)
         obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
         if obj_dict:
             return obj_dict

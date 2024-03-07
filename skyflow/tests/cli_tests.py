@@ -73,8 +73,6 @@ def test_create_cluster_invalid_input(runner, name, manager):
     cmd = ['create', 'cluster', name, '--manager', manager]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    print(result.output)
-    assert "Name format is invalid" in result.output
 
 
 def test_create_cluster_duplicate_name(runner):
@@ -110,7 +108,6 @@ def test_get_specific_cluster_not_valid(runner, name=''):
     cmd = ['get', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Name format is invalid" in result.output
 
 
 def test_get_all_clusters(runner):

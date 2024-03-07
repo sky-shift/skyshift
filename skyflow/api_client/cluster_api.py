@@ -2,6 +2,7 @@
 Cluster API.
 """
 import requests
+
 from skyflow import utils
 from skyflow.api_client.object_api import NoNamespaceObjectAPI, verify_response
 
@@ -13,7 +14,7 @@ class ClusterAPI(NoNamespaceObjectAPI):
 
     def __init__(self):
         super().__init__(object_type='clusters')
-    
+
     def get(self, name: str):
         """
         Overrides the get method to sanitize the cluster name.

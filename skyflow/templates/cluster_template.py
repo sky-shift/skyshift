@@ -6,8 +6,8 @@ import time
 from typing import Dict, List
 
 from pydantic import Field, field_validator
-from skyflow import utils
 
+from skyflow import utils
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
