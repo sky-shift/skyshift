@@ -17,7 +17,7 @@ class JobAPI(NamespaceObjectAPI):
 
     def logs(self, name: str):
         """
-        Get logs of a job.
+        Get logs of a Job.
         """
         response = requests.get(f"{self.url}/{name}/logs").json()
         return response
