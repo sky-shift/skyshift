@@ -65,18 +65,6 @@ cli.add_command(apply)
 cli.add_command(logs)
 
 
-def sanitize_cluster_name(value: str) -> str:
-    """
-    Validates the name field of a Cluster, ensuring
-    it does not contain whitespaces or '/'.
-    """
-    if not value or value.isspace() or len(value) == 0:
-        raise click.BadParameter(f"Name format is invalid: {value}")
-    sanitized_value = value.replace(" ", "-").replace("/", "-")
-
-    return sanitized_value
-
-
 def validate_input_string(value: str) -> bool:
     """
     Validates if the given key matches the required pattern including
@@ -193,8 +181,6 @@ def create_cluster(name: str, manager: str):
         click.echo(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
 
-    name = sanitize_cluster_name(name)
-
     cluster_dictionary = {
         "kind": "Cluster",
         "metadata": {
@@ -217,9 +203,6 @@ def create_cluster(name: str, manager: str):
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
 
-    if name is not None:
-        name = sanitize_cluster_name(name)
-
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
@@ -230,8 +213,6 @@ def get_clusters(name: str, watch: bool):
 @click.argument("name", required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
-    name = sanitize_cluster_name(name)
-
     delete_cli_object(object_type="cluster", name=name)
 
 

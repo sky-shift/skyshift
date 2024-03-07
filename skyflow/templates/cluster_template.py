@@ -6,6 +6,7 @@ import time
 from typing import Dict, List
 
 from pydantic import Field, field_validator
+from skyflow import utils
 
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
@@ -164,17 +165,7 @@ class ClusterMeta(ObjectMeta):
     def verify_name(cls, value: str) -> str:
         """Validates the name field of a Cluster,
         ensuring it does not contain whitespaces or '/'."""
-        if not value or value.isspace() or len(value) == 0:
-            raise ValueError("Cluster name cannot be empty.")
-
-        sanitized_value = value.replace(" ", "-").replace("/", "-")
-
-        # Additional check to ensure the replacement does not result in an empty string
-        if not sanitized_value or sanitized_value.isspace() or len(
-                sanitized_value) == 0:
-            raise ValueError("Cluster name cannot be just whitespaces or '/'.")
-
-        return sanitized_value
+        return utils.sanitize_cluster_name(value)
 
 
 class ClusterSpec(ObjectSpec):
