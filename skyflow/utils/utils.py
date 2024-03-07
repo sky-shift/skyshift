@@ -66,14 +66,14 @@ def load_single_object(item: dict):
 
 def watch_events(url: str, headers: Optional[dict] = None):
     """Yields watch events from the given URL."""
-    with requests.get(url, stream=True, headers=headers) as response:
-        try:
-            for line in response.iter_lines():
-                if line:  # Make sure the line is not empty
-                    data = json.loads(line.decode("utf-8"))
-                    yield data
-        finally:
-            response.close()
+    if headers:
+        response = requests.get(url, stream=True, headers=headers)
+    else:
+        response = requests.get(url, stream=True)
+    for line in response.iter_lines():
+        if line:
+            data = json.loads(line.decode("utf-8"))
+            yield data
 
 
 def match_labels(labels: dict, labels_selector: dict):
