@@ -177,7 +177,6 @@ cli.add_command(apply_config)
 )
 def create_cluster(name: str, manager: str):
     """Attaches a new cluster."""
-<<<<<<< HEAD
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
@@ -185,8 +184,6 @@ def create_cluster(name: str, manager: str):
     if not validate_input_string(name):
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
-=======
->>>>>>> 19e50a2192490769fd4006e3de774a5e150abc04
 
     cluster_dictionary = {
         "kind": "Cluster",
