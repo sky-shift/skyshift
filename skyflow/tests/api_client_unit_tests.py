@@ -132,14 +132,14 @@ def mock_requests(monkeypatch: Any) -> None:
     def mock_request(method: str, url: str, *args: Any,
                      **kwargs: Any) -> MockResponse:
         key_suffix = ResponseType.DEFAULT
-        if "error" in url:
-            key_suffix = ResponseType.ERROR
+        if "server-error" in url:
+            key_suffix = ResponseType.SERVER_ERROR
         elif "timeout" in url:
             key_suffix = ResponseType.TIMEOUT
         elif "bad" in url:
             key_suffix = ResponseType.BAD
-        elif "server-error" in url:
-            key_suffix = ResponseType.SERVER_ERROR
+        elif "error" in url:
+            key_suffix = ResponseType.ERROR
         elif "namespace" not in url:
             key_suffix = ResponseType.NO_NAMESPACE
         elif method == "get" and "test-job" in url:
