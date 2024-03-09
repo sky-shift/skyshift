@@ -12,6 +12,10 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 DEFAULT_NAMESPACE = "default"
 
+USER_SSH_PATH = os.path.expanduser("~/.ssh")
+
+SKYCONF_DIR = os.path.expanduser("~/.skyconf")
+
 NAMESPACED_OBJECTS = {
     "jobs": Job,
     "filterpolicies": FilterPolicy,

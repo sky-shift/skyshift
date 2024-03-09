@@ -30,7 +30,7 @@ from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
-from skyflow.utils import load_object
+from skyflow.utils import load_object, sanitize_cluster_name
 
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -366,6 +366,8 @@ class APIServer:
         else:
             link_header = f"{object_type}"
 
+        if object_type == "clusters":
+            object_name = sanitize_cluster_name(object_name)
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
@@ -543,6 +545,8 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
+        if object_type == "clusters":
+            object_name = sanitize_cluster_name(object_name)
         obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
         if obj_dict:
             return obj_dict
