@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Skyflow CLI.
 """
@@ -15,6 +16,7 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table)
+from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum
@@ -167,15 +169,65 @@ cli.add_command(apply_config)
 # ==============================================================================
 # Cluster API as CLI
 @create.command(name="cluster", aliases=["clusters"])
-@click.argument("name", required=True)
+@click.argument('name', required=True)
+@click.option('--manager',
+              default='k8',
+              show_default=True,
+              required=True,
+              help='Cluster manager type (e.g. k8, slurm).')
+@click.option('--cpus',
+              default=None,
+              type=str,
+              required=False,
+              help='Number of vCPUs per node (e.g. 1, 1+).')
 @click.option(
-    "--manager",
-    default="k8",
+    '--memory',
+    default=None,
+    type=str,
+    required=False,
+    help='Amount of memory each instance must have in GB. (e.g. 32, 32+).')
+@click.option('--disk_size',
+              default=None,
+              type=int,
+              required=False,
+              help='OS disk size in GBs')
+@click.option('--accelerators',
+              default=None,
+              type=str,
+              required=False,
+              help='Type and number of GPU accelerators to use')
+@click.option('--ports',
+              default=[],
+              type=str,
+              multiple=True,
+              required=False,
+              help='Ports to open on the cluster')
+@click.option('--num_nodes',
+              default=1,
+              show_default=True,
+              required=False,
+              help='Number of SkyPilot nodes to allocate to the cluster')
+@click.option(
+    '--cloud',
+    default=None,
     show_default=True,
-    required=True,
-    help="Type of cluster manager",
+    required=False,
 )
-def create_cluster(name: str, manager: str):
+@click.option(
+    '--region',
+    default=None,
+    show_default=True,
+    required=False,
+)
+@click.option(
+    '--attached',
+    is_flag=True,
+    help=
+    'True if cluster is already created and needs to be attached to Skyflow.')
+def create_cluster(  # pylint: disable=too-many-arguments
+        name: str, manager: str, cpus: str, memory: str, disk_size: int,
+        accelerators: str, ports: List[str], num_nodes: int, cloud: str,
+        region: str, attached: bool):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
@@ -185,13 +237,38 @@ def create_cluster(name: str, manager: str):
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
 
+    if ports:
+        ports = list(ports)
+
     cluster_dictionary = {
         "kind": "Cluster",
         "metadata": {
             "name": name,
         },
         "spec": {
-            "manager": manager
+            "manager":
+            manager,
+            "cloud":
+            cloud,
+            "region":
+            region,
+            "cpus":
+            cpus,
+            "memory":
+            memory,
+            "disk_size":
+            disk_size,
+            "accelerators":
+            accelerators,
+            "ports":
+            ports,
+            'num_nodes':
+            num_nodes,
+            'attached':
+            attached,
+            'config_path':
+            "~/.kube/config" if attached else
+            f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
         },
     }
     create_cli_object(cluster_dictionary)
@@ -207,9 +284,6 @@ def create_cluster(name: str, manager: str):
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
 
-    if name and not validate_input_string(name):
-        raise click.BadParameter(f"Name format is invalid: {name}")
-
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
@@ -220,10 +294,6 @@ def get_clusters(name: str, watch: bool):
 @click.argument("name", required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
-
-    if not validate_input_string(name):
-        raise click.BadParameter(f"Name format is invalid: {name}")
-
     delete_cli_object(object_type="cluster", name=name)
 
 
