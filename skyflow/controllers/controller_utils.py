@@ -5,6 +5,9 @@ import os
 
 def create_controller_logger(title: str, log_path: str, level=logging.INFO):
     """Creates a generic logger for controllers."""
+    if level is None:
+        # Fetch from env variable if level is not specified.
+        level = os.getenv("LOG_LEVEL", "INFO")
     formatter = logging.Formatter(
         "%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 

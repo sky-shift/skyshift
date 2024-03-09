@@ -102,7 +102,7 @@ class ProxyController(Controller):
         event = self.worker_queue.get()
         event_key = event.event_type
         event_object = event.object
-        
+
         primary_cluster = event_object.spec.primary_cluster
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
