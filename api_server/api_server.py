@@ -175,7 +175,7 @@ class APIServer:
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""
         obj_dict = self.etcd_client.read(link_header)
-        if obj_dict is None:
+        if obj_dict is None or obj_dict == {}:
             raise HTTPException(
                 status_code=404,
                 detail=f"Object '{link_header}' not found.",
@@ -430,7 +430,7 @@ class APIServer:
                             obj_instance.model_dump(mode="json"),
                         )
                     except KeyNotFoundError as error:
-                        raise HTTPException(status_code=400,
+                        raise HTTPException(status_code=404,
                                             detail=error.msg) from error
                     except ConflictError as error:
                         raise HTTPException(status_code=409,
@@ -481,7 +481,7 @@ class APIServer:
             else:
                 link_header = f"{object_type}"
             obj_dict = self.etcd_client.read(f"{link_header}/{object_name}")
-            if obj_dict is None:
+            if obj_dict is None or obj_dict == {}:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Object '{link_header}/{object_name}' not found.",
@@ -503,7 +503,7 @@ class APIServer:
                     obj.model_dump(mode="json"),
                 )
             except KeyNotFoundError as error:
-                raise HTTPException(status_code=400,
+                raise HTTPException(status_code=404,
                                     detail=error.msg) from error
             except Exception as error:
                 raise HTTPException(status_code=400, detail=error) from error
@@ -547,7 +547,13 @@ class APIServer:
             link_header = f"{object_type}"
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
-        obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        try:
+            obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        except KeyNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=error.msg,
+            ) from error
         if obj_dict:
             return obj_dict
         raise HTTPException(
