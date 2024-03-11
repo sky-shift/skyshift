@@ -13,8 +13,8 @@ import jsonpatch
 import yaml
 from api_utils import authenticate_request  # pylint: disable=import-error
 from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
 from api_utils import update_manager_config  # pylint: disable=import-error
-from api_utils import load_manager_config
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -23,7 +23,8 @@ from pydantic import BaseModel
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
-from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
+from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
+                                             ETCDClient, KeyNotFoundError)
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
@@ -428,12 +429,12 @@ class APIServer:
                             f"{link_header}/{object_name}",
                             obj_instance.model_dump(mode="json"),
                         )
-                    except Exception as error:
-                        raise HTTPException(
-                            status_code=409,
-                            detail=
-                            f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                        ) from error
+                    except KeyNotFoundError as error:
+                        raise HTTPException(status_code=400,
+                                            detail=error.msg) from error
+                    except ConflictError as error:
+                        raise HTTPException(status_code=409,
+                                            detail=error.msg) from error
                     return obj_instance
             raise HTTPException(
                 status_code=400,
@@ -501,12 +502,11 @@ class APIServer:
                     f"{link_header}/{object_name}",
                     obj.model_dump(mode="json"),
                 )
+            except KeyNotFoundError as error:
+                raise HTTPException(status_code=400,
+                                    detail=error.msg) from error
             except Exception as error:
-                raise HTTPException(
-                    status_code=409,
-                    detail=
-                    f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                ) from error
+                raise HTTPException(status_code=400, detail=error) from error
             return obj
 
         return _patch_object
