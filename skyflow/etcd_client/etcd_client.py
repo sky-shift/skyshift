@@ -32,7 +32,11 @@ DEFAULT_CLIENT_NAME = "/sky_registry/"
 
 
 def remove_prefix(input_string: str, prefix: str = DEFAULT_CLIENT_NAME):
-    """Removes prefix from input_string."""
+    """Removes prefix from input_string.
+    Args:
+        input_string: The string to remove the prefix from.
+        prefix: The prefix to remove from the string.
+    """
     # Keep removing the prefix as long as the string starts with it
     if input_string.startswith(prefix):
         input_string = input_string[len(prefix):]  # Remove the prefix
@@ -40,7 +44,12 @@ def remove_prefix(input_string: str, prefix: str = DEFAULT_CLIENT_NAME):
 
 
 def convert_to_json(etcd_value: bytes) -> dict:
-    """Converts etcd value to json dict."""
+    """Converts etcd value to json dict.
+    Args:
+        etcd_value: The value to convert to json.
+    Returns:
+        The json dict.
+    """
     etcd_dict = json.loads(etcd_value.decode("utf-8"))
     if isinstance(etcd_dict, str):
         etcd_dict = json.loads(etcd_dict)
@@ -48,14 +57,27 @@ def convert_to_json(etcd_value: bytes) -> dict:
 
 
 def get_resource_version(etcd_value: dict) -> int:
-    """Gets the resource version from ETCD store."""
+    """Gets the resource version from ETCD store.
+
+    Args:
+        etcd_value: The value to get the resource version from.
+    Returns:
+        The resource version.
+    """
     if "metadata" not in etcd_value:
         return -1
     return etcd_value["metadata"].get("resource_version", None)
 
 
 def update_resource_version(etcd_value: dict, resource_version: int) -> dict:
-    """Updates the resource version in the ETCD store."""
+    """Updates the resource version in the ETCD store.
+
+    Args:
+        etcd_value: The value to update.
+        resource_version: The resource version to update.
+    Returns:
+        The updated value.
+    """
     if "metadata" not in etcd_value:
         etcd_value["metadata"] = {}
     etcd_value["metadata"]["resource_version"] = resource_version
@@ -64,7 +86,13 @@ def update_resource_version(etcd_value: dict, resource_version: int) -> dict:
 
 def watch_generator_fn(
         watch_iter) -> Generator[Tuple[WatchEventEnum, dict], None, None]:
-    """Generator function that yields ETCD watch events."""
+    """Generator function that yields ETCD watch events.
+
+    Args:
+        watch_iter: The watch iterator object.
+    Returns:
+        A generator that yields a tuple of WatchEventEnum and the value.
+    """
     for event in watch_iter:
         grpc_event = event._event  # pylint: disable=protected-access
         if grpc_event.type == 0:
@@ -121,6 +149,9 @@ class ETCDClient:
         """
         Write a key-value pairs to the etcd store.
         This method is threadsafe, with locks on all leaf nodes.
+        Args:
+            key (str): The key to write to.
+            value (dict): The value to write to the key.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -144,6 +175,12 @@ class ETCDClient:
             we will compare the resource_version with the one stored in the
             etcd server. If the resource_version user provides is outdated,
             we will raise a ConflictError.
+
+        Args:
+            key (str): The key to update.
+            value (dict): The value to update the key with.
+            User DOES NOT need to provide the metadata in the dict.
+            We will ignore it.
         """
         key = f"{self.log_name}{key}" if self.log_name not in key else key
 
@@ -174,9 +211,17 @@ class ETCDClient:
                     resource_version=resource_version,
                 )
 
-    def read_prefix(self, key: str):
+    def read_prefix(self, key: str) -> List[dict]:
         """
         Read key-value pairs from the etcd store.
+        Args:
+            key (str): The key to read from.
+
+        Returns:
+            A list of values (dict) corresponds the key that has
+            the prefix, with all metadata included (such as
+            resource_version).
+
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -194,6 +239,12 @@ class ETCDClient:
         """
         Read key-value pairs from the etcd store.
         If key does not exist, return None.
+        Args:
+            key (str): The key to read from.
+
+        Returns:
+            The value (dict) corresponds the key, with all
+            metadata included (such as resource_version).
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -209,8 +260,11 @@ class ETCDClient:
 
     def delete(self, key: str):
         """
-        Remove a key-value pair (or all corresponding key values) from the
-        etcd store.
+        Remove a key-value pair (or all corresponding key values)
+        from the etcd store.
+
+        Args:
+            key (str): The key to remove.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -230,6 +284,12 @@ class ETCDClient:
     def delete_prefix(self, key: str) -> List[dict]:
         """
         Remove a set of prefixed keys from the system.
+        Args:
+            key (str): The key to remove.
+        Returns:
+            A list of values (dict) corresponds the key that has
+            the prefix, with all metadata included
+            (such as resource_version).
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
@@ -247,12 +307,20 @@ class ETCDClient:
     def delete_all(self) -> List[dict]:
         """
         Remove all KVs from the system.
+        Returns:
+            A list of values (dict) corresponds the key that has the
+            prefix, with all metadata included (such as resource_version).
         """
         return self.delete_prefix(self.log_name)
 
     def watch(self, key: str):
         """
         Watches over a set of keys (or a single key).
+        Args:
+            key: The key to watch.
+        Returns:
+            A generator that yields a tuple of WatchEventEnum and the
+            value.
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
