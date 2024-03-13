@@ -25,19 +25,18 @@ KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
 RECOVER = True
+CL_VERSION = "v0.0.1"
 
-CL_ROOT_DIR = os.path.join(CL_DIRECTORY, "clusterlink")
-CL_INSTALL_DIR = os.path.join(CL_ROOT_DIR, "bin/")
+CL_INSTALL_DIR = os.path.expanduser("~/.local/bin/")
 
-CL_PULL_CMD = (
-    f"git clone -b skyflow https://github.com/praveingk/clusterlink.git {CL_DIRECTORY}/clusterlink"
+CL_INSTALL_CMD = ("curl -sL "
+    "https://github.com/clusterlink-net/clusterlink/releases/download/"
+    "{version}/clusterlink.sh | sh "
 )
 
 # Clusterlink deployment commands to deploy on a cluster
-CLA_FABRIC_CMD = (CL_INSTALL_DIR + "cl-adm create fabric")
-CLA_PEER_CMD = (CL_INSTALL_DIR +
-                "cl-adm create peer --name {cluster_name} --dataplane-type go "
-                "--namespace {namespace} --container-registry quay.io/mcnet")
+CLA_FABRIC_CMD = ("cl-adm create fabric")
+CLA_PEER_CMD = ("cl-adm create peer --name {cluster_name} --namespace {namespace}")
 CL_UNDEPLOY_CMD = ("kubectl delete --context {cluster_name} -f " +
                    CL_DIRECTORY + "{cluster_name}/k8s.yaml --wait=true  2>&1")
 CL_DEPLOY_CMD = (
@@ -45,46 +44,24 @@ CL_DEPLOY_CMD = (
 
 # Clusterlink core CLI
 # Initialization & Status
-CL_INIT_CMD = (
-    CL_INSTALL_DIR + "gwctl init --id {cluster_name} --gwIP {cl_gw_ip}"
+CL_INIT_CMD = ("gwctl init --id {cluster_name} --gwIP {cl_gw_ip}"
     " --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}")
-CL_STATUS_CMD = (CL_INSTALL_DIR + "gwctl get all --myid {cluster_name}")
+CL_STATUS_CMD = ("gwctl get all --myid {cluster_name}")
 # Link/Peer management
-CL_LINK_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
+CL_LINK_CMD = ("gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
 )
-CL_LINK_STATUS_CMD = (CL_INSTALL_DIR +
-                      "gwctl get peer --myid {cluster_name} --name {peer}")
-CL_LINK_DELETE_CMD = (CL_INSTALL_DIR +
-                      "gwctl delete peer --myid {cluster_name} --name {peer}")
+CL_LINK_STATUS_CMD = ("gwctl get peer --myid {cluster_name} --name {peer}")
+CL_LINK_DELETE_CMD = ("gwctl delete peer --myid {cluster_name} --name {peer}")
 # Service Management
-CL_EXPORT_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl create export --myid {cluster_name} --name {service_name}"
+CL_EXPORT_CMD = ("gwctl create export --myid {cluster_name} --name {service_name}"
     " --host {service_target} --port {port}")
-CL_IMPORT_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl create import --myid {cluster_name} --name {service_name}"
-    " --host {service_name} --port {port}")
-CL_BIND_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl create binding --myid {cluster_name} --import {service_name} --peer {peer}"
+CL_IMPORT_CMD = ("gwctl create import --myid {cluster_name} --name {service_name}"
+    " --port {port} --peer {peer}")
+
+CL_POLICY_CMD = ("gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}"
 )
-CL_POLICY_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}"
-)
-CL_EXPORT_DELETE_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl delete export --myid {cluster_name} --name {service_name}")
-CL_IMPORT_DELETE_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl delete import --myid {cluster_name} --name {service_name}")
-CL_BIND_DELETE_CMD = (
-    CL_INSTALL_DIR +
-    "gwctl delete binding --myid {cluster_name} --import {service_name} --peer {peer}"
-)
+CL_EXPORT_DELETE_CMD = ("gwctl delete export --myid {cluster_name} --name {service_name}")
+CL_IMPORT_DELETE_CMD = ("gwctl delete import --myid {cluster_name} --name {service_name}")
 
 POLICY_ALLOW_ALL = {
     "name": "allow-all",
@@ -236,31 +213,13 @@ def _init_clusterlink_gateway(cluster: str):
                         error.output.decode('utf-8'))
         raise error
 
-
-def _build_clusterlink():
-    """Builds Clusterlink binaries if its not already built"""
-    try:
-        subprocess.check_output("go mod tidy",
-                                shell=True,
-                                stderr=subprocess.STDOUT,
-                                cwd=CL_ROOT_DIR).decode('utf-8')
-        subprocess.check_output("make build",
-                                shell=True,
-                                stderr=subprocess.STDOUT,
-                                cwd=CL_ROOT_DIR).decode('utf-8')
-    except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to build Clusterlink : %s",
-                        error.output.decode('utf-8'))
-        raise error
-
-
 def _install_clusterlink():
     """Installs Clusterlink if its not already present"""
     try:
-        subprocess.getoutput(CL_PULL_CMD)
-        _build_clusterlink()
+        cl_install_cmd = CL_INSTALL_CMD.format(version=CL_VERSION)
+        subprocess.check_output(cl_install_cmd, shell=True, stderr=subprocess.STDOUT).decode('utf-8')
     except subprocess.CalledProcessError as error:
-        cl_logger.error("Failed to build Clusterlink")
+        cl_logger.error("Failed to install Clusterlink")
         raise error
 
 
@@ -444,15 +403,8 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
     cl_logger.info("Importing service %s from %s", import_service_name, peer)
     import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name,
                                       service_name=import_service_name,
-                                      port=ports[0])
-    bind_cmd = CL_BIND_CMD.format(cluster_name=cluster_name,
-                                  service_name=import_service_name,
-                                  peer=peer)
+                                      port=ports[0], peer=peer)
     output = subprocess.getoutput(import_cmd)
-    if not _parse_clusterlink_op(output):
-        cl_logger.error("Failed to import service: %s", output.splitlines()[0])
-        return False
-    output = subprocess.getoutput(bind_cmd)
     if not _parse_clusterlink_op(output):
         cl_logger.error("Failed to import service: %s", output.splitlines()[0])
         return False
@@ -484,15 +436,7 @@ def delete_import_service(service_name: str, manager: KubernetesManager,
                    peer)
     import_cmd = CL_IMPORT_DELETE_CMD.format(cluster_name=cluster_name,
                                              service_name=import_service_name)
-    bind_cmd = CL_BIND_DELETE_CMD.format(cluster_name=cluster_name,
-                                         service_name=import_service_name,
-                                         peer=peer)
     output = subprocess.getoutput(import_cmd)
-    if not _parse_clusterlink_op(output):
-        cl_logger.error("Failed to delete import of service: %s",
-                        output.splitlines()[0])
-        return False
-    output = subprocess.getoutput(bind_cmd)
     if not _parse_clusterlink_op(output):
         cl_logger.error("Failed to delete import of service: %s",
                         output.splitlines()[0])
