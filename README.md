@@ -4,14 +4,18 @@ Skyflow orchestrates container-based workloads across the Sky. Our goal is to ab
 
 ## Installing Sky Manager
 
-(Optional) Create new conda enviornment
+(Recommended) Create new conda enviornment
 
 ```
-conda create -n sky python=3.9
+conda create -n skyflow python=3.9
+```
+Activate it
+```
+conda activate skyflow 
 ```
 
 Install dependencies, Sky Manager packages, and setup cli
-
+(assuming the repo has been cloned to ./skyflow)
 ```
 cd skyflow
 pip install -e .
