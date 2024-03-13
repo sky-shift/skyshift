@@ -2,8 +2,6 @@
 Link Controller - Manages the dynamic links between clusters. This assumes
 that each cluster has the Cluster link/Skupper software/deployment installed.
 """
-import logging
-import os
 import queue
 import subprocess
 import traceback
@@ -11,13 +9,11 @@ import traceback
 from skyflow.api_client import ClusterAPI, LinkAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.network.cluster_linkv2 import create_link, delete_link
 from skyflow.structs import Informer
 from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 class LinkController(Controller):
@@ -28,10 +24,10 @@ class LinkController(Controller):
 
     def __init__(self) -> None:
         super().__init__()
-        self.logger = logging.getLogger("[Link Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+
+        self.logger = create_controller_logger(
+            title="[Link Controller]",
+            log_path=f'{SKYCONF_DIR}/link_controller.log')
 
         # Thread safe queue for Informers to append events to.
         self.event_queue: queue.Queue = queue.Queue()
@@ -72,12 +68,14 @@ class LinkController(Controller):
             try:
                 if event_type == WatchEventEnum.ADD:
                     self.logger.info(
-                        'Creating link between clusters: [%s, %s]',source, target)
+                        'Creating link between clusters: [%s, %s]', source,
+                        target)
                     self._create_link(source, target)
                     link_status = LinkStatusEnum.ACTIVE.value
                 elif event_type == WatchEventEnum.DELETE:
                     self.logger.info(
-                        'Deleting link between clusters: [%s, %s]',source, target)
+                        'Deleting link between clusters: [%s, %s]', source,
+                        target)
                     self._delete_link(source, target)
                     skip_update = True
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
