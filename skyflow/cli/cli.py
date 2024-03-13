@@ -305,6 +305,7 @@ def delete_cluster(name):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
 @click.option(
@@ -318,7 +319,8 @@ def delete_cluster(name):
 @click.option(
     "--image",
     type=str,
-    default="gcr.io/sky-burst/skyburst:latest",
+    default="ubuntu:latest",
+    show_default=True,
     help="Image to run the job in (any docker registry image).",
 )
 @click.option(
@@ -334,6 +336,7 @@ def delete_cluster(name):
     "--gpus",
     type=int,
     default=0,
+    show_default=True,
     help=
     "Number of GPUs per task. Note that these GPUs can be any type of GPU.",
 )
@@ -342,20 +345,24 @@ def delete_cluster(name):
     "-a",
     type=str,
     default=None,
+    show_default=True,
     help="Type of accelerator resource to use (e.g. T4:1, V100:2)",
 )
 @click.option("--memory",
               type=float,
               default=0,
+              show_default=True,
               help="Total memory (RAM) per task in MB.")
-@click.option("--run", type=str, default="", help="Run command for the job.")
+@click.option("--run", type=str, default="", show_default=True, help="Run command for the job.")
 @click.option("--replicas",
               type=int,
               default=1,
+              show_default=True,
               help="Number of replicas to run job.")
 @click.option("--restart_policy",
               type=str,
               default="Always",
+              show_default=True,
               help="Restart policy for job tasks.")
 def create_job(
     name,
@@ -427,9 +434,14 @@ def create_job(
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
-@click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
+@click.option("--watch",
+              '-w',
+              default=False,
+              is_flag=True,
+              help="Performs a watch.")
 def get_job(name: str, namespace: str, watch: bool):
     """Fetches a job."""
     api_response = get_cli_object(object_type="job",
@@ -445,6 +457,7 @@ def get_job(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's namespace.",
 )
 def job_logs(name: str, namespace: str):
@@ -461,6 +474,7 @@ cli.add_command(job_logs)
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
 def delete_job(name: str, namespace: str):
@@ -489,7 +503,11 @@ def create_namespace(name: str):
 
 @get.command(name="namespace", aliases=["namespaces"])
 @click.argument("name", required=False, default=None)
-@click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
+@click.option("--watch",
+              "-w",
+              default=False,
+              is_flag=True,
+              help="Performs a watch.")
 def get_namespace(name: str, watch: bool):
     """Gets all namespaces."""
     api_response = get_cli_object(object_type="namespace",
@@ -514,6 +532,7 @@ def delete_namespace(name: str):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 @click.option(
@@ -594,6 +613,7 @@ def create_filter_policy(name: str, namespace: str,
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -617,6 +637,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 def delete_filter_policy(name: str, namespace: str):
@@ -697,12 +718,14 @@ def delete_link(name: str):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service's location.",
 )
 @click.option("--service_type",
               "-t",
               type=str,
               default="ClusterIP",
+              show_default=True,
               help="Type of service.")
 @click.option("--selector",
               "-s",
@@ -722,6 +745,7 @@ def delete_link(name: str):
               "-c",
               type=str,
               default="auto",
+              show_default=True,
               help="Cluster to expose service on.")
 def create_service(
     name: str,
@@ -797,6 +821,7 @@ def create_service(
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -815,6 +840,7 @@ def get_service(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 def delete_service(name: str, namespace: str):
@@ -829,6 +855,7 @@ def delete_service(name: str, namespace: str):
 @click.option("--namespace",
               type=str,
               default="default",
+              show_default=True,
               help="Namespace for the endpoints.")
 @click.option("--num_endpoints", type=int, help="Number of endpoints.")
 @click.option("--exposed",
@@ -838,6 +865,7 @@ def delete_service(name: str, namespace: str):
 @click.option("--primary_cluster",
               type=str,
               default="auto",
+              show_default=True,
               help="Primary cluster where the endpoints are exposed.")
 @click.option("--selector",
               multiple=True,
@@ -896,6 +924,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -914,6 +943,7 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 def delete_endpoints(name: str, namespace: str):
@@ -932,25 +962,25 @@ def delete_endpoints(name: str, namespace: str):
               type=str,
               multiple=True,
               default=[],
-              help="Actions for the role.")
+              help="List of actions for the role.")
 @click.option("--resource",
               "-r",
               type=str,
               multiple=True,
               default=[],
-              help="Resources for the role.")
+              help="List of resources for the role.")
 @click.option("--namespace",
               "-n",
               type=str,
               multiple=True,
               default=[],
-              help="Namespaces for the role.")
+              help="List of namespaces for the role.")
 @click.option("--users",
               "-u",
               type=str,
               multiple=True,
               default=[],
-              help="Users for the role.")
+              help="List of users for the role.")
 def create_role(name: str, action: List[str], resource: List[str],
                 namespace: List[str], users: List[str]):
     """Create a new role."""

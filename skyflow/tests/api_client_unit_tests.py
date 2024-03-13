@@ -9,6 +9,9 @@ pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_
 
 """
 import os
+import subprocess
+import tempfile
+import time
 from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
 
@@ -22,15 +25,32 @@ from skyflow.utils.utils import API_SERVER_CONFIG_PATH, generate_manager_config
 
 
 @pytest.fixture(scope="session", autouse=True)
-def ensure_api_config_exists():
-    """Ensure the API server configuration file exists before running tests."""
-    # Check if the config file already exists
-    if not os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
-        test_host = "127.0.0.1"
-        test_port = 8080
-        # If not, generate the configuration file
-        generate_manager_config(test_host, test_port)
-    yield
+def etcd_backup_and_restore():
+    with tempfile.TemporaryDirectory() as temp_data_dir:
+        # Kill any running sky_manager processes
+        subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
+
+        print("Using temporary data directory for ETCD:", temp_data_dir)
+        workers = 1
+        data_directory = temp_data_dir
+        command = [
+            "python", "../../api_server/launch_server.py", "--workers",
+            str(workers), "--data-directory", data_directory
+        ]
+
+        process = subprocess.Popen(command)
+        time.sleep(5)  # Wait for the server to start
+
+        yield  # Test execution happens here
+
+        # Stop the application and ETCD server
+        process.terminate()
+        process.wait()
+        subprocess.run('pkill -f etcd', shell=True)  # pylint: disable=subprocess-run-check
+        time.sleep(2)  # Wait for the server to stop
+        subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
+
+        print("Cleaned up temporary ETCD data directory.")
 
 
 class ResponseType(Enum):
@@ -132,14 +152,14 @@ def mock_requests(monkeypatch: Any) -> None:
     def mock_request(method: str, url: str, *args: Any,
                      **kwargs: Any) -> MockResponse:
         key_suffix = ResponseType.DEFAULT
-        if "error" in url:
-            key_suffix = ResponseType.ERROR
+        if "server-error" in url:
+            key_suffix = ResponseType.SERVER_ERROR
         elif "timeout" in url:
             key_suffix = ResponseType.TIMEOUT
         elif "bad" in url:
             key_suffix = ResponseType.BAD
-        elif "server-error" in url:
-            key_suffix = ResponseType.SERVER_ERROR
+        elif "error" in url:
+            key_suffix = ResponseType.ERROR
         elif "namespace" not in url:
             key_suffix = ResponseType.NO_NAMESPACE
         elif method == "get" and "test-job" in url:
