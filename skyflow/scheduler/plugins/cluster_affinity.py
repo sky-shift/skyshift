@@ -11,6 +11,7 @@ from skyflow.templates import Cluster, Job
 
 class ClusterAffinityPlugin(BasePlugin):
     """Prevents jobs from being scheduled on clusters that do not satisfy the job's affinity."""
+
     def filter(self, cluster: Cluster, job: Job) -> PluginStatus:
         # Filter for clusters.
         filter_policy_api = FilterPolicyAPI(namespace=job.get_namespace())
@@ -29,7 +30,8 @@ class ClusterAffinityPlugin(BasePlugin):
                 filter_policies.append(f_policy)
 
         if not filter_policies:
-            return PluginStatus(code=StatusCode.SUCCESS, message="No filter policies found.")
+            return PluginStatus(code=StatusCode.SUCCESS,
+                                message="No filter policies found.")
 
         # Filter for clusters that satisfy the filter policies.
         c_name = cluster.get_name()
