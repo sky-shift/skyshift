@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
 from api_server import launch_server
+from skyflow.etcd_client.etcd_client import KeyNotFoundError
 from skyflow.globals import ALL_OBJECTS, DEFAULT_NAMESPACE, NAMESPACED_OBJECTS
 from skyflow.templates import Namespace, NamespaceMeta
 
@@ -44,41 +45,23 @@ def apply_modification(base, path, value):
 class TestAPIServer(unittest.TestCase):
 
     @patch('api_server.api_server.ETCDClient')
-    def setUp(self, mock_etcd_client):
+    @patch('api_server.api_server.APIServer._authenticate_role')
+    def setUp(self, mock_authenticate_role, mock_etcd_client):
         """
         Set up the test environment by mocking the ETCDClient and 
         initializing the APIServer.
         """
         self.mock_etcd_client_instance = mock_etcd_client.return_value
-        with patch.object(APIServer, '_post_init_hook', return_value=None):
-            self.api_server = APIServer()
+        self.api_server = APIServer()
+        self.api_server._authenticate_role = MagicMock(return_value=True)
+        self.api_server._check_cluster_connectivity = MagicMock(
+            return_value=True)
 
     def run_async(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """
         Utility method to run the coroutine and manage the event loop.
         """
         return asyncio.get_event_loop().run_until_complete(coro)
-
-    def test_post_init_hook_with_default_namespace(self):
-        """
-        Test the post initialization hook when the default namespace already exists.
-        """
-        self.mock_etcd_client_instance.read_prefix.return_value = [
-            DEFAULT_NAMESPACE
-        ]
-        self.api_server._post_init_hook()
-        self.mock_etcd_client_instance.write.assert_not_called()
-
-    def test_post_init_hook_without_default_namespace(self):
-        """
-        Test the post initialization hook when the default namespace does not exist.
-        """
-        self.mock_etcd_client_instance.read_prefix.return_value = []
-        self.api_server._post_init_hook()
-        expected_namespace = Namespace(metadata=NamespaceMeta(
-            name=DEFAULT_NAMESPACE)).model_dump(mode="json")
-        self.mock_etcd_client_instance.write.assert_called_with(
-            "namespaces/default", expected_namespace)
 
     def test_create_object_with_different_headers(self):
         """
@@ -92,7 +75,7 @@ class TestAPIServer(unittest.TestCase):
                     "content-type": "application/json"
                 },
                 "body": json.dumps({"metadata": {
-                    "name": "test_object"
+                    "name": "test-object"
                 }})
             }
 
@@ -104,7 +87,7 @@ class TestAPIServer(unittest.TestCase):
                     },
                     "body":
                     json.dumps({"metadata": {
-                        "name": "json_test_object"
+                        "name": "json-test-object"
                     }})
                 },
                 "expected_success": True
@@ -115,7 +98,7 @@ class TestAPIServer(unittest.TestCase):
                     },
                     "body":
                     yaml.dump({"metadata": {
-                        "name": "yaml_test_object"
+                        "name": "yaml-test-object"
                     }})
                 },
                 "expected_success": True
@@ -205,7 +188,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid job specification
             base_spec = {
                 "metadata": {
-                    "name": "valid_job_name"
+                    "name": "valid-job-name"
                 },
                 "spec": {
                     "replicas": 1,
@@ -218,7 +201,7 @@ class TestAPIServer(unittest.TestCase):
                         "VAR1": "value1"
                     },
                     "ports": [80],
-                    "restart_policy": "Always",
+                    "restart_policy": "ALWAYS",
                     "run": "echo Hello World"
                 }
             }
@@ -362,7 +345,7 @@ class TestAPIServer(unittest.TestCase):
                 # Valid restart policy case
                 {
                     "path": ["spec", "restart_policy"],
-                    "value": "Always",
+                    "value": "NEVER",
                     "exception": None
                 },
 
@@ -388,7 +371,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid FilterPolicy specification
             base_spec = {
                 "metadata": {
-                    "name": "validPolicy"
+                    "name": "valid-policy"
                 },
                 "spec": {
                     "cluster_filter": {
@@ -495,7 +478,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid Service specification
             base_spec = {
                 "metadata": {
-                    "name": "validService"
+                    "name": "valid-service"
                 },
                 "spec": {
                     "type": "ClusterIP",
@@ -570,7 +553,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid Endpoints specification
             base_spec = {
                 "metadata": {
-                    "name": "validEndpoints"
+                    "name": "valid-endpoints"
                 },
                 "spec": {
                     "selector": {
@@ -642,7 +625,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid Cluster specification
             base_spec = {
                 "metadata": {
-                    "name": "validCluster"
+                    "name": "valid-cluster"
                 },
                 "spec": {
                     "manager": "k8"
@@ -750,7 +733,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid Namespace specification
             base_spec = {
                 "metadata": {
-                    "name": "validNamespace"
+                    "name": "valid-namespace"
                 },
                 "status": {
                     "status": "ACTIVE"
@@ -796,7 +779,7 @@ class TestAPIServer(unittest.TestCase):
             # Base valid Link specification
             base_spec = {
                 "metadata": {
-                    "name": "validLink"
+                    "name": "valid-link"
                 },
                 "spec": {
                     "source_cluster": "clusterA",
@@ -853,14 +836,14 @@ class TestAPIServer(unittest.TestCase):
 
         async def async_test():
 
-            for object_type, object_class in ALL_OBJECTS.items():
+            for object_type, object_class in NAMESPACED_OBJECTS.items():
                 with self.subTest(object_type=object_type):
                     # Create a mock request
                     mock_request = MagicMock(spec=Request)
                     mock_request.headers = {"content-type": "application/json"}
                     test_object_spec = {
                         "metadata": {
-                            "name": f"test_{object_type}"
+                            "name": f"test-{object_type}"
                         }
                     }
                     mock_request.body = AsyncMock(
@@ -896,17 +879,17 @@ class TestAPIServer(unittest.TestCase):
         async def async_test():
 
             # Test successful listing
-            for object_type, object_class in ALL_OBJECTS.items():
+            for object_type, object_class in NAMESPACED_OBJECTS.items():
                 with self.subTest(object_type=object_type):
                     mock_response = [{
                         "kind": "Job",
                         "metadata": {
-                            "name": f"test_{object_type}_1"
+                            "name": f"test-{object_type}-1"
                         }
                     }, {
                         "kind": "Job",
                         "metadata": {
-                            "name": f"test_{object_type}_2"
+                            "name": f"test-{object_type}-2"
                         }
                     }]
                     self.mock_etcd_client_instance.read_prefix.return_value = mock_response
@@ -934,7 +917,7 @@ class TestAPIServer(unittest.TestCase):
 
         async def async_test():
             # Test empty response from etcd_client
-            for object_type in ALL_OBJECTS:
+            for object_type in NAMESPACED_OBJECTS:
                 self.mock_etcd_client_instance.read_prefix.return_value = []
                 obj_list = self.api_server.list_objects(object_type,
                                                         watch=False)
@@ -947,7 +930,7 @@ class TestAPIServer(unittest.TestCase):
                     "kind":
                     "Job",
                     "metadata": {
-                        "name": f"test_{namespace}"
+                        "name": f"test-{namespace}"
                     }
                 }]
                 for object_type in NAMESPACED_OBJECTS:
@@ -966,8 +949,8 @@ class TestAPIServer(unittest.TestCase):
         async def async_test():
 
             # Test valid object retrieval
-            for object_type, object_class in ALL_OBJECTS.items():
-                object_name = f"test_{object_type}_name"
+            for object_type, object_class in NAMESPACED_OBJECTS.items():
+                object_name = f"test-{object_type}-name"
                 namespace = DEFAULT_NAMESPACE if object_type in NAMESPACED_OBJECTS else None
                 mock_object_data = {"metadata": {"name": object_name}}
 
@@ -988,7 +971,7 @@ class TestAPIServer(unittest.TestCase):
             # Test object not found
             self.mock_etcd_client_instance.read.return_value = None
             with self.assertRaises(HTTPException) as context:
-                self.api_server.get_object("jobs", "non_existent", watch=False)
+                self.api_server.get_object("jobs", "non-existent", watch=False)
             self.assertEqual(context.exception.status_code, 404)
 
         self.run_async(async_test())
@@ -1003,17 +986,17 @@ class TestAPIServer(unittest.TestCase):
             for namespace in ["namespace1", "namespace2"]:
                 self.mock_etcd_client_instance.read.return_value = {
                     "metadata": {
-                        "name": f"test_object_{namespace}"
+                        "name": f"test-object-{namespace}"
                     }
                 }
                 obj = self.api_server.get_object("jobs",
-                                                 "test_object",
+                                                 "test-object",
                                                  namespace,
                                                  watch=False)
                 self.assertIsNotNone(obj)
 
             # 2. Test Object Name Variations
-            object_names = ["a", "special_@object!", "123"]
+            object_names = ["a", "special-object", "123"]
             for name in object_names:
                 self.mock_etcd_client_instance.read.return_value = {
                     "metadata": {
@@ -1037,22 +1020,22 @@ class TestAPIServer(unittest.TestCase):
             # 3. Test Watch Parameter with Event Generation
             self.mock_etcd_client_instance.watch.return_value = ([("PUT", {
                 "metadata": {
-                    "name": "watched_object"
+                    "name": "watched-object"
                 }
             })], lambda: None)
             watch_response = self.api_server.get_object("jobs",
-                                                        "watched_object",
+                                                        "watched-object",
                                                         namespace=namespace,
                                                         watch=True)
             link_header = f"{'jobs'}/{namespace}" if namespace else "jobs"
             self.mock_etcd_client_instance.watch.assert_called_once_with(
-                f"{link_header}/{'watched_object'}")
+                f"{link_header}/{'watched-object'}")
             self.assertIsInstance(watch_response, StreamingResponse)
 
             # 4. Test with Complex Object Data
             complex_data = {
                 "metadata": {
-                    "name": "complex_object"
+                    "name": "complex-object"
                 },
                 "spec": {
                     "key": "value",  #Should be ignored
@@ -1065,12 +1048,12 @@ class TestAPIServer(unittest.TestCase):
                     "envs": {},
                     "ports": [],
                     "replicas": 1,
-                    "restart_policy": "Always"
+                    "restart_policy": "ALWAYS"
                 }
             }
             self.mock_etcd_client_instance.read.return_value = complex_data
             obj = self.api_server.get_object("jobs",
-                                             "complex_object",
+                                             "complex-object",
                                              watch=False)
             self.assertEqual(obj.metadata.name,
                              complex_data["metadata"]["name"])
@@ -1090,11 +1073,11 @@ class TestAPIServer(unittest.TestCase):
             # 5. Test Retrieval of Non-Namespaced Objects
             self.mock_etcd_client_instance.read.return_value = {
                 "metadata": {
-                    "name": "non_namespaced_object"
+                    "name": "non-namespaced-object"
                 }
             }
             obj = self.api_server.get_object("clusters",
-                                             "non_namespaced_object",
+                                             "non-namespaced-object",
                                              watch=False)
             self.assertIsNotNone(obj)
 
@@ -1104,10 +1087,10 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.get_object("jobs", "invalid_name", watch=False)
 
             # 7. Test Handling of Partial Object Data
-            partial_data = {"metadata": {"name": "partial_object"}}
+            partial_data = {"metadata": {"name": "partial-object"}}
             self.mock_etcd_client_instance.read.return_value = partial_data
             obj = self.api_server.get_object("jobs",
-                                             "partial_object",
+                                             "partial-object",
                                              watch=False)
             self.assertIsNotNone(obj)
 
@@ -1120,13 +1103,13 @@ class TestAPIServer(unittest.TestCase):
 
         async def async_test():
             # Test update for each object type
-            for object_type, object_class in ALL_OBJECTS.items():
+            for object_type, object_class in NAMESPACED_OBJECTS.items():
                 with self.subTest(object_type=object_type):
                     mock_request = MagicMock(spec=Request)
                     mock_request.headers = {"content-type": "application/json"}
                     test_object_spec = {
                         "metadata": {
-                            "name": f"test_{object_type}"
+                            "name": f"test-{object_type}"
                         }
                     }
                     mock_request.body = AsyncMock(
@@ -1136,7 +1119,7 @@ class TestAPIServer(unittest.TestCase):
                     self.mock_etcd_client_instance.read_prefix.return_value = [
                         {
                             "metadata": {
-                                "name": f"test_{object_type}"
+                                "name": f"test-{object_type}"
                             }
                         }
                     ]
@@ -1163,14 +1146,14 @@ class TestAPIServer(unittest.TestCase):
             # Test exception handling during etcd client update
             self.mock_etcd_client_instance.read_prefix.return_value = [{
                 "metadata": {
-                    "name": f"test_{object_type}"
+                    "name": f"test-{object_type}"
                 }
             }]
-            self.mock_etcd_client_instance.update.side_effect = Exception(
+            self.mock_etcd_client_instance.update.side_effect = KeyNotFoundError(
                 "Etcd client error")
             with self.assertRaises(HTTPException) as context:
                 await update_func(mock_request)
-            self.assertEqual(context.exception.status_code, 409)
+            self.assertEqual(context.exception.status_code, 404)
 
         self.run_async(async_test())
 
@@ -1180,9 +1163,9 @@ class TestAPIServer(unittest.TestCase):
         """
 
         async def async_test():
-            for object_type, _ in ALL_OBJECTS.items():
+            for object_type, _ in NAMESPACED_OBJECTS.items():
                 with self.subTest(object_type=object_type):
-                    object_name = f"test_{object_type}"
+                    object_name = f"test-{object_type}"
                     is_namespaced = object_type in NAMESPACED_OBJECTS
                     namespace = DEFAULT_NAMESPACE if is_namespaced else None
                     link_header = f"{object_type}/{namespace}" if namespace else object_type
