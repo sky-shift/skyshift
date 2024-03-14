@@ -1362,7 +1362,7 @@ if __name__ == '__main__':
 # ==============================================================================
 # User API as CLI
     
-@create.command(name="user")
+@click.command('register', help='Register a new user.')
 @click.argument("username", required=True)
 @click.argument("email", required=True)
 @click.argument("password", required=True)
@@ -1371,9 +1371,11 @@ def register(username, email, password):
     User register command.
     """
     register_user(username, email, password)
+
+cli.add_command(register)
     
 
-@get.command(name="user")
+@click.command('login', help='Register a new user.')
 @click.argument("username", required=True)
 @click.argument("password", required=True)
 def login(username, password):
@@ -1381,6 +1383,8 @@ def login(username, password):
     User login command.
     """
     login_user(username, password)
+
+cli.add_command(login)
 
 if __name__ == '__main__':
     cli()

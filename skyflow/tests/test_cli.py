@@ -911,7 +911,7 @@ def test_create_user_success(runner):
     name = "user1"
     email = "test@email.com"
     password = "password"
-    cmd = ['create', 'user', name, email, password]
+    cmd = ['register', name, email, password]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
@@ -919,10 +919,10 @@ def test_create_user_duplicate(runner):
     name = "user2"
     email = "test@email.com"
     password = "password"
-    cmd = ['create', 'user', name, email, password]
+    cmd = ['register', name, email, password]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
-    cmd2 = ['create', 'user', name, email, password]
+    cmd2 = ['register', name, email, password]
     result2 = runner.invoke(cli, cmd2)
     assert result2.exit_code != 0
 
@@ -933,15 +933,15 @@ def test_create_user_err(runner):
     good_email = "test@email.com"
     bad_password = "123"
     good_password = "password"
-    cmd = ['create', 'user', good_name, bad_email, good_password]
+    cmd = ['register', good_name, bad_email, good_password]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
 
-    cmd2 = ['create', 'user', good_name, good_email, bad_password]
+    cmd2 = ['register', good_name, good_email, bad_password]
     result2 = runner.invoke(cli, cmd2)
     assert result2.exit_code != 0
 
-    cmd3 = ['create', 'user', bad_name, good_email, good_password]
+    cmd3 = ['register', bad_name, good_email, good_password]
     result3 = runner.invoke(cli, cmd3)
     assert result3.exit_code != 0
 
@@ -950,11 +950,11 @@ def test_login_user_success(runner):
     name = "user4"
     email = "test@email.com"
     password = "password"
-    cmd = ['create', 'user', name, email, password]
+    cmd = ['register', name, email, password]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
-    cmd_login = ['get', 'user', name, password]
+    cmd_login = ['login', name, password]
     result2 = runner.invoke(cli, cmd_login)
     assert result2.exit_code == 0
 
@@ -963,10 +963,10 @@ def test_login_user_wrong_password(runner):
     name = "user5"
     email = "test@email.com"
     password = "password"
-    cmd = ['create', 'user', name, email, password]
+    cmd = ['register', name, email, password]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
-    cmd_login = ['get', 'user', name, "wrong_pw"]
+    cmd_login = ['login', name, "wrong_pw"]
     result2 = runner.invoke(cli, cmd_login)
     assert result2.exit_code != 0
