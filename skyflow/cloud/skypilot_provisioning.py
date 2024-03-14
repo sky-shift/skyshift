@@ -197,9 +197,11 @@ def provision_new_kubernetes_cluster(
     # Installation instructions: https://rke.docs.rancher.com/installation#download-the-rke-binary
     try:
         os.system(
-            f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml")
+            f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml"
+        )
     except Exception:
-        raise Exception("RKE cluster creation failed. Perhaps RKE is not installed?")
+        raise Exception(
+            "RKE cluster creation failed. Perhaps RKE is not installed?")
 
 
 def delete_kubernetes_cluster(cluster_name: str, num_nodes: int):
