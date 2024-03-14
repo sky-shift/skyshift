@@ -365,7 +365,7 @@ def delete_cluster(name):
               help="Number of replicas to run job.")
 @click.option("--restart_policy",
               type=str,
-              default="Always",
+              default=RestartPolicyEnum.ALWAYS.value,
               show_default=True,
               help="Restart policy for job tasks.")
 def create_job(
