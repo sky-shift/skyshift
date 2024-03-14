@@ -7,28 +7,33 @@ Installation
 
     For Macs, macOS >= 10.15 is required to install SkyFlow.
 
-To install Skyflow, run:
+To install Skyflow's python API and CLI, run:
 
-.. tabs::
+.. code-block:: shell
 
-    .. tab:: Users
-        .. code-block:: shell
-          # Users are assumed to have pre-existing access to a SkyFlow instance.
-          # Users interface SkyFlow through an existing SkyFlow Config.
-          # Recommended: Create new conda env to avoid package conflicts.
-          conda create -y -n skyflow python=3.10
-          conda activate skyflow
+    # Recommended: Create new conda env to avoid package conflicts.
+    conda create -y -n skyflow python=3.10
+    conda activate skyflow
 
-          # Install SkyFlow dependencies.
-          pip install -e .
+    # Pull the latest version of SkyFlow from Github.
+    git clone https://github.com/michaelzhiluo/skyflow.git
+
+    # Install basic SkyFlow dependencies.
+    cd skyflow
+    pip install -e .
 
 
-    .. tab:: Admins
-        .. code-block:: shell
-          # Recommended: Create new conda env to avoid package conflicts.
-          conda create -y -n skyflow python=3.10
-          conda activate skyflow
+To install dependencies for the API server, run:
 
-          # Choose your cloud:
-          pip install -e .
-          pip install -e .[server]
+.. code-block:: shell
+
+    # Recommended: Create new conda env to avoid package conflicts.
+    conda create -y -n skyflow python=3.10å
+    conda activate skyflow
+
+    # Pull the latest version of SkyFlow from Github.
+    git clone https://github.com/michaelzhiluo/skyflow.git
+
+    # Install API server dependencies.
+    cd skyflow
+    pip install -e .[server]
