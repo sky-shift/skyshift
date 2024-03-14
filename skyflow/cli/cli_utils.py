@@ -18,6 +18,7 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
                                Namespace, NamespaceList, ObjectList, Service,
                                ServiceList, TaskStatusEnum)
+from skyflow.utils.utils import load_manager_config, update_manager_config
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -450,6 +451,18 @@ def login_user(username: str, password: str):
             access_token = data.get("access_token")
             click.echo("Login successful. Access token obtained.")
 
-            # TODO: Store and reuse the access token
+            # Store the access token to local manager config
+            manager_config = load_manager_config()
+            found_user = False
+            if 'users' not in manager_config:
+                manager_config['users'] = []
+            for user in manager_config['users']:
+                if user['name'] == username:
+                    user['access_token'] = access_token
+                    found_user = True
+                    break
+            if not found_user:
+                manager_config['users'].append({'name': username, 'access_token': access_token})
+            update_manager_config(manager_config)
     except APIException as error:
         raise click.ClickException(f"Failed to login: {error.detail}")
