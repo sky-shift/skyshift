@@ -23,6 +23,17 @@ pip install -e .
 pip install -e .[server]
 ```
 
+To utilize Skyflow's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture and make it executable. For example:  
+```
+mv rke_linux-amd64 /usr/local/bin/rke
+chmod +x /usr/local/bin/rke
+```
+
+You can make sure that the installation was successful by running the following command:
+```
+rke --version
+```
+
 ## Steps to run Sky Manager
 
 ### 1. Check Kubernetes Clusters
