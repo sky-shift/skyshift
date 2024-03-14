@@ -9,6 +9,8 @@ import subprocess
 import time
 from typing import List
 
+from kubernetes import client, config, utils
+
 from skyflow.cluster_manager import KubernetesManager
 
 logging.basicConfig(
@@ -24,44 +26,48 @@ KEY = "key.pem"
 KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
-RECOVER = True
 CL_VERSION = "v0.0.1"
-
+CL_DATAPLANE = "cl-dataplane"
+CL_SERVICE = "cl-dataplane-load-balancer"
 CL_INSTALL_DIR = os.path.expanduser("~/.local/bin/")
 
-CL_INSTALL_CMD = ("curl -sL "
+CL_INSTALL_CMD = (
+    "curl -sL "
     "https://github.com/clusterlink-net/clusterlink/releases/download/"
-    "{version}/clusterlink.sh | sh "
-)
+    "{version}/clusterlink.sh | sh ")
 
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("cl-adm create fabric")
-CLA_PEER_CMD = ("cl-adm create peer --name {cluster_name} --namespace {namespace}")
-CL_UNDEPLOY_CMD = ("kubectl delete --context {cluster_name} -f " +
-                   CL_DIRECTORY + "{cluster_name}/k8s.yaml --wait=true  2>&1")
-CL_DEPLOY_CMD = (
-    "kubectl create --context {cluster_name} -f {cluster_name}/k8s.yaml")
+CLA_PEER_CMD = (
+    "cl-adm create peer --name {cluster_name} --namespace {namespace} --tag {tag}")
 
 # Clusterlink core CLI
 # Initialization & Status
-CL_INIT_CMD = ("gwctl init --id {cluster_name} --gwIP {cl_gw_ip}"
+CL_INIT_CMD = (
+    "gwctl init --id {cluster_name} --gwIP {cl_gw_ip}"
     " --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}")
 CL_STATUS_CMD = ("gwctl get all --myid {cluster_name}")
 # Link/Peer management
-CL_LINK_CMD = ("gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
+CL_LINK_CMD = (
+    "gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
 )
 CL_LINK_STATUS_CMD = ("gwctl get peer --myid {cluster_name} --name {peer}")
 CL_LINK_DELETE_CMD = ("gwctl delete peer --myid {cluster_name} --name {peer}")
 # Service Management
-CL_EXPORT_CMD = ("gwctl create export --myid {cluster_name} --name {service_name}"
+CL_EXPORT_CMD = (
+    "gwctl create export --myid {cluster_name} --name {service_name}"
     " --host {service_target} --port {port}")
-CL_IMPORT_CMD = ("gwctl create import --myid {cluster_name} --name {service_name}"
+CL_IMPORT_CMD = (
+    "gwctl create import --myid {cluster_name} --name {service_name}"
     " --port {port} --peer {peer}")
 
-CL_POLICY_CMD = ("gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}"
+CL_POLICY_CMD = (
+    "gwctl create policy --myid {cluster_name} --type access --policyFile {policy_file}"
 )
-CL_EXPORT_DELETE_CMD = ("gwctl delete export --myid {cluster_name} --name {service_name}")
-CL_IMPORT_DELETE_CMD = ("gwctl delete import --myid {cluster_name} --name {service_name}")
+CL_EXPORT_DELETE_CMD = (
+    "gwctl delete export --myid {cluster_name} --name {service_name}")
+CL_IMPORT_DELETE_CMD = (
+    "gwctl delete import --myid {cluster_name} --name {service_name}")
 
 POLICY_ALLOW_ALL = {
     "name": "allow-all",
@@ -76,19 +82,23 @@ POLICY_ALLOW_ALL = {
 }
 
 
-# @praveingk to change kubectl to kube APIs
-def _wait_pod(cluster_name, name, namespace="default"):
+def _wait_for(k8s_api_client: client.ApiClient,
+              name,
+              namespace="default",
+              timeout_seconds=300):
     """Waits until the pod status is running"""
-    pod_status = ""
-    while "Running" not in pod_status:
-        cmd = (f"kubectl get pods --context {cluster_name}"
-               f" -l app={name} -n {namespace} " +
-               '--no-headers -o custom-columns=":status.phase"')
-        pod_status = subprocess.check_output(cmd, shell=True).decode('utf-8')
-        if "Running" not in pod_status:
-            time.sleep(0.1)
-        else:
-            break
+    start_time = time.time()
+    end_time = start_time + timeout_seconds
+    core_api = client.AppsV1Api(api_client=k8s_api_client)
+    while time.time() < end_time:
+        try:
+            deployment = core_api.read_namespaced_deployment(
+                name, namespace=namespace)
+        except client.exceptions.ApiException:
+            continue
+        if deployment.status.ready_replicas == deployment.status.replicas:
+            return True
+        time.sleep(0.1)
 
 
 def _parse_clusterlink_op(output: str):
@@ -121,76 +131,85 @@ def _remove_cluster_certs(cluster_name: str):
                        error.filename, error.strerror)
 
 
-def _get_clusterlink_gw_target(cluster: str):
+def _get_clusterlink_gw_target(cluster: str, namespace="default"):
     """Gets the IP of the clusterlink gateway"""
+    core_api = client.CoreV1Api(config.new_client_from_config(context=cluster))
     if cluster.startswith(KIND_PREFIX):
-        cl_json = json.loads(
-            subprocess.getoutput(
-                f'kubectl get nodes --context={cluster} -o json'))
-        target = cl_json["items"][0]["status"]["addresses"][0]["address"]
-        return target, DEFAULT_CL_PORT_KIND
+        nodes = core_api.list_node()
+        return nodes.items[0].status.addresses[0].address, DEFAULT_CL_PORT_KIND
     # Clouds in general support load balancer to assign external IP
-    cl_json = json.loads(
-        subprocess.getoutput(
-            f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"
-        ))
-    target = cl_json["items"][0]["status"]["loadBalancer"]["ingress"][0]["ip"]
-
-    return target, DEFAULT_CL_PORT
+    service = core_api.read_namespaced_service(CL_SERVICE,
+                                               namespace)
+    if service.status.load_balancer and service.status.load_balancer.ingress:
+        return service.status.load_balancer.ingress[0].ip, DEFAULT_CL_PORT
+    return None, None
 
 
-def _expose_clusterlink(cluster: str, port="443"):
+def _expose_clusterlink(k8s_api_client: client.ApiClient,
+                        cluster,
+                        namespace: str,
+                        port=443):
     """Creates a loadbalancer to expose clusterlink to the external world."""
+    core_api = client.CoreV1Api(k8s_api_client)
     if cluster.startswith(KIND_PREFIX):
         try:
             # Testing purpose on KIND Cluster
-            subprocess.check_output(
-                f"kubectl delete service --context={cluster} cl-dataplane --wait=true",
-                shell=True).decode('utf-8')
-            subprocess.check_output(
-                f"kubectl create service nodeport --context={cluster} cl-dataplane"
-                f" --tcp={port}:{port} --node-port=30443",
-                shell=True).decode('utf-8')
+            core_api.delete_namespaced_service(CL_DATAPLANE, namespace)
+            service_body = client.V1Service(
+                metadata=client.V1ObjectMeta(name=CL_DATAPLANE),
+                spec=client.V1ServiceSpec(type="NodePort",
+                                          selector={"app": CL_DATAPLANE},
+                                          ports=[
+                                              client.V1ServicePort(
+                                                  protocol="TCP",
+                                                  port=port,
+                                                  target_port=port,
+                                                  node_port=30443,
+                                              )
+                                          ]))
+            core_api.create_namespaced_service(namespace, service_body)
             time.sleep(5)
             return
         except subprocess.CalledProcessError as error:
             cl_logger.error("Failed to create load balancer : %s",
                             error.stderr.decode())
             raise error
-    # Cleanup any previous stray loadbalancer initialized by earlier installation
-    if not RECOVER:
-        subprocess.getoutput(
-            f"kubectl delete svc --context={cluster} cl-dataplane-load-balancer --wait=true 2>&1"
-        )
     try:
         # On Cloud/on-prem deployments, loadbalancer is usually provisioned
-        ingress = ""
-        subprocess.check_output(
-            f"kubectl expose deployment --context={cluster} cl-dataplane"
-            f" --name=cl-dataplane-load-balancer --port={port}"
-            f" --target-port={port} --type=LoadBalancer",
-            shell=True,
-            stderr=subprocess.STDOUT).decode('utf-8')
-    except subprocess.CalledProcessError as error:
-        if "AlreadyExists" not in error.output.decode('utf-8'):
-            cl_logger.error("Failed to create load balancer : %s",
-                            error.output.decode('utf-8'))
-    while "ingress" not in ingress:
-        cl_json = json.loads(
-            subprocess.getoutput(
-                f"kubectl get svc --context {cluster} -l app=cl-dataplane  -o json"
-            ))
-        ingress = cl_json["items"][0]["status"]["loadBalancer"]
+        service_body = client.V1Service(
+            metadata=client.V1ObjectMeta(name=CL_SERVICE),
+            spec=client.V1ServiceSpec(type="LoadBalancer",
+                                      selector={"app": CL_DATAPLANE},
+                                      ports=[
+                                          client.V1ServicePort(
+                                              protocol="TCP",
+                                              port=port,
+                                              target_port=port,
+                                          )
+                                      ]))
+        core_api.create_namespaced_service(namespace, service_body)
+    except client.ApiException as error:
+        if error.status == 409:  # Conflict, service already exists
+            core_api.patch_namespaced_service(name=CL_SERVICE,
+                                              namespace=namespace,
+                                              body=service_body)
+        else:
+            raise error
+    while True:
+        service = core_api.read_namespaced_service(
+            CL_SERVICE, namespace)
+        if service.status.load_balancer and service.status.load_balancer.ingress:
+            return
         time.sleep(1)
 
 
-def _init_clusterlink_gateway(cluster: str):
+def _init_clusterlink_gateway(cluster: str, namespace="default"):
     """Initializes the Clusterlink gateway API server and adds policy to allow communication"""
     try:
         certca = os.path.join(CL_DIRECTORY, CERT)
         cert = os.path.join(CL_DIRECTORY, cluster, CERT)
         key = os.path.join(CL_DIRECTORY, cluster, KEY)
-        gw_ip, gw_port = _get_clusterlink_gw_target(cluster)
+        gw_ip, gw_port = _get_clusterlink_gw_target(cluster, namespace)
 
         cl_init_cmd = CL_INIT_CMD.format(cluster_name=cluster,
                                          cl_gw_ip=gw_ip,
@@ -213,11 +232,14 @@ def _init_clusterlink_gateway(cluster: str):
                         error.output.decode('utf-8'))
         raise error
 
+
 def _install_clusterlink():
     """Installs Clusterlink if its not already present"""
     try:
         cl_install_cmd = CL_INSTALL_CMD.format(version=CL_VERSION)
-        subprocess.check_output(cl_install_cmd, shell=True, stderr=subprocess.STDOUT).decode('utf-8')
+        subprocess.check_output(cl_install_cmd,
+                                shell=True,
+                                stderr=subprocess.STDOUT).decode('utf-8')
     except subprocess.CalledProcessError as error:
         cl_logger.error("Failed to install Clusterlink")
         raise error
@@ -281,27 +303,30 @@ def status_network(manager: KubernetesManager):
     return _clusterlink_gateway_status(cluster_name)
 
 
-def _deploy_clusterlink_gateway(cluster_name: str):
+def _deploy_clusterlink_gateway(k8s_api_client: client.ApiClient, cluster_name,
+                                namespace: str):
     """Deploys the clusterlink gateway and its components on a cluster."""
-    if not RECOVER:
-        cl_logger.info("Cleaning up previous install")
-        cl_undeploy_command = CL_UNDEPLOY_CMD.format(cluster_name=cluster_name)
-        subprocess.getoutput(cl_undeploy_command)
-        # Workaround to wait for gwctl to terminate
-        # (this pod would be gone in upcoming release)
-        subprocess.getoutput(
-            f"kubectl wait --for=delete pod/gwctl --context={cluster_name}")
-    cl_deploy_command = CL_DEPLOY_CMD.format(cluster_name=cluster_name)
     try:
-        subprocess.check_output(cl_deploy_command,
-                                shell=True,
-                                cwd=CL_DIRECTORY,
-                                stderr=subprocess.STDOUT).decode('utf-8')
-    except subprocess.CalledProcessError as error:
-        # Exception could occur due to previously installed components
-        if "AlreadyExists" not in error.output.decode('utf-8'):
-            cl_logger.error("Failed to deploy clusterlink gateway %s",
-                            error.output.decode('utf-8'))
+        utils.create_from_yaml(k8s_api_client,
+                               os.path.join(CL_DIRECTORY, cluster_name,
+                                            "k8s.yaml"),
+                               namespace=namespace)
+    except utils.FailToCreateError as error:
+        for api_err in error.api_exceptions:
+            if api_err.status == 409:  # Conflict, already exists
+                pass
+            else:
+                raise error
+
+
+def _deploy_clusterlink_k8s(cluster_name, namespace: str):
+    """Deploys clusterlink gateway in Kubernetes cluster."""
+    k8s_api_client = config.new_client_from_config(context=cluster_name)
+    _deploy_clusterlink_gateway(k8s_api_client, cluster_name, namespace)
+    _wait_for(k8s_api_client, "cl-controlplane")
+    _wait_for(k8s_api_client, "cl-dataplane")
+    _expose_clusterlink(k8s_api_client, cluster_name, namespace)
+    cl_logger.info("Clusterlink successfully setup on %s", cluster_name)
 
 
 def launch_clusterlink(manager: KubernetesManager):
@@ -322,18 +347,16 @@ def launch_clusterlink(manager: KubernetesManager):
         raise error
     try:
         cl_peer_command = CLA_PEER_CMD.format(cluster_name=cluster_name,
-                                              namespace=namespace)
+                                              namespace=namespace,
+                                              tag=CL_VERSION)
         _remove_cluster_certs(cluster_name)
         subprocess.check_output(cl_peer_command,
                                 shell=True,
                                 stderr=subprocess.STDOUT,
                                 cwd=CL_DIRECTORY).decode('utf-8')
-        _deploy_clusterlink_gateway(cluster_name)
-        _wait_pod(cluster_name, "cl-controlplane")
-        _wait_pod(cluster_name, "cl-dataplane")
-        _expose_clusterlink(cluster_name)
-        _init_clusterlink_gateway(cluster_name)
-        cl_logger.info("Clusterlink successfully setup on %s", cluster_name)
+        _deploy_clusterlink_k8s(cluster_name, namespace)
+        _init_clusterlink_gateway(cluster_name, namespace)
+
         return True
     except subprocess.CalledProcessError as error:
         cl_logger.error("Failed to launch Clusterlink on  %s : %s",
@@ -379,7 +402,7 @@ def delete_link(source_manager: KubernetesManager,
 def export_service(service_name: str, manager: KubernetesManager,
                    ports: List[int]):
     """Exposes/exports a service from the cluster to its peers"""
-    # @praveingk use namespace speific to cluster
+    # @praveingk use namespace specific to cluster
     cluster_name = manager.cluster_name
     expose_service_name = f'{service_name}-{cluster_name}'
     cl_logger.info("Exporting service %s from %s", expose_service_name,
@@ -403,7 +426,8 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
     cl_logger.info("Importing service %s from %s", import_service_name, peer)
     import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name,
                                       service_name=import_service_name,
-                                      port=ports[0], peer=peer)
+                                      port=ports[0],
+                                      peer=peer)
     output = subprocess.getoutput(import_cmd)
     if not _parse_clusterlink_op(output):
         cl_logger.error("Failed to import service: %s", output.splitlines()[0])
