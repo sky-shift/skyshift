@@ -164,7 +164,9 @@ class SchedulerController(Controller):
         self.logger.debug("Cached clusters: %s", cached_clusters)
         clusters = [
             cluster for cluster in cached_clusters.values()
-            if cluster.status.status == ClusterStatusEnum.READY.value
+            if cluster.spec.attached
+            and cluster.status.status != ClusterStatusEnum.ERROR.value
+            or cluster.status.status == ClusterStatusEnum.READY.value
         ]
         self.logger.debug("Clusters: (list) %s", clusters)
         idx_list = []
