@@ -82,7 +82,7 @@ POLICY_ALLOW_ALL = {
 }
 
 
-def _wait_for_read_deployment(k8s_api_client: client.ApiClient,
+def _wait_for_ready_deployment(k8s_api_client: client.ApiClient,
               name,
               namespace="default",
               timeout_seconds=300):
