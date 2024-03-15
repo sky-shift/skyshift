@@ -15,7 +15,7 @@ import pytest
 sys.path.append('path')
 
 from skyflow.cluster_manager import KubernetesManager
-from skyflow.network.cluster_linkv2 import (CL_DIRECTORY, create_link,
+from skyflow.network.cluster_linkv2 import (create_link,
                                             delete_export_service,
                                             delete_import_service,
                                             export_service, import_service,
