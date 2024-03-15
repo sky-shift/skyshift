@@ -82,7 +82,7 @@ POLICY_ALLOW_ALL = {
 }
 
 
-def _wait_for_read_deployment(k8s_api_client: client.ApiClient,
+def _wait_for_ready_deployment(k8s_api_client: client.ApiClient,
               name,
               namespace="default",
               timeout_seconds=300):
@@ -323,8 +323,8 @@ def _deploy_clusterlink_k8s(cluster_name, namespace: str):
     """Deploys clusterlink gateway in Kubernetes cluster."""
     k8s_api_client = config.new_client_from_config(context=cluster_name)
     _deploy_clusterlink_gateway(k8s_api_client, cluster_name, namespace)
-    _wait_for_read_deployment(k8s_api_client, "cl-controlplane")
-    _wait_for_read_deployment(k8s_api_client, "cl-dataplane")
+    _wait_for_ready_deployment(k8s_api_client, "cl-controlplane")
+    _wait_for_ready_deployment(k8s_api_client, "cl-dataplane")
     _expose_clusterlink(k8s_api_client, cluster_name, namespace)
     cl_logger.info("Clusterlink successfully setup on %s", cluster_name)
 

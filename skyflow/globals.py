@@ -1,8 +1,14 @@
 """
 Globals contains variables used across the Skyflow.
 """
+import os
+
 from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
                                Namespace, Role, Service)
+
+USER_SSH_PATH = os.path.expanduser("~/.ssh")
+
+SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 DEFAULT_NAMESPACE = "default"
 
@@ -19,3 +25,8 @@ NON_NAMESPACED_OBJECTS = {
     "roles": Role,
 }
 ALL_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
+
+
+def cluster_dir(cluster_name: str):
+    """Returns the path to the cluster directory."""
+    return os.path.join(SKYCONF_DIR, "cluster", cluster_name)

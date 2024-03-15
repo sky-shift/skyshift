@@ -25,13 +25,13 @@ setup(
         "types-tabulate",
         "types-PyYAML",
         "types-requests",
-        "skypilot[aws,gcp,azure,kubernetes]",
+        "skypilot==0.5.0",
         "bcrypt==4.0.1",
     ],
     extras_require={
         "server": [
             "etcd3", "fastapi", "uvicorn[standard]", "pydantic>=2.5.0",
-            'jsonpatch'
+            'jsonpatch', "pyjwt",
         ],
         "dev": [
             "yapf==0.32.0", "pylint==2.8.2", "pylint-quotes==0.2.3",

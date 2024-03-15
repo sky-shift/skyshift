@@ -2,16 +2,19 @@
 Specifies the API server and its endpoints for Skyflow.
 """
 import json
+import os
 import signal
 import sys
+import time
 from functools import partial
 from typing import List
 
 import jsonpatch
 import yaml
-from api_utils import (authenticate_request,  # pylint: disable=import-error
-                       create_access_token, load_manager_config,
-                       update_manager_config)
+from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
+from api_utils import update_manager_config  # pylint: disable=import-error
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -20,14 +23,15 @@ from pydantic import BaseModel
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
-from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
+from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
+                                             ETCDClient, KeyNotFoundError)
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
-from skyflow.templates.cluster_template import Cluster
+from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum
-from skyflow.utils import load_object
+from skyflow.utils import load_object, sanitize_cluster_name
 
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -41,6 +45,35 @@ class User(BaseModel):
     username: str
     email: str
     password: str
+
+
+def check_or_wait_initialization():
+    """Creates the necessary configuration files"""
+    lock_file_path = "/tmp/api_server_init.lock"
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        return
+
+    while os.path.exists(lock_file_path):
+        # Initialization in progress by another worker, wait...
+        time.sleep(1)
+
+    if not os.path.exists(completion_flag_path):
+        # This worker is responsible for initialization
+        open(lock_file_path, 'a').close()
+        try:
+            api_server.installation_hook()
+            open(completion_flag_path,
+                 'a').close()  # Mark initialization as complete
+        finally:
+            os.remove(lock_file_path)
+
+
+def remove_flag_file():
+    """Removes the flag file to indicate that the API server has been shut down."""
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        os.remove(completion_flag_path)
 
 
 class APIServer:
@@ -142,7 +175,7 @@ class APIServer:
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""
         obj_dict = self.etcd_client.read(link_header)
-        if obj_dict is None:
+        if obj_dict is None or obj_dict == {}:
             raise HTTPException(
                 status_code=404,
                 detail=f"Object '{link_header}' not found.",
@@ -269,7 +302,9 @@ class APIServer:
                     )
 
             # Check if object type is cluster and if it is accessible.
-            if isinstance(object_init, Cluster):
+            if isinstance(
+                    object_init, Cluster
+            ) and object_init.status.status == ClusterStatusEnum.READY.value:
                 self._check_cluster_connectivity(object_init)
 
             self.etcd_client.write(f"{link_header}/{object_name}",
@@ -332,6 +367,8 @@ class APIServer:
         else:
             link_header = f"{object_type}"
 
+        if object_type == "clusters":
+            object_name = sanitize_cluster_name(object_name)
         if watch:
             return self._watch_key(f"{link_header}/{object_name}")
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
@@ -392,12 +429,12 @@ class APIServer:
                             f"{link_header}/{object_name}",
                             obj_instance.model_dump(mode="json"),
                         )
-                    except Exception as error:
-                        raise HTTPException(
-                            status_code=409,
-                            detail=
-                            f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                        ) from error
+                    except KeyNotFoundError as error:
+                        raise HTTPException(status_code=404,
+                                            detail=error.msg) from error
+                    except ConflictError as error:
+                        raise HTTPException(status_code=409,
+                                            detail=error.msg) from error
                     return obj_instance
             raise HTTPException(
                 status_code=400,
@@ -444,7 +481,7 @@ class APIServer:
             else:
                 link_header = f"{object_type}"
             obj_dict = self.etcd_client.read(f"{link_header}/{object_name}")
-            if obj_dict is None:
+            if obj_dict is None or obj_dict == {}:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Object '{link_header}/{object_name}' not found.",
@@ -465,12 +502,11 @@ class APIServer:
                     f"{link_header}/{object_name}",
                     obj.model_dump(mode="json"),
                 )
+            except KeyNotFoundError as error:
+                raise HTTPException(status_code=404,
+                                    detail=error.msg) from error
             except Exception as error:
-                raise HTTPException(
-                    status_code=409,
-                    detail=
-                    f"Conflict Error: Object '{link_header}/{object_name}' is out of date.",
-                ) from error
+                raise HTTPException(status_code=400, detail=error) from error
             return obj
 
         return _patch_object
@@ -509,7 +545,15 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-        obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        if object_type == "clusters":
+            object_name = sanitize_cluster_name(object_name)
+        try:
+            obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        except KeyNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=error.msg,
+            ) from error
         if obj_dict:
             return obj_dict
         raise HTTPException(
@@ -678,6 +722,7 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer()
-api_server.installation_hook()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
+app.add_event_handler("startup", check_or_wait_initialization)
+app.add_event_handler("shutdown", remove_flag_file)

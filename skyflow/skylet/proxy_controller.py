@@ -1,8 +1,6 @@
 """
 Proxy Controller - Exposes services to other clusters.
 """
-import logging
-import os
 import traceback
 from contextlib import contextmanager
 from queue import Queue
@@ -13,15 +11,13 @@ import requests
 from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.network.cluster_linkv2 import (delete_export_service,
                                             delete_import_service,
                                             export_service, import_service)
 from skyflow.structs import Informer
 from skyflow.templates import Endpoints, WatchEventEnum
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
@@ -50,19 +46,14 @@ class ProxyController(Controller):
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: Queue = Queue()
 
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Proxy Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/proxy_controller.log')
+
         self.service_informer = Informer(ServiceAPI(namespace=''),
                                          logger=self.logger)
         self.endpoints_informer = Informer(EndpointsAPI(namespace=''),
                                            logger=self.logger)
-
-        self.logger = logging.getLogger(f"[{self.name} - Proxy Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 
@@ -111,7 +102,6 @@ class ProxyController(Controller):
         event = self.worker_queue.get()
         event_key = event.event_type
         event_object = event.object
-        
         primary_cluster = event_object.spec.primary_cluster
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
@@ -125,11 +115,11 @@ class ProxyController(Controller):
         elif event_key == WatchEventEnum.UPDATE:
             service_obj = self.service_informer.get_cache()[
                 event_object.metadata.name]
-            # The primary cluster imports the service and 
+            # The primary cluster imports the service and
             # creates a k8 endpoints object and attaches it to the remote service.
             if self.name == primary_cluster:
-                self.logger.info(
-                    "Setting up to import service from %s", primary_cluster)
+                self.logger.info("Setting up to import service from %s",
+                                 primary_cluster)
                 self._import_service(event_object,
                                      [a.port for a in service_obj.spec.ports])
             else:
@@ -152,8 +142,8 @@ class ProxyController(Controller):
             if cluster_name != endpoints.spec.primary_cluster:
                 if endpoint_obj.exposed_to_cluster:
                     self.logger.info(
-                        "%s is now exported by cluster, and ready to be imported", name
-                    )
+                        "%s is now exported by cluster, and ready to be imported",
+                        name)
                     if import_service(f'{name}', self.manager_api,
                                       cluster_name, ports):
                         self.manager_api.create_endpoint_slice(

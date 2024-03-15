@@ -16,23 +16,20 @@ import time
 import pytest
 from click.testing import CliRunner
 
-from api_server import launch_server
 from skyflow.cli.cli import cli
 
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        print("Using temporary data directory for ETCD:", temp_data_dir)
+        # Kill any running sky_manager processes
+        subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
 
-        host = launch_server.API_SERVER_HOST
-        port = launch_server.API_SERVER_PORT
+        print("Using temporary data directory for ETCD:", temp_data_dir)
         workers = multiprocessing.cpu_count()
         data_directory = temp_data_dir
         command = [
-            "python", "../../api_server/launch_server.py", "--host", host,
-            "--port",
-            str(port), "--workers",
+            "python", "../../api_server/launch_server.py", "--workers",
             str(workers), "--data-directory", data_directory
         ]
 
@@ -71,13 +68,11 @@ def test_create_cluster_success(runner):
     "name,manager",
     [
         ("", "k8"),  # Empty name
-        ("$pecial&Name", "k8"),  # Special characters in name
     ])
 def test_create_cluster_invalid_input(runner, name, manager):
     cmd = ['create', 'cluster', name, '--manager', manager]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Name format is invalid" in result.output
 
 
 def test_create_cluster_duplicate_name(runner):
@@ -109,11 +104,10 @@ def test_get_specific_cluster(runner, name='valid-cluster'):
     assert name in result.output
 
 
-def test_get_specific_cluster_not_valid(runner, name='not$$$-valid-cluster'):
+def test_get_specific_cluster_not_valid(runner, name=''):
     cmd = ['get', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Name format is invalid" in result.output
 
 
 def test_get_all_clusters(runner):
@@ -675,7 +669,7 @@ def test_create_service_invalid_selector(runner):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Selector is invalid" in result.output
+    assert "Invalid value: Selector" in result.output
 
 
 def test_create_service_invalid_namespace(runner):
@@ -712,7 +706,7 @@ def test_create_service_empty_selector(runner, selector):
 
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
-    assert "Selector is invalid" in result.output
+    assert "Invalid value: Selector" in result.output
 
 
 def test_create_service_duplicate_selector_keys(runner):
