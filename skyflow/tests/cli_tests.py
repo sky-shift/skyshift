@@ -8,6 +8,7 @@
     pytest skyflow/tests/cli_tests.py::test_create_cluster_success
 """
 import multiprocessing
+import os
 import shutil
 import subprocess
 import tempfile
@@ -26,15 +27,22 @@ def etcd_backup_and_restore():
         subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
 
         print("Using temporary data directory for ETCD:", temp_data_dir)
-        workers = multiprocessing.cpu_count()
+        workers = 1
+        data_directory = temp_data_dir
+        current_file_path = os.path.abspath(__file__)
+        current_directory = os.path.dirname(current_file_path)
+        relative_path_to_script = "../../api_server/launch_server.py"
+        install_script_path = os.path.abspath(
+            os.path.join(current_directory, relative_path_to_script))
+
         data_directory = temp_data_dir
         command = [
-            "python", "../../api_server/launch_server.py", "--workers",
+            "python", install_script_path, "--workers",
             str(workers), "--data-directory", data_directory
         ]
 
         process = subprocess.Popen(command)
-        time.sleep(5)  # Wait for the server to start
+        time.sleep(15)  # Wait for the server to start
 
         yield  # Test execution happens here
 
