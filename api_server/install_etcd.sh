@@ -1,4 +1,3 @@
-# @TODO(mluo,alex): Extend beyond Linux script to support other OS.
 #!/bin/bash
 # ETCD Installation Script
 #
@@ -19,7 +18,49 @@
 #
 # Ensure you have curl and tar installed and accessible in your PATH to successfully run this script.
 
-ETCD_VER=v3.5.11
+# Define valid platforms
+VALID_PLATFORMS=("linux" "darwin" "windows")
+# Automatically identify the platform and architecture (lower case)
+UNAME=$(uname | tr "[:upper:]" "[:lower:]")
+# Check if the platform is valid
+if [[ ! " ${VALID_PLATFORMS[@]} " =~ " ${UNAME} " ]]; then
+  echo "Unsupported platform: ${UNAME}"
+  echo "Supported platforms: ${VALID_PLATFORMS[@]}"
+  exit 1
+fi
+
+FILE_ENDING="tar.gz"
+# if linux, set to tar.gz
+if [[ $UNAME == "linux" ]]; then
+  FILE_ENDING="tar.gz"
+fi
+
+# if darwin or windows set to zip
+if [[ $UNAME == "darwin" || $UNAME == "windows" ]]; then
+  FILE_ENDING="zip"
+fi
+
+# Define valid architectures
+VALID_ARCHS=("amd64" "arm64" "ppc64le" "s390x")
+# Identify architecture [amd64, arm64, ppc64le, s390x]
+ARCH=$(uname -m)
+# if arch is in [x86, x86_64, x64], set to amd64.
+if [[ $ARCH == "x86_64" || $ARCH == "x64" || $ARCH == "x86" ]]; then
+  ARCH="amd64"
+fi
+# if arch is in [aarch64, armv8, armv8l], set to arm64.
+if [[ $ARCH == "aarch64" || $ARCH == "armv8" || $ARCH == "armv8l" ]]; then
+  ARCH="arm64"
+fi
+
+# Check if the architecture is valid
+if [[ ! " ${VALID_ARCHS[@]} " =~ " ${ARCH} " ]]; then
+  echo "Unsupported architecture: ${ARCH}"
+  echo "Supported architectures: ${VALID_ARCHS[@]}"
+  exit 1
+fi
+
+ETCD_VER=v3.5.12
 
 # Choose either URL
 GOOGLE_URL=https://storage.googleapis.com/etcd
@@ -35,12 +76,13 @@ fi
 
 echo "Using data directory: ${DATA_DIR}"
 
-rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
+rm -f /tmp/etcd-${ETCD_VER}-${UNAME}-${ARCH}.${FILE_ENDING}
 rm -rf /tmp/etcd-download-test && mkdir -p /tmp/etcd-download-test
 
-curl -s -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
-tar xzvf /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz -C /tmp/etcd-download-test --strip-components=1
-rm -f /tmp/etcd-${ETCD_VER}-linux-amd64.tar.gz
+curl -s -L ${DOWNLOAD_URL}/${ETCD_VER}/etcd-${ETCD_VER}-${UNAME}-${ARCH}.${FILE_ENDING} -o /tmp/etcd-${ETCD_VER}-${UNAME}-${ARCH}.${FILE_ENDING}
+
+tar xzvf /tmp/etcd-${ETCD_VER}-${UNAME}-${ARCH}.${FILE_ENDING} -C /tmp/etcd-download-test --strip-components=1
+rm -f /tmp/etcd-${ETCD_VER}-${UNAME}-${ARCH}.${FILE_ENDING}
 
 mkdir -p ${DATA_DIR}
 
