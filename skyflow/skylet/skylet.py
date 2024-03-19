@@ -31,15 +31,14 @@ def launch_skylet(cluster_id):
     Launches a Skylet for a given cluster.
     """
     controllers = []
-    try:
-        controllers = []
-        for cont in CONTROLLERS:
+    controllers = []
+    for cont in CONTROLLERS:
+        try:
             controllers.append(cont(cluster_id))
-    except Exception:  # pylint: disable=broad-except
-        print(traceback.format_exc())
-        print(
-            "Failed to initialize Skylet, check if cluster {cluster_id} is valid."
-        )
+        except Exception:  # pylint: disable=broad-except
+            print(traceback.format_exc())
+            print(f"Failed to initialize Skylet controller {cont}, "
+                  f"check if cluster {cluster_id} is valid.")
     for cont in controllers:
         cont.start()
     for cont in controllers:

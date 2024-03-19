@@ -1,8 +1,6 @@
 """
 Flow Controller - Submits and removes jobs from the cluster.
 """
-import logging
-import os
 import traceback
 from contextlib import contextmanager
 from copy import deepcopy
@@ -13,13 +11,11 @@ import requests
 from skyflow.api_client import ClusterAPI, FilterPolicyAPI, JobAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import FilterPolicy, Job, TaskStatusEnum, WatchEventEnum
 from skyflow.utils import match_labels
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
@@ -47,19 +43,14 @@ class FlowController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: Queue = Queue()
+
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Flow Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/flow_controller.log')
+
         self.job_informer = Informer(JobAPI(namespace=''), logger=self.logger)
         self.policy_informer = Informer(FilterPolicyAPI(namespace=''),
                                         logger=self.logger)
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
-
-        self.logger = logging.getLogger(f"[{self.name} - Flow Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 

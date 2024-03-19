@@ -68,11 +68,11 @@ class RestartPolicyEnum(enum.Enum):
     """Represents the restart policy of a job."""
 
     # Never restart job (even if it fails).
-    NEVER = "NEVER"
+    NEVER = "Never"
     # Always restart job (even if it succeeds, RC=0).
-    ALWAYS = "ALWAYS"
+    ALWAYS = "Always"
     # Only restart job if it fails (RC!=0).
-    ON_FAILURE = "ONFAILURE"
+    ON_FAILURE = "OnFailure"
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -195,8 +195,6 @@ class JobSpec(ObjectSpec):
     @classmethod
     def verify_restart_policy(cls, restart_policy: str) -> str:
         """Validates the restart_policy field of a job."""
-        # Check if restart policy is in restartplicyenum even if lowercase:
-        restart_policy = restart_policy.upper()
         if restart_policy is None or restart_policy not in [
                 r.value for r in RestartPolicyEnum
         ]:

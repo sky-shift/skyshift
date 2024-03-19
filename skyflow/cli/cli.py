@@ -353,7 +353,11 @@ def delete_cluster(name):
               default=0,
               show_default=True,
               help="Total memory (RAM) per task in MB.")
-@click.option("--run", type=str, default="", show_default=True, help="Run command for the job.")
+@click.option("--run",
+              type=str,
+              default="",
+              show_default=True,
+              help="Run command for the job.")
 @click.option("--replicas",
               type=int,
               default=1,
@@ -361,7 +365,7 @@ def delete_cluster(name):
               help="Number of replicas to run job.")
 @click.option("--restart_policy",
               type=str,
-              default="Always",
+              default=RestartPolicyEnum.ALWAYS.value,
               show_default=True,
               help="Restart policy for job tasks.")
 def create_job(
