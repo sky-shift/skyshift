@@ -5,3 +5,6 @@
 *.eggs/
 
 .vscode
+
+# Skyflow Documentation
+docs/build
