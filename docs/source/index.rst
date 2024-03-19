@@ -8,7 +8,7 @@ Overview
 
 SkyFlow is a general-purpose container orchestration platform to deploy workloads *anywhere* - on any cloud provider, private cluster, or the edge. The vision of Skyflow is to complete the final layer of distributed computing - *automatically* managing the lifecycle of deployments, batch jobs, and services across multiple clusters.
 
-SkyFlow abstracts many clusters into one super cluster. SkyFlow presents a thin layer on top of existing cluster managers, such as Kubernetes, Slurm, and other SkyFlows, which presents infinite scalability. SkyFlow accomplishes this with a unified job and service abstraction.
+SkyFlow abstracts many clusters into one large cluster. SkyFlow presents a thin layer on top of existing cluster managers, such as Kubernetes, Slurm, and other SkyFlows, which presents infinite scalability. SkyFlow accomplishes this with a unified job and service abstraction.
 
 SkyFlow can flexibly breathe in and out resources as needed. SkyFlow can provision clusters on any cloud provider, and can be attached to any existing cluster with minimal administrator permissions. SkyFlow is designed to be lightweight and simple to install.
 
