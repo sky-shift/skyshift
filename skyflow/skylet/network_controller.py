@@ -3,8 +3,6 @@ The Network controller ensures that the cluster link software is
 healthy and runs on the corresponding cluster.
 """
 
-import logging
-import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -14,11 +12,9 @@ import requests
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.network.cluster_linkv2 import launch_clusterlink, status_network
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 # Check every 5 minutes. Can adjust as needed.
 DEFAULT_HEARTBEAT_TIME = 300
@@ -68,14 +64,12 @@ class NetworkController(Controller):
         self.retry_counter = 0
         self.cluster_api = ClusterAPI()
         cluster_obj = self.cluster_api.get(name)
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Network Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/network_controller.log')
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm @TODO(daron))
         self.manager_api = setup_cluster_manager(cluster_obj)
-
-        self.logger = logging.getLogger(f"[{self.name} - Network Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def run(self):
         self.logger.info(

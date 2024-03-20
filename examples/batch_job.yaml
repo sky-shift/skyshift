@@ -6,12 +6,12 @@ metadata:
     app: batchjob
 
 spec:
-  replicas: 2
-  image: gcr.io/sky-burst/skyburst:latest
+  replicas: 1
+  image: ubuntu:latest
   resources:
     cpus: 1
     memory: 128
   env:
     - HELLO_SKY: "hello_sky"
   run: 'echo $HELLO_SKY; sleep 300'
-  restartPolicy: Never
+  restart_policy: Never

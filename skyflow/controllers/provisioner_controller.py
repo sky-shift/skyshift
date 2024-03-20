@@ -1,7 +1,5 @@
 """Provisioner Controller
 """
-import logging
-import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -16,15 +14,13 @@ from skyflow.cloud.skypilot_provisioning import (
     delete_kubernetes_cluster, provision_new_kubernetes_cluster)
 from skyflow.cloud.utils import delete_unused_cluster_config
 from skyflow.controllers.controller import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent, WatchEventEnum
 
 PROVISIONER_CONTROLLER_INTERVAL = 0.5
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
 
 def terminate_process(pid: int):
@@ -55,10 +51,9 @@ class ProvisionerController(Controller):
 
     def __init__(self):
         super().__init__()
-        self.logger = logging.getLogger('[Provisioner Controller]')
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger = self.logger = create_controller_logger(
+            title="[Provisioner Controller]",
+            log_path=f'{SKYCONF_DIR}/provisioner_controller.log')
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.cluster_api = ClusterAPI()

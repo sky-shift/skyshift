@@ -12,26 +12,24 @@ import sys
 import time
 
 import pytest
-
-
+import logging
 sys.path.append('path')
 
 from skyflow.cluster_manager import KubernetesManager
-from skyflow.network.cluster_linkv2 import (CL_DIRECTORY, create_link,
+from skyflow.network.cluster_linkv2 import (create_link,
                                             delete_export_service,
                                             delete_import_service,
                                             export_service, import_service,
                                             launch_clusterlink)
 
-cl1 = "peer1"
-cl2 = "peer2"
-cl1Name = "kind-" + cl1
-cl2Name = "kind-" + cl2
+CL1 = "peer1"
+CL2 = "peer2"
+CL1NAME = "kind-" + CL1
+CL2NAME = "kind-" + CL2
 
-test_service = "mlabbe/iperf3"
-cluster1_service = "iperf3-client"
-cluster2_service = "iperf3-server"
-destPort = 5000
+HTTPIMAGE = "hashicorp/http-echo"
+HTTP_SERVER = "http-server"
+DSTPORT = 8080
 
 
 def _cleanup_clusters():
@@ -41,8 +39,8 @@ def _cleanup_clusters():
         os.system(f"kind delete cluster --name={name}")
 
     """ Cleans up test environment """
-    _delete_cluster(cl1)
-    _delete_cluster(cl2)
+    _delete_cluster(CL1)
+    _delete_cluster(CL2)
 
 
 def _setup_clusters():
@@ -52,36 +50,37 @@ def _setup_clusters():
         """ Creates a KIND Cluster """
         os.system(f"kind create cluster  --name={name}")
 
-    _create_cluster(cl1)
+    _create_cluster(CL1)
     time.sleep(1)
-    _create_cluster(cl2)
+    _create_cluster(CL2)
     time.sleep(1)
 
 
 def _load_services():
     """ Loads the services in clusters to be used for connectivity tests """
-    os.system(f"kubectl config use-context {cl1Name}")
-    os.system(f"kubectl run iperf3-client --image {test_service}")
-    os.system(f"kubectl config use-context {cl2Name}")
+    os.system(f"kubectl config use-context {CL2NAME}")
     os.system(
-        f"kubectl run iperf3-server --image {test_service} --port 5000 -l app=iperf3-server -- -s -p 5000"
+        f"kubectl run http-server --image {HTTPIMAGE}"
+        " --port 8080 -l app=http-server -- -listen=:8080 -text=clusterlink-hello"
     )
-    os.system("kubectl wait --for=condition=Ready pod/iperf3-server")
-    os.system("kubectl create service nodeport iperf3-server --tcp=5000:5000")
+    os.system("kubectl wait --for=condition=Ready pod/http-server")
+    os.system("kubectl create service nodeport http-server --tcp=8080:8080")
 
 
 def _try_connection():
     """ Tries connecting to iperf3 server from the iperf3 client """
-    os.system(f"kubectl config use-context {cl1Name}")
+    logging.debug("Starting to test connection")
+    os.system(f"kubectl config use-context {CL1NAME}")
     try:
-        os.system("kubectl wait --for=condition=Ready pod/iperf3-client")
+        os.system("kubectl wait --for=condition=Ready pod/gwctl")
         direct_output = subprocess.check_output(
-            f"kubectl exec -i iperf3-client -- timeout 30 sh -c "
-            f"'until iperf3 -c iperf3-server-{cl2Name} -p {destPort} -t 1; do sleep 0.1; done'",
+            f"kubectl exec -i gwctl -- timeout 30 sh -c "
+            f"'until wget -T 1 http-server-{CL2NAME}:{DSTPORT} -q -O -; do sleep 0.1; done'",
             shell=True)
 
-        print(f"{direct_output.decode()}")
-        if "iperf Done" in direct_output.decode():
+        logging.debug(f"{direct_output.decode()}")
+        if "clusterlink-hello" in direct_output.decode():
+            logging.debug("Successful connection")
             return True
     except subprocess.CalledProcessError as e:
         return False
@@ -90,14 +89,16 @@ def _try_connection():
 
 def _delete_clusterlink_deployment():
     subprocess.getoutput(
-        f"kubectl delete deployment cl-controlplane --context {cl1Name}")
+        f"kubectl delete deployment cl-controlplane --context {CL1NAME}")
     subprocess.getoutput(
-        f"kubectl delete deployment cl-controlplane --context {cl2Name}")
+        f"kubectl delete deployment cl-controlplane --context {CL2NAME}")
 
 
 def _wait():
+    time.sleep(1)
     subprocess.getoutput(
-        f"kubectl exec -i gwctl --context {cl1Name} -- timeout 30 sh -c 'until nc -z iperf3-server-{cl2Name} {destPort}; do sleep 0.1; done'"
+        f"kubectl exec -i gwctl --context {CL1NAME} -- timeout 30 sh -c"
+        " 'until timeout 1 nc -z http-server-{CL2NAME} {DSTPORT}; do sleep 0.1; done'"
     )
 
 
@@ -105,31 +106,35 @@ def test_clusterlink():
     """Tests connectivity using clusterlink APIs in KIND environment"""
     _cleanup_clusters()
     _setup_clusters()
-    cluster1_manager = KubernetesManager(cl1Name)
-    cluster2_manager = KubernetesManager(cl2Name)
+    cluster1_manager = KubernetesManager(CL1NAME)
+    cluster2_manager = KubernetesManager(CL2NAME)
+
+    # Test Setup of Clusterlink on a fresh kubernetes cluster
     assert launch_clusterlink(cluster1_manager) is True
     assert launch_clusterlink(cluster2_manager) is True
     assert create_link(cluster1_manager, cluster2_manager) is True
     _load_services()
-    assert export_service(cluster2_service, cluster2_manager,
-                          [destPort]) is True
-    assert import_service(cluster2_service, cluster1_manager,
-                          cluster2_manager.cluster_name, [destPort]) is True
+    assert export_service(HTTP_SERVER, cluster2_manager,
+                          [DSTPORT]) is True
+    assert import_service(HTTP_SERVER, cluster1_manager,
+                          cluster2_manager.cluster_name, [DSTPORT]) is True
     _wait()
     assert _try_connection() is True
 
+    logging.debug("Starting re-export/import connection test")
     # Test deletion and export/import again
-    assert delete_export_service(cluster2_service, cluster2_manager) is True
-    assert delete_import_service(cluster2_service, cluster1_manager,
-                                 cluster2_manager.cluster_name)
+    assert delete_export_service(HTTP_SERVER, cluster2_manager) is True
+    assert delete_import_service(HTTP_SERVER, cluster1_manager, 
+                                 cluster2_manager.cluster_name) is True
     time.sleep(1)
-    assert export_service(cluster2_service, cluster2_manager,
-                          [destPort]) is True
-    assert import_service(cluster2_service, cluster1_manager,
-                          cluster2_manager.cluster_name, [destPort]) is True
+    assert export_service(HTTP_SERVER, cluster2_manager,
+                          [DSTPORT]) is True
+    assert import_service(HTTP_SERVER, cluster1_manager,
+                          cluster2_manager.cluster_name, [DSTPORT]) is True
     _wait()
     assert _try_connection() is True
 
+    logging.debug("Starting deployment reset connection test")
     # Test destroying clusterlink deployment, and re-install
     _delete_clusterlink_deployment()
     assert launch_clusterlink(cluster1_manager) is True

@@ -6,18 +6,16 @@ import os
 import signal
 import sys
 import time
+from datetime import datetime, timedelta
 from functools import partial
-from typing import List
+from typing import List, Optional
 
 import jsonpatch
+import jwt
 import yaml
-from api_utils import authenticate_request  # pylint: disable=import-error
-from api_utils import create_access_token  # pylint: disable=import-error
-from api_utils import load_manager_config  # pylint: disable=import-error
-from api_utils import update_manager_config  # pylint: disable=import-error
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
@@ -36,8 +34,80 @@ from skyflow.utils import load_object, sanitize_cluster_name
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+#@TODO:(acuadron): retrieve these from an environment variable (maybe populate through TF)
 ADMIN_USER = "admin"
 ADMIN_PWD = "admin"
+
+# Assumes authentication tokens are JWT tokens
+OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
+API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+CACHED_SECRET_KEY = None
+
+
+def create_access_token(data: dict,
+                        secret_key: str,
+                        expires_delta: Optional[timedelta] = None):
+    """Creates access token for users."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        # 10 years
+        expire = datetime.utcnow() + timedelta(minutes=315360000)
+    to_encode.update({"exp": expire})
+    encoded_jwt: str = jwt.encode(to_encode, secret_key, algorithm='HS512')
+    return encoded_jwt
+
+
+def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
+    """Authenticates the request using the provided token.
+
+    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
+    global CACHED_SECRET_KEY  # pylint: disable=global-statement
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    if CACHED_SECRET_KEY is None:
+        secret_key = load_manager_config()["api_server"]["secret"]
+        CACHED_SECRET_KEY = secret_key
+    else:
+        secret_key = CACHED_SECRET_KEY
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+        username: str = payload.get("sub", None)
+        if username is None:
+            raise credentials_exception
+        # Check if time out
+        if datetime.utcnow() >= datetime.fromtimestamp(payload.get("exp")):
+            raise HTTPException(
+                status_code=401,
+                detail="Token expired. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except jwt.PyJWTError as error:
+        raise credentials_exception from error
+    return username
+
+
+def load_manager_config():
+    """Loads the API server config file."""
+    try:
+        with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
+                  "r") as config_file:
+            config_dict = yaml.safe_load(config_file)
+    except FileNotFoundError as error:
+        raise Exception(
+            f"API server config file not found at {API_SERVER_CONFIG_PATH}."
+        ) from error
+    return config_dict
+
+
+def update_manager_config(config: dict):
+    """Updates the API server config file."""
+    with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
+        yaml.dump(config, config_file)
 
 
 class User(BaseModel):
@@ -175,7 +245,7 @@ class APIServer:
     def _fetch_etcd_object(self, link_header: str):
         """Fetches an object from the ETCD server."""
         obj_dict = self.etcd_client.read(link_header)
-        if obj_dict is None:
+        if obj_dict is None or obj_dict == {}:
             raise HTTPException(
                 status_code=404,
                 detail=f"Object '{link_header}' not found.",
@@ -430,7 +500,7 @@ class APIServer:
                             obj_instance.model_dump(mode="json"),
                         )
                     except KeyNotFoundError as error:
-                        raise HTTPException(status_code=400,
+                        raise HTTPException(status_code=404,
                                             detail=error.msg) from error
                     except ConflictError as error:
                         raise HTTPException(status_code=409,
@@ -481,7 +551,7 @@ class APIServer:
             else:
                 link_header = f"{object_type}"
             obj_dict = self.etcd_client.read(f"{link_header}/{object_name}")
-            if obj_dict is None:
+            if obj_dict is None or obj_dict == {}:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Object '{link_header}/{object_name}' not found.",
@@ -503,7 +573,7 @@ class APIServer:
                     obj.model_dump(mode="json"),
                 )
             except KeyNotFoundError as error:
-                raise HTTPException(status_code=400,
+                raise HTTPException(status_code=404,
                                     detail=error.msg) from error
             except Exception as error:
                 raise HTTPException(status_code=400, detail=error) from error
@@ -547,7 +617,13 @@ class APIServer:
             link_header = f"{object_type}"
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
-        obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        try:
+            obj_dict = self.etcd_client.delete(f"{link_header}/{object_name}")
+        except KeyNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=error.msg,
+            ) from error
         if obj_dict:
             return obj_dict
         raise HTTPException(
