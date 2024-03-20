@@ -5,12 +5,14 @@ Prerequisites : KIND (https://kind.sigs.k8s.io)
 
 Run : pytest clusterlink_test.py
 """
+import logging
 import os
 import subprocess
 import sys
 import time
 
 import pytest
+
 
 sys.path.append('path')
 

@@ -45,6 +45,12 @@ class Manager:
             allocatable_capacity=self.allocatable_resources,
         )
 
+    def execute_command(  # pylint: disable=too-many-arguments
+            self, pod: str, container: str, command: List[str], stdin: bool,
+            tty_enabled: bool, quiet: bool):
+        """Executes a command on the cluster."""
+        raise NotImplementedError
+
     def get_jobs_status(self):
         """Gets the status for all jobs."""
         raise NotImplementedError

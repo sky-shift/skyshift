@@ -18,10 +18,12 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_role_table, print_service_table)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.templates.cluster_template import Cluster
-from skyflow.templates.job_template import RestartPolicyEnum
+from skyflow.templates.job_template import RestartPolicyEnum, TaskStatusEnum
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
+from skyflow.utils.utils import parse_resource_from_file
 
 
 @click.group()
@@ -998,3 +1000,153 @@ def delete_role(name):
     if not validate_input_string(name):
         raise click.BadParameter(f"Name format is invalid: {name}")
     delete_cli_object(object_type="role", name=name)
+
+
+# ==============================================================================
+# Skyflow exec
+@click.command(name="exec")
+@click.argument("resource", required=True)
+@click.argument("command", nargs=-1, required=True)
+@click.option(
+    "--namespace",
+    type=str,
+    default="default",
+    show_default=True,
+    help="Namespace corresponding to job's location.",
+)
+@click.option("-p",
+              "--pod",
+              default=None,
+              help="Pod name where the command will be executed.")
+@click.option("-c",
+              "--cluster",
+              default=None,
+              help="Cluster name where the command will be executed.")
+@click.option(
+    "-c",
+    "--container",
+    default=None,
+    help=
+    "Container name. If omitted, the first container in the pod will be chosen."
+)
+@click.option("-f",
+              "--filename",
+              multiple=True,
+              default=[],
+              help="Filename to use to exec into the resource.")
+@click.option("-q",
+              "--quiet",
+              is_flag=True,
+              default=False,
+              help="Only print output from the remote session.")
+@click.option("-i",
+              "--stdin",
+              is_flag=True,
+              default=False,
+              help="Pass stdin to the container.")
+@click.option("-t",
+              "--tty",
+              is_flag=True,
+              default=False,
+              help="Stdin is a TTY.")
+def exec_command(  # pylint: disable=too-many-arguments,too-many-branches,too-many-locals
+        resource: str, command: Tuple[str], namespace: str, cluster: str,
+        pod: str, container: str, filename: List[str], quiet: bool,
+        stdin: bool, tty: bool):
+    """
+    Execute a command in a container.
+
+    RESOURCE: Specify the resource name (like deploy/mydeployment or svc/myservice).
+    COMMAND: The command to execute inside the container.
+    """
+
+    if tty and not quiet:
+        click.echo(
+            "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
+        )
+
+    # Handle filenames if provided. This is how kube exec does it,
+    # maybe we should look for a job YAML (?)
+    for file in filename:
+        # Parse resource details from the file
+        resource_details = parse_resource_from_file(file, expected_kind='Pod')
+        if resource_details:
+            # Override the command-line arguments if the file contains the necessary details
+            resource = resource_details['metadata']['name']
+            namespace = resource_details['metadata'].get(
+                'namespace', namespace)
+            container = resource_details.get('spec', {}).get(
+                'containers', [{}])[0].get('name', container)
+            # If the file has specified a pod, we don't need to look at other files
+            break
+        click.echo(f"No Pod resource found in file {file}")
+
+    job = get_cli_object(object_type="job", namespace=namespace, name=resource)
+
+    if not resource:
+        raise click.ClickException(
+            "No valid resource found to execute commands on.")
+
+    clusters_running = [
+        cluster_name
+        for cluster_name, status in job.status.replica_status.items()
+        if status.get(TaskStatusEnum.RUNNING.value, 0) > 0
+    ]
+
+    if not clusters_running:
+        raise click.ClickException(
+            f"No running clusters found for the job '{resource}'.")
+
+    if len(clusters_running) > 1 and not cluster and not quiet and tty:
+        clusters_running = [clusters_running[0]]
+        click.echo(
+            f"Multiple clusters found. Using the first found running cluster: \
+                {clusters_running[0]}. Specify the cluster with --cluster.")
+
+    selected_clusters = [cluster] if cluster else clusters_running
+    if cluster and selected_clusters not in clusters_running:
+        raise click.ClickException(
+            f"The specified cluster '{cluster}' is not currently running the job '{resource}'."
+        )
+
+    for selected_cluster in selected_clusters:
+        cluster_obj = get_cli_object(object_type="cluster",
+                                     name=selected_cluster)
+        cluster_manager = setup_cluster_manager(cluster_obj)
+
+        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
+            raise click.ClickException(
+                f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
+            )
+
+        pods = cluster_manager.retrieve_pods_from_job(job)
+        pod_names = [p.metadata.name for p in pods]
+
+        if pod and pod not in pod_names:
+            raise click.ClickException(
+                f"The specified pod '{pod}' does not exist within the job '{resource}'."
+            )
+
+        pod_to_use = [pod] if pod else pod_names
+
+        if len(pod_to_use) > 1 and tty and not pod and not quiet:
+            pod_to_use = [pod_to_use[0]]
+            click.echo(
+                f"Multiple pods found. Using the first pod found running the job: \
+                    {pod_to_use}. Specify the pod with --pod.")
+
+        for selected_pod in pod_to_use:
+            try:
+                cluster_manager.execute_command(selected_pod,
+                                                container=container,
+                                                command=list(command),
+                                                stdin=stdin,
+                                                tty_enabled=tty,
+                                                quiet=quiet)
+
+            except Exception as error:  # pylint: disable=broad-except
+                raise click.ClickException(
+                    f"An error occurred while executing the command: {error}")
+
+
+cli.add_command(exec_command)
