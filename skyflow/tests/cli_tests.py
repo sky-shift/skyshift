@@ -166,6 +166,7 @@ def test_create_cluster_success_no_manager(runner):
 
 
 def test_create_job_success(runner):
+
     # Define the job specifications
     job_spec = {
         "name": "valid-job",
@@ -176,10 +177,17 @@ def test_create_job_success(runner):
         "run": "echo Hello World",
     }
 
+    # Define job labels
+    labels = [("labelkey1", "value1"), ("labellkey2", "value2")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
     # Construct the command with parameters
     cmd = [
-        'create', 'job', job_spec["name"], '--namespace',
-        job_spec["namespace"], '--image', job_spec["image"], '--cpus',
+        'create', 'job', job_spec["name"], '--namespace', job_spec["namespace"]
+    ] + label_args + [
+        '--image', job_spec["image"], '--cpus',
         str(job_spec["cpus"]), '--memory',
         str(job_spec["memory"]), '--run', job_spec["run"]
     ]
