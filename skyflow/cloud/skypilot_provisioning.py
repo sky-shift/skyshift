@@ -2,6 +2,7 @@
 SkyPilot + RKE provisioning script for cloud clusters.
 """
 import os
+import subprocess
 import threading
 from copy import deepcopy
 from typing import Any, Dict
@@ -195,8 +196,18 @@ def provision_new_kubernetes_cluster(
     # Launch RKE on Skypilot cluster.
     # Assumes RKE is already installed
     # Installation instructions: https://rke.docs.rancher.com/installation#download-the-rke-binary
-    os.system(
-        f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml")
+    try:
+        subprocess.run(
+            f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml",
+            check=True,
+            shell=True)
+    except subprocess.CalledProcessError as error:
+        raise Exception(
+            "RKE cluster creation failed. Perhaps RKE is not installed or the command failed."
+        ) from error
+    except Exception as error:
+        raise Exception(
+            f"An unexpected error occurred: {str(error)}") from error
 
 
 def delete_kubernetes_cluster(cluster_name: str, num_nodes: int):
