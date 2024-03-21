@@ -1,0 +1,30 @@
+name: PR check - Clusterlink tests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  clusterlink-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.20']
+        
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10' 
+    - name: Install kind
+      uses: helm/kind-action@v1.9.0
+      with:
+        install_only: true
+    - name: Install kubectl
+      uses: actions-hub/kubectl@master
+      env:
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+    - name: Run clusterlink test on a kind cluster
+      run: CICD=1 ${{ runner.debug == '1' && 'DEBUG=1' || '' }} pytest skyflow/tests/clusterlink_test.py
