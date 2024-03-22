@@ -3,13 +3,14 @@ Resource template for Skyflow.
 """
 import enum
 
+
 class ContainerEnum(enum.Enum):
     """Selector for supported container managers"""
     CONTAINERD = "CONTAINERD"
     SINGULARITY = "SINGULARITY"
     PODMAN = "PODMAN"
     PODMANHPC = "PODMANHPC"
-    DOCKER= "DOCKER"
+    DOCKER = "DOCKER"
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -44,3 +45,5 @@ class AcceleratorEnum(enum.Enum):
     P100: str = "P100"
     K80: str = "K80"
     H100: str = "H100"
+    NOGPU: str = "NoGPU"
+    UNKGPU: str = "UnknownGPU"

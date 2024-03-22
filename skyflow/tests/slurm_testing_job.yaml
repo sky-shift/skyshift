@@ -16,5 +16,4 @@ spec:
     PATH: "/bin"
 
   run: |
-    #!/bin/bash
     echo $MY_ENV_VAR; sleep 5000; echo bye

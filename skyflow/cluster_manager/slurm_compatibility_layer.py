@@ -1,17 +1,14 @@
+# pylint: disable=E1101
 """
 Compatibility layer for multitiude of container management solutions.
 """
 import json
 import os
-from typing import Dict, List, Union
+from typing import Dict, Union
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from skyflow.templates import ContainerEnum, Job
-
-SUPPORTED_CONTAINER_SOLUTIONS = [
-    "containerd", "singularity", "docker", "podman", "podmanhpc"
-]
+from skyflow.templates import Job
 
 
 class ConfigUndefinedError(Exception):
@@ -23,26 +20,12 @@ class SlurmCompatiblityLayer():
         Creates run scripts depending on selected/supported container manager.
     """
 
-    def __init__(self, config_dict, config_path):
-        #Configure manager utilized tooling
-        try:
-            self.container_manager = config_dict['tools']['container']
-        except ConfigUndefinedError as exception:
-            raise ConfigUndefinedError(
-                f'Missing container manager {self.container_manager} in \
-                {config_path}.') from exception
-        if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
-            raise ValueError(
-                f'Unsupoorted container manager {self.container_manager} in \
-                    {config_path}.') from exception
-        self.runtime_dir = ''
-        if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
-            try:
-                self.runtime_dir = config_dict['tools']['runtime_dir']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing runtime_dir for {self.container_manager} in \
-                        {config_path}.') from exception
+    def __init__(self, container_manager, runtime_dir, time_limit,
+                 slurm_account):
+        self.container_manager = container_manager
+        self.runtime_dir = runtime_dir
+        self.time_limit = time_limit
+        self.slurm_account = slurm_account
         self.compat_dict = {}
         # Get all methods defined in the class
         methods = [
@@ -57,7 +40,7 @@ class SlurmCompatiblityLayer():
         for method_name in command_methods:
             self.compat_dict[method_name] = getattr(self, method_name)
 
-    def _create_slurm_json(self, job: Job) -> str:
+    def create_slurm_json(self, job: Job) -> str:
         """ Creates the json file to send to slurmrestd.
 
             Args:
@@ -79,9 +62,60 @@ class SlurmCompatiblityLayer():
             job_dict = self.compat_dict[compat_function](job)
         else:
             self.compat_dict["compat_unsupported"]()
+        #Convert ENVs to json format for RESTD
+        job_dict["envs"] = json.dumps(job_dict["envs"])
         job_jinja = slurm_job_template.render(job_dict)
         json_data = json.loads(job_jinja, strict=False)
         return json_data
+
+    def create_slurm_sbatch(self, job: Job) -> str:
+        """ Creates the sbatch script to send to submit with CLI.
+
+            Args:
+                Job: Job object containing job properties.
+
+            Returns:
+                Generated bash file.
+        """
+        #Create run script dictionary
+        compat_function = "compat_" + self.container_manager.lower()
+        job_dict = {}
+        if compat_function in self.compat_dict:
+            job_dict = self.compat_dict[compat_function](job)
+        else:
+            self.compat_dict["compat_unsupported"]()
+        env_string = ''
+        for item in job_dict['envs']:
+            env_string = env_string + 'export ' + item + '=' + job_dict[
+                'envs'][item] + ';'
+        job_dict['envs'] = env_string
+        job_dict['total_mem'] = int(job.spec.resources['memory'])
+
+        temp_script = job_dict['submission_script'].split('\\n')
+        command_string = ''
+        for command in temp_script:
+            if command.startswith('#'):
+                continue
+            #if not command.endswith(';'):
+            #command = command + ';'
+            command_string = command_string + command + ';'
+        command_string = command_string[:-1]
+        job_dict['submission_script'] = command_string
+
+        command = 'sbatch '
+        command = command + '-c ' + str(job_dict['cpus']) + ' '
+        command = command + '--mem=' + str(job_dict['total_mem']) + ' '
+        if job_dict['gpus'] != 0:
+            command = command + '--gpus=' + str(job_dict['gpus']) + ' '
+        command = command + '--wrap="bash -c ' + job_dict['envs'] + job_dict[
+            'submission_script'] + '" '
+
+        #job_jinja = slurm_job_template.render(job_dict)
+
+        #TEMP_FILE = 'slurm_temp_file.sh'
+        #f = open(TEMP_FILE, 'w')
+        #f.write(job_jinja)
+        return command
 
     def compat_docker(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Docker cli commands.
@@ -116,15 +150,17 @@ class SlurmCompatiblityLayer():
             'envs':
             json.dumps(job.spec.envs),
             'account':
-            'sub1',
+            self.slurm_account,
             'home':
             '/home',
             'cpus':
             int(resources['cpus']),
             'memory_per_cpu':
             int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
             'time_limit':
-            2400
+            self.time_limit
         }
         return job_dict
 
@@ -162,15 +198,17 @@ class SlurmCompatiblityLayer():
             'envs':
             json.dumps(job.spec.envs),
             'account':
-            'sub1',
+            self.slurm_account,
             'home':
             '/home',
             'cpus':
             int(resources['cpus']),
             'memory_per_cpu':
             int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
             'time_limit':
-            2400
+            self.time_limit
         }
         return job_dict
 
@@ -195,7 +233,6 @@ class SlurmCompatiblityLayer():
         submission_script = _create_submission_script(script_dict)
         resources = job.spec.resources
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
-            print("set XDG")
             job.spec.envs["XDG_RUNTIME_DIR"] = self.runtime_dir
         job_dict = {
             'submission_script':
@@ -205,22 +242,87 @@ class SlurmCompatiblityLayer():
             'path':
             f"{job.spec.envs['PATH']}",
             'envs':
-            json.dumps(job.spec.envs),
+            job.spec.envs,
             'account':
-            'sub1',
+            self.slurm_account,
             'home':
             '/home',
             'cpus':
             int(resources['cpus']),
             'memory_per_cpu':
             int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
             'time_limit':
-            2400
+            self.time_limit
+        }
+        return job_dict
+
+    def compat_podman_hpc(self, job: Job) -> Dict[str, Union[int, str]]:
+        """ Generates PodmanHPC cli commands.
+
+            Args:
+                job: Job object containing properties of submitted job.
+
+            Returns:
+                Dictionary of all the values needed for Containerd.
+        """
+        raise NotImplementedError
+
+    def compat_podman(self, job: Job) -> Dict[str, Union[int, str]]:
+        """ Generates Podman cli commands.
+
+            Args:
+                job: Job object containing properties of submitted job.
+
+            Returns:
+                Dictionary of all the values needed for Containerd.
+        """
+        raise NotImplementedError
+
+    def compat_nocontainer(self, job: Job) -> Dict[str, Union[int, str]]:
+        """ Creates shell compatability run script based off dictionary of values.
+
+        Args:
+            Dictionary of values to append to the script.
+
+        Returns:
+            String containing the run script.
+
+        """
+        script_dict = {
+            'shebang': '#!/bin/bash',
+            'job_specific_script': job.spec.run,
+            'footer': 'echo \'bye\''
+        }
+        submission_script = _create_submission_script(script_dict)
+        resources = job.spec.resources
+        job_dict = {
+            'submission_script':
+            submission_script,
+            'name':
+            f'{job.metadata.name}',
+            'path':
+            f"{job.spec.envs['PATH']}",
+            'envs':
+            job.spec.envs,
+            'account':
+            self.slurm_account,
+            'home':
+            '/home',
+            'cpus':
+            int(resources['cpus']),
+            'memory_per_cpu':
+            int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
+            'time_limit':
+            self.time_limit
         }
         return job_dict
 
 
-def _create_submission_script(script_dict):
+def _create_submission_script(script_dict, newline=True):
     """ Creates shell compatability run script based off dictionary of values.
 
         Args:
@@ -230,10 +332,13 @@ def _create_submission_script(script_dict):
             String containing the run script.
 
     """
+    seperator = '\\n'
+    if not newline:
+        seperator = ';'
     submission_script = ''
     for key in script_dict:
         submission_script = submission_script + script_dict[key]
-        submission_script = submission_script + '\\n'
+        submission_script = submission_script + seperator
     return submission_script
 
 
@@ -244,20 +349,3 @@ def compat_unsupported():
             ValueError: Provided unsupported container manager option in the config file.
     """
     raise ValueError('Unsupported Container Manager Solution')
-
-
-#if __name__ == "__main__":
-# SLURMRESTD_CONFIG_PATH = '~/.skyconf/slurmrestd.yaml'
-# absolute_path = os.path.expanduser(SLURMRESTD_CONFIG_PATH)
-# with open(absolute_path, 'r') as config_file:
-#         try:
-#             config_dict = yaml.safe_load(config_file)
-#         except ValueError as exception:
-#             raise Exception(
-#                 f'Unable to load {SLURMRESTD_CONFIG_PATH}, check if file exists.'
-#             ) from exception
-# layer = SlurmCompatiblityLayer(config_dict)
-# f = open('../../examples/redis_example.yaml')
-# mdict = yaml.safe_load(f)
-# job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
-# layer._create_slurm_json(job, ContainerEnum.DOCKER)
