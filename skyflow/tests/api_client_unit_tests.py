@@ -25,13 +25,13 @@ from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         # Kill any running sky_manager processes
-        shutdown_skyflow()
+        shutdown_skyflow(temp_data_dir)
         setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
 
         # Stop the application and ETCD server
-        shutdown_skyflow()
+        shutdown_skyflow(temp_data_dir)
 
         print("Cleaned up temporary ETCD data directory.")
 

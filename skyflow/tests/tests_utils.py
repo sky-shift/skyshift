@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import time
 
@@ -15,6 +16,14 @@ def setup_skyflow(temp_data_dir: str) -> None:
     """
     time.sleep(5)  # Wait for any previous processes to terminate.
     print("Using temporary data directory for ETCD:", temp_data_dir)
+
+    skyconf_dir = os.path.expanduser("~/.skyconf/")
+    dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
+    if os.path.exists(skyconf_dir):
+        shutil.copytree(skyconf_dir, dest_skyconf_dir)
+        shutil.rmtree(skyconf_dir)  # Remove the original ~/.skyconf/ directory after copying.
+        print(f"Copied {skyconf_dir} to {dest_skyconf_dir} and removed the original directory.")
+
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -46,13 +55,30 @@ def setup_skyflow(temp_data_dir: str) -> None:
         20)  # Additional wait time for the server to become fully operational.
 
 
-def shutdown_skyflow() -> None:
+def shutdown_skyflow(temporal_directory: str) -> None:
     """
     Shuts down the Skyflow service by terminating its processes.
     """
+
     kill_process("launch_sky_manager")
     kill_process("launch_server")
     kill_process("etcd")
+    # Path to the backed up .skyconf directory within the temporary directory.
+    backup_skyconf_dir = os.path.join(temporal_directory, ".skyconf")
+    
+    # Original .skyconf directory path.
+    original_skyconf_dir = os.path.expanduser("~/.skyconf")
+    
+    # Check if the backup exists.
+    if os.path.exists(backup_skyconf_dir):
+        # Remove the current .skyconf directory if it exists to avoid conflicts.
+        if os.path.exists(original_skyconf_dir):
+            shutil.rmtree(original_skyconf_dir)
+        # Move the backup to the original location.
+        shutil.move(backup_skyconf_dir, original_skyconf_dir)
+        print(f"Restored {original_skyconf_dir} from the backup.")
+    else:
+        print(f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration.")
 
 
 def kill_process(process_name: str) -> None:
