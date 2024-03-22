@@ -1,12 +1,12 @@
+# pylint: disable=E1101
 """
-Represents the compatability layer over Slurm native API.
+Represents the compatability layer over Slurm native REST API.
 """
 import json
 import os
 import re
 import uuid
-from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import requests
 import requests_unixsocket
@@ -15,11 +15,15 @@ import yaml
 from skyflow.cluster_manager import Manager
 from skyflow.cluster_manager.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
-from skyflow.templates import (AcceleratorEnum, Job, JobStatusEnum,
-                               ResourceEnum, Service)
+from skyflow.templates import (AcceleratorEnum, ContainerEnum, Job,
+                               JobStatusEnum, ResourceEnum, Service)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
-SLURMRESTD_CONFIG_PATH = '~/.skyconf/slurmrestd.yaml'
+SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+SUPPORTED_CONTAINER_SOLUTIONS = [
+    "containerd", "singularity", "docker", "podman", "podmanhpc"
+]
+
 #Defines for job status
 SLURM_ACTIVE = {'RUNNING,'
                 'COMPLETING'}
@@ -27,7 +31,7 @@ SLURM_INIT = {'CONFIGURING', 'PENDING'}
 SLURM_FAILED = {'FAILED', 'STOPPED', 'TIMEOUT', 'SUSPENDED', 'PREMPTED'}
 SLURM_COMPLETE = {'COMPLETED'}
 #Identifying Headers for job submission name
-MANAGER_NAME = "skyflow:slurm"
+MANAGER_NAME = "skyflow8slurm"
 #Slurm head node number
 
 HEAD_NODE = 0
@@ -40,14 +44,7 @@ class ConfigUndefinedError(Exception):
 class SlurmrestdConnectionError(Exception):
     """ Raised when there is an error connecting to slurmrestd. """
 
-
-@dataclass
-class NodeGpus:
-    num_gpus: int
-    gpu_types: List[str]
-
-
-class SlurmManager(Manager):
+class SlurmManagerREST(Manager):
     """ Slurm compatability set for Skyflow."""
 
     def __init__(self):
@@ -59,31 +56,69 @@ class SlurmManager(Manager):
         """
         super().__init__("slurm")
         is_unix_socket = False
-        absolute_path = os.path.expanduser(SLURMRESTD_CONFIG_PATH)
+        absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(absolute_path, 'r') as config_file:
             try:
                 config_dict = yaml.safe_load(config_file)
             except ValueError as exception:
                 raise Exception(
-                    f'Unable to load {SLURMRESTD_CONFIG_PATH}, check if file exists.'
+                    f'Unable to load {SLURM_CONFIG_PATH}, check if file exists.'
                 ) from exception
             #Get openapi verision, and socket/hostname slurmrestd is listening on
             try:
                 self.openapi = config_dict['slurmrestd']['openapi_ver']
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
-                    f'Define openapi in {SLURMRESTD_CONFIG_PATH}.'
+                    f'Define openapi in {SLURM_CONFIG_PATH}.'
                 ) from exception
             #Configure slurmrestd port
             try:
                 self.port = config_dict['slurmrestd']['port']
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
-                    f'Define port slurmrestd is listening on in {SLURMRESTD_CONFIG_PATH}.'
+                    f'Define port slurmrestd is listening on in {SLURM_CONFIG_PATH}.'
                 ) from exception
 
-        self.compat_layer = SlurmCompatiblityLayer(config_dict,
-                                                   SLURMRESTD_CONFIG_PATH)
+            try:
+                self.container_manager = config_dict['tools']['container']
+            except ConfigUndefinedError as exception:
+                raise ConfigUndefinedError(
+                    f'Missing container manager {self.container_manager} in \
+                    {SLURM_CONFIG_PATH}.') from exception
+            if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
+                raise ValueError(
+                    f'Unsupported container manager {self.container_manager} in \
+                        {SLURM_CONFIG_PATH}.') from exception
+            self.runtime_dir = ''
+            if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
+                try:
+                    self.runtime_dir = config_dict['tools']['runtime_dir']
+                except ConfigUndefinedError as exception:
+                    raise ConfigUndefinedError(
+                        f'Missing runtime_dir for {self.container_manager} in \
+                            {SLURM_CONFIG_PATH}.') from exception
+            if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
+                raise ValueError(
+                    f'Unsupported container manager {self.container_manager} in \
+                        {SLURM_CONFIG_PATH}.') from exception
+            try:
+                    #Get slurm user account
+                self.slurm_account = config_dict['properties']['account']
+            except ConfigUndefinedError as exception:
+                raise ConfigUndefinedError(
+                    f'Missing slurm_account username needed \
+                    for job submission{self.slurm_account} in \
+                    {SLURM_CONFIG_PATH}.') from exception
+            try:
+                    #Get slurm time limit
+                self.slurm_time_limit = config_dict['properties']['time_limit']
+            except ConfigUndefinedError as exception:
+                raise ConfigUndefinedError(
+                    f'Slurm time limit{self.slurm_account} in \
+                    {SLURM_CONFIG_PATH}.') from exception
+        self.runtime_dir = ''
+        self.compat_layer = SlurmCompatiblityLayer(self.container_manager.lower(),
+            self.runtime_dir, self.slurm_time_limit, self.slurm_account)
         if 'sock' in self.port.lower():
             is_unix_socket = True
         if is_unix_socket:
@@ -93,12 +128,6 @@ class SlurmManager(Manager):
             self.session = requests.Session()
             self.port = self.port
         self.port = self.port + '/slurm/' + self.openapi
-
-        #store resource values
-        self.curr_allocatable = None
-        self.total_resources = None
-        self.allocatable_resources()
-        self.cluster_resources()
 
     def send_job(self, json_data: str):
         """Submit JSON job file.
@@ -120,7 +149,7 @@ class SlurmManager(Manager):
                 match_name: Name of job to match against.
 
             Returns:
-                List of all job names that match n.
+                List of all job names that match match_name.
 
         """
         fetch = self.port + '/jobs'
@@ -176,13 +205,19 @@ class SlurmManager(Manager):
         return _get_job_state_enum(job_state)
 
     def get_service_status(self) -> Dict[str, Dict[str, str]]:
-        return {'a': {'b': 'c'}}
+        """ Fetches current status of service deployed.
+
+            Returns: Dict of all service names and their properties.
+
+        """
+        raise NotImplementedError
 
     def get_accelerator_types(self) -> Dict[str, str]:
         """ Fetches accelerators types in each node.
 
             Returns:
-                Dict of accelerators
+                Dict of nodes and their available accelerators.
+                If a node has no accelerator, it will have a key with empty value.
         """
         url = self.port + '/nodes/'
         response = self.session.get(url).json()
@@ -202,16 +237,18 @@ class SlurmManager(Manager):
                     if int(gpu_count) > num_appearing_gpu:
                         most_appearing_gpu = gpu_name
                     accelerator_types[curr_node] = most_appearing_gpu
-        return accelerator_types
 
+            else:
+                #Set node as key, with no GPU available
+                accelerator_types[curr_node] = ''
+        return accelerator_types
+    @property
     def cluster_resources(self) -> Dict[str, Dict[str, float]]:
         """ Get total resources of all nodes in the cluster.
 
             Returns:
                 Dict of node names and a dict of their total available resources.
         """
-        if self.total_resources != None:
-            return self.total_resources
         # Get the nodes once, then process the response
         url = self.port + '/nodes/'
         response = self.session.get(url).json()
@@ -234,9 +271,8 @@ class SlurmManager(Manager):
                 ResourceEnum.MEMORY.value: float(node_memory),
                 ResourceEnum.GPU.value: float(gpu_count)
             }
-        self.total_resources = cluster_resources
         return cluster_resources
-
+    @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """ Gets currently allocatable resources of all nodes.
 
@@ -270,7 +306,6 @@ class SlurmManager(Manager):
                 ResourceEnum.MEMORY.value: float(allocatable_memory),
                 ResourceEnum.GPU.value: float(allocatable_gpus)
             }
-        self.curr_allocatable = available_resources
         return available_resources
 
     def get_cluster_status(self) -> ClusterStatus:
@@ -286,13 +321,13 @@ class SlurmManager(Manager):
                 response['errors']) > 0:
             return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
-                capacity=self.total_resources,
-                allocatable_capacity=self.curr_allocatable,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
             )
         return ClusterStatus(
             status=ClusterStatusEnum.READY.value,
-            capacity=self.total_resources,
-            allocatable_capacity=self.curr_allocatable,
+            capacity=self.cluster_resources,
+            allocatable_capacity=self.allocatable_resources,
         )
 
     def submit_job(self, job: Job) -> Dict:
@@ -325,7 +360,7 @@ class SlurmManager(Manager):
 
         #deploy_dict = self._convert_to_json(job, slurm_job_name)
         job.metadata.name = slurm_job_name
-        json_data = self.convert_to_job_json(job)
+        json_data = self.compat_layer.create_slurm_json(job)
         response = self.send_job(json_data)
 
         api_responses.append(response)
@@ -366,7 +401,7 @@ class SlurmManager(Manager):
             Returns:
                 Json file to be submitted.
         """
-        return self.compat_layer._create_slurm_json(job)
+        return self.compat_layer.create_slurm_json(job)
 
     @staticmethod
     def convert_yaml(job: Job):
@@ -435,18 +470,5 @@ def _print_json(data: str):
     print(json.dumps(data, indent=4, sort_keys=True))
 
 
-#if __name__ == '__main__':
-#api = SlurmManager()
-#api.get_accelerator_types()
-#print(api.cluster_resources())
-# file_path = './slurm_basic_job.json'
-# file_path = "./containerdjob.json"
-# with open(file_path, 'r') as json_file:
-#     json_data = json_file.read()
-# data = json.loads(json_data)
-# #print(api._print_json(api.send_job(data).json()))
-# f = open('../../examples/example_simple.yaml')
-# mdict = yaml.safe_load(f)
-# job = Job(metadata=mdict["metadata"], spec=mdict["spec"])
-# api.submit_job(job)
-# #print(api.get_jobs_status())
+if __name__ == '__main__':
+    api = SlurmManagerREST()
