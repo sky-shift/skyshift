@@ -4,19 +4,35 @@ Skyflow orchestrates container-based workloads across the Sky. Our goal is to ab
 
 ## Installing Sky Manager
 
-(Optional) Create new conda enviornment
+(Recommended) Create new conda enviornment
 
 ```
-conda create -n sky python=3.9
+conda create -n skyflow python=3.9
+```
+Activate it
+```
+conda activate skyflow 
 ```
 
 Install dependencies, Sky Manager packages, and setup cli
-
+(assuming the repo has been cloned to ./skyflow)
 ```
 cd skyflow
 pip install -e .
 # Dependencies for Skyflow's API server.
 pip install -e .[server]
+```
+
+To utilize Skyflow's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running Skyflow and make it executable. For example:  
+```
+wget https://github.com/rancher/rke/releases/download/v1.5.5/rke_linux-amd64 -o rke_linux-amd64
+mv rke_linux-amd64 /usr/bin/rke # /usr/local/bin/rke works too
+chmod +x /usr/bin/rke
+```
+
+You can make sure that the installation was successful by running the following command:
+```
+rke --version
 ```
 
 ## Steps to run Sky Manager

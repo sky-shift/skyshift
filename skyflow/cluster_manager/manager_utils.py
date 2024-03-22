@@ -97,9 +97,10 @@ def setup_cluster_manager(
                                                     co_argcount]
 
     # Filter the dictionary keys based on parameter names
-    args = {
+    args.update({
         k: v
         for k, v in dict(cluster_obj.metadata).items() if k in class_params
-    }
+    })
+
     # Create an instance of the class with the extracted arguments.
     return k8s_manager_cls(**args)

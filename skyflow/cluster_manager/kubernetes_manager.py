@@ -15,7 +15,8 @@ from kubernetes import client, config
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
-                               Job, ResourceEnum, Service, TaskStatusEnum)
+                               Job, ResourceEnum, RestartPolicyEnum, Service,
+                               TaskStatusEnum)
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -65,24 +66,18 @@ class K8ConnectionError(config.config_exception.ConfigException):
 class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, config_path: str = '~/.kube/config'):
         super().__init__(name)
         self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
-        # Load kubernetes config for the given context.
+
         try:
-            config.load_kube_config(context=self.cluster_name)
+            config.load_kube_config(config_file=config_path)
         except config.config_exception.ConfigException as error:
-            error_msg = str(error)
-            # Invalid Kubeconfig file.
-            if 'current-context' in error_msg:
-                raise K8ConnectionError(
-                    'Invalid kubeconfig file. Set `current-context` in your '
-                    'kube-config file by running `kubectl config use-context [NAME]`.'
-                ) from error
             raise K8ConnectionError(
-                "Invalid kubeconfig file for cluster: "
+                "Could not connect to Kubernetes cluster "
                 f"{self.cluster_name}, check kubeconfig.") from error
-        all_contexts = config.list_kube_config_contexts()[0]
+        all_contexts = config.list_kube_config_contexts(
+            config_file=config_path)[0]
         self.context = None
         for context in all_contexts:
             if context["name"] == self.cluster_name:
@@ -140,7 +135,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        except Exception as error:  #pylint: disable=broad-except
+        except Exception as error:  # pylint: disable=broad-except
             # Catch-all for any other exception, which likely indicates an ERROR state
             print(f"Unexpected error: {error}")
             return ClusterStatus(
@@ -268,7 +263,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         k8_job_name = f"{job_name}-{uuid.uuid4().hex[:8]}"
         api_responses = []
-        if job.spec.restart_policy == "Always":
+        if job.spec.restart_policy == RestartPolicyEnum.ALWAYS.value:
             deploy_dict = self._convert_to_deployment_yaml(job, k8_job_name)
             response = self.apps_v1.create_namespaced_deployment(
                 namespace=self.namespace, body=deploy_dict)
@@ -288,7 +283,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
     def delete_job(self, job: Job) -> None:
         # List all the pods in the namespace with the given label
-        if job.spec.restart_policy == "Always":
+        if job.spec.restart_policy == RestartPolicyEnum.ALWAYS.value:
             # Delete the deployment
             self.apps_v1.delete_namespaced_deployment(
                 name=job.status.job_ids[self.cluster_name],
@@ -449,7 +444,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # K8 services.
         sky_svcs = self.core_v1.list_namespaced_service(
             self.namespace,
-            label_selector="manager=sky_manager,primary_service=hello")
+            label_selector="manager=sky_manager,primary_service=skyservice")
 
         svc_dict: Dict[str, Dict[str, str]] = {}
         for svc in sky_svcs.items:
@@ -489,7 +484,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         service_jinja_template = jinja_env.get_template("k8_service.j2")
         if service.spec.primary_cluster == self.cluster_name:
             service_type = service.spec.type
-            primary_service = "hello"
+            primary_service = "skyservice"
         else:
             service_type = "ClusterIP"
             primary_service = "bye"
