@@ -16,6 +16,8 @@ import pytest
 from skyflow.etcd_client.etcd_client import (ConflictError, ETCDClient,
                                              KeyNotFoundError,
                                              get_resource_version)
+from skyflow.tests.tests_utils import (retrieve_current_working_dir,
+                                       setup_skyflow, shutdown_skyflow)
 
 # NOTE:
 # In the following test, we assume that the key for the value dictionary is always "value_key". This is hard-coded.

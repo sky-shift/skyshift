@@ -201,7 +201,7 @@ class TestAPIServer(unittest.TestCase):
                         "VAR1": "value1"
                     },
                     "ports": [80],
-                    "restart_policy": "ALWAYS",
+                    "restart_policy": "Always",
                     "run": "echo Hello World"
                 }
             }
@@ -345,7 +345,7 @@ class TestAPIServer(unittest.TestCase):
                 # Valid restart policy case
                 {
                     "path": ["spec", "restart_policy"],
-                    "value": "NEVER",
+                    "value": "Never",
                     "exception": None
                 },
 
@@ -1048,7 +1048,7 @@ class TestAPIServer(unittest.TestCase):
                     "envs": {},
                     "ports": [],
                     "replicas": 1,
-                    "restart_policy": "ALWAYS"
+                    "restart_policy": "Always"
                 }
             }
             self.mock_etcd_client_instance.read.return_value = complex_data
