@@ -1,6 +1,7 @@
 """
 Specifies the API server and its endpoints for Skyflow.
 """
+import asyncio
 import json
 import os
 import signal
@@ -10,10 +11,13 @@ from datetime import datetime, timedelta
 from functools import partial
 from typing import List, Optional
 
+from kubernetes import client, config
+from kubernetes.stream import stream
+
 import jsonpatch
 import jwt
 import yaml
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -154,7 +158,8 @@ class APIServer:
     interacting with Skyflow objects. Supports CRUD operations on all objects.
     """
 
-    def __init__(self, etcd_port=ETCD_PORT):
+    def __init__(self, app, etcd_port=ETCD_PORT):
+        self.app = app
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
@@ -631,6 +636,62 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
+
+
+    async def tty_session(self, websocket: WebSocket):
+        path_params = websocket.scope['path_params']
+        namespace = path_params.get('namespace')
+        pod = path_params.get('pod')
+        container = path_params.get('container')
+        await websocket.accept()
+        print(f"tty_session: {namespace}, {pod}, {container}")
+
+        config.load_kube_config()
+        core_v1 = client.CoreV1Api()
+        exec_command = ["/bin/sh"]  # This could be dynamically set based on client request
+
+        resp = stream(core_v1.connect_get_namespaced_pod_exec,
+                         pod,
+                         namespace,
+                         command=exec_command,
+                         container=container,
+                         stderr=True,
+                         stdin=True,
+                         stdout=True,
+                         tty=True,
+                         _preload_content=False)
+
+        async def read_stdin():
+            while True:
+                event = await websocket.receive()
+                if event['type'] == 'websocket.receive':
+                    data = event['text']  # Assuming the data sent by the client is text
+                    print(f"Received data: {data}")
+                    resp.write_stdin(data)
+                elif event['type'] == 'websocket.disconnect':
+                    print(f"Client disconnected with code: {event['code']}")
+                    break  # Exit the loop to end the coroutine
+    
+        async def write_stdout_stderr():
+            print(resp.is_open())
+            while resp.is_open():
+                if resp.peek_stdout():
+                    data = resp.read_stdout()
+                    print(f"Sending data: {data}")
+                    await websocket.send_text(data)
+                if resp.peek_stderr():
+                    data = resp.read_stderr()
+                    await websocket.send_text(data)
+                await asyncio.sleep(0.1)  # Prevent tight loop
+
+        read_task = asyncio.create_task(read_stdin())
+        write_task = asyncio.create_task(write_stdout_stderr())
+
+        await asyncio.gather(read_task, write_task)
+        await websocket.close()
+        
+
+
     def _watch_key(self, key: str):
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
 
@@ -660,9 +721,20 @@ class APIServer:
             methods=methods,
             name=endpoint_name,
         )
+    
+    def _add_websocket(self,
+                       path=None,
+                      endpoint=None,
+                      endpoint_name=None):
+        self.router.add_websocket_route(
+            path=path,
+            endpoint=endpoint,
+            name=endpoint_name,
+        )
 
     def create_endpoints(self):
         """Creates FastAPI endpoints over different types of objects."""
+
         for object_type in NON_NAMESPACED_OBJECTS:
             self._add_endpoint(
                 endpoint=f"/{object_type}",
@@ -782,6 +854,12 @@ class APIServer:
             methods=["POST"],
         )
 
+        self._add_websocket(
+            path="/tty/{namespace}/{pod}/{container}",
+            endpoint=self.tty_session,
+            endpoint_name="tty_session",
+        )
+
 
 def startup():
     """Initialize the API server upon startup."""
@@ -791,7 +869,7 @@ def startup():
 app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
-api_server = APIServer()
+api_server = APIServer(app=app)
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
 app.add_event_handler("startup", check_or_wait_initialization)
