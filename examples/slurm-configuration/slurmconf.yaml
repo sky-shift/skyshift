@@ -1,0 +1,15 @@
+slurmrestd:
+  openapi_ver: v0.0.38
+  port: /var/lib/slurm-llnl/slurmrestd.socket
+  auth: jwt
+tools:
+  container: containerd
+  runtime_dir: /run/user/1000/
+properties:
+  time_limit: 9000
+  account: mluo
+slurmcli:
+  rsa_key_path: ~/berkrsa
+  remote_hostname: watson.millennium.berkeley.edu
+  remote_username: mluo
+interface: cli
