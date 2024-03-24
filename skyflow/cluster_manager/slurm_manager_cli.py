@@ -139,6 +139,8 @@ class SlurmManagerCLI(Manager):
         #store resource values
         self.accelerator_types = None
         self.get_accelerator_types()
+        self.total_resources = None
+        self.curr_allocatable = None
     def __del__(self):
         """ Deconstructor
         """
@@ -157,6 +159,18 @@ class SlurmManagerCLI(Manager):
             please check if remote server is reachable') from exception
         except Exception as exception:
             raise SSHConnectionError("Unexpected exception") from exception
+    def _process_gpu_resources(
+            self, resources: Dict[str,
+                                  Dict[str,
+                                       float]]) -> Dict[str, Dict[str, float]]:
+        if not self.accelerator_types or not set(
+                self.accelerator_types).issubset(set(resources.keys())):
+            self.accelerator_types = self.get_accelerator_types()
+
+        for node_name, accelerator_type in self.accelerator_types.items():
+            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
+            resources[node_name][accelerator_type] = gpu_value
+        return resources
     @property
     def cluster_resources(self) -> Dict[str, Dict[str, float]]:
         """ Gets total available resources of the cluster.
@@ -174,10 +188,17 @@ class SlurmManagerCLI(Manager):
             mem_total = 0.0
             gres_count = 0.0
             node_name = ''
+            
+
             #Get total CPUs in node
             node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
             if node_name_match:
                 node_name = node_name_match.group(1)
+            status_match = re.search(r'State=(\w+)\*?', node_info)
+            if status_match:
+                node_status = status_match.group(1)
+                if node_status.upper() in ('DOWN*', 'DOWN'):
+                    continue
             cpu_total_match = re.search(r'CPUTot=(\d+)', node_info)
             if cpu_total_match:
                 cpu_total = float(cpu_total_match.group(1))
@@ -194,9 +215,9 @@ class SlurmManagerCLI(Manager):
                 ResourceEnum.MEMORY.value: float(mem_total),
                 ResourceEnum.GPU.value: float(gres_count)
             }
+        self.total_resources = self._process_gpu_resources(cluster_resources)
         #Update cluster properties, since this only needs to be called once
-        self.total_resources = cluster_resources
-        return cluster_resources
+        return self.total_resources
     @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
         """ Gets currently allocatable resources.
@@ -214,21 +235,39 @@ class SlurmManagerCLI(Manager):
             mem_total = 0.0
             gres_count = 0.0
             node_name = ''
+            status_match = re.search(r'State=(\w+)\*?', node_info)
+            if status_match:
+                node_status = status_match.group(1)
+                if node_status.upper() in ('DOWN*', 'DOWN'):
+                    continue
             #Get total CPUs in node
             node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
             if node_name_match:
                 node_name = node_name_match.group(1)
             cpu_total_match = re.search(r'CPUAlloc=(\d+)', node_info)
             if cpu_total_match:
-                cpu_total = float(cpu_total_match.group(1))
+                cpu_total = float(self.total_resources[node_name][ResourceEnum.CPU.value]) - float(cpu_total_match.group(1))
             #Get total memory in node
-            mem_total_match = re.search(r'AllocMem=(\d+)', node_info)
+            mem_total_match = re.search(r'FreeMem=(\d+)', node_info)
             if mem_total_match:
                 mem_total = float(mem_total_match.group(1))
-            available_resources[node_name] = {
+            accelerator_type = AcceleratorEnum.UNKGPU
+            has_gpus = False
+            for key in self.total_resources[node_name]:
+                if type(key) == AcceleratorEnum:
+                    accelerator_type = key
+                    has_gpus = True
+            if has_gpus:
+                available_resources[node_name] = {
+                    ResourceEnum.CPU.value: float(cpu_total),
+                    ResourceEnum.MEMORY.value: float(mem_total),
+                    ResourceEnum.GPU.value: self.total_resources[node_name][accelerator_type]
+                }
+            else:
+                available_resources[node_name] = {
                 ResourceEnum.CPU.value: float(cpu_total),
                 ResourceEnum.MEMORY.value: float(mem_total),
-                ResourceEnum.GPU.value: self.total_resources[node_name][ResourceEnum.GPU.value]
+                ResourceEnum.GPU.value: 0.0
             }
 
         #Process gpus
@@ -258,9 +297,7 @@ class SlurmManagerCLI(Manager):
                         else:
                             available_resources[node][ResourceEnum.GPU.value] \
                             = available_resources[node][ResourceEnum.GPU.value] - gres_used
-
-        self.curr_allocatable = available_resources
-        return available_resources
+        return self._process_gpu_resources(available_resources)
     def get_accelerator_types(self) -> Dict[str, AcceleratorEnum]:
         """ Gets accelerator type available on each node.
             Returns:
@@ -275,24 +312,26 @@ class SlurmManagerCLI(Manager):
         
         node_gpus = {}
         for node_info in node_sections:
+            status_match = re.search(r'State=(\w+)\*?', node_info)
+            if status_match:
+                node_status = status_match.group(1)
+                if node_status.upper() in ('DOWN*', 'DOWN'):
+                    continue
             node_name = ''
+            gpu_enum = AcceleratorEnum.UNKGPU
             node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
             if node_name_match:
                 node_name = node_name_match.group(1)
             gpu_model_match = re.search(r'Gres=gpu:([^:]+)', node_info)
             if gpu_model_match:
                 gpu_model = str(gpu_model_match.group(1)).lower()
-                #TODO, GPU ENUMS
-                if 'v100' in gpu_model:
-                    gpu_enum = AcceleratorEnum.V100
-                elif 'a100' in gpu_model:
-                    gpu_enum = AcceleratorEnum.A100
-                else:
-                    gpu_enum = AcceleratorEnum.UNKGPU
+                for member in AcceleratorEnum:
+                    if member.value.lower() in gpu_model:
+                        gpu_enum = member
                 node_gpus[node_name] = gpu_enum
         self.accelerator_types = node_gpus
         return node_gpus
-    def get_cluster_status(self):
+    def get_cluster_status(self) -> ClusterStatus:
         """ Gets status of the cluster, at least one node must be up.
             Returns:
                 Cluster Status struct with total and allocatable resources.
@@ -305,12 +344,12 @@ class SlurmManagerCLI(Manager):
         if 'State=UP' in cluster_info:
             return ClusterStatus(
                 status=ClusterStatusEnum.READY.value,
-                capacity=self.total_resources,
+                capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
         )
         return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
-                capacity=self.total_resources,
+                capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
         )
     def get_jobs_status(self) -> Dict[str, TaskStatusEnum]:
@@ -325,7 +364,6 @@ class SlurmManagerCLI(Manager):
         _, stdout, _ = self.ssh_client.exec_command(command)
         jobs_info = stdout.read().decode().strip().split('\n')
         #jobs_info = subprocess.check_output(command, shell=True, text=True)
-        jobs_info = jobs_info.split('\n')
         jobs_info = jobs_info[1:]
         #Create dict of only managed jobs. [Job ID, Job Name, Status]
         jobs_dict: Dict[str, TaskStatusEnum] = {}
@@ -465,5 +503,8 @@ class SlurmManagerCLI(Manager):
         self, name: str, cluster_name, endpoint: EndpointObject):
         """Creates/updates an endpint slice."""
         raise NotImplementedError
-if __name__ == '__main__':
-    api = SlurmManagerCLI()
+# if __name__ == '__main__':
+#     api = SlurmManagerCLI()
+#     print(api.cluster_resources)
+#     print("************")
+#     print(api.allocatable_resources)

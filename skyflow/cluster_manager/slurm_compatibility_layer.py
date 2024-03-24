@@ -145,8 +145,8 @@ class SlurmCompatiblityLayer():
             submission_script,
             'name':
             f'{job.metadata.name}',
-            'path':
-            f"{job.spec.envs['PATH']}",
+            #'path':
+            #f"{job.spec.envs['PATH']}",
             'envs':
             json.dumps(job.spec.envs),
             'account':
@@ -193,8 +193,8 @@ class SlurmCompatiblityLayer():
             submission_script,
             'name':
             f'{job.metadata.name}',
-            'path':
-            f"{job.spec.envs['PATH']}",
+            #'path':
+            #f"{job.spec.envs['PATH']}",
             'envs':
             json.dumps(job.spec.envs),
             'account':
@@ -239,8 +239,8 @@ class SlurmCompatiblityLayer():
             submission_script,
             'name':
             f'{job.metadata.name}',
-            'path':
-            f"{job.spec.envs['PATH']}",
+            #'path':
+            #f"{job.spec.envs['PATH']}",
             'envs':
             job.spec.envs,
             'account':
@@ -302,8 +302,8 @@ class SlurmCompatiblityLayer():
             submission_script,
             'name':
             f'{job.metadata.name}',
-            'path':
-            f"{job.spec.envs['PATH']}",
+            #'path':
+            #f"{job.spec.envs['PATH']}",
             'envs':
             job.spec.envs,
             'account':
@@ -320,7 +320,6 @@ class SlurmCompatiblityLayer():
             self.time_limit
         }
         return job_dict
-
 
 def _create_submission_script(script_dict, newline=True):
     """ Creates shell compatability run script based off dictionary of values.

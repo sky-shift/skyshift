@@ -91,11 +91,16 @@ def setup_cluster_manager(
         return slurm_manager_cli_cls(**args)
     #KubernetesManager
     # Get the constructor of the class
-    constructor = k8s_manager_cls.__init__
+    k8s_manager_cls = KubernetesManager
+    k8s_constructor = k8s_manager_cls.__init__
     # Get the parameter names of the constructor
-    class_params = constructor.__code__.co_varnames[1:constructor.__code__.
+    class_params = k8s_constructor.__code__.co_varnames[1:k8s_constructor.__code__.
                                                     co_argcount]
 
+    args = {
+            k: v
+            for k, v in dict(cluster_obj.metadata).items() if k in class_params
+        }
     # Filter the dictionary keys based on parameter names
     args.update({
         k: v
