@@ -70,7 +70,7 @@ def _construct_skypilot_task_yaml(cluster_name: str,
     try:
         del spec.manager
         del spec.num_nodes
-        del spec.attached
+        del spec.provision
         del spec.config_path
     except AttributeError:
         pass
