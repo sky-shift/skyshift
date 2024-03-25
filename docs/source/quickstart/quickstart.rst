@@ -35,7 +35,7 @@ Attach provisioned clusters to SkyFlow.
 
   for i in {1..3};
   do 
-  skyctl create cluster cluster$i --attached
+  skyctl create cluster cluster$i
   done
 
 Check the status of existing clusters.
