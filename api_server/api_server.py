@@ -9,7 +9,8 @@ import sys
 import time
 from datetime import datetime, timedelta
 from functools import partial
-from typing import List, Optional
+from typing import List, Optional, Tuple
+from urllib.parse import unquote
 
 from kubernetes import client, config
 from kubernetes.stream import stream
@@ -32,6 +33,7 @@ from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
+from skyflow.templates.job_template import TaskStatusEnum
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object, sanitize_cluster_name
 
@@ -419,6 +421,40 @@ class APIServer:
         })
         return obj_list
 
+    def _get_object(
+        self,
+        object_type: str,
+        object_name: str,
+        namespace: str = DEFAULT_NAMESPACE,
+        watch: bool = Query(False),
+    ):  # pylint: disable=too-many-arguments
+        """
+        Returns a specific object, raises Error otherwise.
+        """
+        
+        if object_type not in ALL_OBJECTS:
+            print(f"get_object_NOT: {object_type}, {object_name}, {namespace}")
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid object type: {object_type}")
+        object_class = ALL_OBJECTS[object_type]
+
+        if object_type in NAMESPACED_OBJECTS:
+            link_header = f"{object_type}/{namespace}"
+        else:
+            link_header = f"{object_type}"
+        if object_type == "clusters":
+            print(f"get_object: {object_type}, {object_name}, {namespace}")
+            object_name = sanitize_cluster_name(object_name)
+        if watch:
+            print(f"get_object_watch: {object_type}, {object_name}, {namespace}")
+            return self._watch_key(f"{link_header}/{object_name}")
+        print(f"get_object: {object_type}, {object_name}, {namespace}")
+        obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
+        print(f"get_object2: {object_type}, {object_name}, {namespace}")
+        obj = object_class(**obj_dict)
+        print(f"get_object: {obj}")
+        return obj
+
     def get_object(
         self,
         object_type: str,
@@ -432,23 +468,7 @@ class APIServer:
         """
         self._authenticate_role(ActionEnum.GET.value, user, object_type,
                                 namespace)
-        if object_type not in ALL_OBJECTS:
-            raise HTTPException(status_code=400,
-                                detail=f"Invalid object type: {object_type}")
-        object_class = ALL_OBJECTS[object_type]
-
-        if object_type in NAMESPACED_OBJECTS:
-            link_header = f"{object_type}/{namespace}"
-        else:
-            link_header = f"{object_type}"
-
-        if object_type == "clusters":
-            object_name = sanitize_cluster_name(object_name)
-        if watch:
-            return self._watch_key(f"{link_header}/{object_name}")
-        obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
-        obj = object_class(**obj_dict)
-        return obj
+        return self._get_object(object_type, object_name, namespace, watch)
 
     def update_object(
         self,
@@ -636,59 +656,162 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
+        
+    def execute_command(  # pylint: disable=too-many-arguments,too-many-branches,too-many-locals
+            self, resource: str, command: List[str], namespace: str, specified_clusters: List[str],
+            specified_pods: List[str], specified_container: List[str], quiet: bool, user: str = Depends(authenticate_request)):
+        """
+        Execute a command in a container.
+
+        RESOURCE: Specify the resource name
+        COMMAND: The command to execute inside the container.
+        """
+
+        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
+                                namespace)
+        
+        self._authenticate_role(ActionEnum.GET.value, user, "clusters",
+                                namespace)
+
+        job = self.get_object(object_type="jobs", namespace=namespace, object_name=resource, watch=False, user=user)
+
+        clusters_running = [
+            cluster_name
+            for cluster_name, status in job.status.replica_status.items()
+            if status.get(TaskStatusEnum.RUNNING.value, 0) > 0
+        ]
+
+        if not clusters_running:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No running clusters found for the job '{resource}'.")
+
+        for cluster in specified_clusters:
+            if cluster not in clusters_running:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Cluster '{cluster}' is not part of the running clusters for the job '{resource}'."
+                )
+        
+        specified_clusters = specified_clusters or clusters_running
+            
+        for selected_cluster in specified_clusters:
+            cluster_obj = self.get_object(object_type="clusters",
+                                        object_name=selected_cluster, watch=False, user=user)
+            cluster_manager = setup_cluster_manager(cluster_obj)
+
+            if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
+                )
+
+            pods = cluster_manager.retrieve_tasks_from_job(job)
+            if len(pods) == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No running pods found for the job '{resource}'."
+                )
+            pod_names = [p.metadata.name for p in pods]
+
+            for specified_pod in specified_pods:
+                if specified_pod not in pod_names:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Pod '{specified_pod}' is not part of the running pods for the job '{resource}'."
+                    )
 
 
-    async def tty_session(self, websocket: WebSocket):
-        path_params = websocket.scope['path_params']
-        namespace = path_params.get('namespace')
-        pod = path_params.get('pod')
-        container = path_params.get('container')
-        await websocket.accept()
-        print(f"tty_session: {namespace}, {pod}, {container}")
+            pods_to_use = specified_pods or pod_names
 
-        config.load_kube_config()
-        core_v1 = client.CoreV1Api()
-        exec_command = ["/bin/sh"]  # This could be dynamically set based on client request
+            for selected_pod in pods_to_use:
+                for container in specified_container:
+                    containers = cluster_manager.retrieve_containers_from_job(job)
+                    if container not in containers:
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Container '{container}' is not part of the running containers for the job '{resource}'."
+                        )
+                    try:
+                        cluster_manager.execute_command(selected_pod,
+                                                        container=container,
+                                                        command=command,
+                                                        quiet=quiet)
 
-        resp = stream(core_v1.connect_get_namespaced_pod_exec,
-                         pod,
-                         namespace,
-                         command=exec_command,
-                         container=container,
-                         stderr=True,
-                         stdin=True,
-                         stdout=True,
-                         tty=True,
-                         _preload_content=False)
+                    except Exception as error:  # pylint: disable=broad-except
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"An error occurred while executing the command: {error}")
 
-        async def read_stdin():
-            while True:
-                event = await websocket.receive()
-                if event['type'] == 'websocket.receive':
-                    data = event['text']  # Assuming the data sent by the client is text
-                    print(f"Received data: {data}")
-                    resp.write_stdin(data)
-                elif event['type'] == 'websocket.disconnect':
-                    print(f"Client disconnected with code: {event['code']}")
-                    break  # Exit the loop to end the coroutine
+    async def _authenticate_tty_session(self, websocket: WebSocket, user: str = Depends(authenticate_request)):
+        """Authenticates the user for a tty session."""
+        # Extract the token from the WebSocket headers
+        token = websocket.headers.get('authorization')
+        if token is None or not token.startswith("Bearer "):
+            await websocket.close(code=1008)  # Close with policy violation code
+            return
+        
+        # Remove "Bearer " from the token
+        token = token[7:]
+        
+        # Authenticate the user using the token
+        try:
+            user = authenticate_request(token)
+        except HTTPException as e:
+            await websocket.close(code=1008)
+            return
+        
+        return user
+
+    async def tty_session(self, websocket: WebSocket, user: str = Depends(authenticate_request)):
     
-        async def write_stdout_stderr():
-            print(resp.is_open())
-            while resp.is_open():
-                if resp.peek_stdout():
-                    data = resp.read_stdout()
-                    print(f"Sending data: {data}")
-                    await websocket.send_text(data)
-                if resp.peek_stderr():
-                    data = resp.read_stderr()
-                    await websocket.send_text(data)
-                await asyncio.sleep(0.1)  # Prevent tight loop
+        user = await self._authenticate_tty_session(websocket, user)
 
-        read_task = asyncio.create_task(read_stdin())
-        write_task = asyncio.create_task(write_stdout_stderr())
+        path_params = websocket.scope['path_params']
+        resource = path_params.get('resource')
+        cluster = path_params.get('cluster')
+        namespace = path_params.get('namespace')
+        pod = path_params.get('selected_pod')
+        container = path_params.get('container')
+        exec_command_json = unquote(path_params.get('command').replace("%-2-F-%2-", "/"))
+        exec_command = json.loads(exec_command_json)
 
-        await asyncio.gather(read_task, write_task)
-        await websocket.close()
+        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
+                        namespace)
+
+        try:
+            cluster_obj = self.get_object(object_type="clusters", object_name=cluster, watch=False, user=user)
+        except HTTPException as e:
+            await websocket.send_text(e.detail)
+            await websocket.close(code=1003) # Close with unsupported data code
+            return
+
+        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
+            close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
+            await websocket.send_text(close_message)
+            await websocket.close(code=1003)
+            return 
+        cluster_manager = setup_cluster_manager(cluster_obj)
+
+        try:
+            job = self.get_object(object_type="jobs", namespace=namespace, object_name=resource, watch=False, user=user)
+        except HTTPException as e:
+            await websocket.send_text(e.detail)
+            await websocket.close(code=1003)
+            return
+
+        if pod == "None":
+            pods = cluster_manager.retrieve_tasks_from_job(job)
+            if len(pods) == 0:
+                close_message = f"No running pods found for the job '{resource}'."
+                await websocket.send_text(close_message)
+                await websocket.close(code=1003)
+            pod = pods[0].metadata.name
+        if container == "None":
+            container = cluster_manager.retrieve_containers_from_job(job)[0]
+
+        await websocket.accept()
+        await cluster_manager.start_tty_session(websocket, pod, container, exec_command)
         
 
 
@@ -854,8 +977,16 @@ class APIServer:
             methods=["POST"],
         )
 
+
+        self._add_endpoint(
+            endpoint="/exec/{cluster}/{namespace}/{pod}/{container}",
+            endpoint_name="execute command",
+            handler=self.execute_command,
+            methods=["POST"],
+        )
+
         self._add_websocket(
-            path="/tty/{namespace}/{pod}/{container}",
+            path="/tty/{resource}/{cluster}/{namespace}/{selected_pod}/{container}/{command}",
             endpoint=self.tty_session,
             endpoint_name="tty_session",
         )

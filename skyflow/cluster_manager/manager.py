@@ -1,7 +1,9 @@
 """
 Defines compatability layer for generic Managers.
 """
-from typing import List
+from typing import Any, List
+
+from fastapi import WebSocket
 
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
@@ -45,10 +47,21 @@ class Manager:
             allocatable_capacity=self.allocatable_resources,
         )
 
+    def retrieve_tasks_from_job(self, job: Job) -> List[Any]:
+        """Retrieves tasks from a job."""
+        raise NotImplementedError
+
+    def retrieve_containers_from_job(self, job: Job) -> List[str]:
+        """Retrieves containers from a job."""
+        raise NotImplementedError
+
     def execute_command(  # pylint: disable=too-many-arguments
-            self, pod: str, container: str, command: List[str], stdin: bool,
-            tty_enabled: bool, quiet: bool):
+            self, task: str, container: str, command: List[str], quiet: bool) -> str:
         """Executes a command on the cluster."""
+        raise NotImplementedError
+
+    async def start_tty_session(self, websocket: WebSocket, pod: str, container: str, command: List[str]):
+        """Starts a tty session on the cluster."""
         raise NotImplementedError
 
     def get_jobs_status(self):

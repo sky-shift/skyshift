@@ -1,6 +1,7 @@
 """
 Represents the comptability layer over Kubernetes native API.
 """
+import asyncio
 import logging
 import os
 import re
@@ -12,6 +13,7 @@ import uuid
 from threading import Thread
 from typing import Any, Dict, List, Optional, TypedDict
 
+from fastapi import WebSocket
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
@@ -101,14 +103,26 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
 
-    def retrieve_pods_from_job(self, job: Job) -> List[client.V1Pod]:
+    def retrieve_tasks_from_job(self, job: Job) -> List[client.V1Pod]:
         """Retrieves pods from a job."""
         label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
         return self.core_v1.list_namespaced_pod(
-            self.namespace, label_selector=label_selector).items
+            self.namespace, label_selector=label_selector).items or []
+    
+    def retrieve_containers_from_job(self, job: Job) -> List[str]:
+        """Retrieves names of all containers running inside pods of a given job."""
+        containers = []
+        label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
+        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector).items
+        
+        # Iterate over each pod to collect container names
+        for pod in pods:
+            for container in pod.spec.containers:
+                containers.append(container.name)
+        
+        return containers
 
-    def start_tty_session(self, pod: str, container: str, command: List[str],
-                          stdin: bool) -> None:
+    async def start_tty_session(self, websocket: WebSocket, pod: str, container: str, command: List[str]):
         """
         Starts a TTY session for executing commands in a container within a pod.
 
@@ -117,6 +131,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         also streaming the container's stdout and stderr back to the user.
 
         Parameters:
+        - websocket (WebSocket): The WebSocket connection to the client.
         - pod (str): The name of the pod where the command will be executed.
         - container (str): The name of the container inside the pod.
         - command (List[str]): The command to execute, passed as a list of strings.
@@ -130,98 +145,61 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                       command=exec_command,
                       container=container,
                       stderr=True,
-                      stdin=stdin,
+                      stdin=True,
                       stdout=True,
                       tty=True,
                       _preload_content=False)
 
-        def read_stdin():
-            try:
-                while resp.is_open():
-                    char = sys.stdin.read(1)
-                    resp.write_stdin(char)
-            except Exception as error:  # pylint: disable=broad-except
-                self.logger.error("Exception reading stdin: %s", error)
-
-        thread = Thread(target=read_stdin)
-        thread.daemon = True
-
-        stdin_fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(stdin_fd)
-
-        try:
-            tty.setraw(stdin_fd)
-            thread.start()
-
-            # Read stdout and stderr
+        # Read from stdin and write to the container
+        async def read_stdin():
+            while True:
+                event = await websocket.receive()
+                if event['type'] == 'websocket.receive':
+                    data = event['text']
+                    resp.write_stdin(data)
+                elif event['type'] == 'websocket.disconnect':
+                    print(f"Client disconnected with code: {event['code']}")
+                    break  # Exit the loop to end the coroutine
+    
+        # Read from the container and write to remote client websocket
+        async def write_stdout_stderr():
             while resp.is_open():
                 if resp.peek_stdout():
-                    sys.stdout.write(resp.read_stdout())
-                    sys.stdout.flush()
+                    data = resp.read_stdout()
+                    await websocket.send_text(data)
                 if resp.peek_stderr():
-                    sys.stderr.write(resp.read_stderr())
-                    sys.stderr.flush()
-                resp.update(timeout=1)
+                    data = resp.read_stderr()
+                    await websocket.send_text(data)
+                await asyncio.sleep(0.1)  # Prevent tight loop
+            await websocket.close()
 
-            thread.join()
+        read_task = asyncio.create_task(read_stdin())
+        write_task = asyncio.create_task(write_stdout_stderr())
 
-        except Exception as error:  # pylint: disable=broad-except
-            self.logger.error("Exception during command execution: %s", error)
-        finally:
-            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
-            print("\033c")  # Clear the screen
-            print("Connection closed. Press enter to continue.")
-            sys.stdin.read(1)
+        await asyncio.gather(read_task, write_task)
 
     def execute_command(  # pylint: disable=too-many-arguments
-            self, pod: str, container: str, command: List[str], stdin: bool,
-            tty_enabled: bool, quiet: bool) -> None:
+            self, task: str, container: str, command: List[str], quiet: bool) -> str:
         """
-        Executes a specified command in a container within a pod, optionally opening a TTY session.
-
-        This method can handle both interactive TTY sessions and non-interactive command execution,
-        depending on the parameters provided.
+        Executes a specified command in a container within a task.
 
         Parameters:
-        - pod (str): The name of the pod where the command will be executed.
-        - container (str): The name of the container inside the pod.
+        - task (str): The name of the task where the command will be executed.
+        - container (str): The name of the container inside the task.
         - command (List[str]): The command to execute, passed as a list of strings.
         - stdin (bool): If True, stdin is opened for the command or session.
         - tty_enabled (bool): If True, opens a TTY session. If False, executes the command \
             non-interactively.
         - quiet (bool): If True, suppresses output for non-TTY command execution.
         """
-        exec_command = command
-        if tty_enabled:
-            self.start_tty_session(pod, container, exec_command, stdin=stdin)
-        else:
-            self.execute_single_command(pod,
-                                        container,
-                                        exec_command,
-                                        stdin=stdin,
-                                        quiet=quiet)
-
-    def execute_single_command(  # pylint: disable=too-many-arguments
-            self, pod: str, container: str, command: List[str], stdin: bool,
-            quiet: bool) -> None:
-        """
-        Executes a single, non-interactive command in a specified container within a pod.
-
-        Parameters:
-        - pod (str): The name of the pod where the command will be executed.
-        - container (str): The name of the container inside the pod.
-        - command (List[str]): The command to execute, passed as a list of strings.
-        - stdin (bool): If True, stdin is opened for the command.
-        - quiet (bool): If True, suppresses the command's output.
-        """
         try:
             resp = stream(self.core_v1.connect_get_namespaced_pod_exec,
-                          pod,
+                          task,
                           self.namespace,
                           command=['/bin/sh', '-c', ' '.join(command)],
                           container=container,
                           stderr=True,
-                          stdin=stdin,
+                          stdin=False,
                           stdout=not quiet,
                           tty=False,
                           _preload_content=False)
@@ -233,8 +211,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 if resp.peek_stderr():
                     output += resp.read_stderr()
             resp.close()
-            print(output)
-        except Exception as error:  # pylint: disable=broad-except
+            return output
+        except Exception as error:
             self.logger.error("Error during command execution: %s", error)
             raise
 

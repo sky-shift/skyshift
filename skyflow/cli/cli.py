@@ -4,19 +4,24 @@ Skyflow CLI.
 """
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import json
 import os
 import re
 import sys
 import termios
+import time
 import tty
 from typing import Dict, List, Tuple, Union
+from urllib.parse import quote
 
+from anyio import Event
 import click
 from fastapi import WebSocket
 import websockets
 import yaml
 from click_aliases import ClickAliasedGroup
 
+from skyflow.api_client.object_api import fetch_auth_token
 from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    fetch_job_logs, get_cli_object,
                                    print_cluster_table, print_endpoints_table,
@@ -30,7 +35,7 @@ from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum, TaskStatusEnum
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
-from skyflow.utils.utils import parse_resource_from_file
+from skyflow.utils.utils import load_manager_config, parse_resource_from_file
 
 
 @click.group()
@@ -1045,24 +1050,39 @@ def delete_role(name):
 
 # ==============================================================================
 # Skyflow exec
+
+
 async def tty_session(uri):
-    async with websockets.connect(uri) as websocket:
+    admin_config = load_manager_config()
+    headers = {
+        "Authorization": f"Bearer {fetch_auth_token(admin_config)}"  # Ensure fetch_auth_token is defined and works
+    }
+    async with websockets.connect(uri, extra_headers=headers, open_timeout=None) as websocket:
         # Prepare terminal for raw mode
         stdin_fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(stdin_fd)
         tty.setraw(stdin_fd)
 
+        input_stop_event = Event()
+
         async def send_commands():
             loop = asyncio.get_running_loop()
             with ThreadPoolExecutor(1) as executor:
                 try:
-                    while True:
+                    while not websocket.closed:
+                        # Check if input reading should stop
+                        if input_stop_event.is_set():
+                            break
                         # Use run_in_executor to read a single character without blocking the event loop
                         char = await loop.run_in_executor(executor, sys.stdin.read, 1)
-                        await websocket.send(char)
+                        if char == '\x04':  # '\x04' is the EOF character
+                            print("Exiting...")
+                            break  # Exit the loop to close the connection
+                        if not websocket.closed:
+                            await websocket.send(char)
                 except (EOFError, KeyboardInterrupt):
                     # Handle end of input or interrupt
-                    pass
+                    print("Exiting...")
 
             print("Connection closed. Send")
 
@@ -1072,20 +1092,27 @@ async def tty_session(uri):
                 while True:
                     output = await websocket.recv()
                     sys.stdout.write(output)
-                    sys.stdout.flush()  # Ensure output is immediately written to the file
+                    sys.stdout.flush()
             except websockets.exceptions.ConnectionClosed as e:
                 # Handle connection closure
                 print(f"Connection closed: {e}")
+                input_stop_event.set()  # Signal to stop reading stdin
             except Exception as e:
                 print(f"Error: {e}")
-            print("Connection closed.")
+                input_stop_event.set()  # Ensure the event is set on any error
 
         # Run receiving tasks concurrently with event loop
         receive_task = asyncio.create_task(receive_output())
         send_task = asyncio.create_task(send_commands())
 
         # Wait for both tasks to complete
-        tasks = await asyncio.wait([send_task, receive_task], return_when=asyncio.FIRST_COMPLETED)
+        await asyncio.wait([send_task, receive_task], return_when=asyncio.FIRST_COMPLETED)
+
+        # Ensure input_stop_event is set to stop reading from stdin in any case
+        input_stop_event.set()
+
+        # Close the websocket connection, in case it's not already closed
+        await websocket.close()
 
         # Cleanup: restore terminal settings
         termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
@@ -1102,11 +1129,13 @@ async def tty_session(uri):
     help="Namespace corresponding to job's location.",
 )
 @click.option("-p",
-              "--pod",
+              "--pods",
+              multiple=True,
               default=None,
               help="Pod name where the command will be executed.")
 @click.option("-c",
-              "--cluster",
+              "--clusters",
+              multiple=True,
               default=None,
               help="Cluster name where the command will be executed.")
 @click.option(
@@ -1121,51 +1150,59 @@ async def tty_session(uri):
               is_flag=True,
               default=False,
               help="Only print output from the remote session.")
-@click.option("-i",
-              "--stdin",
-              is_flag=True,
-              default=False,
-              help="Pass stdin to the container.")
-@click.option("-t",
+@click.option("-it",
+              "-ti",
               "--tty",
               is_flag=True,
               default=False,
               help="Stdin is a TTY.")
 def exec_command_sync(  # Renamed to indicate synchronous entry point
-        resource: str, command: Tuple[str], namespace: str, cluster: str,
-        pod: str, containers: List[str],  quiet: bool,
-        stdin: bool, tty: bool):
+        resource: str, command: Tuple[str], namespace: str, clusters: List[str],
+            pods: List[str], containers: List[str],  quiet: bool,
+        tty: bool):
     """
     Synchronous wrapper for executing the exec_command coroutine.
     """
     # Convert containers from tuple to list if necessary
-    containers = list(containers) if containers else []
+    specified_container = list(containers) if containers else []
+    specified_clusters = list(clusters) if clusters else []
+    specified_pods = list(pods) if pods else []
+
 
     # Run the asyncio event loop to execute the async exec_command coroutine
-    asyncio.run(exec_command(resource, command, namespace, cluster, pod, containers, quiet, stdin, tty))
+    asyncio.run(exec_command(resource, command, namespace, specified_clusters, specified_pods, specified_container, quiet, tty))
 
 async def exec_command(  # pylint: disable=too-many-arguments,too-many-branches,too-many-locals
-        resource: str, command: Tuple[str], namespace: str, cluster: str,
-        pod: str, containers: List[str],  quiet: bool,
-        stdin: bool, tty: bool):
+        resource: str, command: Tuple[str], namespace: str, specified_clusters: List[str],
+            specified_pods: List[str], specified_container: List[str],  quiet: bool,
+        tty: bool):
     """
     Execute a command in a container.
 
     RESOURCE: Specify the job name.
     COMMAND: The command to execute inside the container.
     """
+    if len(command) == 0:
+        raise click.ClickException("No command specified.")
 
-    if tty and not quiet:
-        click.echo(
+    if tty:
+        if len(specified_clusters) > 1:
+            raise click.ClickException(
+                "Multiple clusters specified. TTY mode is only supported for a single cluster."
+            )
+        if len(specified_pods) > 1:
+            raise click.ClickException(
+                "Multiple pods specified. TTY mode is only supported for a single pod."
+            )
+        if len(specified_container) > 1:
+            raise click.ClickException(
+                "Multiple containers specified. TTY mode is only supported for a single container."
+            )
+        if not quiet:
+            click.echo(
             "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
-        )
-
-    job = get_cli_object(object_type="job", namespace=namespace, name=resource)
-
-    if not resource:
-        raise click.ClickException(
-            "No valid resource found to execute commands on.")
-
+            )
+    job = get_cli_object(object_type="job", name=resource, namespace=namespace)
     clusters_running = [
         cluster_name
         for cluster_name, status in job.status.replica_status.items()
@@ -1176,47 +1213,29 @@ async def exec_command(  # pylint: disable=too-many-arguments,too-many-branches,
         raise click.ClickException(
             f"No running clusters found for the job '{resource}'.")
 
-    if len(clusters_running) > 1 and not cluster and not quiet and tty:
-        clusters_running = [clusters_running[0]]
+    if len(specified_clusters) == 0:
+        specified_clusters = clusters_running if tty else [clusters_running[0]]
+
+    if len(specified_pods) == 0:
         click.echo(
-            f"Multiple clusters found. Using the first found running cluster: \
-                {clusters_running[0]}. Specify the cluster with --cluster.")
-
-    selected_clusters = [cluster] if cluster else clusters_running
-    if cluster and selected_clusters not in clusters_running:
-        raise click.ClickException(
-            f"The specified cluster '{cluster}' is not currently running the job '{resource}'."
+            "No tasks specified. Defaulting to the first running task in the job.")
+        specified_pods = [None]
+    
+    if len(specified_container) == 0:
+        click.echo(
+            "No containers specified. Defaulting to the first container in the pod."
         )
+        specified_container = [None]
 
-    for selected_cluster in selected_clusters:
-        cluster_obj = get_cli_object(object_type="cluster",
-                                     name=selected_cluster)
-        cluster_manager = setup_cluster_manager(cluster_obj)
+    command_str = json.dumps(command)
 
-        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
-            raise click.ClickException(
-                f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
-            )
-
-        pods = cluster_manager.retrieve_pods_from_job(job)
-        pod_names = [p.metadata.name for p in pods]
-
-        if pod and pod not in pod_names:
-            raise click.ClickException(
-                f"The specified pod '{pod}' does not exist within the job '{resource}'."
-            )
-
-        pod_to_use = [pod] if pod else pod_names
-
-        if len(pod_to_use) > 1 and tty and not pod and not quiet:
-            pod_to_use = [pod_to_use[0]]
-            click.echo(
-                f"Multiple pods found. Using the first pod found running the job: \
-                    {pod_to_use}. Specify the pod with --pod.")
-
-        for selected_pod in pod_to_use:
-            for container in list(containers):
-                uri = f"ws://localhost:50051/tty/{namespace}/{selected_pod}/{container}"
-                await tty_session(uri)
+    for cluster in specified_clusters:
+        for selected_pod in specified_pods: 
+            for container in specified_container:
+                uri = f"ws://localhost:50051/tty/{resource}/{cluster}/{namespace}/{selected_pod}/{container}/{quote(command_str).replace('/', '%-2-F-%2-')}"
+                if tty:
+                    await tty_session(uri)
+                else:
+                    pass # Implement non-tty mode
 
 cli.add_command(exec_command_sync)
