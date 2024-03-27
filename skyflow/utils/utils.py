@@ -15,28 +15,6 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
-def parse_resource_from_file(file_path: str, expected_kind: str):
-    """
-    Parses a YAML file to find and return the first resource of a specified kind.
-
-    This function iterates through all documents in a given YAML file, searching
-    for the first resource that matches the specified kind (e.g., Pod, Deployment).
-
-    Parameters:
-    - file_path (str): The path to the YAML file to be parsed.
-    - expected_kind (str): The kind of resource to search for (e.g., "Pod").
-
-    Returns:
-    - dict: The first found resource of the specified kind, represented as a dictionary.
-            Returns None if no matching resource is found.
-    """
-    with open(file_path, 'r') as file:
-        documents = yaml.safe_load_all(file)
-        for doc in documents:
-            if doc.get('kind', '') == expected_kind:
-                return doc  # Stop after finding the first matching kind
-    return None
-
 
 def sanitize_cluster_name(value: str) -> str:
     """
