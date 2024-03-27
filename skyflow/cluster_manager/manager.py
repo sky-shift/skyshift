@@ -51,7 +51,7 @@ class Manager:
         """Retrieves tasks from a job."""
         raise NotImplementedError
 
-    def retrieve_containers_from_job(self, job: Job) -> List[str]:
+    def retrieve_containers_from_job(self, job: Job, task: str) -> List[str]:
         """Retrieves containers from a job."""
         raise NotImplementedError
 

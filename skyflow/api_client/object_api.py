@@ -64,6 +64,10 @@ class ObjectAPI:
     def update(self, config: dict):
         """Updates an object."""
         raise NotImplementedError
+    
+    def websocket_stream(self, config: dict):
+        """Websocket stream for bidirectional communication."""
+        raise NotImplementedError
 
     def list(self):
         """Lists all objects."""
@@ -116,6 +120,10 @@ class NamespaceObjectAPI(ObjectAPI):
                                 json=config,
                                 headers=self.auth_headers)
         return verify_response(response)
+
+    def websocket_stream(self, config: dict):
+        """Websocket stream for bidirectional communication."""
+        raise NotImplementedError
 
     def list(self):
         response = requests.get(self.url, headers=self.auth_headers)
