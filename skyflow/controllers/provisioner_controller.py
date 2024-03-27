@@ -91,7 +91,7 @@ class ProvisionerController(Controller):
         if watch_event.event_type == WatchEventEnum.ADD:
             # Launch Skylet if it is a newly added cluster.
             cluster_name = cluster_obj.get_name()
-            if cluster_obj.spec.attached:
+            if not cluster_obj.spec.provision:
                 self.logger.info(
                     'Cluster %s is `attached`, '
                     'skipping provisioning.', cluster_name)
@@ -115,7 +115,7 @@ class ProvisionerController(Controller):
                 return
             self.update_cluster_obj_status(cluster_name,
                                            ClusterStatusEnum.READY)
-        elif watch_event.event_type == WatchEventEnum.DELETE and not cluster_obj.spec.attached:
+        elif watch_event.event_type == WatchEventEnum.DELETE and cluster_obj.spec.provision:
             self.logger.info('Terminating cluster %s...', cluster_name)
             delete_unused_cluster_config(cluster_name)
             delete_kubernetes_cluster(cluster_name, cluster_obj.spec.num_nodes)

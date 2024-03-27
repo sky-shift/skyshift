@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+import pytest
+
 sys.path.append('path')
 
 from skyflow.cluster_manager import KubernetesManager

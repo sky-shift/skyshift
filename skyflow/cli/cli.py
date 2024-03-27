@@ -222,15 +222,13 @@ cli.add_command(apply_config)
     show_default=True,
     required=False,
 )
-@click.option(
-    '--attached',
-    is_flag=True,
-    help=
-    'True if cluster is already created and needs to be attached to Skyflow.')
+@click.option('--provision',
+              is_flag=True,
+              help='True if cluster needs to be provisioned on the cloud.')
 def create_cluster(  # pylint: disable=too-many-arguments
         name: str, manager: str, cpus: str, memory: str, disk_size: int,
         accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, attached: bool):
+        region: str, provision: bool):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
@@ -267,10 +265,10 @@ def create_cluster(  # pylint: disable=too-many-arguments
             ports,
             'num_nodes':
             num_nodes,
-            'attached':
-            attached,
+            'provision':
+            provision,
             'config_path':
-            "~/.kube/config" if attached else
+            "~/.kube/config" if not provision else
             f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
         },
     }
