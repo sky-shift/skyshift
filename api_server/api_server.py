@@ -419,17 +419,19 @@ class APIServer:
         })
         return obj_list
 
-    def _get_object(
-            self,
-            object_type: str,
-            object_name: str,
-            namespace: str = DEFAULT_NAMESPACE,
-            watch: bool = Query(False),
+    def get_object(
+        self,
+        object_type: str,
+        object_name: str,
+        namespace: str = DEFAULT_NAMESPACE,
+        watch: bool = Query(False),
+        user: str = Depends(authenticate_request),
     ):  # pylint: disable=too-many-arguments
         """
         Returns a specific object, raises Error otherwise.
         """
-
+        self._authenticate_role(ActionEnum.GET.value, user, object_type,
+                                namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -446,21 +448,6 @@ class APIServer:
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
-
-    def get_object(
-        self,
-        object_type: str,
-        object_name: str,
-        namespace: str = DEFAULT_NAMESPACE,
-        watch: bool = Query(False),
-        user: str = Depends(authenticate_request),
-    ):  # pylint: disable=too-many-arguments
-        """
-        Returns a specific object, raises Error otherwise.
-        """
-        self._authenticate_role(ActionEnum.GET.value, user, object_type,
-                                namespace)
-        return self._get_object(object_type, object_name, namespace, watch)
 
     def update_object(
         self,
