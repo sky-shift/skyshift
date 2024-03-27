@@ -11,13 +11,10 @@ import subprocess
 import sys
 import time
 
-import pytest
-import logging
 sys.path.append('path')
 
 from skyflow.cluster_manager import KubernetesManager
-from skyflow.network.cluster_linkv2 import (create_link,
-                                            delete_export_service,
+from skyflow.network.cluster_linkv2 import (create_link, delete_export_service,
                                             delete_import_service,
                                             export_service, import_service,
                                             launch_clusterlink)
@@ -114,8 +111,7 @@ def test_clusterlink():
     assert launch_clusterlink(cluster2_manager) is True
     assert create_link(cluster1_manager, cluster2_manager) is True
     _load_services()
-    assert export_service(HTTP_SERVER, cluster2_manager,
-                          [DSTPORT]) is True
+    assert export_service(HTTP_SERVER, cluster2_manager, [DSTPORT]) is True
     assert import_service(HTTP_SERVER, cluster1_manager,
                           cluster2_manager.cluster_name, [DSTPORT]) is True
     _wait()
@@ -124,11 +120,10 @@ def test_clusterlink():
     logging.debug("Starting re-export/import connection test")
     # Test deletion and export/import again
     assert delete_export_service(HTTP_SERVER, cluster2_manager) is True
-    assert delete_import_service(HTTP_SERVER, cluster1_manager, 
+    assert delete_import_service(HTTP_SERVER, cluster1_manager,
                                  cluster2_manager.cluster_name) is True
     time.sleep(1)
-    assert export_service(HTTP_SERVER, cluster2_manager,
-                          [DSTPORT]) is True
+    assert export_service(HTTP_SERVER, cluster2_manager, [DSTPORT]) is True
     assert import_service(HTTP_SERVER, cluster1_manager,
                           cluster2_manager.cluster_name, [DSTPORT]) is True
     _wait()

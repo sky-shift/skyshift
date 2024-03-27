@@ -2,40 +2,29 @@
 """
 Skyflow CLI.
 """
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import re
-import sys
-import termios
-import time
-import tty
 from typing import Dict, List, Tuple, Union
 from urllib.parse import quote
 
-from anyio import Event
 import click
-from fastapi import WebSocket
-import websockets
 import yaml
 from click_aliases import ClickAliasedGroup
 
-from skyflow.api_client.object_api import fetch_auth_token
 from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    fetch_job_logs, get_cli_object,
                                    print_cluster_table, print_endpoints_table,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
-                                   print_role_table, print_service_table, stream_cli_object)
+                                   print_role_table, print_service_table,
+                                   stream_cli_object)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
-from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum, TaskStatusEnum
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
-from skyflow.utils.utils import load_manager_config, parse_resource_from_file
 
 
 @click.group()
@@ -1050,7 +1039,8 @@ def delete_role(name):
 
 # ==============================================================================
 # Skyflow exec
-    
+
+
 @click.command(name="exec")
 @click.argument("resource", required=True)
 @click.argument("command", nargs=-1, required=True)
@@ -1061,23 +1051,30 @@ def delete_role(name):
     show_default=True,
     help="Namespace corresponding to job's location.",
 )
-@click.option("-t",
-              "--tasks",
-              multiple=True,
-              default=None,
-              help="Task name where the command will be executed. This option can be repeated to specify multiple pods.")
-@click.option("-c",
-              "--clusters",
-              multiple=True,
-              default=None,
-              help="Cluster name where the command will be executed. This option can be repeated to specify multiple clusters.")
+@click.option(
+    "-t",
+    "--tasks",
+    multiple=True,
+    default=None,
+    help=
+    "Task name where the command will be executed. This option can be repeated to \
+        specify multiple pods.")
+@click.option(
+    "-c",
+    "--clusters",
+    multiple=True,
+    default=None,
+    help=
+    "Cluster name where the command will be executed. This option can be repeated to \
+        specify multiple clusters.")
 @click.option(
     "-cts",
     "--containers",
     multiple=True,
     default=None,
-    help="Container name where the command will be executed. This option can be repeated to specify multiple containers."
-)
+    help=
+    "Container name where the command will be executed. This option can be repeated \
+        to specify multiple containers.")
 @click.option("-q",
               "--quiet",
               is_flag=True,
@@ -1089,10 +1086,10 @@ def delete_role(name):
               is_flag=True,
               default=False,
               help="Stdin is a TTY.")
-def exec_command_sync(  # Renamed to indicate synchronous entry point
-        resource: str, command: Tuple[str], namespace: str, clusters: List[str],
-            tasks: List[str], containers: List[str],  quiet: bool,
-        tty: bool):
+def exec_command_sync(  # pylint: disable=too-many-arguments
+        resource: str, command: Tuple[str], namespace: str,
+        clusters: List[str], tasks: List[str], containers: List[str],
+        quiet: bool, tty: bool):
     """
     Wrapper for exec_command to parse inputs and change variable names.
     """
@@ -1101,49 +1098,55 @@ def exec_command_sync(  # Renamed to indicate synchronous entry point
     specified_clusters = list(clusters) if clusters else []
     specified_tasks = list(tasks) if tasks else []
 
+    exec_command(resource, command, namespace, specified_clusters,
+                 specified_tasks, specified_container, quiet, tty)
 
-    exec_command(resource, command, namespace, specified_clusters, specified_tasks, specified_container, quiet, tty)
 
-def exec_command(
-        resource: str, 
-        command: Tuple[str], 
-        namespace: str, 
-        specified_clusters: List[str],
-        specified_tasks: List[str], 
-        specified_container: List[str], 
-        quiet: bool,
-        tty: bool):
+def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
+        resource: str, command: Tuple[str], namespace: str,
+        specified_clusters: List[str], specified_tasks: List[str] | List[None],
+        specified_container: List[str] | List[None], quiet: bool, tty: bool):
     """
     Executes a specified command within a container of a Kubernetes resource.
 
-    This function supports executing commands in various modes, including direct execution and TTY (interactive) mode. 
-    It is capable of targeting specific clusters, tasks (pods), and containers, providing flexibility in how commands 
-    are executed across the Kubernetes infrastructure. It handles both single and multiple targets with appropriate checks 
+    This function supports executing commands in various modes, including direct execution \
+        and TTY (interactive) mode.
+    It is capable of targeting specific clusters, tasks (pods), and containers, providing \
+        flexibility in how commands
+    are executed across the Kubernetes infrastructure. It handles both single and multiple targets \
+        with appropriate checks
     and balances to ensure the command execution context is correctly established.
 
     Parameters:
         resource (str): The name of the resource within which the command is to be executed.
         command (Tuple[str]): The command to execute, represented as a tuple of strings.
         namespace (str): The Kubernetes namespace where the resource is located.
-        specified_clusters (List[str]): A list of cluster names where the command should be executed. 
+        specified_clusters (List[str]): A list of cluster names where the command should \
+            be executed.
             If TTY mode is enabled, only a single cluster can be specified.
-        specified_tasks (List[str]): A list of specific tasks (pods) to target for command execution.
+        specified_tasks (List[str]): A list of specific tasks (pods) to target for command \
+            execution.
             In TTY mode, only a single task can be targeted.
-        specified_container (List[str]): A list of container names within the specified tasks where 
+        specified_container (List[str]): A list of container names within the specified \
+            tasks where
             the command should be executed. TTY mode supports only a single container.
         quiet (bool): If True, suppresses output.
         tty (bool): If True, executes the command in TTY (interactive) mode.
 
     Raises:
-        click.ClickException: For various conditions such as no command specified, multiple targets specified in TTY mode, etc.
+        click.ClickException: For various conditions such as no command \
+            specified, multiple targets specified in TTY mode, etc.
 
     Returns:
-        None: Results of command execution are printed to standard output. In non-TTY mode, 
+        None: Results of command execution are printed to standard output. In non-TTY mode,
               outputs are directly printed. In TTY mode, a streaming session is initiated.
 
     Note:
-        The function validates the specified clusters, tasks, and containers against the available resources 
-        and configurations to ensure valid execution contexts. It also handles the dynamic construction of the execution 
+        The function validates the specified clusters, tasks, and containers \
+            against the available resources
+        and configurations to ensure valid execution contexts. It also handles \
+            the dynamic construction \
+            of the execution
         dictionary (`exec_dict`) used to frame the execution request.
     """
     if len(command) == 0:
@@ -1156,15 +1159,15 @@ def exec_command(
             )
         if len(specified_tasks) > 1:
             raise click.ClickException(
-                "Multiple tasks specified. TTY mode is only supported for a single task. Defaulting to the first running task in the job."
-            )
+                "Multiple tasks specified. TTY mode is only supported for a single task. \
+                    Defaulting to the first running task in the job.")
         if len(specified_container) > 1:
             raise click.ClickException(
                 "Multiple containers specified. TTY mode is only supported for a single container."
             )
         if not quiet:
             click.echo(
-            "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
+                "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
             )
     job = get_cli_object(object_type="job", name=resource, namespace=namespace)
     clusters_running = [
@@ -1181,20 +1184,17 @@ def exec_command(
         specified_clusters = clusters_running if tty else [clusters_running[0]]
 
     if len(specified_tasks) == 0:
-        click.echo(
-            "No tasks specified. Connecting to all tasks...")
+        click.echo("No tasks specified. Connecting to all tasks...")
         specified_tasks = [None]
-    
+
     if len(specified_container) == 0:
-        click.echo(
-            "No containers specified. Connecting to all containers..."
-        )
+        click.echo("No containers specified. Connecting to all containers...")
         specified_container = [None]
 
     command_str = json.dumps(command)
 
     for cluster in specified_clusters:
-        for selected_task in specified_tasks: 
+        for selected_task in specified_tasks:
             for container in specified_container:
                 exec_dict = {
                     "kind": "exec",
@@ -1207,7 +1207,8 @@ def exec_command(
                         "cluster": cluster,
                         "resource": resource,
                         "container": container,
-                        "command": quote(command_str).replace('/', '%-2-F-%2-'),
+                        "command":
+                        quote(command_str).replace('/', '%-2-F-%2-'),
                     },
                 }
                 if tty:
@@ -1217,5 +1218,6 @@ def exec_command(
                 else:
                     output = create_cli_object(exec_dict)
                     print(output.text.replace('\\n', '\n')[1:-1])
+
 
 cli.add_command(exec_command_sync)

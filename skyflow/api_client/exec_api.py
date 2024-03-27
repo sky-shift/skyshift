@@ -1,14 +1,16 @@
 """
 Exec API.
 """
-from asyncio import Event
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import sys
 import termios
 import tty
+from asyncio import Event
+from concurrent.futures import ThreadPoolExecutor
+
 import requests
 import websockets
+
 from skyflow.api_client.object_api import NamespaceObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 
@@ -29,7 +31,8 @@ class ExecAPI(NamespaceObjectAPI):
         Builds the WebSocket URI for the exec API based on the provided configuration.
 
         Args:
-            config (Dict[str, Any]): The configuration dictionary containing details needed to build the URI.
+            config (Dict[str, Any]): The configuration dictionary containing details needed \
+                to build the URI.
 
         Returns:
             str: The constructed WebSocket URI.
@@ -37,18 +40,18 @@ class ExecAPI(NamespaceObjectAPI):
 
         assert config["spec"]["resource"], "Resource not specified."
         assert config["spec"]["command"], "Command not specified."
-        
+
         # Construct the URI from the config dict
         quiet = config["spec"]["quiet"]
         resource = config["spec"]["resource"]
         cluster = config["spec"]["cluster"]
         selected_pod = config["spec"]["task"]
         container = config["spec"]["container"]
-        command_str = config["spec"]["command"]  # Assuming this is already URL-encoded
-        
+        command_str = config["spec"][
+            "command"]  # Assuming this is already URL-encoded
+
         # Construct the final URI using the encoded command and other details from the config dict
         return f"{self.url}/{quiet}/{resource}/{cluster}/{selected_pod}/{container}/{command_str}"
-
 
     async def _tty_session(self, uri, headers):
         """
@@ -58,7 +61,10 @@ class ExecAPI(NamespaceObjectAPI):
             uri (str): The WebSocket URI to connect to.
             headers (Dict[str, str]): The headers to include in the WebSocket request.
         """
-        async with websockets.connect(uri, extra_headers=headers, open_timeout=None) as websocket:
+        async with websockets.connect(  #pylint: disable=no-member
+                uri,
+                extra_headers=headers,
+                open_timeout=None) as websocket:
             # Prepare terminal for raw mode
             stdin_fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(stdin_fd)
@@ -74,8 +80,9 @@ class ExecAPI(NamespaceObjectAPI):
                             # Check if input reading should stop
                             if input_stop_event.is_set():
                                 break
-                            # Use run_in_executor to read a single character without blocking the event loop
-                            char = await loop.run_in_executor(executor, sys.stdin.read, 1)
+                            # Use run_in_executor to read without blocking the event loop
+                            char = await loop.run_in_executor(
+                                executor, sys.stdin.read, 1)
                             if char == '\x04':  # '\x04' is the EOF character
                                 break  # Exit the loop to close the connection
                             if not websocket.closed:
@@ -90,10 +97,11 @@ class ExecAPI(NamespaceObjectAPI):
                         output = await websocket.recv()
                         sys.stdout.write(output)
                         sys.stdout.flush()
-                except websockets.exceptions.ConnectionClosed as e:
+                except websockets.exceptions.ConnectionClosed:
                     input_stop_event.set()  # Signal to stop reading stdin
-                except Exception as e: # Handle any other exceptions
-                    input_stop_event.set()  # Ensure the event is set on any error
+                except Exception:  # pylint: disable=broad-except
+                    input_stop_event.set(
+                    )  # Ensure the event is set on any error
                 finally:
                     print("Press enter to exit...")
 
@@ -102,7 +110,8 @@ class ExecAPI(NamespaceObjectAPI):
             send_task = asyncio.create_task(send_commands())
 
             # Wait for both tasks to complete
-            await asyncio.wait([send_task, receive_task], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait([send_task, receive_task],
+                               return_when=asyncio.FIRST_COMPLETED)
 
             # Ensure input_stop_event is set to stop reading from stdin in any case
             input_stop_event.set()
@@ -126,7 +135,7 @@ class ExecAPI(NamespaceObjectAPI):
                                  json=config,
                                  headers=self.auth_headers)
         return response
-    
+
     def websocket_stream(self, config: dict):
         """
         Initiates a WebSocket stream for executing commands in a container.

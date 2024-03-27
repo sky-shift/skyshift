@@ -64,7 +64,7 @@ class ObjectAPI:
     def update(self, config: dict):
         """Updates an object."""
         raise NotImplementedError
-    
+
     def websocket_stream(self, config: dict):
         """Websocket stream for bidirectional communication."""
         raise NotImplementedError
@@ -123,7 +123,7 @@ class NamespaceObjectAPI(ObjectAPI):
 
     def websocket_stream(self, config: dict):
         """Websocket stream for bidirectional communication."""
-        raise NotImplementedError
+        print("WebSocket stream does not have a default implementation.")
 
     def list(self):
         response = requests.get(self.url, headers=self.auth_headers)
@@ -177,6 +177,9 @@ class NoNamespaceObjectAPI(ObjectAPI):
     def list(self):
         response = requests.get(self.url, headers=self.auth_headers)
         return verify_response(response)
+
+    def websocket_stream(self, config: dict):
+        print("WebSocket stream not implemented for this object type.")
 
     def get(self, name: str):
         response = requests.get(f"{self.url}/{name}",

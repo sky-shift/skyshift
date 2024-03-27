@@ -65,6 +65,7 @@ def create_cli_object(config: dict):
         click.echo(f"Created {object_type} {config['metadata']['name']}.")
     return api_response
 
+
 def stream_cli_object(config: dict):
     """
     Creates a bi-directional stream through the Python API.
@@ -75,8 +76,10 @@ def stream_cli_object(config: dict):
     try:
         api_response = api_object.websocket_stream(config)
     except APIException as error:
-        raise click.ClickException(f"Failed to create {object_type} stream: {error}")
+        raise click.ClickException(
+            f"Failed to create {object_type} stream: {error}")
     return api_response
+
 
 def get_cli_object(
     object_type: str,

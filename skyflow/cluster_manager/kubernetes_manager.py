@@ -5,19 +5,15 @@ import asyncio
 import logging
 import os
 import re
-import sys
-import termios
 import time
-import tty
 import uuid
-from threading import Thread
 from typing import Any, Dict, List, Optional, TypedDict
-from kubernetes.client.exceptions import ApiException
 
-from fastapi import WebSocket
 import yaml
+from fastapi import WebSocket
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 from kubernetes.stream import stream
 
 from skyflow.cluster_manager.manager import Manager
@@ -106,58 +102,74 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
     def retrieve_tasks_from_job(self, job: Job) -> List[client.V1Pod]:
         """
-        Retrieves a list of pods (tasks) associated with a given job based on specific labels.
+        Retrieves a list of pods (tasks) associated with a given job based on \
+            specific labels.
 
-        This method queries the Kubernetes API to find pods that match the labels indicating they are part
-        of the specified job. It constructs a label selector string using the job's name to identify these pods.
-        The search is scoped to the namespace associated with the instance of this class.
+        This method queries the Kubernetes API to find pods that match the \
+            labels indicating they are part
+        of the specified job. It constructs a label selector string \
+            using the job's name to identify these pods.
+        The search is scoped to the namespace associated with the \
+            instance of this class.
 
         Args:
-            job (Job): The job object, which must provide a method `get_name()` that returns the\
+            job (Job): The job object, which must provide a method \
+                `get_name()` that returns the\
                   job's name used for label matching.
 
         Returns:
-            List[client.V1Pod]: A list of V1Pod objects representing the pods found for the job.\
+            List[client.V1Pod]: A list of V1Pod objects representing \
+                the pods found for the job.\
                   Returns an empty list if no matching pods are found.
 
         """
         label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
         return self.core_v1.list_namespaced_pod(
             self.namespace, label_selector=label_selector).items or []
-    
-    def retrieve_containers_from_job(self, job: Job, task_name: str = None) -> List[str]:
+
+    def retrieve_containers_from_job(self,
+                                     job: Job,
+                                     task_name: Optional[str] = None
+                                     ) -> List[str]:
         """
         Retrieves the names of containers running within the pods associated with a specific job, \
             optionally filtered by a single task name.
 
-        This method queries the Kubernetes API for pods tied to the job specified by `job` and, if provided,\
-              further narrows down the pods to the one matching `task_name`. It then collects and returns \
+        This method queries the Kubernetes API for pods tied to the job specified by \
+            `job` and, if provided,\
+              further narrows down the pods to the one matching `task_name`. \
+                It then collects and returns \
                 the names of all containers found within these pods.
 
         Args:
-            job (Job): The job object, expected to have a method `get_name()` that returns the unique identifier of \
+            job (Job): The job object, expected to have a method `get_name()` \
+                that returns the unique identifier of \
                 the job for label matching.
-            task_name (str, optional): The name of a specific pod (task) to filter the search. If None, containers from all \
+            task_name (str, optional): The name of a specific pod (task) to \
+                filter the search. If None, containers from all \
                 pods under the job will be listed.
 
         Returns:
-            List[str]: A list of container names found within the specified job's pods. Returns an empty list if \
+            List[str]: A list of container names found within the specified \
+                job's pods. Returns an empty list if \
                 no matching containers are found.
         """
         containers = []
         label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
-        pods = self.core_v1.list_namespaced_pod(self.namespace, label_selector=label_selector).items
-        
+        pods = self.core_v1.list_namespaced_pod(
+            self.namespace, label_selector=label_selector).items
+
         # Iterate over each pod to collect container names
         for pod in pods:
             if task_name and pod.metadata.name != task_name:
                 continue
             for container in pod.spec.containers:
                 containers.append(container.name)
-        
+
         return containers
 
-    async def start_tty_session(self, websocket: WebSocket, pod: str, container: str, command: List[str]):
+    async def start_tty_session(self, websocket: WebSocket, pod: str,
+                                container: str, command: List[str]):
         """
         Starts a TTY session for executing commands in a container within a pod.
 
@@ -176,15 +188,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         exec_command = ['/bin/sh'] if not command else command
         try:
             resp = stream(self.core_v1.connect_get_namespaced_pod_exec,
-                        pod,
-                        self.namespace,
-                        command=exec_command,
-                        container=container,
-                        stderr=True,
-                        stdin=True,
-                        stdout=True,
-                        tty=True,
-                        _preload_content=False)
+                          pod,
+                          self.namespace,
+                          command=exec_command,
+                          container=container,
+                          stderr=True,
+                          stdin=True,
+                          stdout=True,
+                          tty=True,
+                          _preload_content=False)
         except ApiException as error:
             await websocket.send_text(f"Error connecting to pod: {error}")
             await websocket.close()
@@ -200,7 +212,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 elif event['type'] == 'websocket.disconnect':
                     print(f"Client disconnected with code: {event['code']}")
                     break  # Exit the loop to end the coroutine
-    
+
         # Read from the container and write to remote client websocket
         async def _write_stdout_stderr():
             while resp.is_open():
@@ -218,8 +230,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         await asyncio.gather(read_task, write_task)
 
-    def execute_command(
-            self, task: str, container: str, command: List[str], quiet: bool) -> str:
+    def execute_command(self, task: str, container: str, command: List[str],
+                        quiet: bool) -> str:
         """
         Executes a specified command in a container within a task.
 
