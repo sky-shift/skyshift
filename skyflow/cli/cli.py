@@ -1058,14 +1058,6 @@ def delete_role(name):
     "Task name where the command will be executed. This option can be repeated to \
         specify multiple pods.")
 @click.option(
-    "-c",
-    "--clusters",
-    multiple=True,
-    default=None,
-    help=
-    "Cluster name where the command will be executed. This option can be repeated to \
-        specify multiple clusters.")
-@click.option(
     "-cts",
     "--containers",
     multiple=True,
@@ -1085,24 +1077,23 @@ def delete_role(name):
               default=False,
               help="Stdin is a TTY.")
 def exec_command_sync(  # pylint: disable=too-many-arguments
-        resource: str, command: Tuple[str], namespace: str,
-        clusters: List[str], tasks: List[str], containers: List[str],
+        resource: str, command: Tuple[str], namespace: str, 
+        tasks: List[str], containers: List[str],
         quiet: bool, tty: bool):
     """
     Wrapper for exec_command to parse inputs and change variable names.
     """
     # Convert containers from tuple to list if necessary
     specified_container = list(containers) if containers else []
-    specified_clusters = list(clusters) if clusters else []
     specified_tasks = list(tasks) if tasks else []
 
-    exec_command(resource, command, namespace, specified_clusters,
+    exec_command(resource, command, namespace,
                  specified_tasks, specified_container, quiet, tty)
 
 
 def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
         resource: str, command: Tuple[str], namespace: str,
-        specified_clusters: List[str], specified_tasks: List[str] | List[None],
+        specified_tasks: List[str] | List[None],
         specified_container: List[str] | List[None], quiet: bool, tty: bool):
     """
     Executes a specified command within a container of a Kubernetes resource.
@@ -1119,9 +1110,6 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
         resource (str): The name of the resource within which the command is to be executed.
         command (Tuple[str]): The command to execute, represented as a tuple of strings.
         namespace (str): The Kubernetes namespace where the resource is located.
-        specified_clusters (List[str]): A list of cluster names where the command should \
-            be executed.
-            If TTY mode is enabled, only a single cluster can be specified.
         specified_tasks (List[str]): A list of specific tasks (pods) to target for command \
             execution.
             In TTY mode, only a single task can be targeted.
@@ -1151,10 +1139,6 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
         raise click.ClickException("No command specified.")
 
     if tty:
-        if len(specified_clusters) > 1:
-            raise click.ClickException(
-                "Multiple clusters specified. TTY mode is only supported for a single cluster."
-            )
         if len(specified_tasks) > 1:
             raise click.ClickException(
                 "Multiple tasks specified. TTY mode is only supported for a single task. \
@@ -1178,9 +1162,6 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
         raise click.ClickException(
             f"No running clusters found for the job '{resource}'.")
 
-    if len(specified_clusters) == 0:
-        specified_clusters = clusters_running if tty else [clusters_running[0]]
-
     if len(specified_tasks) == 0:
         click.echo("No tasks specified. Connecting to all tasks...")
         specified_tasks = [None]
@@ -1191,7 +1172,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
     command_str = json.dumps(command)
 
-    for cluster in specified_clusters:
+    for cluster in clusters_running:
         for selected_task in specified_tasks:
             for container in specified_container:
                 exec_dict = {
