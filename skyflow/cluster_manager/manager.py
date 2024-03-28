@@ -1,7 +1,7 @@
 """
 Defines compatability layer for generic Managers.
 """
-from typing import Any, List, Optional
+from typing import Dict, List
 
 from fastapi import WebSocket
 
@@ -47,29 +47,18 @@ class Manager:
             allocatable_capacity=self.allocatable_resources,
         )
 
-    def retrieve_tasks_from_job(self, job: Job) -> List[Any]:
-        """Retrieves tasks from a job."""
-        raise NotImplementedError
-
-    def retrieve_containers_from_job(self,
-                                     job: Job,
-                                     task_name: Optional[str] = None
-                                     ) -> List[str]:
-        """Retrieves containers from a job."""
-        raise NotImplementedError
-
     def execute_command(  # pylint: disable=too-many-arguments
             self, task: str, container: str, command: List[str],
             quiet: bool) -> str:
         """Executes a command on the cluster."""
         raise NotImplementedError
 
-    async def start_tty_session(self, websocket: WebSocket, pod: str,
+    async def start_tty_session(self, websocket: WebSocket, task: str,
                                 container: str, command: List[str]):
         """Starts a tty session on the cluster."""
         raise NotImplementedError
 
-    def get_jobs_status(self):
+    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         """Gets the status for all jobs."""
         raise NotImplementedError
 

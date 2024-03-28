@@ -31,7 +31,7 @@ from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
-from skyflow.templates.job_template import TaskStatusEnum
+from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object, sanitize_cluster_name
 
@@ -635,7 +635,7 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
-    def execute_command(  # pylint: disable=too-many-arguments disable=too-many-locals
+    def execute_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
         self,
         namespace: str,
         quiet: str,
@@ -684,12 +684,7 @@ class APIServer:
                 details about the issue.
         """
 
-        self._authenticate_role(ActionEnum.GET.value, user, "jobs", namespace)
-
         self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
-                                namespace)
-
-        self._authenticate_role(ActionEnum.GET.value, user, "clusters",
                                 namespace)
 
         # Decode the command
@@ -700,6 +695,7 @@ class APIServer:
                               object_name=resource,
                               watch=False,
                               user=user)
+        print(job)
 
         clusters_running = [
             cluster_name
@@ -736,13 +732,16 @@ class APIServer:
                     f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
                 )
 
-            tasks = cluster_manager.retrieve_tasks_from_job(job)
+            tasks = job.status.task_status[cluster]
+            tasks_names = [
+                task_name for task_name, status in tasks.items()
+                if status == TaskStatusEnum.RUNNING.value
+            ]
 
-            if len(tasks) == 0:
+            if len(tasks_names) == 0:
                 raise HTTPException(
                     status_code=404,
                     detail=f"No running tasks found for the job '{resource}'.")
-            tasks_names = [p.metadata.name for p in tasks]
             if selected_tasks != "None" and selected_tasks not in tasks_names:
                 raise HTTPException(
                     status_code=404,
@@ -754,8 +753,12 @@ class APIServer:
                             ] if selected_tasks != "None" else tasks_names
 
             for task in tasks_to_use:
-                containers = cluster_manager.retrieve_containers_from_job(
-                    job, task)
+                containers = []
+                if task in job.status.container_status:
+                    for container_name, status in job.status.container_status[
+                            task].items():
+                        if status == ContainerStatusEnum.RUNNING.value:
+                            containers.append(container_name)
                 if container != "None" and container not in containers:
                     raise HTTPException(
                         status_code=404,
@@ -856,6 +859,7 @@ class APIServer:
         self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
                                 namespace)
 
+        await websocket.accept()
         try:
             cluster_obj = self.get_object(object_type="clusters",
                                           object_name=cluster,
@@ -886,16 +890,24 @@ class APIServer:
             return
 
         if tasks == "None":
-            tasks = cluster_manager.retrieve_tasks_from_job(job)
+            tasks = job.status.task_status[cluster]
+            tasks = [
+                pod_name for pod_name, status in tasks.items()
+                if status == TaskStatusEnum.RUNNING.value
+            ]
             if len(tasks) == 0:
                 close_message = f"No running tasks found for the job '{resource}'."
                 await websocket.send_text(close_message)
                 await websocket.close(code=1003)
-            tasks = tasks[0].metadata.name
+                return
+            tasks = tasks[0]
         if container == "None":
-            container = cluster_manager.retrieve_containers_from_job(job)[0]
-
-        await websocket.accept()
+            if tasks in job.status.container_status:
+                for container_name, status in job.status.container_status[
+                        tasks].items():
+                    if status == ContainerStatusEnum.RUNNING.value:
+                        container = container_name  # Run on first running container
+                        break
         if quiet == "True":
             await websocket.send_text(
                 "Quiet mode is not supported for TTY sessions. \n")

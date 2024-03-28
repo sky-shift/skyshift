@@ -21,6 +21,7 @@ from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, RestartPolicyEnum, Service,
                                TaskStatusEnum)
+from skyflow.templates.job_template import ContainerStatusEnum
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -100,75 +101,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
 
-    def retrieve_tasks_from_job(self, job: Job) -> List[client.V1Pod]:
-        """
-        Retrieves a list of pods (tasks) associated with a given job based on \
-            specific labels.
-
-        This method queries the Kubernetes API to find pods that match the \
-            labels indicating they are part
-        of the specified job. It constructs a label selector string \
-            using the job's name to identify these pods.
-        The search is scoped to the namespace associated with the \
-            instance of this class.
-
-        Args:
-            job (Job): The job object, which must provide a method \
-                `get_name()` that returns the\
-                  job's name used for label matching.
-
-        Returns:
-            List[client.V1Pod]: A list of V1Pod objects representing \
-                the pods found for the job.\
-                  Returns an empty list if no matching pods are found.
-
-        """
-        label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
-        return self.core_v1.list_namespaced_pod(
-            self.namespace, label_selector=label_selector).items or []
-
-    def retrieve_containers_from_job(self,
-                                     job: Job,
-                                     task_name: Optional[str] = None
-                                     ) -> List[str]:
-        """
-        Retrieves the names of containers running within the pods associated with a specific job, \
-            optionally filtered by a single task name.
-
-        This method queries the Kubernetes API for pods tied to the job specified by \
-            `job` and, if provided,\
-              further narrows down the pods to the one matching `task_name`. \
-                It then collects and returns \
-                the names of all containers found within these pods.
-
-        Args:
-            job (Job): The job object, expected to have a method `get_name()` \
-                that returns the unique identifier of \
-                the job for label matching.
-            task_name (str, optional): The name of a specific pod (task) to \
-                filter the search. If None, containers from all \
-                pods under the job will be listed.
-
-        Returns:
-            List[str]: A list of container names found within the specified \
-                job's pods. Returns an empty list if \
-                no matching containers are found.
-        """
-        containers = []
-        label_selector = f"manager=sky_manager,sky_job_id={job.get_name()}"
-        pods = self.core_v1.list_namespaced_pod(
-            self.namespace, label_selector=label_selector).items
-
-        # Iterate over each pod to collect container names
-        for pod in pods:
-            if task_name and pod.metadata.name != task_name:
-                continue
-            for container in pod.spec.containers:
-                containers.append(container.name)
-
-        return containers
-
-    async def start_tty_session(self, websocket: WebSocket, pod: str,
+    async def start_tty_session(self, websocket: WebSocket, task: str,
                                 container: str, command: List[str]):
         """
         Starts a TTY session for executing commands in a container within a pod.
@@ -179,7 +112,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         Parameters:
         - websocket (WebSocket): The WebSocket connection to the client.
-        - pod (str): The name of the pod where the command will be executed.
+        - task (str): The name of the pod where the command will be executed.
         - container (str): The name of the container inside the pod.
         - command (List[str]): The command to execute, passed as a list of strings.
                                An empty list or None defaults to ['/bin/sh'].
@@ -188,7 +121,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         exec_command = ['/bin/sh'] if not command else command
         try:
             resp = stream(self.core_v1.connect_get_namespaced_pod_exec,
-                          pod,
+                          task,
                           self.namespace,
                           command=exec_command,
                           container=container,
@@ -593,22 +526,39 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         return self.core_v1.list_namespaced_pod(
             self.namespace, label_selector=label_selector_str)
 
-    def get_jobs_status(self) -> Dict[str, Dict[str, int]]:
-        """Gets the jobs state. (Map from job name to status)"""
+    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
+        """Gets the jobs tasks status. (Map from job name to task mapped to status)"""
         # @TODO(mluo): Minimize K8 API calls by doing a List and Watch over
         # pods.
         # Filter jobs that that are submitted by Sky Manager.
         sky_manager_pods = self.core_v1.list_namespaced_pod(
             self.namespace, label_selector="manager=sky_manager")
-        jobs_dict: Dict[str, Dict[str, int]] = {}
+        jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
+            "tasks": {},
+            "containers": {}
+        }
         for pod in sky_manager_pods.items:
             sky_job_name = pod.metadata.labels["sky_job_id"]
             pod_status = process_pod_status(pod)
-            if sky_job_name not in jobs_dict:
-                jobs_dict[sky_job_name] = {}
-            if pod_status not in jobs_dict[sky_job_name]:
-                jobs_dict[sky_job_name][pod_status] = 0
-            jobs_dict[sky_job_name][pod_status] += 1
+            if sky_job_name not in jobs_dict["tasks"]:
+                jobs_dict["tasks"][sky_job_name] = {}
+            jobs_dict["tasks"][sky_job_name][pod.metadata.name] = pod_status
+            for container_status in pod.status.container_statuses:
+                state: str = ContainerStatusEnum.UNKNOWN.value  # Default state
+                if container_status.state.running is not None:
+                    state = ContainerStatusEnum.RUNNING.value
+                elif container_status.state.waiting is not None:
+                    state = ContainerStatusEnum.WAITING.value
+                elif container_status.state.terminated is not None:
+                    state = ContainerStatusEnum.TERMINATED.value
+                if pod.metadata.name not in jobs_dict["containers"]:
+                    jobs_dict["containers"][pod.metadata.name] = {
+                        container_status.name: state
+                    }
+                else:
+                    jobs_dict["containers"][pod.metadata.name][
+                        container_status.name] = state
+
         return jobs_dict
 
     def get_service_status(self) -> Dict[str, Dict[str, str]]:
@@ -635,15 +585,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
     def get_job_logs(self, job: Job) -> List[str]:
         """Gets logs for a given job."""
         # Find pods associated with the Job
-        pods = self.core_v1.list_namespaced_pod(
-            self.namespace,
-            label_selector=f"manager=sky_manager,sky_job_id={job.get_name()}")
+        pods = job.status.task_status[self.cluster_name]
+        running_pods = [
+            pod_name for pod_name, status in pods.items()
+            if status == TaskStatusEnum.RUNNING.value
+        ]
         # Fetch and print logs from each Pod
         logs = []
-        for pod in pods.items:
-            pod_name = pod.metadata.name
-            log = self.core_v1.read_namespaced_pod_log(pod_name,
-                                                       self.namespace)
+        for pod in running_pods:
+            log = self.core_v1.read_namespaced_pod_log(pod, self.namespace)
             logs.append(log)
         return logs
 

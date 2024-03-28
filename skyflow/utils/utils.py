@@ -15,7 +15,6 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
-
 def sanitize_cluster_name(value: str) -> str:
     """
     Validates the name field of a Cluster, ensuring
