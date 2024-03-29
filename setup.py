@@ -11,7 +11,7 @@ setup(
         'python-multipart', "pytest", "pyyaml", "requests>=2.31.0", "rich",
         "tabulate", "types-passlib", "types-psutil", "types-tabulate",
         "types-PyYAML", "types-requests", "skypilot[aws,gcp,azure,kubernetes]",
-        "bcrypt==4.0.1", "paramiko", "types-paramiko"
+        "bcrypt==4.0.1", "paramiko", "types-paramiko", "requests_unixsocket"
     ],
     extras_require={
         "server": [
