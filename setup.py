@@ -11,12 +11,12 @@ setup(
         'python-multipart', "pytest", "pyyaml", "requests>=2.31.0", "rich",
         "tabulate", "types-passlib", "types-psutil", "types-tabulate",
         "types-PyYAML", "types-requests", "skypilot[aws,gcp,azure,kubernetes]",
-        "bcrypt==4.0.1", "paramiko", "types-paramiko"
+        "bcrypt==4.0.1", "paramiko", "types-paramiko", "requests_unixsocket"
     ],
     extras_require={
         "server": [
             "etcd3", "fastapi", "uvicorn[standard]", "pydantic>=2.5.0",
-            'jsonpatch', "pyjwt", "requests_unixsocket"
+            'jsonpatch', "pyjwt",
         ],
         "dev": [
             "yapf==0.32.0", "pylint==2.8.2", "pylint-quotes==0.2.3",
