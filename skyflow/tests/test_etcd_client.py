@@ -13,9 +13,12 @@ from typing import Set
 
 import pytest
 
-from skyflow.etcd_client.etcd_client import (ConflictError, ETCDClient,
-                                             KeyNotFoundError,
-                                             get_resource_version)
+
+from skyflow.etcd_client.etcd_client import ETCDClient, get_resource_version
+from skyflow.etcd_client.etcd_exception import (
+    ConflictError,
+    KeyNotFoundError,
+)
 from skyflow.tests.tests_utils import (retrieve_current_working_dir,
                                        setup_skyflow, shutdown_skyflow)
 

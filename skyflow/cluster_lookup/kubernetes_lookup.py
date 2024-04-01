@@ -8,6 +8,12 @@ from kubernetes import config
 from skyflow.api_client.cluster_api import ClusterAPI
 
 
+class InvalidKubeConfigError(Exception):
+    """Raised when the kubeconfig file is invalid."""
+    def __init__(self, msg: str):
+        super().__init__(msg)
+        
+
 def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
     """
     Loads clusters listed under the Kube config file.
@@ -28,9 +34,9 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
         error_msg = str(error)
         # Invalid Kubeconfig file.
         if 'current-context' in error_msg:
-            raise ValueError(
+            raise InvalidKubeConfigError(
                 'Invalid kubeconfig file. Set `current-context` in your '
                 'kube-config file by running `kubectl config use-context [NAME]`.'
-            ) from error
+            )
         raise error
     return [context["name"] for context in contexts]

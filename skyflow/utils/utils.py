@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Union
 
 import requests
 import yaml
+from skyflow.utils.utils_exception import InvalidClusterNameError, ObjectLoadingError
+
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
@@ -21,7 +23,7 @@ def sanitize_cluster_name(value: str) -> str:
     it does not contain whitespaces, @ or '/'.
     """
     if not value or value.isspace() or len(value) == 0:
-        raise ValueError(f"Name format is invalid: {value}")
+        raise InvalidClusterNameError(f"Name format is invalid: {value}")
     sanitized_value = value.replace(" ", "-space-").replace("/",
                                                             "-dash-").replace(
                                                                 "@", "-at-")
@@ -73,9 +75,9 @@ def load_single_object(item: dict):
         object_class = getattr(OBJECT_TEMPLATES, kind)
         if object_class:
             return object_class(**item)
-        raise ValueError(f"Unknown kind: {kind}")
+        raise ObjectLoadingError(f"Unknown kind: {kind}")
     except KeyError as error:
-        raise ValueError(f"Missing expected key: {error}") from error
+        raise ObjectLoadingError(f"Missing expected key: {error}")
 
 
 def watch_events(url: str, headers: Optional[dict] = None):

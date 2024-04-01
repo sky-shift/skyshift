@@ -24,6 +24,8 @@ from etcd3.client import Etcd3Client
 
 from skyflow.etcd_client.monkey_patch import delete_prefix
 from skyflow.templates.event_template import WatchEventEnum
+from skyflow.etcd_client.etcd_exception import ConflictError, KeyNotFoundError
+
 
 # Perform Monkey Patch over faulty Etcd3 Delete_Prefix method
 Etcd3Client.delete_prefix = delete_prefix
@@ -115,26 +117,6 @@ def watch_generator_fn(
         etcd_value = update_resource_version(etcd_value,
                                              key_value.mod_revision)
         yield (event_type, etcd_value)
-
-
-class ConflictError(Exception):
-    """Exception raised when there is a conflict in the ETCD store."""
-
-    def __init__(self, msg: str, resource_version: Optional[int] = None):
-        self.msg = msg
-        self.resource_version = resource_version
-        super().__init__(self.msg)
-
-
-class KeyNotFoundError(Exception):
-    """Exception raised when a requested key does not exist."""
-
-    def __init__(self,
-                 key: str,
-                 msg: str = "The requested key does not exist."):
-        self.key = key
-        self.msg = msg
-        super().__init__(self.msg)
 
 
 class ETCDClient:

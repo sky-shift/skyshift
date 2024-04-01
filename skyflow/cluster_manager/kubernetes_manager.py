@@ -17,6 +17,8 @@ from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, RestartPolicyEnum, Service,
                                TaskStatusEnum)
+from skyflow.cluster_manager.cluster_manager_exception import K8ConnectionError
+
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -59,10 +61,6 @@ def process_pod_status(pod: client.V1Pod) -> str:
     return status
 
 
-class K8ConnectionError(config.config_exception.ConfigException):
-    """Raised when there is an error connecting to the Kubernetes cluster."""
-
-
 class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
@@ -75,7 +73,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         except config.config_exception.ConfigException as error:
             raise K8ConnectionError(
                 "Could not connect to Kubernetes cluster "
-                f"{self.cluster_name}, check kubeconfig.") from error
+                f"{self.cluster_name}, check kubeconfig.")
         all_contexts = config.list_kube_config_contexts(
             config_file=config_path)[0]
         self.context = None
