@@ -336,7 +336,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         deployment_dict = {
             "deployment_name": job_name,
-            "cluster_name": utils.un_sanitize_cluster_name(self.cluster_name),
+            "cluster_name": utils.unsanitize_cluster_name(self.cluster_name),
             "sky_job_id": job.get_name(),
             "sky_namespace": job.get_namespace(),
             "restart_policy": job.spec.restart_policy,
@@ -396,7 +396,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             jinja_dict = {
                 "pod_name": f"{job_name}-{rank_id}",
                 "cluster_name":
-                utils.un_sanitize_cluster_name(self.cluster_name),
+                utils.unsanitize_cluster_name(self.cluster_name),
                 "sky_job_id": job.get_name(),
                 "sky_namespace": job.get_namespace(),
                 "restart_policy": job.spec.restart_policy,

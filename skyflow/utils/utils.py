@@ -27,7 +27,7 @@ def sanitize_cluster_name(value: str) -> str:
     return sanitized_value
 
 
-def un_sanitize_cluster_name(value: Optional[str]) -> str:
+def unsanitize_cluster_name(value: Optional[str]) -> str:
     """
     Reverts the sanitized cluster name back to the original name.
     """
