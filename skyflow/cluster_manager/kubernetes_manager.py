@@ -12,6 +12,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 
+from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
@@ -68,8 +69,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
     def __init__(self, name: str, config_path: str = '~/.kube/config'):
         super().__init__(name)
+        self.cluster_name = utils.sanitize_cluster_name(name)
         self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
-
         try:
             config.load_kube_config(config_file=config_path)
         except config.config_exception.ConfigException as error:
@@ -80,6 +81,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             config_file=config_path)[0]
         self.context = None
         for context in all_contexts:
+            context["name"] = utils.sanitize_cluster_name(
+                context["name"])
             if context["name"] == self.cluster_name:
                 self.context = context
                 break

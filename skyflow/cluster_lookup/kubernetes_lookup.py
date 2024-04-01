@@ -5,6 +5,7 @@ from typing import List
 
 from kubernetes import config
 
+from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 
 
@@ -33,4 +34,4 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
                 'kube-config file by running `kubectl config use-context [NAME]`.'
             ) from error
         raise error
-    return [context["name"] for context in contexts]
+    return [utils.sanitize_cluster_name(context["name"]) for context in contexts]

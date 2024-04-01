@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union
 import click
 from tabulate import tabulate
 
+from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
                                 ServiceAPI)
@@ -142,7 +143,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         return aggregated_data
 
     for entry in cluster_lists:
-        name = entry.get_name()
+        name = utils.un_sanitize_cluster_name(entry.get_name())
         manager_type = entry.spec.manager
 
         cluster_resources = entry.status.capacity

@@ -12,6 +12,7 @@ from typing import List
 from kubernetes import client, config, utils
 
 from skyflow.cluster_manager import KubernetesManager
+import skyflow.utils as skyflow_utils
 
 logging.basicConfig(
     level=logging.INFO,
@@ -133,7 +134,7 @@ def _remove_cluster_certs(cluster_name: str):
 
 def _get_clusterlink_gw_target(cluster: str, namespace="default"):
     """Gets the IP of the clusterlink gateway"""
-    core_api = client.CoreV1Api(config.new_client_from_config(context=cluster))
+    core_api = client.CoreV1Api(config.new_client_from_config(context=skyflow_utils.un_sanitize_cluster_name(cluster)))
     if cluster.startswith(KIND_PREFIX):
         nodes = core_api.list_node()
         return nodes.items[0].status.addresses[0].address, DEFAULT_CL_PORT_KIND
@@ -321,7 +322,7 @@ def _deploy_clusterlink_gateway(k8s_api_client: client.ApiClient, cluster_name,
 
 def _deploy_clusterlink_k8s(cluster_name, namespace: str):
     """Deploys clusterlink gateway in Kubernetes cluster."""
-    k8s_api_client = config.new_client_from_config(context=cluster_name)
+    k8s_api_client = config.new_client_from_config(context=skyflow_utils.un_sanitize_cluster_name(cluster_name))
     _deploy_clusterlink_gateway(k8s_api_client, cluster_name, namespace)
     _wait_for_ready_deployment(k8s_api_client, "cl-controlplane")
     _wait_for_ready_deployment(k8s_api_client, "cl-dataplane")
