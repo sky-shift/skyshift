@@ -16,9 +16,13 @@ import pytest
 import requests
 from requests import Timeout
 
-from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
+from skyflow.api_client.object_api import (NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
+from skyflow.utils.base_exceptions import APIException
+from skyflow.api_client.api_client_exception import APIResponseException
+from test_exception import NoJsonDataError
+from skyflow.utils.utils_exception import ObjectLoadingError
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -57,7 +61,7 @@ class MockResponse:
         """Returns the mocked JSON data."""
         if self._json_data is not None:
             return self._json_data
-        raise ValueError("No JSON content")
+        raise NoJsonDataError("No JSON content")
 
 
 @pytest.fixture
@@ -219,6 +223,7 @@ def mock_no_json_response(monkeypatch: Any) -> None:
 def test_namespace_object_api_create_success(namespace_api: NamespaceObjectAPI,
                                              mock_requests: Any) -> None:
     """Tests successful object creation using NamespaceObjectAPI."""
+    # Post, ResponseType.DEFAULT
     valid_config = {"kind": "Job", "metadata": {"name": "test-job"}}
     response = namespace_api.create(valid_config)
     assert response.kind == "Job" and response.metadata.name == "test-job"
@@ -228,7 +233,8 @@ def test_namespace_object_api_create_api_exception(
         namespace_api: NamespaceObjectAPI, mock_requests: Any) -> None:
     """Tests API exception handling during object creation with NamespaceObjectAPI."""
     namespace_api.url += "/error"
-    with pytest.raises(APIException):
+    # Post, ResponseType.ERROR
+    with pytest.raises(APIResponseException):
         namespace_api.create({"key": "value"})
 
 
@@ -242,14 +248,16 @@ def test_namespace_object_api_create_timeout(namespace_api: NamespaceObjectAPI,
 def test_namespace_object_api_create_wrong_response(
         namespace_api: NamespaceObjectAPI, mock_wrong_response: Any) -> None:
     """Tests handling of an unexpected response structure from NamespaceObjectAPI."""
-    with pytest.raises(ValueError):
+    # Will get ObjectLoadingError in load_single_object function
+    with pytest.raises(ObjectLoadingError):
         namespace_api.create({"key": "value"})
 
 
 def test_namespace_object_api_create_server_error(
         namespace_api: NamespaceObjectAPI, mock_server_error: Any) -> None:
     """Tests server error handling during object creation with NamespaceObjectAPI."""
-    with pytest.raises(APIException) as exc_info:
+    # NoJsonDataError will be raised earlier than APIResponseException
+    with pytest.raises(NoJsonDataError) as exc_info:
         namespace_api.create({"key": "value"})
     assert "500" in str(exc_info.value)
 
@@ -257,7 +265,7 @@ def test_namespace_object_api_create_server_error(
 def test_namespace_object_api_create_bad_request(
         namespace_api: NamespaceObjectAPI, mock_bad_request: Any) -> None:
     """Tests bad request error handling during object creation with NamespaceObjectAPI."""
-    with pytest.raises(APIException) as exc_info:
+    with pytest.raises(APIResponseException) as exc_info:
         namespace_api.create({"key": "value"})
     assert "Bad request" in str(exc_info.value)
 
@@ -265,7 +273,7 @@ def test_namespace_object_api_create_bad_request(
 def test_namespace_object_api_create_no_content_response(
         namespace_api: NamespaceObjectAPI, mock_no_json_response: Any) -> None:
     """Tests handling of no content response from NamespaceObjectAPI."""
-    with pytest.raises(ValueError):
+    with pytest.raises(NoJsonDataError):
         namespace_api.create({"key": "value"})
 
 
