@@ -1,7 +1,7 @@
 """
 Lookup Kuberntes clusters under Kubeconfig.
 """
-from typing import List
+from typing import Any, List
 
 from kubernetes import config
 
@@ -9,7 +9,7 @@ from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 
 
-def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
+def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Loads clusters listed under the Kube config file.
     """
@@ -34,4 +34,6 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[dict]:
                 'kube-config file by running `kubectl config use-context [NAME]`.'
             ) from error
         raise error
-    return [utils.sanitize_cluster_name(context["name"]) for context in contexts]
+    return [
+        utils.sanitize_cluster_name(context["name"]) for context in contexts
+    ]

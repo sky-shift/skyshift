@@ -69,7 +69,6 @@ class ClusterController(Controller):
             log_path=f'{cluster_dir(self.name)}/logs/cluster_controller.log')
 
         self.logger.info("Initializing Cluster Controller: %s", self.name)
-
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm TODO)

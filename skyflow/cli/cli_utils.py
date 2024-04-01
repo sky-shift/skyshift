@@ -195,6 +195,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
         status = entry.status.conditions[-1]["type"]
         if clusters:
             for cluster_name, cluster_replica_status in clusters.items():
+                cluster_name = utils.un_sanitize_cluster_name(cluster_name)
                 replica_count = sum(cluster_replica_status.values())
                 active_count = 0
                 if TaskStatusEnum.RUNNING.value in cluster_replica_status:
@@ -344,8 +345,8 @@ def print_link_table(link_list: Union[Link, LinkList]):
 
     for entry in link_lists:
         name = entry.get_name()
-        source = entry.spec.source_cluster
-        target = entry.spec.target_cluster
+        source = utils.un_sanitize_cluster_name(entry.spec.source_cluster)
+        target = utils.un_sanitize_cluster_name(entry.spec.target_cluster)
         status = entry.get_status()
         table_data.append([name, source, target, status])
 
