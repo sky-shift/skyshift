@@ -2,8 +2,6 @@
 Job controllers track the state of running jobs on clusters.
 """
 
-import logging
-import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -15,12 +13,10 @@ from skyflow.api_client import ClusterAPI, JobAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates.job_template import Job
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 DEFAULT_HEARTBEAT_TIME = 3
 DEFAULT_RETRY_LIMIT = 3
@@ -61,17 +57,17 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.name = name
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
+
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Job Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/job_controller.log')
+
         self.informer = Informer(JobAPI(namespace=''), logger=self.logger)
         self.retry_counter = 0
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.job_status = self.manager_api.get_jobs_status()
-
-        self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
         # Keeps track of cached job state.

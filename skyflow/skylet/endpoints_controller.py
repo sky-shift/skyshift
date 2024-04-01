@@ -1,8 +1,6 @@
 """
 Endpoints controller manages updating available endpoints over diff clusters.
 """
-import logging
-import os
 import queue
 import time
 import traceback
@@ -14,13 +12,11 @@ from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import (EndpointObject, Endpoints, Job, Service,
                                WatchEventEnum)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 @contextmanager
@@ -48,19 +44,12 @@ class EndpointsController(Controller):
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         self.worker_queue: queue.Queue = queue.Queue()
+
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Endpoints Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/endpoints_controller.log')
         self.service_informer = Informer(ServiceAPI(namespace=''),
                                          logger=self.logger)
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
-
-        self.logger = logging.getLogger(
-            f"[{self.name} - Endpoints Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def post_init_hook(self):
 
@@ -174,9 +163,8 @@ class EndpointsController(Controller):
         retry = 0
         while True:
             try:
-                end_json: dict = EndpointsAPI(namespace=namespace).get(
-                    name=name)
-                return Endpoints.parse_obj(**end_json)
+                endpoints = EndpointsAPI(namespace=namespace).get(name=name)
+                return endpoints
             except APIException as error:
                 retry += 1
                 self.logger.error("Could not fetch %s. Retrying.", name)

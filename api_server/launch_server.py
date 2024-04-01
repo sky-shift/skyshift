@@ -5,17 +5,18 @@ import argparse
 import multiprocessing
 import os
 import subprocess
+from typing import Optional
 
 import uvicorn
 
-from api_utils import generate_manager_config
+from skyflow.utils.utils import generate_manager_config
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 
 
-def check_and_install_etcd(data_directory=None):
+def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     """
     Checks if ETCD is installed and running. If not, installs and launches ETCD.
     """
@@ -29,32 +30,32 @@ def check_and_install_etcd(data_directory=None):
     return_code = result.returncode
     if return_code == 0:
         print("[Installer] ETCD is running.")
-    else:
-        print(
-            "[Installer] ETCD is not running, automatically installing ETCD.")
-        relative_dir = os.path.dirname(os.path.realpath(__file__))
-        install_command = f"{relative_dir}/install_etcd.sh"
-        # Pass data_directory to the install script if provided
-        if data_directory:
-            install_command += f" {data_directory}"
+        return True
+    print("[Installer] ETCD is not running, automatically installing ETCD.")
+    relative_dir = os.path.dirname(os.path.realpath(__file__))
+    install_command = f"{relative_dir}/install_etcd.sh"
+    # Pass data_directory to the install script if provided
+    if data_directory:
+        install_command += f" {data_directory}"
 
-        with subprocess.Popen(install_command,
-                              shell=True,
-                              start_new_session=True) as install_process:
-            install_process.wait()  # Wait for the script to complete
-            install_rc = install_process.returncode
-        if install_rc == 0:
-            print("[Installer] Successfully installed and launched ETCD.")
-        else:
-            print(
-                "[Installer] ETCD failed to install and launch. Try manually installing ETCD."
-            )
+    with subprocess.Popen(install_command, shell=True,
+                          start_new_session=True) as install_process:
+        install_process.wait()  # Wait for the script to complete
+        install_rc = install_process.returncode
+    if install_rc == 0:
+        print("[Installer] Successfully installed and launched ETCD.")
+        return True
+    print(
+        "[Installer] ETCD failed to install and launch. Try manually installing ETCD."
+    )
+    return False
 
 
 def main(host: str, port: int, workers: int, data_directory=None):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
-    check_and_install_etcd(data_directory)
+    if not check_and_install_etcd(data_directory):
+        return
     generate_manager_config(host, port)
     uvicorn.run(
         "api_server:app",

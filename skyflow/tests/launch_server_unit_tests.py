@@ -9,29 +9,49 @@ from unittest.mock import MagicMock, mock_open, patch
 import yaml
 
 from api_server import launch_server
+from skyflow.utils.utils import generate_manager_config
 
 
 class TestLaunchAPIServer(unittest.TestCase):
 
+    @patch('os.urandom', return_value=b'\x00' * 32
+           )  # Mocks os.urandom to return a predictable value.
     @patch('os.makedirs')
-    @patch('builtins.open', new_callable=mock_open)
-    def test_generate_manager_config(self, mock_file, mock_makedirs):
+    @patch('builtins.open', new_callable=mock_open, read_data=""
+           )  # Mocks file opening, read_data can simulate file content.
+    @patch('yaml.safe_load'
+           )  # Mocks yaml.safe_load to control its return value.
+    def test_generate_manager_config(self, mock_yaml_safe_load, mock_file,
+                                     mock_makedirs, mock_urandom):
         """
         Test if the manager configuration file is generated correctly.
         """
+
+        # Remove the API_SERVER_CONFIG_PATH file if it exists
+        if os.path.exists(
+                os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH)):
+            os.remove(os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH))
+
         test_host = "127.0.0.1"
         test_port = 8080
-
-        # Call the function with test data
-        launch_server.generate_manager_config(test_host, test_port)
-
-        # Expected configuration dictionary
-        expected_config = {
+        mock_config_dict = {
             "api_server": {
                 "host": test_host,
                 "port": test_port,
+                "secret":
+                '00' * 32,  # Corresponds to the mocked os.urandom output
             },
+            "users": [],
         }
+
+        # Mock yaml.safe_load to return the mock_config_dict
+        mock_yaml_safe_load.return_value = mock_config_dict
+
+        # Call the function with test data
+        generate_manager_config(test_host, test_port)
+
+        # Expected configuration dictionary with a mocked 'secret'
+        expected_config = mock_config_dict  # Or construct this as needed
 
         # Build the expected absolute file path
         expected_file_path = os.path.expanduser(

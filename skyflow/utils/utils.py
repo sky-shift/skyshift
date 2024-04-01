@@ -4,6 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
+import shutil
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -12,6 +13,46 @@ import yaml
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
+
+
+def sanitize_cluster_name(value: str) -> str:
+    """
+    Validates the name field of a Cluster, ensuring
+    it does not contain whitespaces, @ or '/'.
+    """
+    if not value or value.isspace() or len(value) == 0:
+        raise ValueError(f"Name format is invalid: {value}")
+    sanitized_value = value.replace(" ", "-space-").replace("/",
+                                                            "-dash-").replace(
+                                                                "@", "-at-")
+    return sanitized_value
+
+
+def generate_manager_config(host: str, port: int):
+    """Generates the API server config file."""
+    absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
+    # If path exists, check if host and port are identical
+    if os.path.exists(absolute_path):
+        with open(absolute_path, "r") as config_file:
+            config_dict = yaml.safe_load(config_file)
+
+            if (config_dict["api_server"]["host"] == host
+                    and config_dict["api_server"]["port"] == port
+                    and "secret" in config_dict["api_server"]):
+                print("API server config already exists. Skipping generation.")
+                return
+
+    config_dict = {
+        "api_server": {
+            "host": host,
+            "port": port,
+            "secret": os.urandom(256).hex(),
+        },
+        "users": [],
+    }
+    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
+    with open(absolute_path, "w") as config_file:
+        yaml.dump(config_dict, config_file)
 
 
 def load_object(response: Union[Dict, List[Dict]]):
@@ -70,3 +111,8 @@ def load_manager_config():
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."
         ) from error
     return config_dict
+
+
+def delete_unused_cluster_config(cluster_name: str):
+    """Deletes the cluster config directory from the Skyconf directory."""
+    shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")

@@ -20,8 +20,10 @@ DEFAULT_RETRY_LIMIT = int(1e9)
 
 logger = logging.getLogger(__name__)
 
+
 class Watcher:
     """Watches for changes to sets of objects."""
+
     def __init__(
         self,
         api: object,
@@ -48,7 +50,7 @@ class Watcher:
                 logger.error(
                     "Unable to connect to API Server closed. Trying again.")
                 time.sleep(self.backoff_time)
-            except Exception: # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except
                 retry += 1
                 logger.error(traceback.format_exc())
                 logger.error("Encountered unusual error. Trying again.")
