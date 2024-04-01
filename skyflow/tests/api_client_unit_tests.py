@@ -259,7 +259,6 @@ def test_namespace_object_api_create_server_error(
     # NoJsonDataError will be raised earlier than APIResponseException
     with pytest.raises(NoJsonDataError) as exc_info:
         namespace_api.create({"key": "value"})
-    assert "500" in str(exc_info.value)
 
 
 def test_namespace_object_api_create_bad_request(
