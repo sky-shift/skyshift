@@ -6,7 +6,7 @@ import requests
 from skyflow.utils import load_object, watch_events
 from skyflow.utils.utils import load_manager_config
 from skyflow.api_client.api_client_exception import APIResponseException, TokenNotFoundException, NamespaceObjectAPIException, NoNamespaceObjectAPIException
-from skyflow.tests.test_exception import NoJsonDataError
+from skyflow.tests.tests_exception import NoJsonDataError
 
 
 def verify_response(input_data):

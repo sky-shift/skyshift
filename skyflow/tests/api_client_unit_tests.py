@@ -21,7 +21,7 @@ from skyflow.api_client.object_api import (NamespaceObjectAPI,
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 from skyflow.utils.base_exceptions import APIException
 from skyflow.api_client.api_client_exception import APIResponseException
-from test_exception import NoJsonDataError
+from tests_exception import NoJsonDataError
 from skyflow.utils.utils_exception import ObjectLoadingError
 
 
