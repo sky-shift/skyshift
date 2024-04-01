@@ -8,16 +8,9 @@ from typing import Dict, Generic, List, TypeVar
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from skyflow.utils.utils import load_object
+from skyflow.templates.templates_exception import ObjectMetaException, NamespacedObjectMetaException
 
 GenericType = TypeVar("GenericType")
-
-
-class ObjectException(Exception):
-    """Raised when the object dict is invalid."""
-
-    def __init__(self, message="Failed to create object."):
-        self.message = message
-        super().__init__(self.message)
 
 
 class ObjectStatus(BaseModel):
@@ -49,13 +42,13 @@ class ObjectMeta(BaseModel, validate_assignment=True):
         """
         name = value
         if not name:
-            raise ValueError("Object name cannot be empty.")
+            raise ObjectMetaException("Object name cannot be empty.")
         pattern = r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
         match = bool(re.match(pattern, name)) and len(name) <= 63
         if match:
             return name
         # Regex failed
-        raise ValueError(("Invalid object name. Object names must follow "
+        raise ObjectMetaException(("Invalid object name. Object names must follow "
                           f"regex pattern, {pattern}, and must be no more "
                           "than 63 characters long."))
 
@@ -69,7 +62,7 @@ class NamespacedObjectMeta(ObjectMeta):
     def verify_namespace(cls, value: str) -> str:
         """Validates the namespace field of a Service."""
         if not value:
-            raise ValueError("Namespace cannot be empty.")
+            raise NamespacedObjectMetaException("Namespace cannot be empty.")
         return value
 
 

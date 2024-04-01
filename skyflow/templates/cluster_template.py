@@ -8,10 +8,11 @@ from typing import Dict, List, Optional
 from pydantic import Field, field_validator
 
 from skyflow import utils
-from skyflow.templates.object_template import (Object, ObjectException,
+from skyflow.templates.object_template import (Object,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.templates.templates_exception import ClusterTemplateException, ClusterStatusException, ClusterSpecException
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -32,10 +33,6 @@ class ClusterStatusEnum(enum.Enum):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
-
-
-class ClusterException(ObjectException):
-    """Raised when the cluster template is invalid."""
 
 
 class ClusterStatus(ObjectStatus):
@@ -68,10 +65,10 @@ class ClusterStatus(ObjectStatus):
                 "transitionTime": str(time.time()),
             }]
         if len(conditions) == 0:
-            raise ValueError("Cluster status's condition field is empty.")
+            raise ClusterStatusException("Cluster status's condition field is empty.")
         for condition in conditions:
             if "status" not in condition:
-                raise ValueError(
+                raise ClusterStatusException(
                     "Cluster status's condition field is missing status.")
         return conditions
 
@@ -101,7 +98,7 @@ class ClusterStatus(ObjectStatus):
         for node_name, node_resources in capacity.items():
             for resource_type, resource_value in node_resources.items():
                 if resource_type not in resource_enum_dict + accelerator_enum_dict:
-                    raise ValueError(
+                    raise ClusterStatusException(
                         f"Invalid resource type '{resource_type}' for node '{node_name}'. "
                         "Please use ResourceEnum or AcceleratorEnum to specify resources."
                     )
@@ -109,14 +106,14 @@ class ClusterStatus(ObjectStatus):
                     min_limit = resource_limits[resource_type].get(
                         "min", float("-inf"))
                     if resource_value < min_limit:
-                        raise ValueError(
+                        raise ClusterStatusException(
                             f"Invalid value for resource '{resource_type}' in node \
                                 '{node_name}': {resource_value}. "
                             f"Value must be >= {min_limit}.")
                 else:
                     # For accelerators or any other resources without defined limits
                     if resource_value < 0:
-                        raise ValueError(
+                        raise ClusterStatusException(
                             f"Invalid value for resource '{resource_type}' in node \
                                 '{node_name}': {resource_value}. "
                             "Value must be non-negative.")
@@ -128,7 +125,7 @@ class ClusterStatus(ObjectStatus):
     def verify_status(cls, status: str):
         """Validates the status field of a Cluster."""
         if status is None or status not in ClusterStatusEnum.__members__:
-            raise ValueError(f"Invalid cluster status: {status}.")
+            raise ClusterStatusException(f"Invalid cluster status: {status}.")
         return status
 
     def update_conditions(self, conditions):
@@ -195,10 +192,10 @@ class ClusterSpec(ObjectSpec):
             return accelerators
         accelerator_type, num = accelerators.split(':')
         if accelerator_type not in AcceleratorEnum.__members__:
-            raise ValueError(
+            raise ClusterSpecException(
                 f'Invalid accelerator accelerator_type: {accelerator_type}.')
         if not num.isdigit():
-            raise ValueError(f'Invalid accelerator number: {num}.')
+            raise ClusterSpecException(f'Invalid accelerator number: {num}.')
         return accelerators
 
     @field_validator('cpus')
@@ -211,14 +208,14 @@ class ClusterSpec(ObjectSpec):
             return cpus
         if cpus[-1] == '+' and cpus[:-1].isdigit():
             return cpus
-        raise ValueError(f'Invalid cpus: {cpus}.')
+        raise ClusterSpecException(f'Invalid cpus: {cpus}.')
 
     @field_validator("manager")
     @classmethod
     def verify_manager(cls, manager: str) -> str:
         """Validates the manager field of a Cluster."""
         if not manager:
-            raise ValueError(
+            raise ClusterSpecException(
                 "Cluster spec requires `manager` field to be filled in.")
         return manager
 

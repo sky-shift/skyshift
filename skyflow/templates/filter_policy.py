@@ -8,12 +8,9 @@ from typing import Dict, List
 from pydantic import BaseModel, Field, field_validator
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
+                                               ObjectList,
                                                ObjectSpec, ObjectStatus)
-
-
-class FilterPolicyException(ObjectException):
-    """Raised when the filter policy is invalid."""
+from skyflow.templates.templates_exception import FilterPolicyTemplateException, FilterPolicyStatusException, FilterPolicySpecException, ClusterFilterException
 
 
 class FilterStatusEnum(enum.Enum):
@@ -37,7 +34,7 @@ class FilterPolicyStatus(ObjectStatus):
     def verify_status(cls, status: str):
         """Validates the status field of a Filter Policy."""
         if status is None or status not in FilterStatusEnum.__members__:
-            raise ValueError(f"Invalid Filter Policy status: {status}.")
+            raise FilterPolicyStatusException(f"Invalid Filter Policy status: {status}.")
         return status
 
 
@@ -57,7 +54,7 @@ class ClusterFilter(BaseModel):
         Ensures that the include and exclude lists contain only non-empty strings.
         """
         if any(not item.strip() for item in value):
-            raise ValueError("List must not contain empty strings.")
+            raise ClusterFilterException("List must not contain empty strings.")
         return value
 
 
@@ -75,7 +72,7 @@ class FilterPolicySpec(ObjectSpec):
         """
         if any(not key.strip() or not value.strip()
                for key, value in value.items()):
-            raise ValueError("Labels' keys and values can't be empty strings.")
+            raise FilterPolicySpecException("Labels' keys and values can't be empty strings.")
         return value
 
 

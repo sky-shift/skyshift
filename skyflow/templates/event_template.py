@@ -7,6 +7,8 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, Field, field_validator
 
 from skyflow.utils.utils import load_object
+from skyflow.templates.templates_exception import WatchEventTemplateException
+
 
 GenericType = TypeVar("GenericType")
 
@@ -39,7 +41,7 @@ class WatchEvent(BaseModel, Generic[GenericType]):
     def verify_event_type(cls, event_type: str):
         """Validates the event type field of a WatchEvent."""
         if not any(event_type == ev_enum.value for ev_enum in WatchEventEnum):
-            raise ValueError(f"Invalid watch event type, {event_type}.")
+            raise WatchEventTemplateException(f"Invalid watch event type, {event_type}.")
         return event_type
 
     @field_validator("object", mode="before")

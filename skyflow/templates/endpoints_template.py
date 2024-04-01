@@ -5,13 +5,9 @@ from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
+from skyflow.templates.object_template import (NamespacedObjectMeta, Object, ObjectList,
                                                ObjectSpec, ObjectStatus)
-
-
-class EndpointsException(ObjectException):
-    """Raised when the job template is invalid."""
+from skyflow.templates.templates_exception import EndpointTemplateException, EndpointObjectException, EndpointSpecException
 
 
 class EndpointsStatus(ObjectStatus):
@@ -34,7 +30,7 @@ class EndpointObject(BaseModel):
     def validate_num_endpoints(cls, num_endpoints: int) -> int:
         """Validates the number of endpoints. The number must be non-negative."""
         if num_endpoints < 0:
-            raise ValueError("Number of endpoints must be non-negative.")
+            raise EndpointObjectException("Number of endpoints must be non-negative.")
         return num_endpoints
 
     @field_validator('exposed_to_cluster')
@@ -42,7 +38,7 @@ class EndpointObject(BaseModel):
     def validate_exposed_to_cluster(cls, exposed_to_cluster: bool) -> bool:
         """Validates the exposed_to_cluster field. Must be a boolean."""
         if not isinstance(exposed_to_cluster, bool):
-            raise ValueError("Exposed to cluster field must be a boolean.")
+            raise EndpointObjectException("Exposed to cluster field must be a boolean.")
         return exposed_to_cluster
 
 
@@ -60,7 +56,7 @@ class EndpointsSpec(ObjectSpec):
         if not all(
                 isinstance(key, str) and isinstance(value, str)
                 for key, value in selector.items()):
-            raise ValueError("Selector keys and values must be strings.")
+            raise EndpointSpecException("Selector keys and values must be strings.")
         return selector
 
     @field_validator('endpoints')
@@ -70,7 +66,7 @@ class EndpointsSpec(ObjectSpec):
                                  EndpointObject]) -> Dict[str, EndpointObject]:
         """Validates the endpoints. Ensures keys are non empty-strings."""
         if any(not cluster_name for cluster_name in endpoints.keys()):
-            raise ValueError(
+            raise EndpointSpecException(
                 "Cluster names in endpoints must be non-empty strings.")
         return endpoints
 
@@ -80,7 +76,7 @@ class EndpointsSpec(ObjectSpec):
             cls, primary_cluster: Optional[str]) -> Optional[str]:
         """Validates the primary cluster field. If provided, it must be a non-empty string."""
         if primary_cluster == "":
-            raise ValueError("Primary cluster cannot be an empty string.")
+            raise EndpointSpecException("Primary cluster cannot be an empty string.")
         return primary_cluster
 
 

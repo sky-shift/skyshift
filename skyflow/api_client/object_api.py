@@ -18,7 +18,7 @@ def verify_response(input_data):
         if input_data.status_code >= 300:
             try:
                 body = input_data.json()
-            except NoJsonDataError  # In case the response body is not JSON
+            except NoJsonDataError:  # In case the response body is not JSON
                 body = {}
             error_msg = body.get(
                 'detail',

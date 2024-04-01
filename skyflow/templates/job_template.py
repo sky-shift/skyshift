@@ -10,9 +10,11 @@ from typing import Dict, List
 from pydantic import Field, field_validator
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
+                                               ObjectList,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.templates.templates_exception import JobTemplateException, JobStatusException, JobSpecException
+
 
 DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
@@ -87,10 +89,6 @@ class RestartPolicyEnum(enum.Enum):
         return any(value == item.value for item in cls)
 
 
-class JobException(ObjectException):
-    """Raised when the job template is invalid."""
-
-
 class JobStatus(ObjectStatus):
     """Status of a job."""
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
@@ -115,10 +113,10 @@ class JobStatus(ObjectStatus):
                 time_str,
             }]
         if len(conditions) == 0:
-            raise JobException("Job status's condition field is empty.")
+            raise JobStatusException("Job status's condition field is empty.")
         for condition in conditions:
             if "type" not in condition:
-                raise JobException(
+                raise JobStatusException(
                     "Job status's condition field is missing status.")
         return conditions
 
@@ -129,7 +127,7 @@ class JobStatus(ObjectStatus):
     def update_status(self, status: str):
         """Updates the status field of a job."""
         if status is None or status not in JobStatusEnum.__members__:
-            raise JobException(f"Invalid job status: {status}.")
+            raise JobStatusException(f"Invalid job status: {status}.")
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
         if previous_status["type"] != status:
@@ -180,7 +178,7 @@ class JobSpec(ObjectSpec):
         """Validates the ports field of a job."""
         for port in ports:
             if port <= 0 or port > 65535:
-                raise ValueError(f"Invalid port: {port}.")
+                raise JobSpecException(f"Invalid port: {port}.")
         return ports
 
     @field_validator("replicas")
@@ -188,7 +186,7 @@ class JobSpec(ObjectSpec):
     def verify_replicas(cls, replicas: int) -> int:
         """Validates the replicas field of a job."""
         if replicas <= 0:
-            raise ValueError(f"Invalid replicas: {replicas}.")
+            raise JobSpecException(f"Invalid replicas: {replicas}.")
         return replicas
 
     @field_validator("restart_policy")
@@ -198,7 +196,7 @@ class JobSpec(ObjectSpec):
         if restart_policy is None or restart_policy not in [
                 r.value for r in RestartPolicyEnum
         ]:
-            raise ValueError(f"Invalid restart policy: {restart_policy}.")
+            raise JobSpecException(f"Invalid restart policy: {restart_policy}.")
         return restart_policy
 
     @field_validator("resources")
@@ -210,14 +208,14 @@ class JobSpec(ObjectSpec):
         acc_enums = [member.value for member in AcceleratorEnum]
         for resource_type, resource_value in resources.items():
             if resource_type not in resource_enums and resource_type not in acc_enums:
-                raise ValueError(f"Invalid resource type: {resource_type}.")
+                raise JobSpecException(f"Invalid resource type: {resource_type}.")
             if resource_value < 0:
-                raise ValueError(
+                raise JobSpecException(
                     f"Invalid resource value for {resource_type}: {resource_value}."
                 )
 
             if resource_type in acc_enums and ResourceEnum.GPU.value in resources:
-                raise ValueError(
+                raise JobSpecException(
                     f"Cannot specify both GPU and accelerator type {resource_type} simultaneously."
                 )
 

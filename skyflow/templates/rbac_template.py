@@ -5,6 +5,8 @@ from typing import List
 from pydantic import BaseModel, Field, field_validator
 
 from skyflow.templates.object_template import ObjectList, ObjectMeta
+from skyflow.templates.templates_exception import RBACTemplateException, RuleException
+
 
 VALID_OBJECT_CLASSES = [
     'jobs',
@@ -48,11 +50,11 @@ class Rule(BaseModel):
         """
         if "*" in resources:
             if len(resources) != 1:
-                raise ValueError(f"Invalid resources: {resources}")
+                raise RuleException(f"Invalid resources: {resources}")
             return resources
         for res in resources:
             if res not in VALID_OBJECT_CLASSES:
-                raise ValueError(f"Invalid resources: {resources}")
+                raise RuleException(f"Invalid resources: {resources}")
         return resources
 
     @field_validator('actions')
@@ -64,11 +66,11 @@ class Rule(BaseModel):
         possible_actions = [a.value for a in ActionEnum]
         if "*" in actions:
             if len(actions) != 1:
-                raise ValueError(f"Invalid actions: {actions}")
+                raise RuleException(f"Invalid actions: {actions}")
             return actions
         for act in actions:
             if act not in possible_actions:
-                raise ValueError(f"Invalid actions: {actions}")
+                raise RuleException(f"Invalid actions: {actions}")
         return actions
 
 

@@ -5,9 +5,10 @@ import enum
 
 from pydantic import Field, field_validator
 
-from skyflow.templates.object_template import (Object, ObjectException,
+from skyflow.templates.object_template import (Object,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
+from skyflow.templates.templates_exception import NamespaceTemplateException, NamespaceStatusException
 
 
 class NamespaceEnum(enum.Enum):
@@ -22,10 +23,6 @@ class NamespaceEnum(enum.Enum):
         return super().__eq__(other)
 
 
-class NamespaceException(ObjectException):
-    """Raised when the namespace dict is invalid."""
-
-
 class NamespaceStatus(ObjectStatus):
     """Status of a Namespace."""
     status: str = Field(default=NamespaceEnum.ACTIVE.value,
@@ -36,14 +33,14 @@ class NamespaceStatus(ObjectStatus):
     def verify_status(cls, status: str):
         """Validates the status field of a Namespace."""
         if status is None or status not in NamespaceEnum.__members__:
-            raise ValueError(f"Invalid namespace status: {status}.")
+            raise NamespaceStatusException(f"Invalid namespace status: {status}.")
         return status
 
     def update_status(self, status: str):
         """Updates the status field of a Namespace."""
         # Check if status in enum.
         if status is None or status not in NamespaceEnum.__members__:
-            raise ValueError(f"Invalid namespace status: {status}.")
+            raise NamespaceStatusException(f"Invalid namespace status: {status}.")
         self.status = status
 
 

@@ -6,8 +6,9 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
+                                               ObjectList,
                                                ObjectSpec, ObjectStatus)
+from skyflow.templates.templates_exception import ServiceTemplateException, ServiceSpecException
 
 
 class ServiceType(enum.Enum):
@@ -27,10 +28,6 @@ class ServiceType(enum.Enum):
         Checks if the specified value is present among the enum values.
         """
         return any(value == item.value for item in cls)
-
-
-class ServiceException(ObjectException):
-    """Raised when the job template is invalid."""
 
 
 class ServiceStatus(ObjectStatus):
@@ -64,7 +61,7 @@ class ServiceSpec(ObjectSpec):
         """Validates the type field of a Service."""
         s_type = service_type
         if s_type is None or s_type not in [r.value for r in ServiceType]:
-            raise ValueError(f"Invalid service type: {s_type}.")
+            raise ServiceSpecException(f"Invalid service type: {s_type}.")
         return s_type
 
     @field_validator('ports')
@@ -74,12 +71,12 @@ class ServiceSpec(ObjectSpec):
         """Validates each service_port in the ports field."""
         for service_port in service_ports:
             if not 0 < service_port.port <= 65535:
-                raise ValueError(f"Invalid port number: {service_port.port}")
+                raise ServiceSpecException(f"Invalid port number: {service_port.port}")
             if not 0 < service_port.target_port <= 65535:
-                raise ValueError(
+                raise ServiceSpecException(
                     f"Invalid target port number: {service_port.target_port}")
             if service_port.protocol not in ["TCP", "UDP"]:
-                raise ValueError(
+                raise ServiceSpecException(
                     f"Unsupported protocol: {service_port.protocol}")
         return service_ports
 
@@ -91,7 +88,7 @@ class ServiceSpec(ObjectSpec):
             try:
                 ipaddress.IPv4Address(ip_address)
             except ipaddress.AddressValueError as error:
-                raise ValueError(
+                raise ServiceSpecException(
                     f"Invalid IPv4 address: {ip_address}") from error
         return ip_address
 

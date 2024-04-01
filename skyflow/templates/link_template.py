@@ -6,13 +6,10 @@ from typing import Optional
 
 from pydantic import Field, field_validator
 
-from skyflow.templates.object_template import (Object, ObjectException,
+from skyflow.templates.object_template import (Object,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
-
-
-class LinkException(ObjectException):
-    """Raised when the link template is invalid."""
+from skyflow.templates.templates_exception import LinkTemplateException, LinkStatusException, LinkSpecException
 
 
 class LinkStatusEnum(enum.Enum):
@@ -42,7 +39,7 @@ class LinkStatus(ObjectStatus):
         Validates the phase field. Ensures it is a valid status according to LinkStatusEnum.
         """
         if phase not in [status.value for status in LinkStatusEnum]:
-            raise ValueError(f"Invalid status: {phase}")
+            raise LinkStatusException(f"Invalid status: {phase}")
         return phase
 
     def get_status(self) -> str:
@@ -52,7 +49,7 @@ class LinkStatus(ObjectStatus):
     def update_status(self, status: str) -> None:
         """Updates the status of the Link."""
         if status not in [status.value for status in LinkStatusEnum]:
-            raise ValueError(f"Invalid status: {status}")
+            raise LinkStatusException(f"Invalid status: {status}")
         self.phase = status
 
 
@@ -74,7 +71,7 @@ class LinkSpec(ObjectSpec):
         """
         if source_cluster is not None and (not isinstance(source_cluster, str)
                                            or source_cluster.strip() == ""):
-            raise ValueError(
+            raise LinkSpecException(
                 "Source cluster must be a non-empty string or None.")
         return source_cluster
 
@@ -87,7 +84,7 @@ class LinkSpec(ObjectSpec):
         """
         if target_cluster is not None and (not isinstance(target_cluster, str)
                                            or target_cluster.strip() == ""):
-            raise ValueError(
+            raise LinkSpecException(
                 "Target cluster must be a non-empty string or None.")
         return target_cluster
 
