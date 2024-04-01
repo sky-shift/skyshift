@@ -5,6 +5,8 @@ import requests
 
 from skyflow.utils import load_object, watch_events
 from skyflow.utils.utils import load_manager_config
+from skyflow.api_client.api_client_exception import APIResponseException, TokenNotFoundException, NamespaceObjectAPIException, NoNamespaceObjectAPIException
+from skyflow.tests.test_exception import NoJsonDataError
 
 
 def verify_response(input_data):
@@ -16,18 +18,18 @@ def verify_response(input_data):
         if input_data.status_code >= 300:
             try:
                 body = input_data.json()
-            except ValueError:  # In case the response body is not JSON
+            except NoJsonDataError  # In case the response body is not JSON
                 body = {}
             error_msg = body.get(
                 'detail',
                 f'HTTP error occurred: Status code {input_data.status_code}')
-            raise APIException(input_data.status_code, error_msg)
+            raise APIResponseException(error_msg, input_data.status_code)
         body = input_data.json()
     else:
         # Assume input_data is already parsed data for non-Response inputs
         body = input_data
         if "detail" in body:
-            raise APIException(input_data.status_code, body["detail"])
+            APIResponseException(body["detail"], input_data.status_code)
 
     return load_object(body)
 
@@ -37,19 +39,14 @@ def fetch_auth_token(admin_config: dict) -> str:
     target_user = admin_config.get('current_user', None)
     users = admin_config.get('users', [])
     if not users:
-        raise APIException("No user found in config file")
+        raise TokenNotFoundException("No user found in config file", status_code=404)
     if target_user:
         for user in users:
             user_name = user.get('name', None)
             if user_name == target_user:
                 return user['access_token']
-        raise APIException(f"User {target_user} not found in config file")
+        raise TokenNotFoundException(f"User {target_user} not found in config file", status_code=404)
     return users[0]['access_token']
-
-
-# @TODO(mluo): Introduce different types of API exceptions.
-class APIException(Exception):
-    """Generic API Exception."""
 
 
 class ObjectAPI:

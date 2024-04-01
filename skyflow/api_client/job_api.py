@@ -5,6 +5,7 @@ import requests
 
 from skyflow.api_client.object_api import NamespaceObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
+from skyflow.api_client.api_client_exception import JobAPIException
 
 
 class JobAPI(NamespaceObjectAPI):

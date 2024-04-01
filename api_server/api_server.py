@@ -25,7 +25,8 @@ from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
                              NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
-from skyflow.templates import Namespace, NamespaceMeta, ObjectException
+from skyflow.templates import Namespace, NamespaceMeta
+from skyflow.utils.base_exceptions import ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.rbac_template import ActionEnum

@@ -2,7 +2,7 @@
 Role API.
 """
 from skyflow.api_client.object_api import NoNamespaceObjectAPI
-
+from skyflow.api_client.api_client_exception import RuleAPIException
 
 class RoleAPI(NoNamespaceObjectAPI):
     """

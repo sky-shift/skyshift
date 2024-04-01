@@ -4,7 +4,7 @@ Service API.
 
 from skyflow.api_client.object_api import NamespaceObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
-
+from skyflow.api_client.api_client_exception import ServiceAPIException
 
 class ServiceAPI(NamespaceObjectAPI):
     """
