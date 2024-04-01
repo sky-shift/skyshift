@@ -175,7 +175,7 @@ def unexpose_service(service_name: str, manager: Manager):
                     f"--context {cluster_name} "
                     f"--namespace {namespace}")
     try:
-        # Create authetnication token.
+        # Create authentication token.
         subprocess.check_output(unexpose_cmd, shell=True,
                                 timeout=20).decode("utf-8")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
