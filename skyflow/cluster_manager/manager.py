@@ -22,6 +22,11 @@ class Manager:
     managers.
     """
 
+    #By default, the cluster name will be the sanitized version of it.
+    #This is to ensure that the cluster name is compatible with the rest of the system.
+    #When the cluster name is fetched from an external source, it should be unsanitized
+    #to ensure that the original name is used. This is done by the unsanitize_cluster_name function.
+
     def __init__(self, name: str):
         self.cluster_name = name
 

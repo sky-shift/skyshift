@@ -11,6 +11,7 @@ from typing import List
 
 from kubernetes import client, config, utils
 
+import skyflow.utils as skyflow_utils
 from skyflow.cluster_manager import KubernetesManager
 
 logging.basicConfig(
@@ -39,7 +40,8 @@ CL_INSTALL_CMD = (
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("cl-adm create fabric")
 CLA_PEER_CMD = (
-    "cl-adm create peer --name {cluster_name} --namespace {namespace} --tag {tag}")
+    "cl-adm create peer --name {cluster_name} --namespace {namespace} --tag {tag}"
+)
 
 # Clusterlink core CLI
 # Initialization & Status
@@ -83,9 +85,9 @@ POLICY_ALLOW_ALL = {
 
 
 def _wait_for_ready_deployment(k8s_api_client: client.ApiClient,
-              name,
-              namespace="default",
-              timeout_seconds=300):
+                               name,
+                               namespace="default",
+                               timeout_seconds=300):
     """Waits until the pod status is running"""
     start_time = time.time()
     end_time = start_time + timeout_seconds
@@ -133,13 +135,14 @@ def _remove_cluster_certs(cluster_name: str):
 
 def _get_clusterlink_gw_target(cluster: str, namespace="default"):
     """Gets the IP of the clusterlink gateway"""
-    core_api = client.CoreV1Api(config.new_client_from_config(context=cluster))
+    core_api = client.CoreV1Api(
+        config.new_client_from_config(
+            context=skyflow_utils.unsanitize_cluster_name(cluster)))
     if cluster.startswith(KIND_PREFIX):
         nodes = core_api.list_node()
         return nodes.items[0].status.addresses[0].address, DEFAULT_CL_PORT_KIND
     # Clouds in general support load balancer to assign external IP
-    service = core_api.read_namespaced_service(CL_SERVICE,
-                                               namespace)
+    service = core_api.read_namespaced_service(CL_SERVICE, namespace)
     if service.status.load_balancer and service.status.load_balancer.ingress:
         return service.status.load_balancer.ingress[0].ip, DEFAULT_CL_PORT
     return None, None
@@ -196,8 +199,7 @@ def _expose_clusterlink(k8s_api_client: client.ApiClient,
         else:
             raise error
     while True:
-        service = core_api.read_namespaced_service(
-            CL_SERVICE, namespace)
+        service = core_api.read_namespaced_service(CL_SERVICE, namespace)
         if service.status.load_balancer and service.status.load_balancer.ingress:
             return
         time.sleep(1)
@@ -321,7 +323,8 @@ def _deploy_clusterlink_gateway(k8s_api_client: client.ApiClient, cluster_name,
 
 def _deploy_clusterlink_k8s(cluster_name, namespace: str):
     """Deploys clusterlink gateway in Kubernetes cluster."""
-    k8s_api_client = config.new_client_from_config(context=cluster_name)
+    k8s_api_client = config.new_client_from_config(
+        context=skyflow_utils.unsanitize_cluster_name(cluster_name))
     _deploy_clusterlink_gateway(k8s_api_client, cluster_name, namespace)
     _wait_for_ready_deployment(k8s_api_client, "cl-controlplane")
     _wait_for_ready_deployment(k8s_api_client, "cl-dataplane")
