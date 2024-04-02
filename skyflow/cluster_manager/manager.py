@@ -1,7 +1,9 @@
 """
 Defines compatability layer for generic Managers.
 """
-from typing import List
+from typing import Dict, List
+
+from fastapi import WebSocket
 
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
@@ -50,7 +52,13 @@ class Manager:
             allocatable_capacity=self.allocatable_resources,
         )
 
-    def get_jobs_status(self):
+    async def execute_command(  # pylint: disable=too-many-arguments
+            self, websocket: WebSocket, task: str, container: str, tty: bool,
+            command: List[str]):
+        """Starts a tty session on the cluster."""
+        raise NotImplementedError
+
+    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         """Gets the status for all jobs."""
         raise NotImplementedError
 
