@@ -44,14 +44,13 @@ class ExecAPI(NamespaceObjectAPI):
         # Construct the URI from the config dict
         quiet = config["spec"]["quiet"]
         resource = config["spec"]["resource"]
-        cluster = config["spec"]["cluster"]
         selected_pod = config["spec"]["task"]
         container = config["spec"]["container"]
         command_str = config["spec"][
             "command"]  # Assuming this is already URL-encoded
 
         # Construct the final URI using the encoded command and other details from the config dict
-        return f"{self.url}/{quiet}/{resource}/{cluster}/{selected_pod}/{container}/{command_str}"
+        return f"{self.url}/{quiet}/{resource}/{selected_pod}/{container}/{command_str}"
 
     async def _tty_session(self, uri, headers):
         """

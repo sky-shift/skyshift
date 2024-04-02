@@ -640,7 +640,6 @@ class APIServer:
         namespace: str,
         quiet: str,
         resource: str,
-        cluster: str,
         selected_tasks: str,
         container: str,
         command: str,
@@ -670,7 +669,6 @@ class APIServer:
             namespace (str): The Kubernetes namespace.
             quiet (str): Flag to suppress command output.
             resource (str): The name of the job resource.
-            cluster (str): The target cluster name.
             selected_tasks (str): Specific task(s) within the job to target.
             container (str): The container within the task to execute the command.
             command (str): The command to execute, URL-decoded and parsed from JSON.
@@ -708,17 +706,9 @@ class APIServer:
                 status_code=404,
                 detail=f"No running clusters found for the job '{resource}'.")
 
-        if cluster not in clusters_running:
-            raise HTTPException(
-                status_code=404,
-                detail=
-                f"Cluster '{cluster}' is not part of the running clusters for the job \
-                    '{resource}'.")
-        specified_clusters = [cluster] or clusters_running
-
         output: str = ""
 
-        for selected_cluster in specified_clusters:
+        for selected_cluster in clusters_running:
             cluster_obj = self.get_object(object_type="clusters",
                                           object_name=selected_cluster,
                                           watch=False,
@@ -732,7 +722,7 @@ class APIServer:
                     f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
                 )
 
-            tasks = job.status.task_status[cluster]
+            tasks = job.status.task_status[selected_cluster]
             tasks_names = [
                 task_name for task_name, status in tasks.items()
                 if status == TaskStatusEnum.RUNNING.value
@@ -848,7 +838,6 @@ class APIServer:
         path_params = websocket.scope['path_params']
         quiet = path_params.get('quiet')
         resource = path_params.get('resource')
-        cluster = path_params.get('cluster')
         namespace = path_params.get('namespace')
         tasks = path_params.get('selected_tasks')
         container = path_params.get('container')
@@ -860,23 +849,6 @@ class APIServer:
                                 namespace)
 
         await websocket.accept()
-        try:
-            cluster_obj = self.get_object(object_type="clusters",
-                                          object_name=cluster,
-                                          watch=False,
-                                          user=user)
-        except HTTPException as error:
-            await websocket.send_text(error.detail)
-            await websocket.close(code=1003
-                                  )  # Close with unsupported data code
-            return
-
-        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
-            close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
-            await websocket.send_text(close_message)
-            await websocket.close(code=1003)
-            return
-        cluster_manager = setup_cluster_manager(cluster_obj)
 
         try:
             job = self.get_object(object_type="jobs",
@@ -889,8 +861,9 @@ class APIServer:
             await websocket.close(code=1003)
             return
 
+        # Fetch the cluster where the task is running
         if tasks == "None":
-            tasks = job.status.task_status[cluster]
+            cluster, tasks = list(job.status.task_status.items())[0]
             tasks = [
                 pod_name for pod_name, status in tasks.items()
                 if status == TaskStatusEnum.RUNNING.value
@@ -901,6 +874,32 @@ class APIServer:
                 await websocket.close(code=1003)
                 return
             tasks = tasks[0]
+        else:
+            cluster_tasks = job.status.task_status
+            for cluster_name, tasks_dict in cluster_tasks.items():
+                for task_name, status in tasks_dict.items():
+                    if task_name == tasks and status == TaskStatusEnum.RUNNING.value:
+                        cluster = cluster_name
+                        break
+        # Check if cluster is accessible and supported.
+        try:
+            cluster_obj = self.get_object(object_type="clusters",
+                                          object_name=cluster,
+                                          watch=False,
+                                          user=user)
+        except HTTPException as error:
+            await websocket.send_text(error.detail)
+            await websocket.close(code=1003
+                                  )  # Close with unsupported data code
+            return
+        print(cluster_obj.spec.manager)
+        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
+            close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
+            await websocket.send_text(close_message)
+            await websocket.close(code=1003)
+            return
+        cluster_manager = setup_cluster_manager(cluster_obj)
+
         if container == "None":
             if tasks in job.status.container_status:
                 for container_name, status in job.status.container_status[
@@ -1075,7 +1074,7 @@ class APIServer:
 
         self._add_endpoint(
             endpoint=
-            "/{namespace}/exec/{quiet}/{resource}/{cluster}/{selected_tasks}/{container}/{command}",
+            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
             endpoint_name="execute_command",
             handler=self.execute_command,
             methods=["POST"],
@@ -1083,7 +1082,7 @@ class APIServer:
 
         self._add_websocket(
             path=
-            "/{namespace}/exec/{quiet}/{resource}/{cluster}/{selected_tasks}/{container}/{command}",
+            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
             endpoint=self.tty_session,
             endpoint_name="tty_session",
         )

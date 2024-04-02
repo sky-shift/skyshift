@@ -1096,13 +1096,13 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
         specified_tasks: List[str] | List[None],
         specified_container: List[str] | List[None], quiet: bool, tty: bool):
     """
-    Executes a specified command within a container of a Kubernetes resource.
+    Executes a specified command within a container of a resource.
 
     This function supports executing commands in various modes, including direct execution \
         and TTY (interactive) mode.
     It is capable of targeting specific clusters, tasks (pods), and containers, providing \
         flexibility in how commands
-    are executed across the Kubernetes infrastructure. It handles both single and multiple targets \
+    are executed across the infrastructure. It handles both single and multiple targets \
         with appropriate checks
     and balances to ensure the command execution context is correctly established.
 
@@ -1151,17 +1151,6 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
             click.echo(
                 "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
             )
-    job = get_cli_object(object_type="job", name=resource, namespace=namespace)
-    clusters_running = [
-        cluster_name
-        for cluster_name, status in job.status.replica_status.items()
-        if status.get(TaskStatusEnum.RUNNING.value, 0) > 0
-    ]
-
-    if not clusters_running:
-        raise click.ClickException(
-            f"No running clusters found for the job '{resource}'.")
-
     if len(specified_tasks) == 0:
         click.echo("No tasks specified. Connecting to all tasks...")
         specified_tasks = [None]
@@ -1172,31 +1161,29 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
     command_str = json.dumps(command)
 
-    for cluster in clusters_running:
-        for selected_task in specified_tasks:
-            for container in specified_container:
-                exec_dict = {
-                    "kind": "exec",
-                    "metadata": {
-                        "namespace": namespace,
-                    },
-                    "spec": {
-                        "quiet": quiet,
-                        "task": selected_task,
-                        "cluster": cluster,
-                        "resource": resource,
-                        "container": container,
-                        "command":
-                        quote(command_str).replace('/', '%-2-F-%2-'),
-                    },
-                }
-                if tty:
-                    if not quiet:
-                        print("Opening the next TTY session...")
-                    stream_cli_object(exec_dict)
-                else:
-                    output = create_cli_object(exec_dict)
-                    print(output.text.replace('\\n', '\n')[1:-1])
+    for selected_task in specified_tasks:
+        for container in specified_container:
+            exec_dict = {
+                "kind": "exec",
+                "metadata": {
+                    "namespace": namespace,
+                },
+                "spec": {
+                    "quiet": quiet,
+                    "task": selected_task,
+                    "resource": resource,
+                    "container": container,
+                    "command":
+                    quote(command_str).replace('/', '%-2-F-%2-'),
+                },
+            }
+            if tty:
+                if not quiet:
+                    print("Opening the next TTY session...")
+                stream_cli_object(exec_dict)
+            else:
+                output = create_cli_object(exec_dict)
+                print(output.text.replace('\\n', '\n')[1:-1])
 
 
 cli.add_command(exec_command_sync)
