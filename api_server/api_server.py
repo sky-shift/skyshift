@@ -635,143 +635,6 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
-    def execute_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
-        self,
-        namespace: str,
-        quiet: str,
-        resource: str,
-        selected_tasks: str,
-        container: str,
-        command: str,
-        user: str = Depends(authenticate_request)):
-        """
-        Executes a specified command within a container of a job's task, across specified clusters.
-
-        This method facilitates command execution within a container, part of a job running on \
-            specified clusters.
-        It involves several key steps: decoding the command, authenticating the user's roles, \
-            retrieving the job
-        and clusters information, and finally executing the command. It supports execution on \
-            multiple tasks and
-        containers if not specified.
-
-        Authentication for user roles and permission checks are performed to ensure security \
-            and proper access
-        control. The method gracefully handles errors such as non-existent jobs, clusters, \
-            tasks, or containers
-        by raising HTTP exceptions with appropriate status codes and messages.
-
-        The output from the command execution is collected and returned, with support for a \
-            'quiet' mode that
-        suppresses the output if specified.
-
-        Args:
-            namespace (str): The Kubernetes namespace.
-            quiet (str): Flag to suppress command output.
-            resource (str): The name of the job resource.
-            selected_tasks (str): Specific task(s) within the job to target.
-            container (str): The container within the task to execute the command.
-            command (str): The command to execute, URL-decoded and parsed from JSON.
-            user (str): The authenticated user, verified for authorization.
-
-        Returns:
-            str: The output from the command execution, unless quiet mode is enabled.
-
-        Raises:
-            HTTPException: For errors like missing resources or unauthorized access, with \
-                details about the issue.
-        """
-
-        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
-                                namespace)
-
-        # Decode the command
-        command_str = unquote(command.replace("%-2-F-%2-", "/"))
-        command = json.loads(command_str)
-        job = self.get_object(object_type="jobs",
-                              namespace=namespace,
-                              object_name=resource,
-                              watch=False,
-                              user=user)
-        print(job)
-
-        clusters_running = [
-            cluster_name
-            for cluster_name, status in job.status.replica_status.items()
-            if status.get(TaskStatusEnum.RUNNING.value, 0) > 0
-        ]
-
-        if not clusters_running:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No running clusters found for the job '{resource}'.")
-
-        output: str = ""
-
-        for selected_cluster in clusters_running:
-            cluster_obj = self.get_object(object_type="clusters",
-                                          object_name=selected_cluster,
-                                          watch=False,
-                                          user=user)
-            cluster_manager = setup_cluster_manager(cluster_obj)
-
-            if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=
-                    f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
-                )
-
-            tasks = job.status.task_status[selected_cluster]
-            tasks_names = [
-                task_name for task_name, status in tasks.items()
-                if status == TaskStatusEnum.RUNNING.value
-            ]
-
-            if len(tasks_names) == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"No running tasks found for the job '{resource}'.")
-            if selected_tasks != "None" and selected_tasks not in tasks_names:
-                raise HTTPException(
-                    status_code=404,
-                    detail=
-                    f"Pod '{selected_tasks}' is not part of the running tasks for \
-                        the job '{resource}'.")
-
-            tasks_to_use = [selected_tasks
-                            ] if selected_tasks != "None" else tasks_names
-
-            for task in tasks_to_use:
-                containers = []
-                if task in job.status.container_status:
-                    for container_name, status in job.status.container_status[
-                            task].items():
-                        if status == ContainerStatusEnum.RUNNING.value:
-                            containers.append(container_name)
-                if container != "None" and container not in containers:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=
-                        f"Container '{container}' is not part of the running containers \
-                            for the job '{resource}'.")
-                selected_containers = [container
-                                       ] if container != "None" else containers
-                for ctr in selected_containers:
-                    try:
-                        output += "--> Cluster: " + selected_cluster + " \n---> Task: \
-                            " + selected_tasks + " \n-----> Container: " + ctr + "\n"
-                        output += "Output: " + cluster_manager.execute_command(
-                            task, container=ctr, command=command, quiet=False)
-
-                    except Exception as error:  # pylint: disable=broad-except
-                        raise HTTPException(
-                            status_code=500,
-                            detail=
-                            f"An error occurred while executing the command: {error}"
-                        ) from error
-        return output if quiet == "False" else ""
-
     async def _authenticate_tty_session(
         self, websocket: WebSocket, user: str = Depends(authenticate_request)):
         """
@@ -806,7 +669,7 @@ class APIServer:
 
         return user
 
-    async def tty_session(  # pylint: disable=too-many-locals
+    async def execute_command(  # pylint: disable=too-many-locals
         self,
         websocket: WebSocket,
         user: str = Depends(authenticate_request)):
@@ -837,6 +700,7 @@ class APIServer:
 
         path_params = websocket.scope['path_params']
         quiet = path_params.get('quiet')
+        tty = path_params.get('tty')
         resource = path_params.get('resource')
         namespace = path_params.get('namespace')
         tasks = path_params.get('selected_tasks')
@@ -873,7 +737,7 @@ class APIServer:
                 await websocket.send_text(close_message)
                 await websocket.close(code=1003)
                 return
-            tasks = tasks[0]
+            tasks = tasks[0:1] if tty == "True" else tasks
         else:
             cluster_tasks = job.status.task_status
             for cluster_name, tasks_dict in cluster_tasks.items():
@@ -900,18 +764,22 @@ class APIServer:
             return
         cluster_manager = setup_cluster_manager(cluster_obj)
 
-        if container == "None":
-            if tasks in job.status.container_status:
-                for container_name, status in job.status.container_status[
-                        tasks].items():
-                    if status == ContainerStatusEnum.RUNNING.value:
-                        container = container_name  # Run on first running container
-                        break
-        if quiet == "True":
-            await websocket.send_text(
-                "Quiet mode is not supported for TTY sessions. \n")
-        await cluster_manager.start_tty_session(websocket, tasks, container,
-                                                exec_command)
+        for task in tasks:
+            if container == "None":
+                if task in job.status.container_status:
+                    for container_name, status in job.status.container_status[
+                            task].items():
+                        if status == ContainerStatusEnum.RUNNING.value:
+                            container = container_name  # Run on first running container
+                            break
+            if quiet == "True":
+                await websocket.send_text(
+                    "Quiet mode is not supported for TTY sessions. \n")
+            tty = True if tty == "True" else False
+            await cluster_manager.execute_command(websocket, task, container, tty,
+                                                    exec_command)
+        if not tty:
+            await websocket.close(code=1000) # Close with normal code
 
     def _watch_key(self, key: str):
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
@@ -1082,9 +950,9 @@ class APIServer:
 
         self._add_websocket(
             path=
-            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
-            endpoint=self.tty_session,
-            endpoint_name="tty_session",
+            "/{namespace}/exec/{tty}/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
+            endpoint=self.execute_command,
+            endpoint_name="execute_command",
         )
 
 

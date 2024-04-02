@@ -42,15 +42,16 @@ class ExecAPI(NamespaceObjectAPI):
         assert config["spec"]["command"], "Command not specified."
 
         # Construct the URI from the config dict
-        quiet = config["spec"]["quiet"]
-        resource = config["spec"]["resource"]
-        selected_pod = config["spec"]["task"]
-        container = config["spec"]["container"]
-        command_str = config["spec"][
+        self.quiet = config["spec"]["quiet"]
+        self.tty = config["spec"]["tty"]
+        self.resource = config["spec"]["resource"]
+        self.selected_pod = config["spec"]["task"]
+        self.container = config["spec"]["container"]
+        self.command_str = config["spec"][
             "command"]  # Assuming this is already URL-encoded
 
         # Construct the final URI using the encoded command and other details from the config dict
-        return f"{self.url}/{quiet}/{resource}/{selected_pod}/{container}/{command_str}"
+        return f"{self.url}/{self.tty}/{self.quiet}/{self.resource}/{self.selected_pod}/{self.container}/{self.command_str}"
 
     async def _tty_session(self, uri, headers):
         """
@@ -65,9 +66,10 @@ class ExecAPI(NamespaceObjectAPI):
                 extra_headers=headers,
                 open_timeout=None) as websocket:
             # Prepare terminal for raw mode
-            stdin_fd = sys.stdin.fileno()
-            old_settings = termios.tcgetattr(stdin_fd)
-            tty.setraw(stdin_fd)
+            if self.tty:
+                stdin_fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(stdin_fd)
+                tty.setraw(stdin_fd)
 
             input_stop_event = Event()
 
@@ -92,7 +94,7 @@ class ExecAPI(NamespaceObjectAPI):
 
             async def receive_output():
                 try:
-                    while True:
+                    while not websocket.closed:
                         output = await websocket.recv()
                         sys.stdout.write(output)
                         sys.stdout.flush()
@@ -102,39 +104,26 @@ class ExecAPI(NamespaceObjectAPI):
                     input_stop_event.set(
                     )  # Ensure the event is set on any error
                 finally:
-                    print("Press enter to exit...")
+                    if not self.tty:
+                        print("Press enter to exit...")
 
             # Run receiving tasks concurrently with event loop
             receive_task = asyncio.create_task(receive_output())
-            send_task = asyncio.create_task(send_commands())
-
-            # Wait for both tasks to complete
-            await asyncio.wait([send_task, receive_task],
+            if self.tty:
+                send_task = asyncio.create_task(send_commands())
+                await asyncio.wait([send_task, receive_task],
                                return_when=asyncio.FIRST_COMPLETED)
+            else:
+                await receive_task
 
             # Ensure input_stop_event is set to stop reading from stdin in any case
             input_stop_event.set()
             await websocket.close()
 
             # Cleanup: restore terminal settings
-            termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
-
-    def create(self, config: dict):
-        """
-        Sends a POST request to the API server to create an exec session.
-
-        Args:
-            config (Dict[str, Any]): The configuration dictionary for the exec session.
-
-        Returns:
-            requests.Response: The response from the API server.
-        """
-        assert self.namespace, "Method `create` requires a namespace."
-        response = requests.post(self._build_uri(config),
-                                 json=config,
-                                 headers=self.auth_headers)
-        return response
-
+            if self.tty:
+                termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
+    
     def websocket_stream(self, config: dict):
         """
         Initiates a WebSocket stream for executing commands in a container.

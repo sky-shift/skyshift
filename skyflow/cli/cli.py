@@ -1170,6 +1170,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
                 },
                 "spec": {
                     "quiet": quiet,
+                    "tty": tty,
                     "task": selected_task,
                     "resource": resource,
                     "container": container,
@@ -1177,13 +1178,9 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
                     quote(command_str).replace('/', '%-2-F-%2-'),
                 },
             }
-            if tty:
-                if not quiet:
-                    print("Opening the next TTY session...")
-                stream_cli_object(exec_dict)
-            else:
-                output = create_cli_object(exec_dict)
-                print(output.text.replace('\\n', '\n')[1:-1])
+            if not quiet and tty:
+                print("Opening the next TTY session...")
+            stream_cli_object(exec_dict)
 
 
 cli.add_command(exec_command_sync)

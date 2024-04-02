@@ -103,8 +103,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
 
-    async def start_tty_session(self, websocket: WebSocket, task: str,
-                                container: str, command: List[str]):
+    async def execute_command(self, websocket: WebSocket, task: str,
+                                container: str, tty: bool, command: List[str]):
         """
         Starts a TTY session for executing commands in a container within a pod.
 
@@ -118,19 +118,23 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         - container (str): The name of the container inside the pod.
         - command (List[str]): The command to execute, passed as a list of strings.
                                An empty list or None defaults to ['/bin/sh'].
-        - stdin (bool): If True, stdin is opened for interactive sessions.
+        - tty (bool): If True, stdin is opened for interactive sessions.
         """
         exec_command = ['/bin/sh'] if not command else command
         try:
+            if not tty:
+                await websocket.send_text(
+                    f"The command will be executed in the container {container} and task {task}. \n"
+                )
             resp = stream(self.core_v1.connect_get_namespaced_pod_exec,
                           task,
                           self.namespace,
                           command=exec_command,
                           container=container,
                           stderr=True,
-                          stdin=True,
+                          stdin=tty,
                           stdout=True,
-                          tty=True,
+                          tty=tty,
                           _preload_content=False)
         except ApiException as error:
             await websocket.send_text(f"Error connecting to pod: {error}")
@@ -158,50 +162,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                     data = resp.read_stderr()
                     await websocket.send_text(data)
                 await asyncio.sleep(0.1)  # Prevent tight loop
-            await websocket.close()
+            if tty:
+                await websocket.close()
 
-        read_task = asyncio.create_task(_read_stdin())
         write_task = asyncio.create_task(_write_stdout_stderr())
-
-        await asyncio.gather(read_task, write_task)
-
-    def execute_command(self, task: str, container: str, command: List[str],
-                        quiet: bool) -> str:
-        """
-        Executes a specified command in a container within a task.
-
-        Parameters:
-        - task (str): The name of the task where the command will be executed.
-        - container (str): The name of the container inside the task.
-        - command (List[str]): The command to execute, passed as a list of strings.
-        - stdin (bool): If True, stdin is opened for the command or session.
-        - tty_enabled (bool): If True, opens a TTY session. If False, executes the command \
-            non-interactively.
-        - quiet (bool): If True, suppresses output for non-TTY command execution.
-        """
-        try:
-            resp = stream(self.core_v1.connect_get_namespaced_pod_exec,
-                          task,
-                          self.namespace,
-                          command=['/bin/sh', '-c', ' '.join(command)],
-                          container=container,
-                          stderr=True,
-                          stdin=False,
-                          stdout=not quiet,
-                          tty=False,
-                          _preload_content=False)
-            output = ""
-            while resp.is_open():
-                resp.update(timeout=1)
-                if resp.peek_stdout():
-                    output += resp.read_stdout()
-                if resp.peek_stderr():
-                    output += resp.read_stderr()
-            resp.close()
-            return output
-        except Exception as error:
-            self.logger.error("Error during command execution: %s", error)
-            raise
+        if tty:
+            read_task = asyncio.create_task(_read_stdin())
+            await asyncio.gather(read_task, write_task)
+        else:
+            await write_task
 
     def get_accelerator_types(self) -> Dict[str, str]:
         """Fetches accelerator types for each node."""
