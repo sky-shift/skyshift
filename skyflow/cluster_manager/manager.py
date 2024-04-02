@@ -52,8 +52,9 @@ class Manager:
             allocatable_capacity=self.allocatable_resources,
         )
 
-    async def execute_command(self, websocket: WebSocket, task: str,
-                                container: str, tty: bool, command: List[str]):
+    async def execute_command(  # pylint: disable=too-many-arguments
+            self, websocket: WebSocket, task: str, container: str, tty: bool,
+            command: List[str]):
         """Starts a tty session on the cluster."""
         raise NotImplementedError
 

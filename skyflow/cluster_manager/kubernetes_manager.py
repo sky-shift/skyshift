@@ -103,8 +103,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
 
-    async def execute_command(self, websocket: WebSocket, task: str,
-                                container: str, tty: bool, command: List[str]):
+    async def execute_command(  # pylint: disable=too-many-arguments
+            self, websocket: WebSocket, task: str, container: str, tty: bool,
+            command: List[str]):
         """
         Starts a TTY session for executing commands in a container within a pod.
 

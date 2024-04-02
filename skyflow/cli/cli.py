@@ -22,7 +22,7 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
-from skyflow.templates.job_template import RestartPolicyEnum, TaskStatusEnum
+from skyflow.templates.job_template import RestartPolicyEnum
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
 
@@ -1077,9 +1077,8 @@ def delete_role(name):
               default=False,
               help="Stdin is a TTY.")
 def exec_command_sync(  # pylint: disable=too-many-arguments
-        resource: str, command: Tuple[str], namespace: str, 
-        tasks: List[str], containers: List[str],
-        quiet: bool, tty: bool):
+        resource: str, command: Tuple[str], namespace: str, tasks: List[str],
+        containers: List[str], quiet: bool, tty: bool):
     """
     Wrapper for exec_command to parse inputs and change variable names.
     """
@@ -1087,8 +1086,8 @@ def exec_command_sync(  # pylint: disable=too-many-arguments
     specified_container = list(containers) if containers else []
     specified_tasks = list(tasks) if tasks else []
 
-    exec_command(resource, command, namespace,
-                 specified_tasks, specified_container, quiet, tty)
+    exec_command(resource, command, namespace, specified_tasks,
+                 specified_container, quiet, tty)
 
 
 def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
@@ -1174,8 +1173,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
                     "task": selected_task,
                     "resource": resource,
                     "container": container,
-                    "command":
-                    quote(command_str).replace('/', '%-2-F-%2-'),
+                    "command": quote(command_str).replace('/', '%-2-F-%2-'),
                 },
             }
             if not quiet and tty:

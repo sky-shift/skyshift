@@ -669,7 +669,7 @@ class APIServer:
 
         return user
 
-    async def execute_command(  # pylint: disable=too-many-locals
+    async def execute_command(  # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
         self,
         websocket: WebSocket,
         user: str = Depends(authenticate_request)):
@@ -701,6 +701,7 @@ class APIServer:
         path_params = websocket.scope['path_params']
         quiet = path_params.get('quiet')
         tty = path_params.get('tty')
+        tty = tty == "True"
         resource = path_params.get('resource')
         namespace = path_params.get('namespace')
         tasks = path_params.get('selected_tasks')
@@ -737,7 +738,7 @@ class APIServer:
                 await websocket.send_text(close_message)
                 await websocket.close(code=1003)
                 return
-            tasks = tasks[0:1] if tty == "True" else tasks
+            tasks = tasks[0:1] if tty else tasks
         else:
             cluster_tasks = job.status.task_status
             for cluster_name, tasks_dict in cluster_tasks.items():
@@ -775,11 +776,10 @@ class APIServer:
             if quiet == "True":
                 await websocket.send_text(
                     "Quiet mode is not supported for TTY sessions. \n")
-            tty = True if tty == "True" else False
-            await cluster_manager.execute_command(websocket, task, container, tty,
-                                                    exec_command)
+            await cluster_manager.execute_command(websocket, task, container,
+                                                  tty, exec_command)
         if not tty:
-            await websocket.close(code=1000) # Close with normal code
+            await websocket.close(code=1000)  # Close with normal code
 
     def _watch_key(self, key: str):
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)

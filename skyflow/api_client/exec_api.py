@@ -8,7 +8,6 @@ import tty
 from asyncio import Event
 from concurrent.futures import ThreadPoolExecutor
 
-import requests
 import websockets
 
 from skyflow.api_client.object_api import NamespaceObjectAPI
@@ -25,6 +24,12 @@ class ExecAPI(NamespaceObjectAPI):
         Initializes the ExecAPI with a namespace and sets the object type to 'exec'.
         """
         super().__init__(namespace=namespace, object_type="exec")
+        self.quiet = False
+        self.tty = False
+        self.resource = None
+        self.selected_pod = None
+        self.container = None
+        self.command_str = None
 
     def _build_uri(self, config: dict):
         """
@@ -51,7 +56,7 @@ class ExecAPI(NamespaceObjectAPI):
             "command"]  # Assuming this is already URL-encoded
 
         # Construct the final URI using the encoded command and other details from the config dict
-        return f"{self.url}/{self.tty}/{self.quiet}/{self.resource}/{self.selected_pod}/{self.container}/{self.command_str}"
+        return f"{self.url}/{self.tty}/{self.quiet}/{self.resource}/{self.selected_pod}/{self.container}/{self.command_str}"  #pylint: disable=line-too-long
 
     async def _tty_session(self, uri, headers):
         """
@@ -112,7 +117,7 @@ class ExecAPI(NamespaceObjectAPI):
             if self.tty:
                 send_task = asyncio.create_task(send_commands())
                 await asyncio.wait([send_task, receive_task],
-                               return_when=asyncio.FIRST_COMPLETED)
+                                   return_when=asyncio.FIRST_COMPLETED)
             else:
                 await receive_task
 
@@ -123,7 +128,7 @@ class ExecAPI(NamespaceObjectAPI):
             # Cleanup: restore terminal settings
             if self.tty:
                 termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_settings)
-    
+
     def websocket_stream(self, config: dict):
         """
         Initiates a WebSocket stream for executing commands in a container.
