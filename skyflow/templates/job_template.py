@@ -64,6 +64,20 @@ class TaskStatusEnum(enum.Enum):
         return super().__eq__(other)
 
 
+class ContainerStatusEnum(enum.Enum):
+    """A job consists of many containers. This enum represents the status of a container."""
+    RUNNING = "RUNNING"
+    TERMINATED = "TERMINATED"
+    WAITING = "WAITING"
+    PULLED = "PULLED"
+    UNKNOWN = "UNKNOWN"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
+
 class RestartPolicyEnum(enum.Enum):
     """Represents the restart policy of a job."""
 
@@ -99,6 +113,13 @@ class JobStatus(ObjectStatus):
                                                       validate_default=True)
     # Job-IDs for each set of replicas per cluster.
     job_ids: Dict[str, str] = Field(default={}, validate_default=True)
+
+    # Task-IDs for each set of replicas per cluster.
+    task_status: Dict[str, Dict[str, str]] = Field(default={},
+                                                   validate_default=True)
+
+    container_status: Dict[str, Dict[str, str]] = Field(default={},
+                                                        validate_default=True)
 
     @field_validator("conditions")
     @classmethod
