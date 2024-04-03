@@ -8,7 +8,8 @@ def create_controller_logger(title: str, log_path: str, level=logging.INFO):
     if level is None:
         # Fetch from env variable if level is not specified.
         level = os.getenv("LOG_LEVEL", "INFO")
-    formatter = logging.Formatter("%(name)s - %(asctime)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter(
+        "%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(title)
     if not logger.handlers:  # Check if the logger already has handlers

@@ -66,7 +66,8 @@ class ClusterController(Controller):
         self.retry_limit = retry_limit
         self.retry_counter = 0
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Cluster Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Cluster Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/cluster_controller.log')
 
         self.logger.info("Initializing Cluster Controller: %s", self.name)
