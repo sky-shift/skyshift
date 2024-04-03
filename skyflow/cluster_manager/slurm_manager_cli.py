@@ -2,6 +2,7 @@
 """
 Represents the compatability layer over Slurm native CLI.
 """
+import logging
 import os
 import re
 import uuid
@@ -53,6 +54,7 @@ class SlurmManagerCLI(Manager):
                 ConfigUndefinedError: Value required in config yaml not not defined.
         """
         super().__init__("slurm")
+        self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
         config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(config_absolute_path, 'r') as config_file:
             try:
@@ -352,7 +354,7 @@ class SlurmManagerCLI(Manager):
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
         )
-    def get_jobs_status(self) -> Dict[str, TaskStatusEnum]:
+    def get_jobs_status(self) -> Dict[str, Dict[str, TaskStatusEnum]]:
         """ Gets status' of all managed jobs running under skyflow slurm user account.
 
             Returns:
@@ -366,8 +368,9 @@ class SlurmManagerCLI(Manager):
         #jobs_info = subprocess.check_output(command, shell=True, text=True)
         jobs_info = jobs_info[1:]
         #Create dict of only managed jobs. [Job ID, Job Name, Status]
-        jobs_dict: Dict[str, TaskStatusEnum] = {}
+        jobs_dict: Dict[str, Dict[str, TaskStatusEnum]] = {"tasks": {}, "containers": {}}
         for job in jobs_info:
+            self.logger.info(job)
             job_property = job.split()
             #check if this is a managed job
             job_name = job_property[1]
@@ -379,13 +382,13 @@ class SlurmManagerCLI(Manager):
                     0] == MANAGER_NAME:  #Job is Managed by skyflow
                     slurm_job_name = f'{split_str_ids[1]}-{split_str_ids[2]}'
                     if status == 'R':
-                        jobs_dict[slurm_job_name] = TaskStatusEnum.RUNNING
+                        jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.RUNNING
                     elif status == 'PD':
-                        jobs_dict[slurm_job_name] = TaskStatusEnum.PENDING
+                        jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.PENDING
                     elif status == 'I':
-                        jobs_dict[slurm_job_name] = TaskStatusEnum.INIT
+                        jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.INIT
                     elif status == 'F':
-                        jobs_dict[slurm_job_name] = TaskStatusEnum.FAILED
+                        jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.FAILED
         return jobs_dict
     def _get_matching_job_names(self, match_name: str):
         """ Gets a list of jobs with matching names.

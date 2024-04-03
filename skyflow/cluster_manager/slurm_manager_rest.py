@@ -165,13 +165,13 @@ class SlurmManagerREST(Manager):
                     job_names.append(slurm_job_name)
         return job_names
 
-    def get_jobs_status(self) -> Dict[str, JobStatusEnum]:
+    def get_jobs_status(self) -> Dict[str, Dict[str, JobStatusEnum]]:
         """ Gets status of all skyflow managed jobs.
 
             Returns:
                 Dict of statuses of all jobs from slurmrestd
         """
-        jobs_dict: Dict[str, JobStatusEnum] = {}
+        jobs_dict: Dict[str, Dict[str, JobStatusEnum]] = {"tasks": {}, "containers": {}}
         fetch = self.port + '/jobs'
         response = self.session.get(fetch).json()
         job_count = len(response['jobs'])
@@ -182,10 +182,12 @@ class SlurmManagerREST(Manager):
                 if split_str_ids[
                         0] == MANAGER_NAME:  #Job is Managed by skyflow
                     slurm_job_name = f'{split_str_ids[1]}-{split_str_ids[2]}'
+                    print(slurm_job_name)
+                    print(response)
                     state = get_json_key_val(response,
                                              ('jobs', i, 'job_state'))
                     job_state = _get_job_state_enum(state)
-                    jobs_dict[slurm_job_name] = job_state
+                    jobs_dict["tasks"][slurm_job_name] = job_state
         return jobs_dict
 
     def get_single_job_status(self, job: Job) -> JobStatusEnum:
@@ -429,7 +431,7 @@ def get_json_key_val(data: str, keys: Tuple) -> str:
             keys: Tuple of nested keys.
 
         Returns:
-            Value assoicated with last nested key.
+            Value associated with last nested key.
 
     """
     val = data
