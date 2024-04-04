@@ -27,19 +27,34 @@ jobs:
         run: kind create cluster
 
       # Run Tests inside Docker Container
-      - name: Run tests in Docker
+      - name: Run test_etcd_client
         run: docker run --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests/test_etcd_client.py
 
+      - name: Run api_client_unit_tests
+        run: docker exec SkyflowTestContainer pytest ./skyflow/tests/api_client_unit_tests.py
+
+      - name: Run api_server_unit_tests
+        run: docker exec SkyflowTestContainer pytest ./skyflow/tests/api_server_unit_tests.py
+
+      - name: Run cli_tests
+        run: docker exec SkyflowTestContainer pytest ./skyflow/tests/cli_tests.py
+
+      - name: Run launch_server_unit_tests
+        run: docker exec SkyflowTestContainer pytest ./skyflow/tests/launch_server_unit_tests.py
+
+      - name: Run clusterlink_test
+        run: docker exec SkyflowTestContainer pytest ./skyflow/tests/clusterlink_test.py
+        
       - name: Remove test container
         if: always()
         run: docker rm SkyflowTestContainer || true
 
-      - name: Commit and push changes
-        run: |
-          chmod +x ./format.sh
-          ./format.sh
-          git config --global user.name 'Huanzhi Mao'
-          git config --global user.email 'huanzhimao@gmail.com'
-          git add .
-          git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
-          git push
+      # - name: Commit and push changes
+      #   run: |
+      #     chmod +x ./format.sh
+      #     ./format.sh
+      #     git config --global user.name 'Huanzhi Mao'
+      #     git config --global user.email 'huanzhimao@gmail.com'
+      #     git add .
+      #     git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
+      #     git push
