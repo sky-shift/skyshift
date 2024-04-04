@@ -9,5 +9,3 @@ COPY . /usr/src/app
 
 
 RUN pip install --upgrade pip && pip install --no-cache-dir -e .[server,dev]
-
-RUN pip install pytest
