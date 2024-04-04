@@ -809,24 +809,6 @@ class APIServer:
         if not tty:
             await websocket.close(code=1000)  # Close with normal code
 
-    def _watch_key(self, key: str):
-        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
-
-        def generate_events():
-            try:
-                for event in events_iterator:
-                    event_type, event_value = event
-                    event_value = load_object(event_value)
-                    # Check and validate event type.
-                    watch_event = WatchEvent(event_type=event_type.value,
-                                             object=event_value)
-                    yield watch_event.model_dump_json() + "\n"
-            finally:
-                cancel_watch_fn()
-
-        return StreamingResponse(generate_events(),
-                                 media_type="application/x-ndjson")
-
     def _add_endpoint(self,
                       endpoint=None,
                       endpoint_name=None,
