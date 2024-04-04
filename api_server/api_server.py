@@ -389,7 +389,7 @@ class APIServer:
 
         return _create_object
 
-    async def list_objects(
+    def list_objects(
             self,
             object_type: str,
             namespace: str = DEFAULT_NAMESPACE,
@@ -411,7 +411,7 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return await self._watch_key(link_header)
+            return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -420,7 +420,7 @@ class APIServer:
         })
         return obj_list
 
-    async def get_object(
+    def get_object(
         self,
         object_type: str,
         object_name: str,
@@ -445,7 +445,7 @@ class APIServer:
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
         if watch:
-            return await self._watch_key(f"{link_header}/{object_name}")
+            return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
@@ -473,6 +473,7 @@ class APIServer:
                 cancel_watch_fn()
             else:
                 cancel_watch_fn()
+            yield ""
 
         return StreamingResponse(generate_events(),
                                  media_type="application/x-ndjson")
