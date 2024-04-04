@@ -33,7 +33,9 @@ jobs:
         id: install
 
       - name: Install clusterlink
-        run: curl -sL https://github.com/clusterlink-net/clusterlink/releases/download/v0.0.1/clusterlink.sh | sh
+        run: |
+          curl -sL https://github.com/clusterlink-net/clusterlink/releases/download/v0.0.1/clusterlink.sh | sh && \
+          export PATH="$PATH:/home/gcpuser/.local/bin"
 
       - name: Create Kubernetes Cluster
         run: kind create cluster || true
