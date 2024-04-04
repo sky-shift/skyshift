@@ -2,8 +2,6 @@
 Link Controller - Manages the dynamic links between clusters. This assumes
 that each cluster has the Cluster link/Skupper software/deployment installed.
 """
-import logging
-import os
 import queue
 import subprocess
 import traceback
@@ -11,13 +9,11 @@ import traceback
 from skyflow.api_client import ClusterAPI, LinkAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.network.cluster_linkv2 import create_link, delete_link
 from skyflow.structs import Informer
 from skyflow.templates import Link, LinkStatusEnum, WatchEventEnum
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 class LinkController(Controller):
@@ -28,10 +24,10 @@ class LinkController(Controller):
 
     def __init__(self) -> None:
         super().__init__()
-        self.logger = logging.getLogger("[Link Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+
+        self.logger = create_controller_logger(
+            title="[Link Controller]",
+            log_path=f'{SKYCONF_DIR}/link_controller.log')
 
         # Thread safe queue for Informers to append events to.
         self.event_queue: queue.Queue = queue.Queue()

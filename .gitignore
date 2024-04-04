@@ -5,3 +5,11 @@
 *.eggs/
 
 .vscode
+
+# Skyflow Documentation
+docs/build
+slurm/berkrsa
+slurm/log.txt
+slurm/slurm
+slurm/slurm.pub
+log.txt

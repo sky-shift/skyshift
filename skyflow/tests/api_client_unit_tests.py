@@ -8,7 +8,7 @@ To run one specific test, use the following command:
 pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_success
 
 """
-import os
+import tempfile
 from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
 
@@ -18,19 +18,22 @@ from requests import Timeout
 
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
-from skyflow.utils.utils import API_SERVER_CONFIG_PATH, generate_manager_config
+from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 
 
 @pytest.fixture(scope="session", autouse=True)
-def ensure_api_config_exists():
-    """Ensure the API server configuration file exists before running tests."""
-    # Check if the config file already exists
-    if not os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
-        test_host = "127.0.0.1"
-        test_port = 8080
-        # If not, generate the configuration file
-        generate_manager_config(test_host, test_port)
-    yield
+def etcd_backup_and_restore():
+    with tempfile.TemporaryDirectory() as temp_data_dir:
+        # Kill any running sky_manager processes
+        shutdown_skyflow(temp_data_dir)
+        setup_skyflow(temp_data_dir)
+
+        yield  # Test execution happens here
+
+        # Stop the application and ETCD server
+        shutdown_skyflow(temp_data_dir)
+
+        print("Cleaned up temporary ETCD data directory.")
 
 
 class ResponseType(Enum):
@@ -132,14 +135,14 @@ def mock_requests(monkeypatch: Any) -> None:
     def mock_request(method: str, url: str, *args: Any,
                      **kwargs: Any) -> MockResponse:
         key_suffix = ResponseType.DEFAULT
-        if "error" in url:
-            key_suffix = ResponseType.ERROR
+        if "server-error" in url:
+            key_suffix = ResponseType.SERVER_ERROR
         elif "timeout" in url:
             key_suffix = ResponseType.TIMEOUT
         elif "bad" in url:
             key_suffix = ResponseType.BAD
-        elif "server-error" in url:
-            key_suffix = ResponseType.SERVER_ERROR
+        elif "error" in url:
+            key_suffix = ResponseType.ERROR
         elif "namespace" not in url:
             key_suffix = ResponseType.NO_NAMESPACE
         elif method == "get" and "test-job" in url:

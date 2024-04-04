@@ -2,9 +2,11 @@
 """
 Skyflow CLI.
 """
+import json
 import os
 import re
 from typing import Dict, List, Tuple, Union
+from urllib.parse import quote
 
 import click
 import yaml
@@ -15,7 +17,8 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_cluster_table, print_endpoints_table,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
-                                   print_role_table, print_service_table)
+                                   print_role_table, print_service_table,
+                                   stream_cli_object)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
@@ -219,15 +222,13 @@ cli.add_command(apply_config)
     show_default=True,
     required=False,
 )
-@click.option(
-    '--attached',
-    is_flag=True,
-    help=
-    'True if cluster is already created and needs to be attached to Skyflow.')
+@click.option('--provision',
+              is_flag=True,
+              help='True if cluster needs to be provisioned on the cloud.')
 def create_cluster(  # pylint: disable=too-many-arguments
         name: str, manager: str, cpus: str, memory: str, disk_size: int,
         accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, attached: bool):
+        region: str, provision: bool):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
@@ -264,10 +265,10 @@ def create_cluster(  # pylint: disable=too-many-arguments
             ports,
             'num_nodes':
             num_nodes,
-            'attached':
-            attached,
+            'provision':
+            provision,
             'config_path':
-            "~/.kube/config" if attached else
+            "~/.kube/config" if not provision else
             f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
         },
     }
@@ -305,6 +306,7 @@ def delete_cluster(name):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
 @click.option(
@@ -318,7 +320,8 @@ def delete_cluster(name):
 @click.option(
     "--image",
     type=str,
-    default="gcr.io/sky-burst/skyburst:latest",
+    default="ubuntu:latest",
+    show_default=True,
     help="Image to run the job in (any docker registry image).",
 )
 @click.option(
@@ -334,6 +337,7 @@ def delete_cluster(name):
     "--gpus",
     type=int,
     default=0,
+    show_default=True,
     help=
     "Number of GPUs per task. Note that these GPUs can be any type of GPU.",
 )
@@ -342,20 +346,28 @@ def delete_cluster(name):
     "-a",
     type=str,
     default=None,
+    show_default=True,
     help="Type of accelerator resource to use (e.g. T4:1, V100:2)",
 )
 @click.option("--memory",
               type=float,
               default=0,
+              show_default=True,
               help="Total memory (RAM) per task in MB.")
-@click.option("--run", type=str, default="", help="Run command for the job.")
+@click.option("--run",
+              type=str,
+              default="",
+              show_default=True,
+              help="Run command for the job.")
 @click.option("--replicas",
               type=int,
               default=1,
+              show_default=True,
               help="Number of replicas to run job.")
 @click.option("--restart_policy",
               type=str,
-              default="Always",
+              default=RestartPolicyEnum.ALWAYS.value,
+              show_default=True,
               help="Restart policy for job tasks.")
 def create_job(
     name,
@@ -427,9 +439,14 @@ def create_job(
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
-@click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
+@click.option("--watch",
+              '-w',
+              default=False,
+              is_flag=True,
+              help="Performs a watch.")
 def get_job(name: str, namespace: str, watch: bool):
     """Fetches a job."""
     api_response = get_cli_object(object_type="job",
@@ -445,6 +462,7 @@ def get_job(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's namespace.",
 )
 def job_logs(name: str, namespace: str):
@@ -461,6 +479,7 @@ cli.add_command(job_logs)
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to job's location.",
 )
 def delete_job(name: str, namespace: str):
@@ -489,7 +508,11 @@ def create_namespace(name: str):
 
 @get.command(name="namespace", aliases=["namespaces"])
 @click.argument("name", required=False, default=None)
-@click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
+@click.option("--watch",
+              "-w",
+              default=False,
+              is_flag=True,
+              help="Performs a watch.")
 def get_namespace(name: str, watch: bool):
     """Gets all namespaces."""
     api_response = get_cli_object(object_type="namespace",
@@ -514,6 +537,7 @@ def delete_namespace(name: str):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 @click.option(
@@ -594,6 +618,7 @@ def create_filter_policy(name: str, namespace: str,
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -617,6 +642,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to policy's location.",
 )
 def delete_filter_policy(name: str, namespace: str):
@@ -697,12 +723,14 @@ def delete_link(name: str):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service's location.",
 )
 @click.option("--service_type",
               "-t",
               type=str,
               default="ClusterIP",
+              show_default=True,
               help="Type of service.")
 @click.option("--selector",
               "-s",
@@ -722,6 +750,7 @@ def delete_link(name: str):
               "-c",
               type=str,
               default="auto",
+              show_default=True,
               help="Cluster to expose service on.")
 def create_service(
     name: str,
@@ -797,6 +826,7 @@ def create_service(
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -815,6 +845,7 @@ def get_service(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 def delete_service(name: str, namespace: str):
@@ -829,6 +860,7 @@ def delete_service(name: str, namespace: str):
 @click.option("--namespace",
               type=str,
               default="default",
+              show_default=True,
               help="Namespace for the endpoints.")
 @click.option("--num_endpoints", type=int, help="Number of endpoints.")
 @click.option("--exposed",
@@ -838,6 +870,7 @@ def delete_service(name: str, namespace: str):
 @click.option("--primary_cluster",
               type=str,
               default="auto",
+              show_default=True,
               help="Primary cluster where the endpoints are exposed.")
 @click.option("--selector",
               multiple=True,
@@ -896,6 +929,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
@@ -914,6 +948,7 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     "--namespace",
     type=str,
     default="default",
+    show_default=True,
     help="Namespace corresponding to service`s locaton.",
 )
 def delete_endpoints(name: str, namespace: str):
@@ -932,25 +967,25 @@ def delete_endpoints(name: str, namespace: str):
               type=str,
               multiple=True,
               default=[],
-              help="Actions for the role.")
+              help="List of actions for the role.")
 @click.option("--resource",
               "-r",
               type=str,
               multiple=True,
               default=[],
-              help="Resources for the role.")
+              help="List of resources for the role.")
 @click.option("--namespace",
               "-n",
               type=str,
               multiple=True,
               default=[],
-              help="Namespaces for the role.")
+              help="List of namespaces for the role.")
 @click.option("--users",
               "-u",
               type=str,
               multiple=True,
               default=[],
-              help="Users for the role.")
+              help="List of users for the role.")
 def create_role(name: str, action: List[str], resource: List[str],
                 namespace: List[str], users: List[str]):
     """Create a new role."""
@@ -998,3 +1033,152 @@ def delete_role(name):
     if not validate_input_string(name):
         raise click.BadParameter(f"Name format is invalid: {name}")
     delete_cli_object(object_type="role", name=name)
+
+
+# ==============================================================================
+# Skyflow exec
+
+
+@click.command(name="exec")
+@click.argument("resource", required=True)
+@click.argument("command", nargs=-1, required=True)
+@click.option(
+    "--namespace",
+    type=str,
+    default="default",
+    show_default=True,
+    help="Namespace corresponding to job's location.",
+)
+@click.option(
+    "-t",
+    "--tasks",
+    multiple=True,
+    default=None,
+    help=
+    "Task name where the command will be executed. This option can be repeated to \
+        specify multiple pods.")
+@click.option(
+    "-cts",
+    "--containers",
+    multiple=True,
+    default=None,
+    help=
+    "Container name where the command will be executed. This option can be repeated \
+        to specify multiple containers.")
+@click.option("-q",
+              "--quiet",
+              is_flag=True,
+              default=False,
+              help="Only print output from the remote session.")
+@click.option("-it",
+              "-ti",
+              "--tty",
+              is_flag=True,
+              default=False,
+              help="Stdin is a TTY.")
+def exec_command_sync(  # pylint: disable=too-many-arguments
+        resource: str, command: Tuple[str], namespace: str, tasks: List[str],
+        containers: List[str], quiet: bool, tty: bool):
+    """
+    Wrapper for exec_command to parse inputs and change variable names.
+    """
+    # Convert containers from tuple to list if necessary
+    specified_container = list(containers) if containers else []
+    specified_tasks = list(tasks) if tasks else []
+
+    exec_command(resource, command, namespace, specified_tasks,
+                 specified_container, quiet, tty)
+
+
+def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
+        resource: str, command: Tuple[str], namespace: str,
+        specified_tasks: List[str] | List[None],
+        specified_container: List[str] | List[None], quiet: bool, tty: bool):
+    """
+    Executes a specified command within a container of a resource.
+
+    This function supports executing commands in various modes, including direct execution \
+        and TTY (interactive) mode.
+    It is capable of targeting specific clusters, tasks (pods), and containers, providing \
+        flexibility in how commands
+    are executed across the infrastructure. It handles both single and multiple targets \
+        with appropriate checks
+    and balances to ensure the command execution context is correctly established.
+
+    Parameters:
+        resource (str): The name of the resource within which the command is to be executed.
+        command (Tuple[str]): The command to execute, represented as a tuple of strings.
+        namespace (str): The Kubernetes namespace where the resource is located.
+        specified_tasks (List[str]): A list of specific tasks (pods) to target for command \
+            execution.
+            In TTY mode, only a single task can be targeted.
+        specified_container (List[str]): A list of container names within the specified \
+            tasks where
+            the command should be executed. TTY mode supports only a single container.
+        quiet (bool): If True, suppresses output.
+        tty (bool): If True, executes the command in TTY (interactive) mode.
+
+    Raises:
+        click.ClickException: For various conditions such as no command \
+            specified, multiple targets specified in TTY mode, etc.
+
+    Returns:
+        None: Results of command execution are printed to standard output. In non-TTY mode,
+              outputs are directly printed. In TTY mode, a streaming session is initiated.
+
+    Note:
+        The function validates the specified clusters, tasks, and containers \
+            against the available resources
+        and configurations to ensure valid execution contexts. It also handles \
+            the dynamic construction \
+            of the execution
+        dictionary (`exec_dict`) used to frame the execution request.
+    """
+    if len(command) == 0:
+        raise click.ClickException("No command specified.")
+
+    if tty:
+        if len(specified_tasks) > 1:
+            raise click.ClickException(
+                "Multiple tasks specified. TTY mode is only supported for a single task. \
+                    Defaulting to the first running task in the job.")
+        if len(specified_container) > 1:
+            raise click.ClickException(
+                "Multiple containers specified. TTY mode is only supported for a single container."
+            )
+        if not quiet:
+            click.echo(
+                "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
+            )
+    if len(specified_tasks) == 0:
+        click.echo("No tasks specified. Connecting to all tasks...")
+        specified_tasks = [None]
+
+    if len(specified_container) == 0:
+        click.echo("No containers specified. Connecting to all containers...")
+        specified_container = [None]
+
+    command_str = json.dumps(command)
+
+    for selected_task in specified_tasks:
+        for container in specified_container:
+            exec_dict = {
+                "kind": "exec",
+                "metadata": {
+                    "namespace": namespace,
+                },
+                "spec": {
+                    "quiet": quiet,
+                    "tty": tty,
+                    "task": selected_task,
+                    "resource": resource,
+                    "container": container,
+                    "command": quote(command_str).replace('/', '%-2-F-%2-'),
+                },
+            }
+            if not quiet and tty:
+                print("Opening the next TTY session...")
+            stream_cli_object(exec_dict)
+
+
+cli.add_command(exec_command_sync)

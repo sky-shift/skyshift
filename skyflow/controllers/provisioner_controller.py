@@ -1,7 +1,5 @@
 """Provisioner Controller
 """
-import logging
-import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -16,15 +14,13 @@ from skyflow.cloud.skypilot_provisioning import (
     delete_kubernetes_cluster, provision_new_kubernetes_cluster)
 from skyflow.cloud.utils import delete_unused_cluster_config
 from skyflow.controllers.controller import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent, WatchEventEnum
 
 PROVISIONER_CONTROLLER_INTERVAL = 0.5
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(name)s - %(asctime)s - %(levelname)s - %(message)s')
 
 
 def terminate_process(pid: int):
@@ -55,10 +51,9 @@ class ProvisionerController(Controller):
 
     def __init__(self):
         super().__init__()
-        self.logger = logging.getLogger('[Provisioner Controller]')
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger = self.logger = create_controller_logger(
+            title="[Provisioner Controller]",
+            log_path=f'{SKYCONF_DIR}/provisioner_controller.log')
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.cluster_api = ClusterAPI()
@@ -96,7 +91,7 @@ class ProvisionerController(Controller):
         if watch_event.event_type == WatchEventEnum.ADD:
             # Launch Skylet if it is a newly added cluster.
             cluster_name = cluster_obj.get_name()
-            if cluster_obj.spec.attached:
+            if not cluster_obj.spec.provision:
                 self.logger.info(
                     'Cluster %s is `attached`, '
                     'skipping provisioning.', cluster_name)
@@ -120,7 +115,7 @@ class ProvisionerController(Controller):
                 return
             self.update_cluster_obj_status(cluster_name,
                                            ClusterStatusEnum.READY)
-        elif watch_event.event_type == WatchEventEnum.DELETE and not cluster_obj.spec.attached:
+        elif watch_event.event_type == WatchEventEnum.DELETE and cluster_obj.spec.provision:
             self.logger.info('Terminating cluster %s...', cluster_name)
             delete_unused_cluster_config(cluster_name)
             delete_kubernetes_cluster(cluster_name, cluster_obj.spec.num_nodes)

@@ -5,9 +5,7 @@ If a new cluster is detected (e.g. in INIT state), a Skylet is launched to track
 the cluster's state. If a cluster is deleted, the corresponding Skylet is terminated.
 """
 
-import logging
 import multiprocessing
-import os
 import time
 from queue import Queue
 
@@ -17,16 +15,14 @@ from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_lookup import lookup_kube_config
 from skyflow.controllers import Controller, controller_error_handler
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import SKYCONF_DIR
 from skyflow.skylet.skylet import launch_skylet
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEventEnum
 
 SKYLET_CONTROLLER_INTERVAL = 0.5
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 def terminate_process(pid: int):
@@ -42,10 +38,9 @@ class SkyletController(Controller):
 
     def __init__(self):
         super().__init__()
-        self.logger = logging.getLogger("[Skylet Controller]")
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
+        self.logger = create_controller_logger(
+            title="[Skylet Controller]",
+            log_path=f'{SKYCONF_DIR}/skylet_controller.log')
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.skylets = {}
@@ -107,6 +102,7 @@ class SkyletController(Controller):
 
     def _load_clusters(self):
         existing_clusters = lookup_kube_config(self.cluster_api)
+        self.logger.info("Found existing clusters: %s.", existing_clusters)
         for cluster_name in existing_clusters:
             self.logger.info("Found existing cluster: %s.", cluster_name)
             try:

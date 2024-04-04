@@ -7,41 +7,25 @@
     and for running a specific test:
     pytest skyflow/tests/cli_tests.py::test_create_cluster_success
 """
-import multiprocessing
-import shutil
-import subprocess
 import tempfile
-import time
 
 import pytest
 from click.testing import CliRunner
 
 from skyflow.cli.cli import cli
+from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
         # Kill any running sky_manager processes
-        subprocess.run("pkill -f launch_sky_manager", shell=True)  # pylint: disable=subprocess-run-check
-
-        print("Using temporary data directory for ETCD:", temp_data_dir)
-        workers = multiprocessing.cpu_count()
-        data_directory = temp_data_dir
-        command = [
-            "python", "../../api_server/launch_server.py", "--workers",
-            str(workers), "--data-directory", data_directory
-        ]
-
-        process = subprocess.Popen(command)
-        time.sleep(5)  # Wait for the server to start
+        shutdown_skyflow(temp_data_dir)
+        setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
 
-        # Stop the application and ETCD server
-        process.terminate()
-        process.wait()
-        subprocess.run('pkill -f etcd', shell=True)  # pylint: disable=subprocess-run-check
+        shutdown_skyflow(temp_data_dir)
 
         print("Cleaned up temporary ETCD data directory.")
 
@@ -158,6 +142,7 @@ def test_create_cluster_success_no_manager(runner):
 
 
 def test_create_job_success(runner):
+
     # Define the job specifications
     job_spec = {
         "name": "valid-job",
@@ -168,10 +153,17 @@ def test_create_job_success(runner):
         "run": "echo Hello World",
     }
 
+    # Define job labels
+    labels = [("labelkey1", "value1"), ("labellkey2", "value2")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
     # Construct the command with parameters
     cmd = [
-        'create', 'job', job_spec["name"], '--namespace',
-        job_spec["namespace"], '--image', job_spec["image"], '--cpus',
+        'create', 'job', job_spec["name"], '--namespace', job_spec["namespace"]
+    ] + label_args + [
+        '--image', job_spec["image"], '--cpus',
         str(job_spec["cpus"]), '--memory',
         str(job_spec["memory"]), '--run', job_spec["run"]
     ]

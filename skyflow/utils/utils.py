@@ -18,14 +18,23 @@ OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 def sanitize_cluster_name(value: str) -> str:
     """
     Validates the name field of a Cluster, ensuring
-    it does not contain whitespaces, @ or '/'.
+    it does not contain whitespaces, @, _ or '/'.
     """
     if not value or value.isspace() or len(value) == 0:
         raise ValueError(f"Name format is invalid: {value}")
-    sanitized_value = value.replace(" ", "-space-").replace("/",
-                                                            "-dash-").replace(
-                                                                "@", "-at-")
+    sanitized_value = value.replace(" ", "-space-").replace(
+        "/", "-dash-").replace("@", "-at-").replace("_", "-underscore-")
     return sanitized_value
+
+
+def unsanitize_cluster_name(value: Optional[str]) -> str:
+    """
+    Reverts the sanitized cluster name back to the original name.
+    """
+    if value is None:
+        return ""
+    return value.replace("-space-", " ").replace("-dash-", "/").replace(
+        "-at-", "@").replace("-underscore-", "_")
 
 
 def generate_manager_config(host: str, port: int):

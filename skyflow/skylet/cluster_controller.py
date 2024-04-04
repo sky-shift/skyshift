@@ -5,8 +5,6 @@ This includes total cluster capacity, allocatable cluster capacity.
 These controllers are launched in Skylet.
 """
 
-import logging
-import os
 import time
 import traceback
 from contextlib import contextmanager
@@ -16,11 +14,9 @@ import requests
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 DEFAULT_HEARTBEAT_TIME = 5
 DEFAULT_RETRY_LIMIT = 5
@@ -68,9 +64,11 @@ class ClusterController(Controller):
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
-        self.logger = logging.getLogger(f"[{self.name} - Cluster Controller]")
-        self.logger.info("Initializing Cluster Controller: %s", self.name)
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Cluster Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/cluster_controller.log')
 
+        self.logger.info("Initializing Cluster Controller: %s", self.name)
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm TODO)
@@ -84,10 +82,6 @@ class ClusterController(Controller):
         except Exception:  # pylint: disable=broad-except
             self.logger.error("Failed to fetch accelerator types.")
             self.update_unhealthy_cluster()
-
-        self.logger.setLevel(
-            getattr(logging,
-                    os.getenv('LOG_LEVEL', 'INFO').upper(), logging.INFO))
 
     def run(self):
         self.logger.info(

@@ -6,11 +6,11 @@ import os
 from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
                                Namespace, Role, Service)
 
-DEFAULT_NAMESPACE = "default"
-
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
+
+DEFAULT_NAMESPACE = "default"
 
 NAMESPACED_OBJECTS = {
     "jobs": Job,
@@ -25,3 +25,8 @@ NON_NAMESPACED_OBJECTS = {
     "roles": Role,
 }
 ALL_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
+
+
+def cluster_dir(cluster_name: str):
+    """Returns the path to the cluster directory."""
+    return os.path.join(SKYCONF_DIR, "cluster", cluster_name)
