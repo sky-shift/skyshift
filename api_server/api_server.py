@@ -163,7 +163,6 @@ class APIServer:
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
-        self.etcd_client.delete_all()
 
     def installation_hook(self):
         """Primes the API server with default objects and roles."""
