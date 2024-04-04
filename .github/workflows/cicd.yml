@@ -10,15 +10,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-            ref: ${{ github.head_ref }}
-            fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - name: Build Docker Image
-        run: docker build -t Skyflow:CICD_Test .
+        run: docker build -t skyflow:cicd_test .
 
       # Run Tests inside Docker Container
       - name: Run tests in Docker
-        run: docker run --name SkyflowTestContainer Skyflow:CICD_Test pytest ./skyflow/tests
+        run: docker run --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests
 
       - name: Remove test container
         if: always()
@@ -26,10 +26,10 @@ jobs:
 
       - name: Commit and push changes
         run: |
-              chmod +x ./format.sh
-              ./format.sh
-              git config --global user.name 'Huanzhi Mao'
-              git config --global user.email 'huanzhimao@gmail.com'
-              git add .
-              git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
-              git push
+          chmod +x ./format.sh
+          ./format.sh
+          git config --global user.name 'Huanzhi Mao'
+          git config --global user.email 'huanzhimao@gmail.com'
+          git add .
+          git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
+          git push
