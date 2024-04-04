@@ -16,21 +16,24 @@ jobs:
       - name: Build Docker Image
         run: docker build -t skyflow:cicd_test .
 
-      - name: Install kind
-        uses: helm/kind-action@v1.9.0
-        with:
-          install_only: true
-      # - name: Install Kind
-      #   run: |
-      #     [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
-      #     chmod +x ./kind && \
-      #     sudo mv ./kind /usr/local/bin/kind && \
-      #     kind --version
+      # - name: Install kind
+      #   uses: helm/kind-action@v1.9.0
+      #   with:
+      #     install_only: true
+      - name: Install Kind
+        run: |
+          [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
+          chmod +x ./kind && \
+          sudo mv ./kind /usr/local/bin/kind && \
+          kind --version
 
       - uses: azure/setup-kubectl@v3
         with:
           version: 'latest'
         id: install
+
+      - name: Install clusterlink
+        run: curl -sL https://github.com/clusterlink-net/clusterlink/releases/download/v0.0.1/clusterlink.sh | sh
 
       - name: Create Kubernetes Cluster
         run: kind create cluster || true
