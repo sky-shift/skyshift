@@ -893,3 +893,80 @@ def test_delete_nonexistent_endpoints(runner):
         cli, ['delete', 'endpoints', name, '--namespace', namespace])
     assert result.exit_code != 0
     assert "does not exist" in result.output
+
+# ==============================================================================
+# Roles tests
+    
+def test_create_role(runner):
+    name = "new-role"
+    namespace = "default"
+    cmd = ['create', 'role', name, '--namespace', namespace]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+    
+# ==============================================================================
+# User tests
+def test_create_user_success(runner):
+    name = "user1"
+    email = "test@email.com"
+    password = "password"
+    cmd = ['create', 'user', name, email, password]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+def test_create_user_duplicate(runner):
+    name = "user2"
+    email = "test@email.com"
+    password = "password"
+    cmd = ['create', 'user', name, email, password]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+    cmd2 = ['create', 'user', name, email, password]
+    result2 = runner.invoke(cli, cmd2)
+    assert result2.exit_code != 0
+
+def test_create_user_err(runner):
+    bad_name = "%p"
+    good_name = "user3"
+    bad_email = "bad@email"
+    good_email = "test@email.com"
+    bad_password = "123"
+    good_password = "password"
+    cmd = ['create', 'user', good_name, bad_email, good_password]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code != 0
+
+    cmd2 = ['create', 'user', good_name, good_email, bad_password]
+    result2 = runner.invoke(cli, cmd2)
+    assert result2.exit_code != 0
+
+    cmd3 = ['create', 'user', bad_name, good_email, good_password]
+    result3 = runner.invoke(cli, cmd3)
+    assert result3.exit_code != 0
+
+@pytest.fixture()
+def test_login_user_success(runner):
+    name = "user4"
+    email = "test@email.com"
+    password = "password"
+    cmd = ['create', 'user', name, email, password]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+    cmd_login = ['get', 'user', name, password]
+    result2 = runner.invoke(cli, cmd_login)
+    assert result2.exit_code == 0
+
+@pytest.fixture()
+def test_login_user_wrong_password(runner):
+    name = "user5"
+    email = "test@email.com"
+    password = "password"
+    cmd = ['create', 'user', name, email, password]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+    cmd_login = ['get', 'user', name, "wrong_pw"]
+    result2 = runner.invoke(cli, cmd_login)
+    assert result2.exit_code != 0

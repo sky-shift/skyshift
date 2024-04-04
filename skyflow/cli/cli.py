@@ -17,7 +17,8 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_cluster_table, print_endpoints_table,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
-                                   print_role_table, print_service_table,
+                                   print_role_table, print_service_table, 
+                                   register_user, login_user,
                                    stream_cli_object)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
@@ -1182,3 +1183,204 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
 
 cli.add_command(exec_command_sync)
+
+
+# ==============================================================================
+# Skyflow exec
+
+
+@click.command(name="exec")
+@click.argument("resource", required=True)
+@click.argument("command", nargs=-1, required=True)
+@click.option(
+    "--namespace",
+    type=str,
+    default="default",
+    show_default=True,
+    help="Namespace corresponding to job's location.",
+)
+@click.option(
+    "-t",
+    "--tasks",
+    multiple=True,
+    default=None,
+    help=
+    "Task name where the command will be executed. This option can be repeated to \
+        specify multiple pods.")
+@click.option(
+    "-cts",
+    "--containers",
+    multiple=True,
+    default=None,
+    help=
+    "Container name where the command will be executed. This option can be repeated \
+        to specify multiple containers.")
+@click.option("-q",
+              "--quiet",
+              is_flag=True,
+              default=False,
+              help="Only print output from the remote session.")
+@click.option("-it",
+              "-ti",
+              "--tty",
+              is_flag=True,
+              default=False,
+              help="Stdin is a TTY.")
+def exec_command_sync(  # pylint: disable=too-many-arguments
+        resource: str, command: Tuple[str], namespace: str, tasks: List[str],
+        containers: List[str], quiet: bool, tty: bool):
+    """
+    Wrapper for exec_command to parse inputs and change variable names.
+    """
+    # Convert containers from tuple to list if necessary
+    specified_container = list(containers) if containers else []
+    specified_tasks = list(tasks) if tasks else []
+
+    exec_command(resource, command, namespace, specified_tasks,
+                 specified_container, quiet, tty)
+
+
+def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
+        resource: str, command: Tuple[str], namespace: str,
+        specified_tasks: List[str] | List[None],
+        specified_container: List[str] | List[None], quiet: bool, tty: bool):
+    """
+    Executes a specified command within a container of a resource.
+
+    This function supports executing commands in various modes, including direct execution \
+        and TTY (interactive) mode.
+    It is capable of targeting specific clusters, tasks (pods), and containers, providing \
+        flexibility in how commands
+    are executed across the infrastructure. It handles both single and multiple targets \
+        with appropriate checks
+    and balances to ensure the command execution context is correctly established.
+
+    Parameters:
+        resource (str): The name of the resource within which the command is to be executed.
+        command (Tuple[str]): The command to execute, represented as a tuple of strings.
+        namespace (str): The Kubernetes namespace where the resource is located.
+        specified_tasks (List[str]): A list of specific tasks (pods) to target for command \
+            execution.
+            In TTY mode, only a single task can be targeted.
+        specified_container (List[str]): A list of container names within the specified \
+            tasks where
+            the command should be executed. TTY mode supports only a single container.
+        quiet (bool): If True, suppresses output.
+        tty (bool): If True, executes the command in TTY (interactive) mode.
+
+    Raises:
+        click.ClickException: For various conditions such as no command \
+            specified, multiple targets specified in TTY mode, etc.
+
+    Returns:
+        None: Results of command execution are printed to standard output. In non-TTY mode,
+              outputs are directly printed. In TTY mode, a streaming session is initiated.
+
+    Note:
+        The function validates the specified clusters, tasks, and containers \
+            against the available resources
+        and configurations to ensure valid execution contexts. It also handles \
+            the dynamic construction \
+            of the execution
+        dictionary (`exec_dict`) used to frame the execution request.
+    """
+    if len(command) == 0:
+        raise click.ClickException("No command specified.")
+
+    if tty:
+        if len(specified_tasks) > 1:
+            raise click.ClickException(
+                "Multiple tasks specified. TTY mode is only supported for a single task. \
+                    Defaulting to the first running task in the job.")
+        if len(specified_container) > 1:
+            raise click.ClickException(
+                "Multiple containers specified. TTY mode is only supported for a single container."
+            )
+        if not quiet:
+            click.echo(
+                "Warning: TTY is enabled. This is not recommended for non-interactive sessions."
+            )
+    if len(specified_tasks) == 0:
+        click.echo("No tasks specified. Connecting to all tasks...")
+        specified_tasks = [None]
+
+    if len(specified_container) == 0:
+        click.echo("No containers specified. Connecting to all containers...")
+        specified_container = [None]
+
+    command_str = json.dumps(command)
+
+    for selected_task in specified_tasks:
+        for container in specified_container:
+            exec_dict = {
+                "kind": "exec",
+                "metadata": {
+                    "namespace": namespace,
+                },
+                "spec": {
+                    "quiet": quiet,
+                    "tty": tty,
+                    "task": selected_task,
+                    "resource": resource,
+                    "container": container,
+                    "command": quote(command_str).replace('/', '%-2-F-%2-'),
+                },
+            }
+            if not quiet and tty:
+                print("Opening the next TTY session...")
+            stream_cli_object(exec_dict)
+
+
+cli.add_command(exec_command_sync)
+
+# ==============================================================================
+# User API as CLI
+    
+@create.command(name="user")
+@click.argument("username", required=True)
+@click.argument("email", required=True)
+@click.argument("password", required=True)
+def register(username, email, password):
+    """
+    User register command.
+    """
+    register_user(username, email, password)
+    
+
+@get.command(name="user")
+@click.argument("username", required=True)
+@click.argument("password", required=True)
+def login(username, password):
+    """
+    User login command.
+    """
+    login_user(username, password)
+
+if __name__ == '__main__':
+    cli()
+
+# ==============================================================================
+# User API as CLI
+    
+@create.command(name="user")
+@click.argument("username", required=True)
+@click.argument("email", required=True)
+@click.argument("password", required=True)
+def register(username, email, password):
+    """
+    User register command.
+    """
+    register_user(username, email, password)
+    
+
+@get.command(name="user")
+@click.argument("username", required=True)
+@click.argument("password", required=True)
+def login(username, password):
+    """
+    User login command.
+    """
+    login_user(username, password)
+
+if __name__ == '__main__':
+    cli()

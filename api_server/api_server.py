@@ -20,7 +20,7 @@ from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -116,9 +116,9 @@ def update_manager_config(config: dict):
 
 class User(BaseModel):
     """Represents a user for SkyFlow."""
-    username: str
-    email: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=50, pattern="^[a-zA-Z0-9_]+$")
+    email: EmailStr
+    password: str = Field(..., min_length=5)
 
 
 def check_or_wait_initialization():
@@ -175,7 +175,7 @@ class APIServer:
                     mode="json"),
             )
         # Create system admin user and create authentication token.
-        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='N/A')
+        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='example@test.com')
         try:
             self.register_user(admin_user)
         except HTTPException:  # pylint: disable=broad-except

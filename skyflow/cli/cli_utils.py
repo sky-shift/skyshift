@@ -9,7 +9,7 @@ from tabulate import tabulate
 from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
-                                ServiceAPI)
+                                ServiceAPI, UserAPI)
 # Import API parent class.
 from skyflow.api_client.exec_api import ExecAPI
 from skyflow.api_client.object_api import APIException, ObjectAPI
@@ -31,6 +31,7 @@ NON_NAMESPACED_API_OBJECTS = {
     "namespace": NamespaceAPI,
     "link": LinkAPI,
     "role": RoleAPI,
+    "user": UserAPI
 }
 ALL_API_OBJECTS = {**NON_NAMESPACED_API_OBJECTS, **NAMESPACED_API_OBJECTS}
 
@@ -417,3 +418,38 @@ def print_role_table(roles_list):
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
+
+def register_user(username: str, email: str, password: str):
+    """
+    Register user.
+    """
+    users_api = fetch_api_client_object("user")
+    
+    try:
+        response = users_api.register_user(username, email, password)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(f"Failed to register user: {error_details}")
+        else:
+            click.echo("Registration successful.")
+    except APIException as error:
+        raise click.ClickException(f"Failed to register user: {error.detail}")
+    
+def login_user(username: str, password: str):
+    """
+    Login user.
+    """
+    users_api = fetch_api_client_object("user")
+    try:
+        response = users_api.login_user(username, password)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(f"Failed to login: {error_details}")
+        else:
+            data = response.json()
+            access_token = data.get("access_token")
+            click.echo("Login successful. Access token obtained.")
+
+            # TODO: Store and reuse the access token
+    except APIException as error:
+        raise click.ClickException(f"Failed to login: {error.detail}")
