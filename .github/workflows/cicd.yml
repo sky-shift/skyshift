@@ -23,6 +23,11 @@ jobs:
           sudo mv ./kind /usr/local/bin/kind && \
           kind --version
 
+      - uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+        id: install
+
       - name: Create Kubernetes Cluster
         run: kind create cluster || true
 
