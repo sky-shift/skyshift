@@ -373,7 +373,7 @@ class APIServer:
                     role_name = role["metadata"]["name"]
                     try:
                         role_dict = self._fetch_etcd_object(f"roles/{role}")
-                        #TODO: we could add additional check here about if the inviter is still valid and the given roles are still valid
+                        #TODO(colin): we could add additional check here about if the inviter is still valid and the given roles are still valid
                         role_dict["users"].append(user.username)
                         self.etcd_client.write(
                             "roles/inviter-role",
@@ -425,7 +425,6 @@ class APIServer:
             ) from error
         
         for to_grant_role_name in roles:
-            #TODO: verify the user is allowed to before it?
             try:
                 role = self._fetch_etcd_object(f"roles/{to_grant_role_name}")
                 if username in role['users']:

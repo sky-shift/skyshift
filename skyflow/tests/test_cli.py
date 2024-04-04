@@ -915,13 +915,21 @@ def test_create_role(runner):
 # ==============================================================================
 # User tests
 
-def get_invite_helper(runner):
+def get_invite_helper(runner, roles = []):
     name = "admin"
     password = "admin"
     cmd_login = ['login', name, password]
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
-    cmd_invite = ['invite', '--json']
+
+    if not roles:
+        cmd_invite = ['invite', '--json']
+    else:
+        cmd_invite = ['invite', '--json']
+        for role in roles:
+            cmd_invite.append('--role')
+            cmd_invite.append(role)
+
     result_invite = runner.invoke(cli, cmd_invite)
     invite = ""
     if result_invite.exit_code == 0:
@@ -1026,6 +1034,34 @@ def test_create_invite_failure(runner):
     cmd_switch = ['switch', '--user', 'admin']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
+
+def test_create_invite_failure_role(runner):
+    name = "user_inviter_fail_without_role"
+    password = "password"
+    cmd_register = ['register', name, password, "--invite", get_invite_helper(runner, roles='inviter-role')]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['switch', '--user', 'user_inviter_fail_without_role']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+    cmd_invite_invalid = ['invite', '--role', 'inviter-role']
+    result_invite_invalid = runner.invoke(cli, cmd_invite_invalid)
+    assert result_invite_invalid.exit_code != 0
+    
+    #make sure active is changed back to admin
+    cmd_switch = ['switch', '--user', 'admin']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0    
 
 def test_switch_user(runner):
     name = "user_cannot_invite"
