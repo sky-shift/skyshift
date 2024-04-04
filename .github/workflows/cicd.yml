@@ -28,11 +28,7 @@ jobs:
 
       # Run Tests inside Docker Container
       - name: Run test_etcd_client
-        run: docker run --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests
-        
-      - name: Remove test container
-        if: always()
-        run: docker rm SkyflowTestContainer || true
+        run: docker run --rm --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests
 
       # - name: Commit and push changes
       #   run: |
