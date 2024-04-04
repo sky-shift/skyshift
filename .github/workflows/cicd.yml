@@ -24,7 +24,7 @@ jobs:
           kind --version
 
       - name: Create Kubernetes Cluster
-        run: kind create cluster
+        run: kind create cluster || true
 
       # Run Tests inside Docker Container
       - name: Run test_etcd_client
