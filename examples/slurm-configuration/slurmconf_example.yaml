@@ -1,15 +1,33 @@
-slurmrestd:
-  openapi_ver: v0.0.38
-  port: /var/lib/slurm-llnl/slurmrestd.socket
-  auth: jwt
-tools:
-  container: containerd
-  runtime_dir: /home/my_runtime_dir
-properties:
-  time_limit: 9000
-  account: mluo
-slurmcli:
-  rsa_key_path: ~/berkrsa
-  remote_hostname: watson.millennium.berkeley.edu
-  remote_username: mluo
-slurm_interface: cli
+slurmcluster1: 
+  slurmrestd:
+    openapi_ver: v0.0.38
+    port: /var/lib/slurm-llnl/slurmrestd.socket
+    auth: jwt
+  tools:
+    container: containerd
+    runtime_dir: /home/my_runtime_dir
+  properties:
+    time_limit: 9000
+    account: mluo
+  slurmcli:
+    rsa_key_path: ~/berkrsa
+    remote_hostname: watson.millennium.berkeley.edu
+    remote_username: mluo
+  slurm_interface: cli
+
+slurmcluster2: 
+  slurmrestd:
+    openapi_ver: v0.0.38
+    port: /var/lib/slurm-llnl/slurmrestd.socket
+    auth: jwt
+  tools:
+    container: docker
+    runtime_dir: /home/my_runtime_dir
+  properties:
+    time_limit: 20000
+    account: mluo
+  slurmcli:
+    rsa_key_path: ~/berkrsa2
+    remote_hostname: watson.millennium.berkeley.edu
+    remote_username: mluo
+  slurm_interface: cli

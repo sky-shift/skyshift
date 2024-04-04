@@ -17,6 +17,17 @@
 
     Syntax () symbolizes a value you must identify.
 
+    Define each cluster.
+    All parameters needed are nested under a cluster name. Eg.
+    ```
+    slurmtestcluster1:
+        slurm_interface: cli
+    ```
+    Infinite cluster names can be added, and when attaching such cluster from skyflow CLI, the cluster name must match this one in order to fetch the parameters correctly. Eg.
+    ```
+        skyctl create cluster slurmtestcluster1 --manager slurm 
+    ```
+
     slurm_interface: Select the manager type. Communication to cluster through REST API endpoints, or interfacing through CLI. CLI manager is recommended.
     ```
         slurm_interface: {cli|rest}
@@ -54,7 +65,7 @@
 ### 3. Attaching Slurm Cluster
     Attach Slurm Cluster to Skyflow.
     ```
-        skyctl create cluster slurmt5 --manager slurm --attached
+        skyctl create cluster slurmt5 --manager slurm 
     ```
 ### 4. Running a job
     ```
