@@ -13,10 +13,10 @@ spec:
   ports:
     - 28000
   env:
-    MODEL_PATH: "mistralai/Mistral-7B-Instruct-v0.2"
-    PORT: "28000"
-    VLLM_VERSION : "0.2.4"
-    PYTHON_VERSION: "311"
+    - MODEL_PATH: "mistralai/Mistral-7B-Instruct-v0.2"
+    - PORT: "28000"
+    - VLLM_VERSION : "0.2.4"
+    - PYTHON_VERSION: "311"
   run: |
     # Install vLLM with CUDA 11.8.
     pip3 install https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+cu118-cp${PYTHON_VERSION}-cp${PYTHON_VERSION}-manylinux1_x86_64.whl
