@@ -2,7 +2,6 @@
 Service controller.
 """
 
-import logging
 import time
 import traceback
 from contextlib import contextmanager
@@ -14,12 +13,10 @@ from skyflow.api_client import ClusterAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
+from skyflow.controllers.controller_utils import create_controller_logger
+from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import Service
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 DEFAULT_HEARTBEAT_TIME = 3
 DEFAULT_RETRY_LIMIT = 3
@@ -87,10 +84,11 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         cluster_obj = ClusterAPI().get(name)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
+        self.logger = create_controller_logger(
+            title=f"[{self.name} - Service Controller]",
+            log_path=f'{cluster_dir(self.name)}/logs/service_controller.log')
         self.service_status = self.manager_api.get_service_status()
-        self.informer = Informer(ServiceAPI(namespace=''))
-        self.logger = logging.getLogger(f"[{self.name} - Job Controller]")
-        self.logger.setLevel(logging.INFO)
+        self.informer = Informer(ServiceAPI(namespace=''), logger=self.logger)
 
     def post_init_hook(self):
         # Keeps track of cached job state.

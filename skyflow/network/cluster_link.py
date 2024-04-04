@@ -12,13 +12,14 @@ from skyflow.cluster_manager import KubernetesManager
 
 TOKEN_DIRECTORY = "~/.skyconf/link_secrets"
 INSTALL_CMD = ("skupper init --context {cluster_name} "
-    "--namespace {namespace}")
+               "--namespace {namespace}")
 STATUS_CMD = ("skupper status --context {cluster_name} "
-    "--namespace {namespace}")
+              "--namespace {namespace}")
 TOKEN_CMD = ("skupper token create ~/.skyconf/link_secrets/{name}.token "
-    "--context {cluster_name} --namespace {namespace}")
-LINK_CREATE_CMD = ("skupper link create ~/.skyconf/link_secrets/{name}.token "
-     "--context {cluster_name} --namespace {namespace} --name {name}")
+             "--context {cluster_name} --namespace {namespace}")
+LINK_CREATE_CMD = (
+    "skupper link create ~/.skyconf/link_secrets/{name}.token "
+    "--context {cluster_name} --namespace {namespace} --name {name}")
 LINK_DELETE_CMD = (
     "skupper link delete {name} --context {cluster_name} --namespace {namespace}"
 )
@@ -153,8 +154,8 @@ def expose_service(service_name: str, manager: KubernetesManager,
     cluster_name = manager.cluster_name
     expose_service_name = f"{service_name}-{cluster_name}"
     expose_cmd = (f"skupper expose service {service_name}.{namespace} "
-       f"--address {expose_service_name} --context {cluster_name} "
-       f"--namespace {namespace}")
+                  f"--address {expose_service_name} --context {cluster_name} "
+                  f"--namespace {namespace} ")
     for port in ports:
         expose_cmd += f"--port {port} --target-port {port} "
     try:
@@ -175,7 +176,7 @@ def unexpose_service(service_name: str, manager: KubernetesManager):
                     f"--context {cluster_name} "
                     f"--namespace {namespace}")
     try:
-        # Create authetnication token.
+        # Create authentication token.
         subprocess.check_output(unexpose_cmd, shell=True,
                                 timeout=20).decode("utf-8")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:

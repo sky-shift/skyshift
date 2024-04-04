@@ -14,7 +14,8 @@ from skyflow.templates.filter_policy import (FilterPolicy,
                                              FilterPolicyException,
                                              FilterPolicyList)
 from skyflow.templates.job_template import (Job, JobException, JobList,
-                                            JobStatusEnum, TaskStatusEnum)
+                                            JobStatusEnum, RestartPolicyEnum,
+                                            TaskStatusEnum)
 from skyflow.templates.link_template import (Link, LinkException, LinkList,
                                              LinkStatus, LinkStatusEnum)
 from skyflow.templates.namespace_template import (Namespace,
@@ -23,6 +24,7 @@ from skyflow.templates.namespace_template import (Namespace,
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
+from skyflow.templates.rbac_template import Role, RoleList
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import (Service, ServiceException,
                                                 ServiceList, ServiceMeta)
@@ -58,6 +60,9 @@ __all__ = [
     "NamespaceMeta",
     "NamespaceList",
     "ResourceEnum",
+    "RestartPolicyEnum",
+    "Role",
+    "RoleList",
     "Service",
     "ServiceException",
     "ServiceList",

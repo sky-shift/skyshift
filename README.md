@@ -4,14 +4,18 @@ Skyflow orchestrates container-based workloads across the Sky. Our goal is to ab
 
 ## Installing Sky Manager
 
-(Optional) Create new conda enviornment
+(Recommended) Create new conda enviornment
 
 ```
-conda create -n sky python=3.9
+conda create -n skyflow python=3.9
+```
+Activate it
+```
+conda activate skyflow 
 ```
 
 Install dependencies, Sky Manager packages, and setup cli
-
+(assuming the repo has been cloned to ./skyflow)
 ```
 cd skyflow
 pip install -e .
@@ -19,10 +23,16 @@ pip install -e .
 pip install -e .[server]
 ```
 
-Finally, install Skupper. This is the multi-cluster communication fabric we use to expose services across different clusters.
-
+To utilize Skyflow's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running Skyflow and make it executable. For example:  
 ```
-curl https://skupper.io/install.sh | sh
+wget https://github.com/rancher/rke/releases/download/v1.5.5/rke_linux-amd64 -o rke_linux-amd64
+mv rke_linux-amd64 /usr/bin/rke # /usr/local/bin/rke works too
+chmod +x /usr/bin/rke
+```
+
+You can make sure that the installation was successful by running the following command:
+```
+rke --version
 ```
 
 ## Steps to run Sky Manager
@@ -70,7 +80,7 @@ mluo-onprem                             k8         cpus: 1.93/2.0               
 
 If there are no clusters, add more clusters into your `~/.kube/config` file and run:
 ```
-skyctl create-cluster --name [K8_CONTEXT_NAME] --manager_type k8
+skyctl create cluster --manager k8 [K8_CONTEXT_NAME]
 ```
 
 ### 5. Congrats. Submit jobs!

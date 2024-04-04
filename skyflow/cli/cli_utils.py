@@ -6,10 +6,13 @@ from typing import Dict, List, Optional, Union
 import click
 from tabulate import tabulate
 
+from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
-                                JobAPI, LinkAPI, NamespaceAPI, ServiceAPI)
+                                JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
+                                ServiceAPI)
 # Import API parent class.
-from skyflow.api_client.object_api import ObjectAPI
+from skyflow.api_client.exec_api import ExecAPI
+from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
@@ -21,11 +24,13 @@ NAMESPACED_API_OBJECTS = {
     "filterpolicy": FilterPolicyAPI,
     "service": ServiceAPI,
     "endpoints": EndpointsAPI,
+    "exec": ExecAPI,
 }
 NON_NAMESPACED_API_OBJECTS = {
     "cluster": ClusterAPI,
     "namespace": NamespaceAPI,
     "link": LinkAPI,
+    "role": RoleAPI,
 }
 ALL_API_OBJECTS = {**NON_NAMESPACED_API_OBJECTS, **NAMESPACED_API_OBJECTS}
 
@@ -53,8 +58,27 @@ def create_cli_object(config: dict):
     namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
     object_type = config["kind"].lower()
     api_object = fetch_api_client_object(object_type, namespace)
-    api_response = api_object.create(config)
-    click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    try:
+        api_response = api_object.create(config)
+    except APIException as error:
+        raise click.ClickException(f"Failed to create {object_type}: {error}")
+    if object_type != "exec":
+        click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    return api_response
+
+
+def stream_cli_object(config: dict):
+    """
+    Creates a bi-directional stream through the Python API.
+    """
+    namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
+    object_type = config["kind"].lower()
+    api_object = fetch_api_client_object(object_type, namespace)
+    try:
+        api_response = api_object.websocket_stream(config)
+    except APIException as error:
+        raise click.ClickException(
+            f"Failed to create {object_type} stream: {error}")
     return api_response
 
 
@@ -68,15 +92,18 @@ def get_cli_object(
     Gets an object through Python API.
     """
     api_object = fetch_api_client_object(object_type, namespace)
-    if watch:
-        api_response = api_object.watch()
-        for event in api_response:
-            click.echo(event)
-        return None
-    if name is None:
-        api_response = api_object.list()
-    else:
-        api_response = api_object.get(name=name)
+    try:
+        if watch:
+            api_response = api_object.watch()
+            for event in api_response:
+                click.echo(event)
+            return None
+        if name is None:
+            api_response = api_object.list()
+        else:
+            api_response = api_object.get(name=name)
+    except APIException as error:
+        raise click.ClickException(f"Failed to get {object_type}: {error}")
     return api_response
 
 
@@ -87,12 +114,29 @@ def delete_cli_object(object_type: str,
     Deletes an object through Python API.
     """
     api_object = fetch_api_client_object(object_type, namespace)
-    api_response = api_object.delete(name=name)
+    try:
+        api_response = api_object.delete(name=name)
+    except APIException as error:
+        raise click.ClickException(f"Failed to delete {object_type}: {error}")
     click.echo(f"Deleted {object_type} {name}.")
     return api_response
 
 
-def print_cluster_table(cluster_list: Union[ClusterList, Cluster]): # pylint: disable=too-many-locals
+def fetch_job_logs(name: str, namespace: str):
+    """
+    Get logs of a Job.
+    """
+    job_api = JobAPI(namespace=namespace)
+    try:
+        logs = job_api.logs(name)
+        for log in logs:
+            click.echo(log)
+            click.echo('\n')
+    except APIException as error:
+        raise click.ClickException(f"Failed to fetch logs: {error}")
+
+
+def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
     """
@@ -117,7 +161,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]): # pylint: di
         return aggregated_data
 
     for entry in cluster_lists:
-        name = entry.get_name()
+        name = utils.unsanitize_cluster_name(entry.get_name())
         manager_type = entry.spec.manager
 
         cluster_resources = entry.status.capacity
@@ -169,6 +213,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
         status = entry.status.conditions[-1]["type"]
         if clusters:
             for cluster_name, cluster_replica_status in clusters.items():
+                cluster_name = utils.unsanitize_cluster_name(cluster_name)
                 replica_count = sum(cluster_replica_status.values())
                 active_count = 0
                 if TaskStatusEnum.RUNNING.value in cluster_replica_status:
@@ -318,8 +363,8 @@ def print_link_table(link_list: Union[Link, LinkList]):
 
     for entry in link_lists:
         name = entry.get_name()
-        source = entry.spec.source_cluster
-        target = entry.spec.target_cluster
+        source = utils.unsanitize_cluster_name(entry.spec.source_cluster)
+        target = utils.unsanitize_cluster_name(entry.spec.target_cluster)
         status = entry.get_status()
         table_data.append([name, source, target, status])
 
@@ -346,6 +391,29 @@ def print_endpoints_table(endpoints_list):
         for cluster, endpoint_obj in endpoints.items():
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
         table_data.append([name, namespace, endpoints_str])
+
+    table = tabulate(table_data, field_names, tablefmt="plain")
+    click.echo(f"{table}\r")
+
+
+def print_role_table(roles_list):
+    """
+    Prints out a table of Roles.
+    """
+    if isinstance(roles_list, ObjectList):
+        roles_lists = roles_list.objects
+    else:
+        roles_lists = [roles_list]
+    field_names = [
+        "NAME",
+    ]
+    table_data = []
+
+    for entry in roles_lists:
+        name = entry.get_name()
+        table_data.append([
+            name,
+        ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
