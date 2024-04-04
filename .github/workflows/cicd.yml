@@ -22,7 +22,7 @@ jobs:
 
       - name: Remove test container
         if: always()
-        run: docker rm SkyflowTestContainer
+        run: docker rm SkyflowTestContainer || true
 
       - name: Commit and push changes
         run: |
