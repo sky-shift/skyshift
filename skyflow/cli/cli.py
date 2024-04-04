@@ -18,7 +18,7 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table, 
-                                   register_user, login_user,
+                                   register_user, login_user, create_invite, switch_user,
                                    stream_cli_object)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
@@ -1362,29 +1362,54 @@ if __name__ == '__main__':
 # ==============================================================================
 # User API as CLI
     
-@click.command('register', help='Register a new user.')
+@click.command('register', help="""\
+Register a new user. \'register USERNAME PASSWORD \'
+Username should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
+Password must be 5 or more characters.
+"""'  \n ')
 @click.argument("username", required=True)
-@click.argument("email", required=True)
 @click.argument("password", required=True)
-def register(username, email, password):
+@click.option("--invite", required=True, help='Invite key sent by admin.')
+@click.option("--email", default = None, required=False, help='Email address of the user.')
+def register(username, email, password, invite):
     """
-    User register command.
+    Register a new user.
     """
-    register_user(username, email, password)
+    register_user(username, email, password, invite)
 
 cli.add_command(register)
     
 
-@click.command('login', help='Register a new user.')
+@click.command('login', help='Login user. Does NOT change current active user. \'login USERNAME PASSWORD \'')
 @click.argument("username", required=True)
 @click.argument("password", required=True)
 def login(username, password):
     """
-    User login command.
+    Login command with username and password.
     """
     login_user(username, password)
 
 cli.add_command(login)
+
+@click.command('invite', help='Create a new invite for registery.')
+@click.option("--is_json", default = False, help='Output the invite in json format if succeeds. Key is \'invite\'.')
+def invite(is_json):
+    """
+    Create a new invite.
+    """
+    create_invite(is_json)
+
+cli.add_command(invite)
+
+@click.command('switch', help='Switch the active user to USERNAME. \' switch USERNAME \'')
+@click.argument("username", required=True)
+def switch(username):
+    """
+    Switch active user of cli.
+    """
+    switch_user(username)
+
+cli.add_command(switch)
 
 if __name__ == '__main__':
     cli()

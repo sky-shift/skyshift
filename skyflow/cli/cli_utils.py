@@ -4,6 +4,7 @@ Utils for Skyflow CLI.
 from typing import Dict, List, Optional, Union
 
 import click
+import json as json_lib
 from tabulate import tabulate
 
 from skyflow import utils
@@ -18,7 +19,7 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
                                Namespace, NamespaceList, ObjectList, Service,
                                ServiceList, TaskStatusEnum)
-from skyflow.utils.utils import load_manager_config, update_manager_config
+from skyflow.utils.utils import load_manager_config, update_manager_config, API_SERVER_CONFIG_PATH
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -420,14 +421,14 @@ def print_role_table(roles_list):
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
 
-def register_user(username: str, email: str, password: str):
+def register_user(username: str, email: str, password: str, invite: str):
     """
-    Register user.
+    Register user in API Server.
     """
     users_api = fetch_api_client_object("user")
     
     try:
-        response = users_api.register_user(username, email, password)
+        response = users_api.register_user(username, email, password, invite)
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
             raise click.ClickException(f"Failed to register user: {error_details}")
@@ -438,7 +439,7 @@ def register_user(username: str, email: str, password: str):
     
 def login_user(username: str, password: str):
     """
-    Login user.
+    Send login request to API Server; access token stored locally if succeeds. 
     """
     users_api = fetch_api_client_object("user")
     try:
@@ -449,7 +450,6 @@ def login_user(username: str, password: str):
         else:
             data = response.json()
             access_token = data.get("access_token")
-            click.echo("Login successful. Access token obtained.")
 
             # Store the access token to local manager config
             manager_config = load_manager_config()
@@ -463,6 +463,40 @@ def login_user(username: str, password: str):
                     break
             if not found_user:
                 manager_config['users'].append({'name': username, 'access_token': access_token})
+
             update_manager_config(manager_config)
+            click.echo(f"Login successful. Access token is stored at {API_SERVER_CONFIG_PATH}.")
     except APIException as error:
         raise click.ClickException(f"Failed to login: {error.detail}")
+    
+def create_invite(json_flag):
+    users_api = fetch_api_client_object("user")
+    try:
+        response = users_api.create_invite()
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(f"Failed to create invite: {error_details}")
+        else:
+            data = response.json()
+            if json_flag:
+                click.echo(json_lib.dumps(data))
+            else:
+                invite = data.get("invite")
+                click.echo(f"Invitation created successfully. Invite: {invite}")
+    except APIException as error:
+            raise click.ClickException(error['error'])
+    
+def switch_user(username):
+    manager_config = load_manager_config()
+
+    if 'users' not in manager_config:
+        raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
+
+    for user in manager_config['users']:
+        if user['name'] == username:
+            manager_config['current_user'] = username
+            update_manager_config(manager_config)
+            click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
+            return
+        
+    raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")

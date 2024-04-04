@@ -9,7 +9,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from functools import partial
-from typing import List, Optional
+from typing import List, Optional, Optional
 from urllib.parse import unquote
 
 import jsonpatch
@@ -17,6 +17,11 @@ import jwt
 import yaml
 from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
                      Request, WebSocket)
+from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_access_token  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
+from api_utils import update_manager_config  # pylint: disable=import-error
+from api_utils import generate_nonce  # pylint: disable=import-error
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -116,9 +121,10 @@ def update_manager_config(config: dict):
 
 class User(BaseModel):
     """Represents a user for SkyFlow."""
-    username: str = Field(..., min_length=1, max_length=50, pattern="^[a-zA-Z0-9_]+$")
-    email: EmailStr
+    username: str = Field(..., min_length=4, max_length=50, pattern="^[a-zA-Z0-9_]+$")
+    email: Optional[EmailStr] = None 
     password: str = Field(..., min_length=5)
+    invite: Optional[str] = None
 
 
 def check_or_wait_initialization():
@@ -175,7 +181,12 @@ class APIServer:
                     mode="json"),
             )
         # Create system admin user and create authentication token.
-        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='example@test.com')
+        admin_invite = generate_nonce()
+        self.etcd_client.write(
+            f"invites/{admin_invite}",
+            {},
+        )
+        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='admin@admin.com', invite = admin_invite)
         try:
             self.register_user(admin_user)
         except HTTPException:  # pylint: disable=broad-except
@@ -225,6 +236,23 @@ class APIServer:
                 if _verify_subset(action, rule['actions']) and _verify_subset(
                         object_type, rule['resources']):
                     return True
+
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized access. User does not have the required role."
+        )
+    
+    def _authenticate_by_role_name(self, user: str, role_name: str) -> bool:
+        """Authenticates the role of a user based on the Role object name."""
+        try:
+            role = self._fetch_etcd_object(f"roles/{role_name}")
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=400,
+                detail=f'An error occured while authenticating user') from error
+
+        if user in role['users']:
+            return True
 
         raise HTTPException(
             status_code=401,
@@ -297,6 +325,21 @@ class APIServer:
     def register_user(self, user: User):
         """Registers a user into Skyflow."""
         try:
+            invite_obj = self._fetch_etcd_object(f"invites/{user.invite}")
+            #TODO: add relavent logic after deciding what is in invite
+            self.etcd_client.delete(f"invites/{user.invite}")
+        except HTTPException as error:
+            if error.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Invite is invalid.",
+                )
+            raise HTTPException(
+                status_code=400,
+                detail="Unusual error occurred.",
+            ) from error
+        
+        try:
             self._fetch_etcd_object(f"users/{user.username}")
         except HTTPException as error:
             if error.status_code == 404:
@@ -325,6 +368,35 @@ class APIServer:
         username = form_data.username
         password = form_data.password
         return self._login_user(username, password)
+    
+    def create_invite(self, username: str = Depends(authenticate_request)):
+        """Create invite for new user and returns the invite token."""
+        try:
+            user = self._fetch_etcd_object(f"users/{username}")
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot create invite. User doesn't exist",
+            ) from error
+        
+        try:
+            self._authenticate_by_role_name(username, 'admin-role')
+
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Not authorized to create invite.",
+            ) from error
+        
+        nonce = generate_nonce()
+        self.etcd_client.write(
+            f"invites/{nonce}",
+            {} #TODO: what else can we include in an invite?
+        )
+        return {
+            "message": "invite created successfully",
+            "invite": nonce
+        }
 
     # General methods over objects.
     def create_object(self, object_type: str):
@@ -938,6 +1010,28 @@ class APIServer:
             endpoint_name="login_for_access_token",
             handler=self.login_for_access_token,
             methods=["POST"],
+        )
+        # Create invite
+        self._add_endpoint(
+            endpoint="/invite",
+            endpoint_name="create_invite",
+            handler=self.create_invite,
+            methods=["POST"],
+        )
+
+        self._add_endpoint(
+            endpoint=
+            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
+            endpoint_name="execute_command",
+            handler=self.execute_command,
+            methods=["POST"],
+        )
+
+        self._add_websocket(
+            path=
+            "/{namespace}/exec/{tty}/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
+            endpoint=self.execute_command,
+            endpoint_name="execute_command",
         )
 
         self._add_endpoint(

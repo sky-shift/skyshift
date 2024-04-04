@@ -7,8 +7,13 @@
     and for running a specific test:
     pytest skyflow/tests/cli_tests.py::test_create_cluster_success
 """
+import multiprocessing
+import shutil
+import os
+import subprocess
 import tempfile
-
+import time
+import json
 import pytest
 from click.testing import CliRunner
 
@@ -27,6 +32,8 @@ def etcd_backup_and_restore():
 
         shutdown_skyflow(temp_data_dir)
 
+        config_path = os.path.expanduser('~/.skyconf/config.yaml')
+        subprocess.run(['rm', config_path]) # pylint: disable=subprocess-run-check
         print("Cleaned up temporary ETCD data directory.")
 
 
@@ -907,66 +914,151 @@ def test_create_role(runner):
     
 # ==============================================================================
 # User tests
-def test_create_user_success(runner):
-    name = "user1"
+
+def get_invite_helper(runner):
+    name = "admin"
+    password = "admin"
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+    cmd_invite = ['invite', '--is_json', True]
+    result_invite = runner.invoke(cli, cmd_invite)
+    invite = ""
+    if result_invite.exit_code == 0:
+        data = json.loads(result_invite.stdout)
+        invite = data.get("invite")
+    return invite
+
+def test_create_user_success(runner):  
+    name = "user_success"
     email = "test@email.com"
     password = "password"
-    cmd = ['register', name, email, password]
+    cmd = ['register', name, password, "--email", email, "--invite", get_invite_helper(runner)]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
-def test_create_user_duplicate(runner):
-    name = "user2"
-    email = "test@email.com"
+def test_create_user_wrong_invite(runner):
+    name = "user_wrong_invite"
     password = "password"
-    cmd = ['register', name, email, password]
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner) + "0"]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code != 0
+
+def test_create_user_duplicate(runner):
+    name = "user_dup"
+    password = "password"
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
-    cmd2 = ['register', name, email, password]
+    cmd2 = ['register', name, password, "--invite", get_invite_helper(runner)]
     result2 = runner.invoke(cli, cmd2)
     assert result2.exit_code != 0
 
 def test_create_user_err(runner):
     bad_name = "%p"
-    good_name = "user3"
+    good_name = "user_goodname"
     bad_email = "bad@email"
-    good_email = "test@email.com"
     bad_password = "123"
     good_password = "password"
-    cmd = ['register', good_name, bad_email, good_password]
+    cmd = ['register', good_name, good_password, "--email", bad_email, "--invite", get_invite_helper(runner)]
     result = runner.invoke(cli, cmd)
     assert result.exit_code != 0
 
-    cmd2 = ['register', good_name, good_email, bad_password]
+    cmd2 = ['register', good_name, bad_password, "--invite", get_invite_helper(runner)]
     result2 = runner.invoke(cli, cmd2)
     assert result2.exit_code != 0
 
-    cmd3 = ['register', bad_name, good_email, good_password]
+    cmd3 = ['register', bad_name, good_password, "--invite", get_invite_helper(runner)]
     result3 = runner.invoke(cli, cmd3)
     assert result3.exit_code != 0
 
-@pytest.fixture()
 def test_login_user_success(runner):
-    name = "user4"
-    email = "test@email.com"
+    name = "user_login_success"
     password = "password"
-    cmd = ['register', name, email, password]
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
-
     cmd_login = ['login', name, password]
     result2 = runner.invoke(cli, cmd_login)
     assert result2.exit_code == 0
 
-@pytest.fixture()
 def test_login_user_wrong_password(runner):
-    name = "user5"
-    email = "test@email.com"
+    name = "user_login_fail"
     password = "password"
-    cmd = ['register', name, email, password]
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
     cmd_login = ['login', name, "wrong_pw"]
     result2 = runner.invoke(cli, cmd_login)
     assert result2.exit_code != 0
+
+def test_create_invite_success(runner):
+    name = "admin"
+    password = "admin"
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+def test_create_invite_failure(runner):
+    name = "user_inviter_fail"
+    password = "password"
+    cmd_register = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['switch', 'user_inviter_fail']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code != 0
+    
+    #make sure active is changed back to admin
+    cmd_switch = ['switch', 'admin']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+def test_switch_user(runner):
+    name = "user_cannot_invite"
+    password = "password"
+    cmd_register = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_switch = ['switch', 'user_cannot_invite']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code != 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['switch', 'user_cannot_invite']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code != 0
+
+    cmd_switch = ['switch', 'admin']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+    cmd_switch_fail = ['switch', 'not_exist']
+    result_switch_fail = runner.invoke(cli, cmd_switch_fail)
+    assert result_switch_fail.exit_code != 0
+    

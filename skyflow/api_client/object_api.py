@@ -158,6 +158,7 @@ class NoNamespaceObjectAPI(ObjectAPI):
         self.host = admin_config["api_server"]["host"]
         self.port = admin_config["api_server"]["port"]
         self.url = f"http://{self.host}:{self.port}/{self.object_type}"
+        self.base_url = f"http://{self.host}:{self.port}"
         self.auth_headers = {
             "Authorization": f"Bearer {fetch_auth_token(admin_config)}"
         }
