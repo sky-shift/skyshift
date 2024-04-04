@@ -11,6 +11,7 @@ from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
                                 ServiceAPI)
 # Import API parent class.
+from skyflow.api_client.exec_api import ExecAPI
 from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
@@ -23,6 +24,7 @@ NAMESPACED_API_OBJECTS = {
     "filterpolicy": FilterPolicyAPI,
     "service": ServiceAPI,
     "endpoints": EndpointsAPI,
+    "exec": ExecAPI,
 }
 NON_NAMESPACED_API_OBJECTS = {
     "cluster": ClusterAPI,
@@ -60,7 +62,23 @@ def create_cli_object(config: dict):
         api_response = api_object.create(config)
     except APIException as error:
         raise click.ClickException(f"Failed to create {object_type}: {error}")
-    click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    if object_type != "exec":
+        click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    return api_response
+
+
+def stream_cli_object(config: dict):
+    """
+    Creates a bi-directional stream through the Python API.
+    """
+    namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
+    object_type = config["kind"].lower()
+    api_object = fetch_api_client_object(object_type, namespace)
+    try:
+        api_response = api_object.websocket_stream(config)
+    except APIException as error:
+        raise click.ClickException(
+            f"Failed to create {object_type} stream: {error}")
     return api_response
 
 
