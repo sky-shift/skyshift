@@ -13,6 +13,7 @@ from skyflow.api_client.object_api import APIException
 from skyflow.cloud.skypilot_provisioning import (
     delete_kubernetes_cluster, provision_new_kubernetes_cluster)
 from skyflow.cloud.utils import delete_unused_cluster_config
+from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers.controller import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
@@ -93,10 +94,17 @@ class ProvisionerController(Controller):
             cluster_name = cluster_obj.get_name()
             if not cluster_obj.spec.provision:
                 self.logger.info(
-                    'Cluster %s is `attached`, '
+                    'Cluster %s has provisioning flag set to `False`, '
                     'skipping provisioning.', cluster_name)
-                self.update_cluster_obj_status(cluster_name,
-                                               ClusterStatusEnum.READY)
+                try:
+                    setup_cluster_manager(cluster_obj)
+                except Exception as error:  # pylint: disable=broad-except
+                    self.logger.info(error)
+                    self.update_cluster_obj_status(cluster_name,
+                                                   ClusterStatusEnum.ERROR)
+                else:
+                    self.update_cluster_obj_status(cluster_name,
+                                                   ClusterStatusEnum.READY)
                 return
 
             try:
