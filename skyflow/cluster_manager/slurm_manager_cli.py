@@ -2,7 +2,6 @@
 """
 Represents the compatability layer over Slurm native CLI.
 """
-import logging
 import os
 import re
 import uuid
@@ -38,6 +37,10 @@ HEAD_NODE = 0
 
 class ConfigUndefinedError(Exception):
     """ Raised when there is an error in slurm config yaml. """
+    def __init__(self, variable_name):
+        self.variable_name = variable_name
+        super().__init__(f"Variable '{variable_name}' is not provided in the YAML file.")
+
 
 class SlurmctldConnectionError(Exception):
     """ Raised when there is an error connecting to slurmctld. """
@@ -45,7 +48,7 @@ class SSHConnectionError(Exception):
     """ Raised when there is an error establishing SSH connection to slurm cluster. """
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
-
+    cluster_name = "slurmclusterdefault"
     def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
@@ -53,82 +56,39 @@ class SlurmManagerCLI(Manager):
                 Exception: Unable to read config yaml from path SLURMRESTD_CONFIG_PATH.
                 ConfigUndefinedError: Value required in config yaml not not defined.
         """
-        super().__init__("slurm")
-        self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
+        super().__init__(self.cluster_name)
         config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(config_absolute_path, 'r') as config_file:
-            try:
-                config_dict = yaml.safe_load(config_file)
-            except ValueError as exception:
-                raise Exception(
-                    f'Unable to load {SLURM_CONFIG_PATH}, check if file exists.'
-                ) from exception
+            config_dict = yaml.safe_load(config_file)
             #Configure tools
-            try:
-                self.container_manager = config_dict['tools']['container']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing container manager {self.container_manager} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+            config_dict = config_dict[self.cluster_name]
+            self.container_manager = _get_config(config_dict, ['tools','container'])
             if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
-                raise ValueError(
+                raise ConfigUndefinedError(
                     f'Unsupported container manager {self.container_manager} in \
                         {SLURM_CONFIG_PATH}.') from exception
             self.runtime_dir = ''
             if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
-                try:
-                    self.runtime_dir = config_dict['tools']['runtime_dir']
-                except ConfigUndefinedError as exception:
-                    raise ConfigUndefinedError(
-                        f'Missing runtime_dir for {self.container_manager} in \
-                            {SLURM_CONFIG_PATH}.') from exception
-            if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
-                raise ValueError(
-                    f'Unsupported container manager {self.container_manager} in \
-                        {SLURM_CONFIG_PATH}.') from exception
+                self.runtime_dir = _get_config(config_dict, ['tools','runtime_dir'])
+
             #Configure SSH
-            try:
-                #Get RSA key path
-                self.rsa_key_path = config_dict['slurmcli']['rsa_key_path']
-                self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
-                if not os.path.exists(self.rsa_key_path):
-                    raise ConfigUndefinedError(
-                    f'RSA private key file does not exist!{self.rsa_key_path} in \
-                    {SLURM_CONFIG_PATH}.')
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing RSA private key path {self.rsa_key_path} in \
-                    {SLURM_CONFIG_PATH}.') from exception
-            try:
-                #Get remote hostname
-                self.remote_hostname = config_dict['slurmcli']['remote_hostname']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing hostname of the slurm cluster to SSH into{self.remote_hostname} in \
-                    {SLURM_CONFIG_PATH}.') from exception
-            try:
-                #Get remote username
-                self.remote_username = config_dict['slurmcli']['remote_username']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing username of the slurm cluster to SSH into{self.remote_hostname} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+            #Get RSA key path
+            self.rsa_key_path = _get_config(config_dict, ['slurmcli','rsa_key_path'])
+            self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
+            if not os.path.exists(self.rsa_key_path):
+                raise ValueError(
+                f'RSA private key file does not exist! {self.rsa_key_path} in \
+                {SLURM_CONFIG_PATH}.')
+            #Get remote hostname
+            self.remote_hostname = _get_config(config_dict, ['slurmcli', 'remote_hostname'])
+            #Get remote username
+            self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
             #Configure Slurm properties
-            try:
-                #Get slurm user account
-                self.slurm_account = config_dict['properties']['account']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing slurm_account username needed \
-                    for job submission{self.slurm_account} in \
-                    {SLURM_CONFIG_PATH}.') from exception
-            try:
-                #Get slurm time limit
-                self.slurm_time_limit = config_dict['properties']['time_limit']
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Slurm time limit{self.slurm_account} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+
+            #Get slurm user account
+            self.slurm_account = _get_config(config_dict, ['properties', 'account'])
+            #Get slurm time limit
+            self.slurm_time_limit = _get_config(config_dict, ['properties', 'time_limit'])
         #Configure SSH
         self.rsa_key = paramiko.RSAKey.from_private_key_file(self.rsa_key_path)
         self.ssh_client = paramiko.SSHClient()
@@ -147,6 +107,8 @@ class SlurmManagerCLI(Manager):
         """ Deconstructor
         """
         self.ssh_client.close()
+
+
     def check_reachable(self):
         """ Sanity check to make sure we can SSH into slurm login node.
         """
@@ -370,7 +332,6 @@ class SlurmManagerCLI(Manager):
         #Create dict of only managed jobs. [Job ID, Job Name, Status]
         jobs_dict: Dict[str, Dict[str, TaskStatusEnum]] = {"tasks": {}, "containers": {}}
         for job in jobs_info:
-            self.logger.info(job)
             job_property = job.split()
             #check if this is a managed job
             job_name = job_property[1]
@@ -506,8 +467,20 @@ class SlurmManagerCLI(Manager):
         self, name: str, cluster_name, endpoint: EndpointObject):
         """Creates/updates an endpint slice."""
         raise NotImplementedError
-# if __name__ == '__main__':
-#     api = SlurmManagerCLI()
-#     print(api.cluster_resources)
-#     print("************")
-#     print(api.allocatable_resources)
+def _get_config(config_dict, key):
+    config_val = config_dict
+    nested_path = ''
+    for i in range(len(key)):
+        nested_path += key[i]
+        if key[i] not in config_val:
+            raise ConfigUndefinedError(nested_path)
+        else:
+            config_val = config_val[key[i]]
+    return config_val
+if __name__ == '__main__':
+    api = SlurmManagerCLI('slurmcluster1')
+    status = api.get_cluster_status()
+    print(status.status)
+    print(api.cluster_resources)
+    print("************")
+    print(api.allocatable_resources)

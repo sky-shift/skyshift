@@ -54,7 +54,7 @@
 ### 3. Attaching Slurm Cluster
     Attach Slurm Cluster to Skyflow.
     ```
-        skyctl create cluster SlurmCluster --manager slurm --attached
+        skyctl create cluster slurmt5 --manager slurm --attached
     ```
 ### 4. Running a job
     ```

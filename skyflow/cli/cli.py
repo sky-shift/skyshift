@@ -490,7 +490,7 @@ def delete_job(name: str, namespace: str):
 # ==============================================================================
 # Namespace API as CLI
 @create.command(name="namespace", aliases=["namespaces"])
-@click.argument("name", required=True)
+@click.argument("name", required=False)
 def create_namespace(name: str):
     """Creates a new namespace."""
     # Validate the namespace name

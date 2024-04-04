@@ -24,21 +24,36 @@ CONTROLLERS = [
     EndpointsController,
     ServiceController,
 ]
+SLURM_SUPPORTED = [
+    ClusterController,
+    FlowController,
+    JobController,
+]
 
-
-def launch_skylet(cluster_id):
+def launch_skylet(cluster_obj):
+    cluster_id = cluster_obj.metadata.name
+    cluster_type = cluster_obj.spec.manager
     """
     Launches a Skylet for a given cluster.
     """
     controllers = []
-    controllers = []
-    for cont in CONTROLLERS:
-        try:
-            controllers.append(cont(cluster_id))
-        except Exception:  # pylint: disable=broad-except
-            print(traceback.format_exc())
-            print(f"Failed to initialize Skylet controller {cont}, "
+    if 'slurm' in cluster_type:
+        for cont in SLURM_SUPPORTED:
+            try:
+                controllers.append(cont(cluster_id))
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                print(f"Failed to initialize Skylet controller {cont}, "
                   f"check if cluster {cluster_id} is valid.")
+    else:
+        for cont in CONTROLLERS:
+            try:
+                controllers.append(cont(cluster_id))
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                print(f"Failed to initialize Skylet controller {cont}, "
+                    f"check if cluster {cluster_id} is valid.")
+
     for cont in controllers:
         cont.start()
     for cont in controllers:

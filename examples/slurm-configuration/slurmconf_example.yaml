@@ -4,7 +4,7 @@ slurmrestd:
   auth: jwt
 tools:
   container: containerd
-  runtime_dir: /run/user/1000/
+  runtime_dir: /home/my_runtime_dir
 properties:
   time_limit: 9000
   account: mluo
@@ -12,4 +12,4 @@ slurmcli:
   rsa_key_path: ~/berkrsa
   remote_hostname: watson.millennium.berkeley.edu
   remote_username: mluo
-interface: cli
+slurm_interface: cli

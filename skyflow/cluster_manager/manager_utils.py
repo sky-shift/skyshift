@@ -40,22 +40,15 @@ def setup_cluster_manager(
     if cluster_type in KUBERNETES_ALIASES:
         k8s_manager_cls = KubernetesManager
     elif cluster_type in SLURM_ALIASES:
+        #Get the cluster name to correspond it to nested yaml keys
+        cluster_name = str(cluster_obj.metadata.name)
+        #print("CLUSTER NAME" + cluster_name)
         #Get the manager interface type
         config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(config_absolute_path, 'r') as config_file:
-            try:
-                config_dict = yaml.safe_load(config_file)
-            except ValueError as exception:
-                raise Exception(
-                    f'Unable to load {SLURM_CONFIG_PATH}, check if file exists.'
-                ) from exception
+            config_dict = yaml.safe_load(config_file)
             #Configure tools
-            try:
-                interface_type = config_dict['interface'].lower()
-            except ConfigUndefinedError as exception:
-                raise ConfigUndefinedError(
-                    f'Missing container manager {interface_type} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+            interface_type = config_dict[cluster_name]['slurm_interface'].lower()
 
         if interface_type == "rest":
             slurm_manager_rest_cls = SlurmManagerREST
@@ -76,6 +69,7 @@ def setup_cluster_manager(
 
         slurm_manager_cli_cls = SlurmManagerCLI
         # Get the constructor of the class
+        slurm_manager_cli_cls.cluster_name = cluster_name
         slurm_constructor_cli = slurm_manager_cli_cls.__init__
         # Get the parameter names of the constructor
         class_params = slurm_constructor_cli.__code__.co_varnames[

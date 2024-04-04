@@ -135,7 +135,7 @@ class SkyletController(Controller):
         # Launch a Skylet to manage the cluster state.
         self.logger.info("Launching Skylet for cluster: %s.", cluster_name)
         skylet_process = multiprocessing.Process(target=launch_skylet,
-                                                 args=(cluster_name, ))
+                                                 args=(cluster_obj, ))
         skylet_process.start()
         self.skylets[cluster_name] = skylet_process
 
