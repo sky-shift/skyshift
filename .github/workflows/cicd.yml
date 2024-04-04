@@ -27,8 +27,8 @@ jobs:
         run: kind create cluster || true
 
       # Run Tests inside Docker Container
-      - name: Run test_etcd_client
-        run: docker run --rm --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests --ignore=./skyflow/tests/clusterlink_test.py
+      - name: Run tests
+        run: docker run --rm --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests --ignore=./skyflow/tests/test_clusterlink.py
 
       # - name: Commit and push changes
       #   run: |
