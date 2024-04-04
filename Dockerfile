@@ -7,7 +7,8 @@ WORKDIR /usr/src/app
 # Copy the current directory contents into the container at /usr/src/app
 COPY . /usr/src/app
 
-RUN pip install --no-cache-dir -e .[server,dev]
+
+RUN pip install --upgrade pip && pip install --no-cache-dir -e .[server,dev]
 
 RUN [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
     chmod +x ./kind && \
