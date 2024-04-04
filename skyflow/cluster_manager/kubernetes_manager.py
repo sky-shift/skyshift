@@ -94,19 +94,14 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 break
         assert (self.context is not None
                 ), f"Could not find context {self.cluster_name} in kubeconfig."
-
+        self.context_name = utils.unsanitize_cluster_name(self.context_name)
         self.user = self.context["context"]["user"]
         self.namespace = self.context["context"].get("namespace", "default")
         # If Kubeneretes context is identified, create Kubernetes client.
-        self.core_v1 = client.CoreV1Api(
-            api_client=config.new_client_from_config(
-                context=self.context_name))
-        self.apps_v1 = client.AppsV1Api(
-            api_client=config.new_client_from_config(
-                context=self.context_name))
-        self.discovery_v1 = client.DiscoveryV1Api(
-            api_client=config.new_client_from_config(
-                context=self.context_name))
+        api_client = config.new_client_from_config(context=self.context_name)
+        self.core_v1 = client.CoreV1Api(api_client=api_client)
+        self.apps_v1 = client.AppsV1Api(api_client=api_client)
+        self.discovery_v1 = client.DiscoveryV1Api(api_client=api_client)
         # Maps node name to accelerator type.
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
