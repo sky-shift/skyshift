@@ -13,6 +13,7 @@ def create_controller_logger(title: str, log_path: str, level=logging.INFO):
 
     logger = logging.getLogger(title)
     logger.setLevel(level)
+    logger.propagate = False
 
     # Create log_path is it does not exist.
     if log_path:
