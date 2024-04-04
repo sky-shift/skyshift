@@ -6,10 +6,12 @@ from typing import Dict, List, Optional, Union
 import click
 from tabulate import tabulate
 
+from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
                                 ServiceAPI)
 # Import API parent class.
+from skyflow.api_client.exec_api import ExecAPI
 from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
@@ -22,6 +24,7 @@ NAMESPACED_API_OBJECTS = {
     "filterpolicy": FilterPolicyAPI,
     "service": ServiceAPI,
     "endpoints": EndpointsAPI,
+    "exec": ExecAPI,
 }
 NON_NAMESPACED_API_OBJECTS = {
     "cluster": ClusterAPI,
@@ -59,7 +62,23 @@ def create_cli_object(config: dict):
         api_response = api_object.create(config)
     except APIException as error:
         raise click.ClickException(f"Failed to create {object_type}: {error}")
-    click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    if object_type != "exec":
+        click.echo(f"Created {object_type} {config['metadata']['name']}.")
+    return api_response
+
+
+def stream_cli_object(config: dict):
+    """
+    Creates a bi-directional stream through the Python API.
+    """
+    namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
+    object_type = config["kind"].lower()
+    api_object = fetch_api_client_object(object_type, namespace)
+    try:
+        api_response = api_object.websocket_stream(config)
+    except APIException as error:
+        raise click.ClickException(
+            f"Failed to create {object_type} stream: {error}")
     return api_response
 
 
@@ -142,7 +161,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         return aggregated_data
 
     for entry in cluster_lists:
-        name = entry.get_name()
+        name = utils.unsanitize_cluster_name(entry.get_name())
         manager_type = entry.spec.manager
 
         cluster_resources = entry.status.capacity
@@ -194,6 +213,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
         status = entry.status.conditions[-1]["type"]
         if clusters:
             for cluster_name, cluster_replica_status in clusters.items():
+                cluster_name = utils.unsanitize_cluster_name(cluster_name)
                 replica_count = sum(cluster_replica_status.values())
                 active_count = 0
                 if TaskStatusEnum.RUNNING.value in cluster_replica_status:
@@ -343,8 +363,8 @@ def print_link_table(link_list: Union[Link, LinkList]):
 
     for entry in link_lists:
         name = entry.get_name()
-        source = entry.spec.source_cluster
-        target = entry.spec.target_cluster
+        source = utils.unsanitize_cluster_name(entry.spec.source_cluster)
+        target = utils.unsanitize_cluster_name(entry.spec.target_cluster)
         status = entry.get_status()
         table_data.append([name, source, target, status])
 

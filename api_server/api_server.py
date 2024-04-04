@@ -1,3 +1,4 @@
+# pylint: disable=C0302
 """
 Specifies the API server and its endpoints for Skyflow.
 """
@@ -9,11 +10,13 @@ import time
 from datetime import datetime, timedelta
 from functools import partial
 from typing import List, Optional
+from urllib.parse import unquote
 
 import jsonpatch
 import jwt
 import yaml
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
+                     Request, WebSocket)
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -28,6 +31,7 @@ from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
+from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
 from skyflow.templates.rbac_template import ActionEnum
 from skyflow.utils import load_object, sanitize_cluster_name
 
@@ -154,7 +158,8 @@ class APIServer:
     interacting with Skyflow objects. Supports CRUD operations on all objects.
     """
 
-    def __init__(self, etcd_port=ETCD_PORT):
+    def __init__(self, app, etcd_port=ETCD_PORT):
+        self.app = app
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
@@ -436,7 +441,6 @@ class APIServer:
             link_header = f"{object_type}/{namespace}"
         else:
             link_header = f"{object_type}"
-
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
         if watch:
@@ -631,6 +635,152 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
+    async def _authenticate_tty_session(
+        self, websocket: WebSocket, user: str = Depends(authenticate_request)):
+        """
+        Authenticates the user initiating a TTY session over WebSocket.
+
+        Args:
+            websocket (WebSocket): The active WebSocket connection through which \
+                the session is attempted.
+            user (str): The username obtained from the authentication token, \
+                initially provided by the FastAPI dependency.
+
+        Returns:
+            str: The authenticated username, confirming the user is \
+                authorized for the TTY session.
+        """
+        # Extract the token from the WebSocket headers
+        token = websocket.headers.get('authorization')
+        if token is None or not token.startswith("Bearer "):
+            await websocket.close(code=1008
+                                  )  # Close with policy violation code
+            return
+
+        # Remove "Bearer " from the token
+        token = token[7:]
+
+        # Authenticate the user using the token
+        try:
+            user = authenticate_request(token)
+        except HTTPException:
+            await websocket.close(code=1008)
+            return
+
+        return user
+
+    async def execute_command(  # pylint: disable=too-many-locals disable=too-many-branches disable=too-many-statements
+        self,
+        websocket: WebSocket,
+        user: str = Depends(authenticate_request)):
+        """
+        Handles a TTY session over WebSocket for executing commands inside a container.
+
+        This method is responsible for setting up and managing a TTY session that allows users to
+        execute commands within a specified container of a task. It retrieves execution
+        parameters from the WebSocket connection's path parameters, validates the requested action
+        against the user's permissions, and forwards the command execution request to the \
+            appropriate
+        cluster manager.
+
+        Args:
+            websocket (WebSocket): The WebSocket connection instance.
+            user (str): The username of the user initiating the session, authenticated via a \
+                dependency.
+
+        If the specified tasks or container is set to 'None', the method attempts to retrieve \
+            default tasks and container
+        from the job.
+
+        The method ensures that the user is authorized to perform the update action on the job \
+            within the specified namespace
+        before proceeding with the command execution.
+        """
+        user = await self._authenticate_tty_session(websocket, user)
+
+        path_params = websocket.scope['path_params']
+        quiet = path_params.get('quiet')
+        tty = path_params.get('tty')
+        tty = tty == "True"
+        resource = path_params.get('resource')
+        namespace = path_params.get('namespace')
+        tasks = path_params.get('selected_tasks')
+        container = path_params.get('container')
+        exec_command_json = unquote(
+            path_params.get('command').replace("%-2-F-%2-", "/"))
+        exec_command = json.loads(exec_command_json)
+
+        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
+                                namespace)
+
+        await websocket.accept()
+
+        try:
+            job = self.get_object(object_type="jobs",
+                                  namespace=namespace,
+                                  object_name=resource,
+                                  watch=False,
+                                  user=user)
+        except HTTPException as error:
+            await websocket.send_text(error.detail)
+            await websocket.close(code=1003)
+            return
+
+        # Fetch the cluster where the task is running
+        if tasks == "None":
+            cluster, tasks = list(job.status.task_status.items())[0]
+            tasks = [
+                pod_name for pod_name, status in tasks.items()
+                if status == TaskStatusEnum.RUNNING.value
+            ]
+            if len(tasks) == 0:
+                close_message = f"No running tasks found for the job '{resource}'."
+                await websocket.send_text(close_message)
+                await websocket.close(code=1003)
+                return
+            tasks = tasks[0:1] if tty else tasks
+        else:
+            cluster_tasks = job.status.task_status
+            for cluster_name, tasks_dict in cluster_tasks.items():
+                for task_name, status in tasks_dict.items():
+                    if task_name == tasks and status == TaskStatusEnum.RUNNING.value:
+                        cluster = cluster_name
+                        break
+        # Check if cluster is accessible and supported.
+        try:
+            cluster_obj = self.get_object(object_type="clusters",
+                                          object_name=cluster,
+                                          watch=False,
+                                          user=user)
+        except HTTPException as error:
+            await websocket.send_text(error.detail)
+            await websocket.close(code=1003
+                                  )  # Close with unsupported data code
+            return
+        print(cluster_obj.spec.manager)
+        if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
+            close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
+            await websocket.send_text(close_message)
+            await websocket.close(code=1003)
+            return
+        cluster_manager = setup_cluster_manager(cluster_obj)
+
+        for task in tasks:
+            if container == "None":
+                if task in job.status.container_status:
+                    for container_name, status in job.status.container_status[
+                            task].items():
+                        if status == ContainerStatusEnum.RUNNING.value:
+                            container = container_name  # Run on first running container
+                            break
+            if quiet == "True":
+                await websocket.send_text(
+                    "Quiet mode is not supported for TTY sessions. \n")
+            await cluster_manager.execute_command(websocket, task, container,
+                                                  tty, exec_command)
+        if not tty:
+            await websocket.close(code=1000)  # Close with normal code
+
     def _watch_key(self, key: str):
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
 
@@ -661,8 +811,16 @@ class APIServer:
             name=endpoint_name,
         )
 
+    def _add_websocket(self, path=None, endpoint=None, endpoint_name=None):
+        self.router.add_websocket_route(
+            path=path,
+            endpoint=endpoint,
+            name=endpoint_name,
+        )
+
     def create_endpoints(self):
         """Creates FastAPI endpoints over different types of objects."""
+
         for object_type in NON_NAMESPACED_OBJECTS:
             self._add_endpoint(
                 endpoint=f"/{object_type}",
@@ -782,6 +940,21 @@ class APIServer:
             methods=["POST"],
         )
 
+        self._add_endpoint(
+            endpoint=
+            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
+            endpoint_name="execute_command",
+            handler=self.execute_command,
+            methods=["POST"],
+        )
+
+        self._add_websocket(
+            path=
+            "/{namespace}/exec/{tty}/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
+            endpoint=self.execute_command,
+            endpoint_name="execute_command",
+        )
+
 
 def startup():
     """Initialize the API server upon startup."""
@@ -791,7 +964,7 @@ def startup():
 app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
-api_server = APIServer()
+api_server = APIServer(app=app)
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
 app.add_event_handler("startup", check_or_wait_initialization)
