@@ -26,9 +26,10 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     existing_contexts = []
 
     for cluster in cluster_api.list().objects:
-        path = _fetch_absolute_path(cluster.spec.config_path)
-        if path is None:
+        path = cluster.spec.config_path
+        if not path:
             path = '~/.kube/config'
+        path = _fetch_absolute_path(cluster.spec.config_path)
         if path in existing_configs:
             continue
         try:
