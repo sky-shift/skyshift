@@ -472,7 +472,7 @@ def login_user(username: str, password: str):
 def create_invite(json_flag, roles):
     users_api = fetch_api_client_object("user")
     try:
-        response = users_api.create_invite([])
+        response = users_api.create_invite(roles)
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
             raise click.ClickException(f"Failed to create invite: {error_details}")

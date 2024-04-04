@@ -17,7 +17,7 @@ import jwt
 import yaml
 from datetime import datetime
 from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
-                     Request, WebSocket)
+                     Request, WebSocket, Body)
 from api_utils import authenticate_request  # pylint: disable=import-error
 from api_utils import create_jwt  # pylint: disable=import-error
 from api_utils import load_manager_config  # pylint: disable=import-error
@@ -370,18 +370,17 @@ class APIServer:
                 
                 role_message = ""
                 for role in invite["granted_roles"]:
-                    role_name = role["metadata"]["name"]
                     try:
                         role_dict = self._fetch_etcd_object(f"roles/{role}")
                         #TODO(colin): we could add additional check here about if the inviter is still valid and the given roles are still valid
                         role_dict["users"].append(user.username)
                         self.etcd_client.write(
-                            "roles/inviter-role",
+                            f"roles/{role}",
                             role_dict,
                         )
-                        role_message += f"Sucessfully added user to role {role_name} \n"
+                        role_message += f"Sucessfully added user to role {role} \n"
                     except HTTPException as error:    
-                        role_message += f"Unusual error has occurred when trying to add user to role {role_name} \n"
+                        role_message += f"Unusual error has occurred when trying to add user to role {role} \n"
 
                 return {
                     "message": f"User registered successfully. \n{role_message}",

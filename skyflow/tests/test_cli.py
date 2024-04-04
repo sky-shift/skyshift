@@ -1038,7 +1038,7 @@ def test_create_invite_failure(runner):
 def test_create_invite_failure_role(runner):
     name = "user_inviter_fail_without_role"
     password = "password"
-    cmd_register = ['register', name, password, "--invite", get_invite_helper(runner, roles='inviter-role')]
+    cmd_register = ['register', name, password, "--invite", get_invite_helper(runner, roles=['inviter-role'])]
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
 
@@ -1054,7 +1054,7 @@ def test_create_invite_failure_role(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code == 0
 
-    cmd_invite_invalid = ['invite', '--role', 'inviter-role']
+    cmd_invite_invalid = ['invite', '--role', 'admin-role']
     result_invite_invalid = runner.invoke(cli, cmd_invite_invalid)
     assert result_invite_invalid.exit_code != 0
     
