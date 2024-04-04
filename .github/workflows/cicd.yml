@@ -16,6 +16,16 @@ jobs:
       - name: Build Docker Image
         run: docker build -t skyflow:cicd_test .
 
+      - name: Install Kind
+        run: |
+          [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
+          chmod +x ./kind && \
+          sudo mv ./kind /usr/local/bin/kind && \
+          kind --version
+
+      - name: Create Kubernetes Cluster
+        run: kind create cluster
+
       # Run Tests inside Docker Container
       - name: Run tests in Docker
         run: docker run --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests/test_etcd_client.py
