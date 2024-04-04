@@ -5,6 +5,7 @@ import importlib
 import json
 import os
 import shutil
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -125,3 +126,34 @@ def load_manager_config():
 def delete_unused_cluster_config(cluster_name: str):
     """Deletes the cluster config directory from the Skyconf directory."""
     shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")
+
+
+def fetch_datetime():
+    """Returns the current date and time as a string."""
+    # Get the current datetime in UTC
+    current_time = datetime.utcnow()
+    # Format the datetime as a string in ISO 8601 format
+    return current_time.isoformat(timespec='seconds')
+
+
+def compute_datetime_delta(start: str, end: str):
+    """Computes the difference between two datetimes and returns a formatted string."""
+    start_time = datetime.fromisoformat(start)
+    end_time = datetime.fromisoformat(end)
+    # Calculate the difference between the two times
+    delta = end_time - start_time
+    days = delta.days
+    seconds = delta.seconds
+
+    # Calculate hours, minutes, and seconds
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    # Format the output based on the largest non-zero value.
+    if days > 0:
+        return f"{days}d"
+    if hours > 0:
+        return f"{hours}h"
+    if minutes > 0:
+        return f"{minutes}m"
+    return f"{seconds}s"

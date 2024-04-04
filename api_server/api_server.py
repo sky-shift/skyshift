@@ -32,7 +32,7 @@ from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
-from skyflow.templates.rbac_template import ActionEnum
+from skyflow.templates.rbac_template import ActionEnum, Role
 from skyflow.utils import load_object, sanitize_cluster_name
 
 # Hashing password
@@ -163,6 +163,7 @@ class APIServer:
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
         self.create_endpoints()
+        self.etcd_client.delete_all()
 
     def installation_hook(self):
         """Primes the API server with default objects and roles."""
@@ -198,8 +199,10 @@ class APIServer:
                 ADMIN_USER,
             ]
         }
+        # convert dict into
+        admin_role = Role(**roles_dict)
         # Turn roles_dict into json dict
-        roles_json = json.dumps(roles_dict)
+        roles_json = admin_role.model_dump(mode="json")
         self.etcd_client.write(
             "roles/admin-role",
             roles_json,
