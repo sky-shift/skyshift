@@ -32,8 +32,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install --no-cache-dir -e .[server,dev]
+
       - name: Show path and user info
-        run: pwd && whoami
+        run: pwd && whoami && export PATH=$PATH:~/.local/bin && echo $PATH
 
       # - name: Install kind
       #   uses: helm/kind-action@v1.9.0
