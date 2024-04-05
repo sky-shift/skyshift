@@ -33,6 +33,7 @@ CL_SERVICE = "cl-dataplane-load-balancer"
 CL_INSTALL_DIR = os.path.expanduser("~/.local/bin/")
 
 CL_INSTALL_CMD = (
+    "export VERSION={version};"
     "curl -sL "
     "https://github.com/clusterlink-net/clusterlink/releases/download/"
     "{version}/clusterlink.sh | sh ")
