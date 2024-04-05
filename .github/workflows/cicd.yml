@@ -16,27 +16,27 @@ jobs:
       # - name: Build Docker Image
       #   run: docker build -t skyflow:cicd_test .
       
-      - name: Set up Python 3.10
-        run: |
-          sudo apt update
-          sudo apt upgrade -y
-          sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev curl libbz2-dev libsqlite3-dev
-          curl -O https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tar.xz
-          tar -xf Python-3.10.14.tar.xz
-          cd Python-3.10.14
-          ./configure --enable-optimizations
-          make -j `nproc`
-          sudo make altinstall
-          python3.10 --version
+      # - name: Set up Python 3.10
+      #   run: |
+      #     sudo apt update
+      #     sudo apt upgrade -y
+      #     sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev curl libbz2-dev libsqlite3-dev
+      #     curl -O https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tar.xz
+      #     tar -xf Python-3.10.14.tar.xz
+      #     cd Python-3.10.14
+      #     ./configure --enable-optimizations
+      #     make -j `nproc`
+      #     sudo make altinstall
+      #     python3.10 --version
 
 
       - name: Install dependencies
-        run: RUN pip install --upgrade pip && pip install --no-cache-dir -e .[server,dev]
+        run: RUN pip install --no-cache-dir -e .[server,dev]
 
-      - name: Install kind
-        uses: helm/kind-action@v1.9.0
-        with:
-          install_only: true
+      # - name: Install kind
+      #   uses: helm/kind-action@v1.9.0
+      #   with:
+      #     install_only: true
       # - name: Install Kind
       #   run: |
       #     [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
@@ -44,10 +44,10 @@ jobs:
       #     sudo mv ./kind /usr/local/bin/kind && \
       #     kind --version
 
-      - uses: azure/setup-kubectl@v3
-        with:
-          version: 'latest'
-        id: install
+      # - uses: azure/setup-kubectl@v3
+      #   with:
+      #     version: 'latest'
+      #   id: install
 
       # - name: Create Kubernetes Cluster
       #   run: kind create cluster || true
