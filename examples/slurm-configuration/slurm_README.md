@@ -20,12 +20,12 @@
     Define each cluster.
     All parameters needed are nested under a cluster name. Eg.
     ```
-    slurmtestcluster1:
+    slurmcluster1:
         slurm_interface: cli
     ```
     Infinite cluster names can be added, and when attaching such cluster from skyflow CLI, the cluster name must match this one in order to fetch the parameters correctly. Eg.
     ```
-        skyctl create cluster slurmtestcluster1 --manager slurm 
+        skyctl create cluster slurmcluster1 --manager slurm 
     ```
 
     slurm_interface: Select the manager type. Communication to cluster through REST API endpoints, or interfacing through CLI. CLI manager is recommended.
@@ -65,9 +65,18 @@
 ### 3. Attaching Slurm Cluster
     Attach Slurm Cluster to Skyflow.
     ```
-        skyctl create cluster slurmt5 --manager slurm 
+        skyctl create cluster slurmcluster1 --manager slurm 
     ```
 ### 4. Running a job
     ```
-        skyctl create job --cpus 1 --image ubuntu --memory 32 --run "echo hi;sleep 5000" test_job1
+        skyctl create job --cpus 1 --image ubuntu --memory 32 --run "echo hi;sleep 5000" testjob1
+    ```
+### 5. Local Slurm testing feature
+    Underneath a cluster name inside slurmconf.yaml, A nested key can be added to allow the slurm manager CLI to interface to a local slurm cluster.
+    
+    To enable:
+
+    ```slurmcluster1:
+        testing:
+            local: True
     ```
