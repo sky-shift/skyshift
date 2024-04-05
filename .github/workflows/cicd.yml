@@ -13,8 +13,15 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Build Docker Image
-        run: docker build -t skyflow:cicd_test .
+      # - name: Build Docker Image
+      #   run: docker build -t skyflow:cicd_test .
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' 
+
+      - name: Install dependencies
+        run: RUN pip install --upgrade pip && pip install --no-cache-dir -e .[server,dev]
 
       - name: Install kind
         uses: helm/kind-action@v1.9.0
@@ -32,17 +39,12 @@ jobs:
           version: 'latest'
         id: install
 
-      - name: Install clusterlink
-        run: |
-          curl -sL https://github.com/clusterlink-net/clusterlink/releases/download/v0.0.1/clusterlink.sh | sh && \
-          export PATH="$PATH:/home/gcpuser/.local/bin"
-
-      - name: Create Kubernetes Cluster
-        run: kind create cluster || true
+      # - name: Create Kubernetes Cluster
+      #   run: kind create cluster || true
 
       # Run Tests inside Docker Container
       - name: Run tests
-        run: docker run --rm --name SkyflowTestContainer skyflow:cicd_test pytest ./skyflow/tests/test_clusterlink.py 
+        run: pytest ./skyflow/tests/test_clusterlink.py 
 
       # - name: Commit and push changes
       #   run: |
