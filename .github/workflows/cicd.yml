@@ -16,9 +16,19 @@ jobs:
       # - name: Build Docker Image
       #   run: docker build -t skyflow:cicd_test .
       
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10' 
+      - name: Set up Python 3.10
+        run: |
+          sudo apt update
+          sudo apt upgrade -y
+          sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev curl libbz2-dev libsqlite3-dev
+          curl -O https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tar.xz
+          tar -xf Python-3.10.14.tar.xz
+          cd Python-3.10.14
+          ./configure --enable-optimizations
+          make -j `nproc`
+          sudo make altinstall
+          python3.10 --version
+
 
       - name: Install dependencies
         run: RUN pip install --upgrade pip && pip install --no-cache-dir -e .[server,dev]
