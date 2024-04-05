@@ -136,7 +136,6 @@ class SlurmCompatiblityLayer():
             'shebang': '#!/bin/bash',
             'container_manager': container_run,
             'job_specific_script': job.spec.run,
-            'footer': 'echo \'bye\''
         }
         submission_script = _create_submission_script(script_dict)
         resources = job.spec.resources
@@ -184,7 +183,6 @@ class SlurmCompatiblityLayer():
             'shebang': '#!/bin/bash',
             'container_manager': 'singularity run ' + image,
             'job_specific_script': job.spec.run,
-            'footer': 'echo \'bye\''
         }
         submission_script = _create_submission_script(script_dict)
         resources = job.spec.resources
@@ -228,7 +226,6 @@ class SlurmCompatiblityLayer():
             'shebang': '#!/bin/bash',
             'container_manager': 'nerdctl run ' + job.spec.image,
             'job_specific_script': job.spec.run,
-            'footer': 'echo \'bye\''
         }
         submission_script = _create_submission_script(script_dict)
         resources = job.spec.resources
@@ -267,7 +264,40 @@ class SlurmCompatiblityLayer():
             Returns:
                 Dictionary of all the values needed for Containerd.
         """
-        raise NotImplementedError
+        #podman run --name basic_httpd -dt -p 8080:80/tcp docker.io/nginx
+        podman_ports = ''
+        for value in job.spec.ports:
+            podman_ports =   podman_ports + '-p ' + str(value) + '/tcp '
+        script_dict = {
+            'shebang': '#!/bin/bash',
+            'container_manager': 'podman-hpc run ' + job.spec.image,
+            'job_specific_script': job.spec.run,
+        }
+        submission_script = _create_submission_script(script_dict)
+        resources = job.spec.resources
+        job_dict = {
+            'submission_script':
+            submission_script,
+            'name':
+            f'{job.metadata.name}',
+            #'path':
+            #f"{job.spec.envs['PATH']}",
+            'envs':
+            job.spec.envs,
+            'account':
+            self.slurm_account,
+            'home':
+            '/home',
+            'cpus':
+            int(resources['cpus']),
+            'memory_per_cpu':
+            int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
+            'time_limit':
+            self.time_limit
+        }
+        return job_dict
 
     def compat_podman(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Podman cli commands.
@@ -278,22 +308,62 @@ class SlurmCompatiblityLayer():
             Returns:
                 Dictionary of all the values needed for Containerd.
         """
+        #podman run --name basic_httpd -dt -p 8080:80/tcp docker.io/nginx
+        podman_ports = ''
+        for value in job.spec.ports:
+            podman_ports =   podman_ports + '-p ' + str(value) + '/tcp '
+        script_dict = {
+            'shebang': '#!/bin/bash',
+            'container_manager': 'podman run -dt ' + job.spec.image,
+            'job_specific_script': job.spec.run,
+        }
+        submission_script = _create_submission_script(script_dict)
+        resources = job.spec.resources
+        job_dict = {
+            'submission_script':
+            submission_script,
+            'name':
+            f'{job.metadata.name}',
+            #'path':
+            #f"{job.spec.envs['PATH']}",
+            'envs':
+            job.spec.envs,
+            'account':
+            self.slurm_account,
+            'home':
+            '/home',
+            'cpus':
+            int(resources['cpus']),
+            'memory_per_cpu':
+            int(int(resources['memory']) / int(resources['cpus'])),
+            'gpus':
+            int(resources['gpus']),
+            'time_limit':
+            self.time_limit
+        }
+        return job_dict
+    def compat_shifter(self, job: Job) -> Dict[str, Union[int, str]]:
+        """ Generates Shifter cli commands.
+
+            Args:
+                job: Job object containing properties of submitted job.
+
+            Returns:
+                Dictionary of all the values needed for Containerd.
+        """
         raise NotImplementedError
-
     def compat_nocontainer(self, job: Job) -> Dict[str, Union[int, str]]:
-        """ Creates shell compatability run script based off dictionary of values.
+        """ Generates no container cli commands.
 
-        Args:
-            Dictionary of values to append to the script.
+            Args:
+                job: Job object containing properties of submitted job.
 
-        Returns:
-            String containing the run script.
-
+            Returns:
+                Dictionary of all the values needed for Containerd.
         """
         script_dict = {
             'shebang': '#!/bin/bash',
             'job_specific_script': job.spec.run,
-            'footer': 'echo \'bye\''
         }
         submission_script = _create_submission_script(script_dict)
         resources = job.spec.resources

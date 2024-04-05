@@ -6,7 +6,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, List
-
+import subprocess
 import paramiko
 import yaml
 
@@ -19,7 +19,7 @@ from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
 SUPPORTED_CONTAINER_SOLUTIONS = [
-    "containerd", "singularity", "docker", "podman", "podmanhpc"
+    "containerd", "singularity", "docker", "podman", "podman-hpc"
 ]
 
 #Defines for job status
@@ -48,7 +48,7 @@ class SSHConnectionError(Exception):
     """ Raised when there is an error establishing SSH connection to slurm cluster. """
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
-    cluster_name = "slurmclusterdefault"
+    cluster_name = "slurmcluster1"
     def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
@@ -57,47 +57,45 @@ class SlurmManagerCLI(Manager):
                 ConfigUndefinedError: Value required in config yaml not not defined.
         """
         super().__init__(self.cluster_name)
+        self.is_local = False
         config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(config_absolute_path, 'r') as config_file:
             config_dict = yaml.safe_load(config_file)
             #Configure tools
             config_dict = config_dict[self.cluster_name]
-            self.container_manager = _get_config(config_dict, ['tools','container'])
-            if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
-                raise ConfigUndefinedError(
-                    f'Unsupported container manager {self.container_manager} in \
-                        {SLURM_CONFIG_PATH}.') from exception
+
+            if str(_get_config(config_dict, ['testing', 'local'], optional=True)) == 'True':
+                self.is_local = True
+            else:
+                self.rsa_key_path = _get_config(config_dict, ['slurmcli','rsa_key_path'])
+                self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
+                if not os.path.exists(self.rsa_key_path):
+                    raise ValueError(
+                    f'RSA private key file does not exist! {self.rsa_key_path} in \
+                    {SLURM_CONFIG_PATH}.')
+                self.remote_hostname = _get_config(config_dict, ['slurmcli', 'remote_hostname'])
+                self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
+                
+                self.rsa_key = paramiko.RSAKey.from_private_key_file(self.rsa_key_path)
+                self.ssh_client = paramiko.SSHClient()
+                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                self.check_reachable()
+            self.container_manager = self._discover_manager().replace('-', '_')
             self.runtime_dir = ''
             if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
                 self.runtime_dir = _get_config(config_dict, ['tools','runtime_dir'])
-
-            #Configure SSH
-            #Get RSA key path
-            self.rsa_key_path = _get_config(config_dict, ['slurmcli','rsa_key_path'])
-            self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
-            if not os.path.exists(self.rsa_key_path):
-                raise ValueError(
-                f'RSA private key file does not exist! {self.rsa_key_path} in \
-                {SLURM_CONFIG_PATH}.')
-            #Get remote hostname
-            self.remote_hostname = _get_config(config_dict, ['slurmcli', 'remote_hostname'])
-            #Get remote username
-            self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
             #Configure Slurm properties
-
             #Get slurm user account
             self.slurm_account = _get_config(config_dict, ['properties', 'account'])
             #Get slurm time limit
             self.slurm_time_limit = _get_config(config_dict, ['properties', 'time_limit'])
         #Configure SSH
-        self.rsa_key = paramiko.RSAKey.from_private_key_file(self.rsa_key_path)
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.check_reachable()
+        #For testing, allow interfacing with local slurm controller
+        
+        
         #Configure container manager compatibility layer
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager.lower(),
             self.runtime_dir, self.slurm_time_limit, self.slurm_account)
-
         #store resource values
         self.accelerator_types = None
         self.get_accelerator_types()
@@ -106,9 +104,8 @@ class SlurmManagerCLI(Manager):
     def __del__(self):
         """ Deconstructor
         """
-        self.ssh_client.close()
-
-
+        if not self.is_local:
+            self.ssh_client.close()
     def check_reachable(self):
         """ Sanity check to make sure we can SSH into slurm login node.
         """
@@ -123,10 +120,53 @@ class SlurmManagerCLI(Manager):
             please check if remote server is reachable') from exception
         except Exception as exception:
             raise SSHConnectionError("Unexpected exception") from exception
+    def _send_command(self, command):
+        """Seconds command locally, or through ssh to a remote cluster
+            
+            Args: 
+                command: bash command to be run.
+
+            Returns:
+                stdout
+        """
+        if self.is_local:
+            result = subprocess.run(
+                ['bash', '-c', command], 
+                capture_output=True, text=True
+            )
+            if result is None:
+                return 'abc'
+            return result.stdout.strip()
+        else:
+            _, stdout, _ = self.ssh_client.exec_command(command)
+            return stdout.read().decode().strip()
+
+    def _discover_manager(self):
+        """Finds and reports first available container manager.
+
+            Returns: The available container manager name.
+        """
+        command = ''
+        for manager_name in SUPPORTED_CONTAINER_SOLUTIONS:
+            command = 'if command -v ' + manager_name + ' &> /dev/null;then echo ' + manager_name + ' ;fi'
+        
+            stdout = self._send_command(command)
+            if manager_name in stdout:
+                return manager_name
+        return "nocontainer"
     def _process_gpu_resources(
             self, resources: Dict[str,
                                   Dict[str,
                                        float]]) -> Dict[str, Dict[str, float]]:
+        """Processes accelerator dict into type and count pairs.
+
+            Args:
+                resources: Unprocessed resources of available nodes.
+            
+            Returns:
+                updated resources dict with gpus properly enumerated count assigned.
+        """
+
         if not self.accelerator_types or not set(
                 self.accelerator_types).issubset(set(resources.keys())):
             self.accelerator_types = self.get_accelerator_types()
@@ -143,8 +183,8 @@ class SlurmManagerCLI(Manager):
         """
         command = "scontrol show nodes"
         #command_output = subprocess.check_output(command, shell=True, text=True)
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        node_sections = stdout.read().decode().strip().split('\n\n')
+        stdout = self._send_command(command)
+        node_sections = stdout.split('\n\n')
 
         cluster_resources = {}
         for node_info in node_sections:
@@ -191,8 +231,8 @@ class SlurmManagerCLI(Manager):
         """
         command = "scontrol show nodes"
         #command_output = subprocess.check_output(command, shell=True, text=True)
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        node_sections = stdout.read().decode().strip().split('\n\n')
+        stdout = self._send_command(command)
+        node_sections = stdout.split('\n\n')
         available_resources = {}
         for node_info in node_sections:
             cpu_total = 0.0
@@ -237,8 +277,8 @@ class SlurmManagerCLI(Manager):
         #Process gpus
         command = "scontrol show jobs"
         #command_output = subprocess.check_output(command, shell=True, text=True)
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        node_sections = stdout.read().decode().strip().split('\n\n')
+        stdout = self._send_command(command)
+        node_sections = stdout.split('\n\n')
         for node_info in node_sections:
             node_list: List[str] = []
             node_list_match = re.search(r' NodeList=(.*?)\n', node_info)
@@ -271,8 +311,8 @@ class SlurmManagerCLI(Manager):
             return self.accelerator_types
         command = "scontrol show nodes"
         #command_output = subprocess.check_output(command, shell=True, text=True)
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        node_sections = stdout.read().decode().strip().split('\n\n')
+        stdout = self._send_command(command)
+        node_sections = stdout.split('\n\n')
         
         node_gpus = {}
         for node_info in node_sections:
@@ -302,8 +342,8 @@ class SlurmManagerCLI(Manager):
         """
         command = 'scontrol show partitions'
 
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        cluster_info = stdout.read().decode().strip()
+        stdout = self._send_command(command)
+        cluster_info = stdout
 
         if 'State=UP' in cluster_info:
             return ClusterStatus(
@@ -325,8 +365,8 @@ class SlurmManagerCLI(Manager):
         """
         command = 'squeue ' + '-u ' + self.slurm_account + ' -o "%.18i %.30j %.2t"'
         #command_output = subprocess.check_output(command, shell=True, text=True)
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        jobs_info = stdout.read().decode().strip().split('\n')
+        stdout = self._send_command(command)
+        jobs_info = stdout.split('\n')
         #jobs_info = subprocess.check_output(command, shell=True, text=True)
         jobs_info = jobs_info[1:]
         #Create dict of only managed jobs. [Job ID, Job Name, Status]
@@ -362,8 +402,8 @@ class SlurmManagerCLI(Manager):
 
         """
         command = 'squeue -u ' + self.slurm_account + ' --format="%j"'
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        all_job_names = stdout.read().decode().strip().split('\n')
+        stdout = self._send_command(command)
+        all_job_names = stdout.split('\n')
         #all_job_names = subprocess.check_output(command, shell=True, text=True).split('\n')
         all_job_names = all_job_names[1:]
         matching_job_names = []
@@ -404,8 +444,8 @@ class SlurmManagerCLI(Manager):
 
         command = self.compat_layer.create_slurm_sbatch(job) + ' -J ' + slurm_job_name
 
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        sbatch_output = stdout.read().decode().strip()
+        stdout = self._send_command(command)
+        sbatch_output = stdout
 
         api_responses.append(sbatch_output)
         job_id_match = re.search(r'\b\d+(?:_\d+)*\b', sbatch_output)
@@ -435,8 +475,8 @@ class SlurmManagerCLI(Manager):
                 'No slurm job ID parameter, refusing to delete')
             return api_responses
         command = 'scancel ' + str(job.status.job_ids['slurm_job_id'])
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        del_response = stdout.read().decode().strip()
+        stdout = self._send_command(command)
+        del_response = stdout
 
         if del_response == '':
             api_responses.append("Successfully cancelled")
@@ -467,20 +507,41 @@ class SlurmManagerCLI(Manager):
         self, name: str, cluster_name, endpoint: EndpointObject):
         """Creates/updates an endpint slice."""
         raise NotImplementedError
-def _get_config(config_dict, key):
+def _get_config(config_dict, key, optional=False) -> str:
+    """Fetches key from config dict extracted from yaml.
+        Allows optional keys to be fetched without returning an error.
+
+        Args: 
+            config_dict: dictionary of nested key value pairs.
+            key: array of keys, forming the nested key path.
+            optional: whether the key in the yaml is optional or not.
+        Returns:
+            key: the value associated with the key path
+    """
+        
     config_val = config_dict
     nested_path = ''
-    for i in range(len(key)):
-        nested_path += key[i]
-        if key[i] not in config_val:
-            raise ConfigUndefinedError(nested_path)
-        else:
-            config_val = config_val[key[i]]
+    if not optional:
+        for i in range(len(key)):
+            nested_path += key[i]
+            if key[i] not in config_val:
+                raise ConfigUndefinedError(nested_path)
+            else:
+                config_val = config_val[key[i]]
+    else:
+        for i in range(len(key)):
+            nested_path += key[i]
+            if key[i] not in config_val:
+                return ''
+            else:
+                config_val = config_val[key[i]]
     return config_val
 if __name__ == '__main__':
-    api = SlurmManagerCLI('slurmcluster1')
+    api = SlurmManagerCLI()
     status = api.get_cluster_status()
     print(status.status)
     print(api.cluster_resources)
     print("************")
     print(api.allocatable_resources)
+    containers = api._discover_manager()
+    print(containers)
