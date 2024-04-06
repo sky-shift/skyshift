@@ -1092,8 +1092,8 @@ def exec_command_sync(  # pylint: disable=too-many-arguments
 
 def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
         resource: str, command: Tuple[str], namespace: str,
-        specified_tasks: List[str] | List[None],
-        specified_container: List[str] | List[None], quiet: bool, tty: bool):
+        specified_tasks: Union[List[str], List[None]],
+        specified_container: Union[List[str], List[None]], quiet: bool, tty: bool):
     """
     Executes a specified command within a container of a resource.
 

@@ -9,6 +9,7 @@ from copy import deepcopy
 
 import requests
 
+from skyflow import utils
 from skyflow.api_client import ClusterAPI, JobAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -59,7 +60,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.retry_limit = retry_limit
 
         self.logger = create_controller_logger(
-            title=f"[{self.name} - Job Controller]",
+            title=f"[{utils.unsanitize_cluster_name(self.name)} - Job Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/job_controller.log')
 
         self.informer = Informer(JobAPI(namespace=''), logger=self.logger)
