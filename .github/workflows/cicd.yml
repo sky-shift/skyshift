@@ -33,14 +33,19 @@ jobs:
       - name: Install dependencies
         run: pip install --no-cache-dir -e .[server,dev]
 
-      - name: Show path and user info
-        run: pwd && whoami && export PATH=$PATH:~/.local/bin && echo $PATH
+      - name: Set up environment
+        run: |
+          export PATH=$PATH:~/.local/bin && \
+          sudo sysctl fs.inotify.max_user_watches=524288 && \
+          sudo sysctl fs.inotify.max_user_instances=512
+        
+
 
       # - name: Install kind
       #   uses: helm/kind-action@v1.9.0
       #   with:
       #     install_only: true
-      
+
       # - name: Install Kind
       #   run: |
       #     [ $(uname -m) = x86_64 ] && curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 && \
@@ -55,10 +60,10 @@ jobs:
 
       # - name: Create Kubernetes Cluster
       #   run: kind create cluster || true
-
+      
       # Run Tests inside Docker Container
       - name: Run tests
-        run: pytest ./skyflow/tests/test_clusterlink.py 
+        run: pytest ./skyflow/tests --ignore=./skyflow/tests/test_cli.py --ignore=./skyflow/tests/test_api_server.py
 
       # - name: Commit and push changes
       #   run: |
