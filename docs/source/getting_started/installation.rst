@@ -28,7 +28,7 @@ To install dependencies for the API server, run:
 .. code-block:: shell
 
     # Recommended: Create new conda env to avoid package conflicts.
-    conda create -y -n skyflow python=3.10å
+    conda create -y -n skyflow python=3.10
     conda activate skyflow
 
     # Pull the latest version of SkyFlow from Github.

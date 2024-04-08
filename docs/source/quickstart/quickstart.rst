@@ -9,7 +9,8 @@ In this quickstart, we will walk through:
 - Creating and running SkyFlow jobs.
 - Using SkyFlow CLI commands.
 
-Note that this tutorial assumes that SkyFlow is already installed and running. If not, please refer to the :ref:`installation guide <installation>`.
+Note that this tutorial assumes that SkyFlow is already installed and running. If not, please refer to the :ref:`installation guide <installation>`
+and to the :ref:`setup guide <setup>` .
 
 
 Prerequisites
