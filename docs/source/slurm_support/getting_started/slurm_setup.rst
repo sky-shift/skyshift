@@ -1,6 +1,6 @@
 .. _slurm_setup:
 
-Interface with a Slurm Cluster
+Interface with Slurm Clusters
 -----------------------------------------
 
 1. Example configuration file is provided for reference and customization:
