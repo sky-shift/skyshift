@@ -129,6 +129,10 @@ To check the status of your jobs and ensure they're running as expected:
 
     > skyctl get jobs
 
+    NAME          CLUSTER    REPLICAS    RESOURCES               NAMESPACE    STATUS
+    example-job   slurmcluster1   2/2    cpus: 0.5               default      RUNNING
+                                         memory: 128.0 MiB
+
 You'll see details about each job, including the cluster it's running on, resources allocated, 
 and its current status.
 
