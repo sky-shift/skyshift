@@ -499,7 +499,8 @@ def create_invite(json_flag, roles):
             click.echo(f"Invitation created successfully. Invite: {invite}")
     except APIException as error:
         raise click.ClickException(f"Failed to create invite: {error}")
-    
+
+
 def revoke_invite_req(invite: str):
     """
     Send revoke invite request to API Server.

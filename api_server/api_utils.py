@@ -46,7 +46,8 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
         if username is None:
             raise credentials_exception
         # Check if time out
-        if datetime.now(timezone.utc) >= datetime.fromtimestamp(payload.get("exp"), tz=timezone.utc):  #type: ignore
+        if datetime.now(timezone.utc) >= datetime.fromtimestamp(
+                payload.get("exp"), tz=timezone.utc):  #type: ignore
             raise HTTPException(
                 status_code=401,
                 detail="Token expired. Please log in again.",

@@ -1,7 +1,7 @@
 """
 User API.
 """
-from typing import List
+from typing import List, Optional
 
 import requests
 
@@ -40,10 +40,12 @@ class UserAPI(NoNamespaceObjectAPI):
         response = requests.post(f"{self.base_url}/token", data=data)
         return response
 
-    def create_invite(self, roles: List[str] = []):
+    def create_invite(self, roles: Optional[List[str]] = None):
         """
         Send create invite API call.
         """
+        if roles is None:
+            roles = []
         data = {
             "roles": roles,
         }
@@ -51,7 +53,7 @@ class UserAPI(NoNamespaceObjectAPI):
                                  json=data,
                                  headers=self.auth_headers)
         return response
-    
+
     def revoke_invite(self, invite: str):
         """
         Send revoke invite API call.

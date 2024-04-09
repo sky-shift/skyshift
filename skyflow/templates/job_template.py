@@ -1,10 +1,10 @@
 """
 Job template for Skyflow.
 """
-from datetime import datetime, timezone
 import enum
 import re
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from pydantic import Field, field_validator
@@ -161,8 +161,7 @@ class JobStatus(ObjectStatus):
                 "update_time": time_str,
             })
         else:
-            previous_status["update_time"] = datetime.utcnow(
-            ).isoformat()
+            previous_status["update_time"] = datetime.utcnow().isoformat()
 
 
 class JobMeta(NamespacedObjectMeta):

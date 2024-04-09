@@ -19,8 +19,8 @@ from skyflow.cli.cli_utils import (create_cli_object, create_invite,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table,
-                                   register_user, stream_cli_object,
-                                   switch_context, revoke_invite_req)
+                                   register_user, revoke_invite_req,
+                                   stream_cli_object, switch_context)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
@@ -1204,7 +1204,7 @@ Password must be 5 or more characters.
               default=None,
               required=False,
               help='Email address of the user.')
-def register(username, email, password, invite):
+def register(username, email, password, invite):  # pylint: disable=redefined-outer-name
     """
     Register a new user.
     """
@@ -1237,10 +1237,11 @@ cli.add_command(login)
     is_flag=True,
     default=False,
     help='Output the invite in json format if succeeds. Key is \'invite\'.')
-@click.option('-r', '--role', 
+@click.option('-r',
+              '--role',
               multiple=True,
               help='Enter ROLE names intended as part of the invite.')
-def invite(json, role):
+def invite(json, role):  # pylint: disable=redefined-outer-name
     """
     Create a new invite.
     """
@@ -1249,9 +1250,10 @@ def invite(json, role):
 
 cli.add_command(invite)
 
+
 @click.command('revoke_invite', help='Revoke created invite.')
 @click.argument('invite', required=True)
-def revoke_invite(invite):
+def revoke_invite(invite):  # pylint: disable=redefined-outer-name
     """
     Revoke an existing invite.
     """
@@ -1263,7 +1265,10 @@ cli.add_command(revoke_invite)
 
 @click.command('switch', help='Switch the current context.')
 @click.option('--user', default='', help='The active username to use.')
-@click.option('-ns', '--namespace', default='', help='The active namespace to use.')
+@click.option('-ns',
+              '--namespace',
+              default='',
+              help='The active namespace to use.')
 def switch(user, namespace):
     """
     Switch active context of cli.
