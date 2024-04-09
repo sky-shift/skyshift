@@ -14,12 +14,12 @@ from urllib.parse import unquote
 
 import jsonpatch
 import yaml
-from api_utils import authenticate_jwt  # pylint: disable=import-error
-from api_utils import authenticate_request  # pylint: disable=import-error
-from api_utils import create_jwt  # pylint: disable=import-error
-from api_utils import generate_nonce  # pylint: disable=import-error
-from api_utils import load_manager_config  # pylint: disable=import-error
-from api_utils import update_manager_config  # pylint: disable=import-error
+from api_server.api_utils import authenticate_jwt  # pylint: disable=import-error
+from api_server.api_utils import authenticate_request  # pylint: disable=import-error
+from api_server.api_utils import create_jwt  # pylint: disable=import-error
+from api_server.api_utils import generate_nonce  # pylint: disable=import-error
+from api_server.api_utils import load_manager_config  # pylint: disable=import-error
+from api_server.api_utils import update_manager_config  # pylint: disable=import-error
 from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
                      Request, WebSocket)
 from fastapi.responses import StreamingResponse
