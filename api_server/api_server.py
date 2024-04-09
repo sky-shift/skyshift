@@ -27,7 +27,8 @@ from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
 from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
-                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
+                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS, 
+                             API_SERVER_CONFIG_PATH)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
@@ -44,7 +45,6 @@ ADMIN_PWD = "admin"
 
 # Assumes authentication tokens are JWT tokens
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 CACHED_SECRET_KEY = None
 
 
