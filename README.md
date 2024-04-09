@@ -7,10 +7,7 @@ Skyflow orchestrates container-based workloads across the Sky. Our goal is to ab
 (Recommended) Create new conda enviornment
 
 ```
-conda create -n skyflow python=3.9
-```
-Activate it
-```
+conda create -n skyflow python=3.10
 conda activate skyflow 
 ```
 
