@@ -15,9 +15,9 @@ In this guide, we'll cover the following topics:
 
 Prerequisites
 +++++++++++++++++++++++++++++++
-- Configured Slurm Cluster configuration file: :ref:`Slurm Configuration guide <slurm_setup>`.
-
 - SkyFlow API Server and Manager started:  :ref:`Setup Guide <setup>`.
+
+- Configured Slurm Cluster configuration file: :ref:`Slurm Configuration guide <slurm_setup>`.
 
 
 Adding and Removing Clusters
