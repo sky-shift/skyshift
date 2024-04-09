@@ -6,7 +6,7 @@ from typing import Any, Callable, Coroutine, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import yaml
-from fastapi import HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
@@ -52,7 +52,8 @@ class TestAPIServer(unittest.TestCase):
         initializing the APIServer.
         """
         self.mock_etcd_client_instance = mock_etcd_client.return_value
-        self.api_server = APIServer()
+        app = FastAPI(debug=True)
+        self.api_server = APIServer(app)
         self.api_server._authenticate_role = MagicMock(return_value=True)
         self.api_server._check_cluster_connectivity = MagicMock(
             return_value=True)
