@@ -19,11 +19,16 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Core Concepts
+
+   Architecture <architecture/architecture.rst>
+
+.. toctree::
+   :maxdepth: 1
    :caption: Getting Started
 
    getting_started/installation.rst
    getting_started/setup.rst
-
 
 .. toctree::
    :maxdepth: 1
