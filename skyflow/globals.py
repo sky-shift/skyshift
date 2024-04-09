@@ -10,6 +10,8 @@ USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
+API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+
 DEFAULT_NAMESPACE = "default"
 
 NAMESPACED_OBJECTS = {
