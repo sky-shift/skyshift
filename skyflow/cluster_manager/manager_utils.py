@@ -1,8 +1,14 @@
 """
 Utils for cluster managers.
 """
+import logging
+
 from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
 from skyflow.templates import Cluster
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 def setup_cluster_manager(cluster_obj: Cluster):
@@ -32,5 +38,7 @@ def setup_cluster_manager(cluster_obj: Cluster):
         for k, v in dict(cluster_obj.metadata).items() if k in class_params
     })
 
+    logger = logging.getLogger(
+        f"[{cluster_obj.metadata.name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
-    return cluster_manager_cls(**args)
+    return cluster_manager_cls(logger=logger, **args)
