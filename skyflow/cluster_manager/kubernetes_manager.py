@@ -72,7 +72,10 @@ class K8ConnectionError(config.config_exception.ConfigException):
 class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
-    def __init__(self, name: str, config_path: str = '~/.kube/config', logger: Optional[logging.Logger] = None):
+    def __init__(self,
+                 name: str,
+                 config_path: str = '~/.kube/config',
+                 logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
         if not logger:
