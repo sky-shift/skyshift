@@ -30,3 +30,17 @@ Documentation
    :caption: Quickstart
 
    quickstart/quickstart.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Using Skyflow
+
+   cli/clusters.rst
+   cli/jobs.rst
+   cli/namespaces.rst
+   cli/filterpolicies.rst
+   cli/links.rst
+   cli/services.rst
+   cli/endpoints.rst
+   cli/roles.rst
+   cli/exec.rst
