@@ -499,6 +499,25 @@ def create_invite(json_flag, roles):
             click.echo(f"Invitation created successfully. Invite: {invite}")
     except APIException as error:
         raise click.ClickException(f"Failed to create invite: {error}")
+    
+def revoke_invite_req(invite: str):
+    """
+    Send revoke invite request to API Server.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    try:
+        response = users_api.revoke_invite(invite)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(
+                f"Failed to revoke invite: {error_details}")
+
+        data = response.json()
+        message = data.get("message")
+        click.echo(f"Invitation revoked. {message}")
+
+    except APIException as error:
+        raise click.ClickException(f"Failed to create invite: {error}")
 
 
 def switch_context(username, namespace):

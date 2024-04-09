@@ -1,7 +1,7 @@
 """Utility functions for the API server."""
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
@@ -21,10 +21,10 @@ def create_jwt(data: dict,
     """Creates jwt of DATA based on SECRET_KEY."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
         # 10 years
-        expire = datetime.utcnow() + timedelta(minutes=315360000)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=315360000)
     to_encode.update({"exp": expire})
     encoded_jwt: str = jwt.encode(to_encode, secret_key, algorithm='HS512')
     return encoded_jwt
@@ -46,8 +46,7 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
         if username is None:
             raise credentials_exception
         # Check if time out
-        if datetime.utcnow() >= datetime.fromtimestamp(
-                payload.get("exp")):  #type: ignore
+        if datetime.now(timezone.utc) >= datetime.fromtimestamp(payload.get("exp"), tz=timezone.utc):  #type: ignore
             raise HTTPException(
                 status_code=401,
                 detail="Token expired. Please log in again.",

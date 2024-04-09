@@ -1065,6 +1065,20 @@ def test_create_invite_failure(runner):
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
+def test_revoke_invite_success(runner):
+    invite = get_invite_helper(runner, roles=[])
+    cmd_revoke_invite = ['revoke_invite', invite]
+    result_revoke_invite = runner.invoke(cli, cmd_revoke_invite)
+    assert result_revoke_invite.exit_code == 0 
+    new_name = "user_revoked_invite"
+    new_password = "password"
+    cmd_register = [
+        'register', new_name, new_password, "--invite",
+        invite
+    ]
+    result_revoke_register = runner.invoke(cli, cmd_register)
+    assert result_revoke_register.exit_code != 0   
+
 
 def test_create_invite_failure_role(runner):
     name = "user_inviter_fail_without_role"

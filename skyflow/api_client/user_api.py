@@ -51,3 +51,15 @@ class UserAPI(NoNamespaceObjectAPI):
                                  json=data,
                                  headers=self.auth_headers)
         return response
+    
+    def revoke_invite(self, invite: str):
+        """
+        Send revoke invite API call.
+        """
+        data = {
+            "invite_token": invite,
+        }
+        response = requests.post(f"{self.base_url}/revoke_invite",
+                                 json=data,
+                                 headers=self.auth_headers)
+        return response

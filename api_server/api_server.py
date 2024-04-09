@@ -7,19 +7,21 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import partial
 from typing import List
 from urllib.parse import unquote
 
 import jsonpatch
 import yaml
-from api_server.api_utils import authenticate_jwt  # pylint: disable=import-error
-from api_server.api_utils import authenticate_request  # pylint: disable=import-error
-from api_server.api_utils import create_jwt  # pylint: disable=import-error
-from api_server.api_utils import generate_nonce  # pylint: disable=import-error
-from api_server.api_utils import load_manager_config  # pylint: disable=import-error
-from api_server.api_utils import update_manager_config  # pylint: disable=import-error
+
+from api_utils import authenticate_jwt  # pylint: disable=import-error
+from api_utils import authenticate_request  # pylint: disable=import-error
+from api_utils import create_jwt  # pylint: disable=import-error
+from api_utils import generate_nonce  # pylint: disable=import-error
+from api_utils import load_manager_config  # pylint: disable=import-error
+from api_utils import update_manager_config  # pylint: disable=import-error
+
 from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
                      Request, WebSocket)
 from fastapi.responses import StreamingResponse
@@ -180,17 +182,45 @@ class APIServer:
                 Namespace(metadata=NamespaceMeta(name="default")).model_dump(
                     mode="json"),
             )
-        # Create system admin user and create authentication token.
-        admin_invite = generate_nonce()
+
+        # Create admin role.
+        admin_role = Role(metadata=RoleMeta(name="admin-role",
+                                            namespaces=["*"]),
+                          rules=[Rule(resources=["*"], actions=["*"])],
+                          users=[])
+
         self.etcd_client.write(
-            f"invites/{admin_invite}",
-            {},
+            "roles/admin-role",
+            admin_role.dict(),
+        )
+
+        # Create inviter role.
+        inviter_role = Role(
+            metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
+            rules=[Rule(resources=["user"], actions=["create"])
+                   ],  #Create user actually means can create invite to user.
+            users=[])
+
+        self.etcd_client.write(
+            "roles/inviter-role",
+            inviter_role.dict(),
+        )    
+
+        # Create system admin user and create authentication token.
+        admin_invite_nonce = generate_nonce()
+        self.etcd_client.write(
+            f"invites/{admin_invite_nonce}",
+            {
+                "used": False,
+                "revoked": False,
+                "owner": "",          
+             },
         )
 
         admin_invite_jwt = create_jwt(
             data={
-                "granted_roles": [],
-                "invite": admin_invite,
+                "granted_roles": [admin_role.get_name(), inviter_role.get_name()],
+                "nonce": admin_invite_nonce,
                 "inviter": ""
             },
             secret_key=load_manager_config()['api_server']['secret'],
@@ -204,28 +234,6 @@ class APIServer:
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
-
-        admin_role = Role(metadata=RoleMeta(name="admin-role",
-                                            namespaces=["*"]),
-                          rules=[Rule(resources=["*"], actions=["*"])],
-                          users=[ADMIN_USER])
-
-        self.etcd_client.write(
-            "roles/admin-role",
-            admin_role.dict(),
-        )
-
-        # Create inviter role and add admin.
-        inviter_role = Role(
-            metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
-            rules=[Rule(resources=["user"], actions=["create"])
-                   ],  #Create user actually means can create invite to user.
-            users=[ADMIN_USER])
-
-        self.etcd_client.write(
-            "roles/inviter-role",
-            inviter_role.dict(),
-        )
 
     def _authenticate_role(self, action: str, user: str, object_type: str,
                            namespace: str) -> bool:
@@ -259,16 +267,10 @@ class APIServer:
             role = self._fetch_etcd_object(f"roles/{role_name}")
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
-                status_code=400,
+                status_code=503,
                 detail='An error occured while authenticating user') from error
-
-        if user in role['users']:
-            return True
-
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized access. User does not have the required role."
-        )
+        
+        return user in role['users']
 
     def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
         """Checks if the cluster is accessible."""
@@ -337,17 +339,24 @@ class APIServer:
         """Registers a user into Skyflow."""
         try:
             invite = authenticate_jwt(invite_token)
-            if datetime.utcnow() >= datetime.fromtimestamp(invite.get("exp")):
+            if datetime.now(timezone.utc) >= datetime.fromtimestamp(invite.get("exp"), tz=timezone.utc):
                 raise HTTPException(
                     status_code=401,
-                    detail="Token expired. Please log in again.",
+                    detail="Invite token expired. Please ask for a new one.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
             #Check invite(nonce) exist
-            self._fetch_etcd_object(f"invites/{invite['invite']}")
-
-            self.etcd_client.delete(f'invites/{invite.get("invite")}')
+            invite_store = self._fetch_etcd_object(f"invites/{invite['nonce']}")
+            if not invite_store["revoked"] and not invite_store["used"]:
+                invite_store["used"] = True
+                self.etcd_client.write(f'invites/{invite.get("nonce")}', invite_store)
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Invite is no longer invalid.",
+                )
+            
         except HTTPException as error:
             if error.status_code == 404:
                 raise HTTPException(
@@ -355,7 +364,7 @@ class APIServer:
                     detail="Invite is invalid.",
                 )
             raise HTTPException(
-                status_code=400,
+                status_code=500,
                 detail="Unusual error occurred.",
             ) from error
 
@@ -389,7 +398,7 @@ class APIServer:
                     "user": user
                 }
             raise HTTPException(
-                status_code=400,
+                status_code=500,
                 detail="Unusual error occurred.",
             )
         else:
@@ -418,13 +427,11 @@ class APIServer:
                 detail="Cannot create invite. User doesn't exist",
             ) from error
 
-        try:
-            self._authenticate_by_role_name(username, 'inviter-role')
-        except HTTPException as error:
+        if not self._authenticate_by_role_name(username, 'inviter-role'):
             raise HTTPException(
-                status_code=400,
+                status_code=401,
                 detail="Not authorized to create invite.",
-            ) from error
+            ) 
 
         #Check if all roles are grantable
         #TODO:(colin): Replace once we introduce group admin
@@ -460,11 +467,11 @@ class APIServer:
                 )
 
         nonce = generate_nonce()
-        self.etcd_client.write(f"invites/{nonce}", {})
+        self.etcd_client.write(f"invites/{nonce}", {"used": False, "revoked": False, "owner": username})
         invite_token = create_jwt(
             data={
                 "granted_roles": roles,
-                "invite": nonce,
+                "nonce": nonce,
                 "inviter": username
             },
             secret_key=load_manager_config()['api_server']['secret'],
@@ -472,6 +479,50 @@ class APIServer:
         return {
             "message": "invite created successfully",
             "invite": invite_token
+        }
+    
+    def revoke_invite(self,
+                      invite_token: str = Body(..., embed=True),
+                      username: str = Depends(authenticate_request)):
+        """Invoke invite."""
+        try:
+            # Check user exist
+            self._fetch_etcd_object(f"users/{username}")
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot revoke invite. User doesn't exist",
+            ) from error
+        
+        try:
+            invite = authenticate_jwt(invite_token)
+            # empty invite['inviter'] means the special startup invite
+            if invite['inviter'] != username and invite['inviter']:
+                raise HTTPException(
+                    status_code=404,
+                    detail="You cannot revoke invites not from you.",
+                )
+
+            # Check invite(nonce) exist
+            invite_store = self._fetch_etcd_object(f"invites/{invite['nonce']}")
+            used = invite_store["used"]
+            
+            invite_store["revoked"] = True
+            self.etcd_client.write(f'invites/{invite.get("nonce")}', invite_store)
+
+        except error:
+            if error.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Revoke request is invalid.",
+                ) from error
+            raise HTTPException(
+                status_code=500,
+                detail="Unusual error occurred.",
+            ) from error
+ 
+        return {
+            "message": f"invite {invite_token} revoked" if not used else f"invite {invite_token} revoked but it's used already",
         }
 
     # General methods over objects.
@@ -1096,21 +1147,13 @@ class APIServer:
             endpoint_name="create_invite",
             handler=self.create_invite,
             methods=["POST"],
-        )
-
+        ),
+        # Revoke invite
         self._add_endpoint(
-            endpoint=
-            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
-            endpoint_name="execute_command",
-            handler=self.execute_command,
+            endpoint="/revoke_invite",
+            endpoint_name="revoke_invite",
+            handler=self.revoke_invite,
             methods=["POST"],
-        )
-
-        self._add_websocket(
-            path=
-            "/{namespace}/exec/{tty}/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
-            endpoint=self.execute_command,
-            endpoint_name="execute_command",
         )
 
         self._add_endpoint(

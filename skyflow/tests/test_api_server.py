@@ -53,7 +53,7 @@ class TestAPIServer(unittest.TestCase):
         initializing the APIServer.
         """
         self.mock_etcd_client_instance = mock_etcd_client.return_value
-        self.api_server = APIServer()
+        self.api_server = APIServer(app="test")
         self.api_server._authenticate_role = MagicMock(return_value=True)
         self.api_server._check_cluster_connectivity = MagicMock(
             return_value=True)

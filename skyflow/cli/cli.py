@@ -20,7 +20,7 @@ from skyflow.cli.cli_utils import (create_cli_object, create_invite,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table,
                                    register_user, stream_cli_object,
-                                   switch_context)
+                                   switch_context, revoke_invite_req)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
@@ -1197,10 +1197,10 @@ Username should be 4-50 characters long composed of upper or lower case alphabet
 Password must be 5 or more characters.
 '''
                '  \n ')
-@click.argument("username", required=True)
-@click.argument("password", required=True)
-@click.option("--invite", required=True, help='Invite key sent by admin.')
-@click.option("--email",
+@click.argument('username', required=True)
+@click.argument('password', required=True)
+@click.option('--invite', required=True, help='Invite key sent by admin.')
+@click.option('--email',
               default=None,
               required=False,
               help='Email address of the user.')
@@ -1208,7 +1208,6 @@ def register(username, email, password, invite):
     """
     Register a new user.
     """
-    print("invite is " + invite)
     register_user(username, email, password, invite)
 
 
@@ -1220,8 +1219,8 @@ cli.add_command(register)
     help=
     'Login user. Does NOT change current active user. \'login USERNAME PASSWORD \''
 )
-@click.argument("username", required=True)
-@click.argument("password", required=True)
+@click.argument('username', required=True)
+@click.argument('password', required=True)
 def login(username, password):
     """
     Login command with username and password.
@@ -1234,11 +1233,11 @@ cli.add_command(login)
 
 @click.command('invite', help='Create a new invite for registery.')
 @click.option(
-    "--json",
+    '--json',
     is_flag=True,
     default=False,
     help='Output the invite in json format if succeeds. Key is \'invite\'.')
-@click.option('--role',
+@click.option('-r', '--role', 
               multiple=True,
               help='Enter ROLE names intended as part of the invite.')
 def invite(json, role):
@@ -1250,10 +1249,21 @@ def invite(json, role):
 
 cli.add_command(invite)
 
+@click.command('revoke_invite', help='Revoke created invite.')
+@click.argument('invite', required=True)
+def revoke_invite(invite):
+    """
+    Revoke an existing invite.
+    """
+    revoke_invite_req(invite)
+
+
+cli.add_command(revoke_invite)
+
 
 @click.command('switch', help='Switch the current context.')
-@click.option("--user", default="", help='The active username to use.')
-@click.option("--namespace", default="", help='The active namespace to use.')
+@click.option('--user', default='', help='The active username to use.')
+@click.option('-ns', '--namespace', default='', help='The active namespace to use.')
 def switch(user, namespace):
     """
     Switch active context of cli.
