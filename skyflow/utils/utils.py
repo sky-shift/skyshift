@@ -10,7 +10,8 @@ from typing import Dict, List, Optional, Union
 import requests
 import yaml
 
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+from skyflow.globals import API_SERVER_CONFIG_PATH
+
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 

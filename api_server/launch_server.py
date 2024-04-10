@@ -11,7 +11,6 @@ import uvicorn
 
 from skyflow.utils.utils import generate_manager_config
 
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 
