@@ -26,9 +26,9 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
-                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS, 
-                             API_SERVER_CONFIG_PATH)
+from skyflow.globals_object import (ALL_OBJECTS,
+                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
+from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
