@@ -41,6 +41,7 @@ def unsanitize_cluster_name(value: Optional[str]) -> str:
 def generate_manager_config(host: str, port: int):
     """Generates the API server config file."""
     absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
+
     # If path exists, check if host and port are identical
     if os.path.exists(absolute_path):
         with open(absolute_path, "r") as config_file:
@@ -116,6 +117,7 @@ def load_manager_config():
         with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
                   "r") as config_file:
             config_dict = yaml.safe_load(config_file)
+
     except FileNotFoundError as error:
         raise Exception(
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."

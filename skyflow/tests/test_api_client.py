@@ -15,7 +15,7 @@ from typing import Any, Dict, Generator, List, Tuple, Union
 import pytest
 import requests
 from requests import Timeout
-
+from unittest.mock import patch
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
@@ -24,16 +24,18 @@ from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
-        setup_skyflow(temp_data_dir)
+        with patch('api_server.api_server.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"), \
+            patch('skyflow.utils.utils.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"):
+            # Kill any running sky_manager processes
+            shutdown_skyflow(temp_data_dir)
+            setup_skyflow(temp_data_dir)
 
-        yield  # Test execution happens here
+            yield  # Test execution happens here
 
-        # Stop the application and ETCD server
-        shutdown_skyflow(temp_data_dir)
+            # Stop the application and ETCD server
+            shutdown_skyflow(temp_data_dir)
 
-        print("Cleaned up temporary ETCD data directory.")
+            print("Cleaned up temporary ETCD data directory.")
 
 
 class ResponseType(Enum):

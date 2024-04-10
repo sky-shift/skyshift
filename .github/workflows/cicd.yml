@@ -63,7 +63,7 @@ jobs:
       
       # Run Tests inside Docker Container
       - name: Run tests
-        run: pytest ./skyflow/tests --ignore=./skyflow/tests/test_cli.py --ignore=./skyflow/tests/test_api_server.py
+        run: pytest ./skyflow/tests --ignore=./skyflow/tests/test_cli.py
 
       # - name: Commit and push changes
       #   run: |
