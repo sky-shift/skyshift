@@ -10,6 +10,7 @@ import yaml
 
 from api_server import launch_server
 from skyflow.utils.utils import generate_manager_config
+from skyflow.globals import API_SERVER_CONFIG_PATH
 
 
 class TestLaunchAPIServer(unittest.TestCase):
@@ -29,8 +30,8 @@ class TestLaunchAPIServer(unittest.TestCase):
 
         # Remove the API_SERVER_CONFIG_PATH file if it exists
         if os.path.exists(
-                os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH)):
-            os.remove(os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH))
+                os.path.expanduser(API_SERVER_CONFIG_PATH)):
+            os.remove(os.path.expanduser(API_SERVER_CONFIG_PATH))
 
         test_host = "127.0.0.1"
         test_port = 8080
@@ -55,7 +56,7 @@ class TestLaunchAPIServer(unittest.TestCase):
 
         # Build the expected absolute file path
         expected_file_path = os.path.expanduser(
-            launch_server.API_SERVER_CONFIG_PATH)
+            API_SERVER_CONFIG_PATH)
 
         # Verify if the directories were created
         mock_makedirs.assert_called_with(os.path.dirname(expected_file_path),
