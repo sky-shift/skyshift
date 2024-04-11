@@ -18,7 +18,7 @@ from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table, 
-                                   register_user, login_user, create_invite, switch_user,
+                                   register_user, login_user, create_invite, switch_context,
                                    stream_cli_object)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
@@ -1375,6 +1375,7 @@ def register(username, email, password, invite):
     """
     Register a new user.
     """
+    print("invite is " + invite)
     register_user(username, email, password, invite)
 
 cli.add_command(register)
@@ -1392,22 +1393,28 @@ def login(username, password):
 cli.add_command(login)
 
 @click.command('invite', help='Create a new invite for registery.')
-@click.option("--is_json", default = False, help='Output the invite in json format if succeeds. Key is \'invite\'.')
-def invite(is_json):
+@click.option("--json", is_flag=True, default = False, help='Output the invite in json format if succeeds. Key is \'invite\'.')
+@click.option('--role', multiple=True, help='Enter ROLE names intended as part of the invite.')
+def invite(json, role):
     """
     Create a new invite.
     """
-    create_invite(is_json)
+    create_invite(json, list(role))
 
 cli.add_command(invite)
 
-@click.command('switch', help='Switch the active user to USERNAME. \' switch USERNAME \'')
-@click.argument("username", required=True)
-def switch(username):
+@click.command('switch', help='Switch the current context.')
+@click.option("--user", default = "", help='The active username to use.')
+@click.option("--namespace", default = "", help='The active namespace to use.')
+def switch(user, namespace):
     """
-    Switch active user of cli.
+    Switch active context of cli.
     """
-    switch_user(username)
+    if not user and not namespace:
+        click.echo(f"No new context is specified. Nothing is changed.")
+        return
+    
+    switch_context(user, namespace)
 
 cli.add_command(switch)
 

@@ -15,10 +15,10 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 CACHED_SECRET_KEY = None
 
 
-def create_access_token(data: dict,
-                        secret_key: str,
-                        expires_delta: Optional[timedelta] = None):
-    """Creates access token for users."""
+def create_jwt(data: dict,
+                    secret_key: str,
+                    expires_delta: Optional[timedelta] = None):
+    """Creates jwt of DATA based on SECRET_KEY."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -34,19 +34,14 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     """Authenticates the request using the provided token.
 
     If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
-    global CACHED_SECRET_KEY  # pylint: disable=global-statement
+    
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if CACHED_SECRET_KEY is None:
-        secret_key = load_manager_config()["api_server"]["secret"]
-        CACHED_SECRET_KEY = secret_key
-    else:
-        secret_key = CACHED_SECRET_KEY
     try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+        payload = authenticate_jwt(token=token)
         username: str = payload.get("sub", None)
         if username is None:
             raise credentials_exception
@@ -60,6 +55,21 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     except jwt.PyJWTError as error:
         raise credentials_exception from error
     return username
+
+def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
+    """Authenticates if the token is signed by API Server."""
+    global CACHED_SECRET_KEY  # pylint: disable=global-statement
+
+    if CACHED_SECRET_KEY is None:
+        secret_key = load_manager_config()["api_server"]["secret"]
+        CACHED_SECRET_KEY = secret_key
+    else:
+        secret_key = CACHED_SECRET_KEY
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+    except jwt.PyJWTError as error:
+        raise error
+    return payload
 
 
 def load_manager_config():

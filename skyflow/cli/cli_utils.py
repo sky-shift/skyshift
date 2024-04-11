@@ -469,10 +469,10 @@ def login_user(username: str, password: str):
     except APIException as error:
         raise click.ClickException(f"Failed to login: {error.detail}")
     
-def create_invite(json_flag):
+def create_invite(json_flag, roles):
     users_api = fetch_api_client_object("user")
     try:
-        response = users_api.create_invite()
+        response = users_api.create_invite([])
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
             raise click.ClickException(f"Failed to create invite: {error_details}")
@@ -486,17 +486,24 @@ def create_invite(json_flag):
     except APIException as error:
             raise click.ClickException(error['error'])
     
-def switch_user(username):
+def switch_context(username, namespace):
     manager_config = load_manager_config()
+    
+    if namespace:
+        manager_config['metadata']["namespace"] = namespace
+        update_manager_config(manager_config)
+        click.echo(f"Updated active namespace at {API_SERVER_CONFIG_PATH}.")
 
-    if 'users' not in manager_config:
+    if username:
+        if 'users' not in manager_config:
+            raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
+
+        for user in manager_config['users']:
+            if user['name'] == username:
+                manager_config['current_user'] = username
+                update_manager_config(manager_config)
+                click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
+                return
+             
         raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
-
-    for user in manager_config['users']:
-        if user['name'] == username:
-            manager_config['current_user'] = username
-            update_manager_config(manager_config)
-            click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
-            return
-        
-    raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
+    

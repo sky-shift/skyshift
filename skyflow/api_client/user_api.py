@@ -3,6 +3,7 @@ User API.
 """
 import requests
 from skyflow.api_client.object_api import NoNamespaceObjectAPI
+from typing import List
 
 class UserAPI(NoNamespaceObjectAPI):
     """
@@ -19,7 +20,7 @@ class UserAPI(NoNamespaceObjectAPI):
                 "email": email,
                 "password": password,
             },
-            "invite": invite
+            "invite_token": invite
         }
         response = requests.post(f"{self.base_url}/register_user", json=data)
         return response
@@ -32,8 +33,9 @@ class UserAPI(NoNamespaceObjectAPI):
         response = requests.post(f"{self.base_url}/token", data=data)
         return response
     
-    def create_invite(self):
+    def create_invite(self, roles: List[str] = []):
         data = {
+            "roles": roles,
         }
         response = requests.post(f"{self.base_url}/invite", json=data, headers=self.auth_headers)
         return response

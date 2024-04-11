@@ -921,7 +921,7 @@ def get_invite_helper(runner):
     cmd_login = ['login', name, password]
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
-    cmd_invite = ['invite', '--is_json', True]
+    cmd_invite = ['invite', '--json']
     result_invite = runner.invoke(cli, cmd_invite)
     invite = ""
     if result_invite.exit_code == 0:
@@ -929,7 +929,7 @@ def get_invite_helper(runner):
         invite = data.get("invite")
     return invite
 
-def test_create_user_success(runner):  
+def test_create_user_success(runner): 
     name = "user_success"
     email = "test@email.com"
     password = "password"
@@ -1014,7 +1014,7 @@ def test_create_invite_failure(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', 'user_inviter_fail']
+    cmd_switch = ['switch', '--user', 'user_inviter_fail']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1023,7 +1023,7 @@ def test_create_invite_failure(runner):
     assert result_invite.exit_code != 0
     
     #make sure active is changed back to admin
-    cmd_switch = ['switch', 'admin']
+    cmd_switch = ['switch', '--user', 'admin']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1034,7 +1034,7 @@ def test_switch_user(runner):
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
 
-    cmd_switch = ['switch', 'user_cannot_invite']
+    cmd_switch = ['switch', '--user', 'user_cannot_invite']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code != 0
 
@@ -1042,7 +1042,7 @@ def test_switch_user(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', 'user_cannot_invite']
+    cmd_switch = ['switch', '--user', 'user_cannot_invite']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1050,7 +1050,7 @@ def test_switch_user(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code != 0
 
-    cmd_switch = ['switch', 'admin']
+    cmd_switch = ['switch', '--user', 'admin']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1058,7 +1058,7 @@ def test_switch_user(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code == 0
 
-    cmd_switch_fail = ['switch', 'not_exist']
+    cmd_switch_fail = ['switch', '--user', 'not_exist']
     result_switch_fail = runner.invoke(cli, cmd_switch_fail)
     assert result_switch_fail.exit_code != 0
     
