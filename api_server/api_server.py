@@ -1287,11 +1287,11 @@ def startup():
     signal.signal(signal.SIGINT, lambda x, y: sys.exit())
 
 
-app = FastAPI(debug=True)
+app_launcher = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
-api_server = APIServer(app=app)
-app.include_router(api_server.router)
-app.add_event_handler("startup", startup)
-app.add_event_handler("startup", check_or_wait_initialization)
-app.add_event_handler("shutdown", remove_flag_file)
+api_server = APIServer(app=app_launcher)
+app_launcher.include_router(api_server.router)
+app_launcher.add_event_handler("startup", startup)
+app_launcher.add_event_handler("startup", check_or_wait_initialization)
+app_launcher.add_event_handler("shutdown", remove_flag_file)
