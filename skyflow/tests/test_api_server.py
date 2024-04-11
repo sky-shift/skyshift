@@ -46,15 +46,15 @@ def apply_modification(base, path, value):
 class TestAPIServer(unittest.TestCase):
 
     @patch('api_server.api_server.ETCDClient')
-    @patch('api_server.api_server.APIServer._authenticate_role')
-    def setUp(self, mock_authenticate_role, mock_etcd_client):
+    @patch('api_server.api_server.APIServer._authenticate_action')
+    def setUp(self, mock_authenticate_action, mock_etcd_client):
         """
         Set up the test environment by mocking the ETCDClient and 
         initializing the APIServer.
         """
         self.mock_etcd_client_instance = mock_etcd_client.return_value
         self.api_server = APIServer(app="test")
-        self.api_server._authenticate_role = MagicMock(return_value=True)
+        self.api_server._authenticate_action = MagicMock(return_value=True)
         self.api_server._check_cluster_connectivity = MagicMock(
             return_value=True)
 

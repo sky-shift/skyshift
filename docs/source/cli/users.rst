@@ -34,6 +34,7 @@ This command creates a new account named ``newUser`` with password ``securePassw
 
 .. note:: `USERNAME` should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
 .. note:: `PASSWORD` must be 5 or more characters.
+.. note:: The invite and associated roles are checked again with sender's access rights at the time of account creation.
 
 Login to an Account
 ---------------------------

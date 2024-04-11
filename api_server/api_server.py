@@ -4,26 +4,22 @@ Specifies the API server and its endpoints for Skyflow.
 """
 import json
 import os
+import secrets
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import partial
-from typing import List
+from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
 
 import jsonpatch
+import jwt
 import yaml
-from api_utils import authenticate_jwt  # pylint: disable=import-error
-from api_utils import authenticate_request  # pylint: disable=import-error
-from api_utils import create_jwt  # pylint: disable=import-error
-from api_utils import generate_nonce  # pylint: disable=import-error
-from api_utils import load_manager_config  # pylint: disable=import-error
-from api_utils import update_manager_config  # pylint: disable=import-error
 from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
                      Request, WebSocket)
 from fastapi.responses import StreamingResponse
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
@@ -40,6 +36,100 @@ from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
 from skyflow.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
 from skyflow.templates.user_template import User
 from skyflow.utils import load_object, sanitize_cluster_name
+
+###  Utility functions for the API server.
+
+# Assumes authentication tokens are JWT tokens
+OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
+API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+CACHED_SECRET_KEY = None
+
+
+def create_jwt(data: dict,
+               secret_key: str,
+               expires_delta: Optional[timedelta] = None):
+    """Creates jwt of DATA based on SECRET_KEY."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        # 10 years
+        expire = datetime.now(timezone.utc) + timedelta(minutes=315360000)
+    to_encode.update({"exp": expire})
+    encoded_jwt: str = jwt.encode(to_encode, secret_key, algorithm='HS512')
+    return encoded_jwt
+
+
+def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
+    """Authenticates the request using the provided token.
+
+    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
+
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = authenticate_jwt(token=token)
+        username: str = payload.get("sub", None)
+        if username is None:
+            raise credentials_exception
+        # Check if time out
+        if datetime.now(timezone.utc) >= datetime.fromtimestamp(
+                payload.get("exp"), tz=timezone.utc):  #type: ignore
+            raise HTTPException(
+                status_code=401,
+                detail="Token expired. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except jwt.PyJWTError as error:
+        raise credentials_exception from error
+    return username
+
+
+def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
+    """Authenticates if the token is signed by API Server."""
+    global CACHED_SECRET_KEY  # pylint: disable=global-statement
+
+    if CACHED_SECRET_KEY is None:
+        secret_key = load_manager_config()["api_server"]["secret"]
+        CACHED_SECRET_KEY = secret_key
+    else:
+        secret_key = CACHED_SECRET_KEY
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+    except jwt.PyJWTError as error:
+        raise error
+    return payload
+
+
+def load_manager_config():
+    """Loads the API server config file."""
+    try:
+        with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
+                  "r") as config_file:
+            config_dict = yaml.safe_load(config_file)
+    except FileNotFoundError as error:
+        raise Exception(
+            f"API server config file not found at {API_SERVER_CONFIG_PATH}."
+        ) from error
+    return config_dict
+
+
+def update_manager_config(config: dict):
+    """Updates the API server config file."""
+    with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
+        yaml.dump(config, config_file)
+
+
+def generate_nonce(length=32):
+    """Generates a secure nonce."""
+    return secrets.token_hex(length)
+
+
+# ==============================================================================
+###  API Server Code.
 
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -235,42 +325,114 @@ class APIServer:
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
 
-    def _authenticate_role(self, action: str, user: str, object_type: str,
-                           namespace: str) -> bool:
-        """Authenticates the role of a user based on the Role objects."""
+    def _authenticate_action(self, action: str, user: str, object_type: str,
+                             namespace: str) -> bool:
+        """Authenticates the role of a user based on intended action."""
 
-        def _verify_subset(key: str, values: List[str]) -> bool:
-            return "*" in values or key in values
-
-        is_namespace = object_type in NAMESPACED_OBJECTS
         roles = self.etcd_client.read_prefix("roles")
         for role in roles:
-            if user not in role['users']:
-                continue
-            if is_namespace and not _verify_subset(
-                    namespace, role['metadata']['namespaces']):
-                continue
-            rules = role['rules']
-            for rule in rules:
-                if _verify_subset(action, rule['actions']) and _verify_subset(
-                        object_type, rule['resources']):
-                    return True
+            if self._authenticate_action_with_role(action, user, object_type,
+                                                   namespace, role):
+                return True
 
         raise HTTPException(
             status_code=401,
             detail="Unauthorized access. User does not have the required role."
         )
 
+    # pylint: disable=too-many-arguments
+    @staticmethod
+    def _authenticate_action_with_role(action: str, user: str,
+                                       object_type: str, namespace: str,
+                                       role: Dict) -> bool:
+        """Return if USER on perform ACTION based on ROLE."""
+
+        def _verify_subset(key: str, values: List[str]) -> bool:
+            return "*" in values or key in values
+
+        if user not in role['users']:
+            return False
+
+        is_namespace = object_type in NAMESPACED_OBJECTS
+        if is_namespace and not _verify_subset(namespace,
+                                               role['metadata']['namespaces']):
+            return False
+
+        rules = role['rules']
+        for rule in rules:
+            if _verify_subset(action, rule['actions']) and _verify_subset(
+                    object_type, rule['resources']):
+                return True
+
+        return False
+
     def _authenticate_by_role_name(self, user: str, role_name: str) -> bool:
-        """Authenticates the role of a user based on the Role object name."""
+        """Authenticates the role of a user based on the Role object name. """
         try:
             role = self._fetch_etcd_object(f"roles/{role_name}")
+            return self._authenticate_by_role(user, role)
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=503,
                 detail='An error occured while authenticating user') from error
 
-        return user in role['users']
+    def _authenticate_by_role(
+            self,
+            user: str,
+            role: Dict,
+            assumed_roles: Optional[List[Dict]] = None) -> bool:
+        """Authenticates USER have superset of access of the ROLE. """
+
+        if user in role['users']:
+            return True
+
+        if not assumed_roles:
+            assumed_roles = self._get_all_roles(user)
+
+        rules = role['rules']
+        namespaces = role["metadata"]["namespaces"]
+        for namespace in namespaces:
+            for rule in rules:
+                # Check if all actions permitted by RULE is also permitted for USER
+                resources = rule["resources"]
+                actions = rule["actions"]
+                for rsc in resources:
+                    for act in actions:
+                        if not any(
+                                self._authenticate_action_with_role(
+                                    act, user, rsc, namespace, assumed_role)
+                                for assumed_role in assumed_roles):
+                            raise HTTPException(
+                                status_code=401,
+                                detail=
+                                "Unauthorized access. User does not have the required role."
+                            )
+        return True
+
+    def _authenticate_by_role_names(self, user: str,
+                                    role_names: List[str]) -> bool:
+        """Authenticates USER have superset of access of the ROLE_NAMES. """
+        assumed_roles = self._get_all_roles(user)
+        roles = []
+        try:
+            for role_name in role_names:
+                roles.append(self._fetch_etcd_object(f"roles/{role_name}"))
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=503,
+                detail='An error occured while authenticating user') from error
+
+        return all(
+            self._authenticate_by_role(user, role, assumed_roles)
+            for role in roles)
+
+    def _get_all_roles(self, user: str) -> List[Dict]:
+        all_roles = []
+        roles = self.etcd_client.read_prefix("roles")
+        for role in roles:
+            if user in role['users']:
+                all_roles.append(role)
+        return all_roles
 
     def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
         """Checks if the cluster is accessible."""
@@ -335,12 +497,13 @@ class APIServer:
         return access_dict
 
     # Authentication/RBAC Methods
+    # pylint: disable=too-many-branches
     def register_user(self, user: User, invite_token: str = Body(...)):
         """Registers a user into Skyflow."""
         try:
             invite = authenticate_jwt(invite_token)
             if datetime.now(timezone.utc) >= datetime.fromtimestamp(
-                    invite.get("exp"), tz=timezone.utc):
+                    cast(float, invite.get("exp")), tz=timezone.utc):
                 raise HTTPException(
                     status_code=401,
                     detail="Invite token expired. Please ask for a new one.",
@@ -350,15 +513,39 @@ class APIServer:
             #Check invite(nonce) exist
             invite_store = self._fetch_etcd_object(
                 f"invites/{invite['nonce']}")
-            if not invite_store["revoked"] and not invite_store["used"]:
-                invite_store["used"] = True
-                self.etcd_client.write(f'invites/{invite.get("nonce")}',
-                                       invite_store)
-            else:
+            if invite_store["revoked"] or invite_store["used"]:
                 raise HTTPException(
                     status_code=404,
                     detail="Invite is no longer invalid.",
                 )
+
+            inviter = invite['inviter']
+
+            # inviter being "" is special user for setting up admin
+            if inviter:
+                try:
+                    self._fetch_etcd_object(f"users/{inviter}")
+                except HTTPException as error:
+                    invite_store["revoked"] = True
+                    self.etcd_client.write(f'invites/{invite.get("nonce")}',
+                                           invite_store)
+                    raise HTTPException(
+                        status_code=404,
+                        detail=
+                        "Inviter is no longer invalid. Invalidating the invite.",
+                    ) from error
+
+                if not self._authenticate_by_role_name(inviter,
+                                                       'inviter-role'):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=
+                        "Inviter can no longer invite users. Invite status not changed.",
+                    )
+
+            invite_store["used"] = True
+            self.etcd_client.write(f'invites/{invite.get("nonce")}',
+                                   invite_store)
 
         except HTTPException as error:
             if error.status_code == 404:
@@ -383,17 +570,24 @@ class APIServer:
 
                 #Add newly created user to all the granted roles
                 role_message = ""
-                for role in invite["granted_roles"]:
+                assumed_roles = self._get_all_roles(inviter)
+                for granted_role in invite["granted_roles"]:
                     try:
-                        role_dict = self._fetch_etcd_object(f"roles/{role}")
-                        role_dict["users"].append(user.username)
-                        self.etcd_client.write(
-                            f"roles/{role}",
-                            role_dict,
-                        )
-                        role_message += f"Sucessfully added user to role {role} \n"
+                        role_dict = self._fetch_etcd_object(
+                            f"roles/{granted_role}")
+                        # inviter being "" is special user for setting up admin
+                        if not inviter or self._authenticate_by_role(
+                                inviter, role_dict, assumed_roles):
+                            role_dict["users"].append(user.username)
+                            self.etcd_client.write(
+                                f"roles/{granted_role}",
+                                role_dict,
+                            )
+                            role_message += f"Sucessfully added user to role {granted_role}.\n"
+                        else:
+                            role_message += f"Inviter can no longer added new user to role {granted_role}.\n"  # pylint: disable=C0301
                     except HTTPException as error:
-                        role_message += f"Unusual error has occurred when trying to add user to role {role} \n"  # pylint: disable=C0301
+                        role_message += f"Unusual error has occurred when trying to add user to role {granted_role}.\n"  # pylint: disable=C0301
 
                 return {
                     "message":
@@ -431,45 +625,25 @@ class APIServer:
                 detail="Cannot create invite. User doesn't exist",
             ) from error
 
-        if not self._authenticate_by_role_name(username, 'inviter-role'):
+        try:
+            if not self._authenticate_by_role_name(username, 'inviter-role'):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Not authorized to create invite.",
+                )
+        except Exception as error:
             raise HTTPException(
-                status_code=401,
-                detail="Not authorized to create invite.",
-            )
+                status_code=404,
+                detail="Something went wrong when authenticating the user.",
+            ) from error
 
         #Check if all roles are grantable
         #@TODO:(colin): Replace once we introduce group admin
-        # pylint: disable=too-many-nested-blocks
-        for to_grant_role_name in roles:
-            try:
-                role = self._fetch_etcd_object(f"roles/{to_grant_role_name}")
-                if username in role['users']:
-                    continue
-                rules = role['rules']
-                namespaces = role["metadata"]["namespaces"]
-                for namespace in namespaces:
-                    for rule in rules:
-                        # Check if all actions permitted by RULE is also permitted for USER
-                        resources = rule["resources"]
-                        actions = rule["actions"]
-                        for rsc in resources:
-                            for act in actions:
-                                if not self._authenticate_role(
-                                        action=act,
-                                        user=username,
-                                        object_type=rsc,
-                                        namespace=namespace):
-                                    raise HTTPException(
-                                        status_code=401,
-                                        detail=
-                                        "Unauthorized access. User does not have the required role."
-                                    )
-            except Exception as error:
-                raise HTTPException(
-                    status_code=401,
-                    detail=
-                    "Unauthorized access. User does not have the required role."
-                ) from error
+        if not self._authenticate_by_role_names(username, roles):
+            raise HTTPException(
+                status_code=401,
+                detail=
+                "Unauthorized access. User does not have the required role.")
 
         nonce = generate_nonce()
         self.etcd_client.write(f"invites/{nonce}", {
@@ -545,8 +719,8 @@ class APIServer:
         async def _create_object(request: Request,
                                  namespace: str = DEFAULT_NAMESPACE,
                                  user: str = Depends(authenticate_request)):
-            self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.DELETE.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -610,8 +784,8 @@ class APIServer:
         """
         Lists all objects of a given type.
         """
-        self._authenticate_role(ActionEnum.LIST.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.LIST.value, user, object_type,
+                                  namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -642,8 +816,8 @@ class APIServer:
         """
         Returns a specific object, raises Error otherwise.
         """
-        self._authenticate_role(ActionEnum.GET.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.GET.value, user, object_type,
+                                  namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -673,8 +847,8 @@ class APIServer:
                 user: str = Depends(authenticate_request),
         ):
             """Processes request to update an object."""
-            self._authenticate_role(ActionEnum.UPDATE.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.UPDATE.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -743,8 +917,8 @@ class APIServer:
                 namespace: str = DEFAULT_NAMESPACE,
                 user: str = Depends(authenticate_request),
         ):
-            self._authenticate_role(ActionEnum.PATCH.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.PATCH.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -802,7 +976,8 @@ class APIServer:
                  namespace: str = DEFAULT_NAMESPACE,
                  user: str = Depends(authenticate_request)):
         """Returns logs for a given job."""
-        self._authenticate_role(ActionEnum.GET.value, user, "jobs", namespace)
+        self._authenticate_action(ActionEnum.GET.value, user, "jobs",
+                                  namespace)
         # Fetch cluster/clusters where job is running.
         job_link_header = f"jobs/{namespace}/{object_name}"
         job_dict = self._fetch_etcd_object(job_link_header)
@@ -825,8 +1000,8 @@ class APIServer:
         user: str = Depends(authenticate_request),
     ):  # pylint: disable=too-many-arguments
         """Deletes an object of a given type."""
-        self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.DELETE.value, user, object_type,
+                                  namespace)
         if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
@@ -922,8 +1097,8 @@ class APIServer:
             path_params.get('command').replace("%-2-F-%2-", "/"))
         exec_command = json.loads(exec_command_json)
 
-        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
-                                namespace)
+        self._authenticate_action(ActionEnum.UPDATE.value, user, "jobs",
+                                  namespace)
 
         await websocket.accept()
 

@@ -1199,7 +1199,10 @@ Password must be 5 or more characters.
                '  \n ')
 @click.argument('username', required=True)
 @click.argument('password', required=True)
-@click.option('--invite', '-inv', required=True, help='Invite key sent by admin.')
+@click.option('--invite',
+              '-inv',
+              required=True,
+              help='Invite key sent by admin.')
 @click.option('--email',
               default=None,
               required=False,
