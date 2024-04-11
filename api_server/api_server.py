@@ -41,7 +41,6 @@ from skyflow.utils import load_object, sanitize_cluster_name
 
 # Assumes authentication tokens are JWT tokens
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 CACHED_SECRET_KEY = None
 
 
@@ -176,7 +175,7 @@ class APIServer:
     interacting with Skyflow objects. Supports CRUD operations on all objects.
     """
 
-    def __init__(self, app, etcd_port=ETCD_PORT):
+    def __init__(self, app, etcd_port=ETCD_PORT):  # pylint: disable=redefined-outer-name
         self.app = app
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
@@ -1287,11 +1286,11 @@ def startup():
     signal.signal(signal.SIGINT, lambda x, y: sys.exit())
 
 
-app_launcher = FastAPI(debug=True)
+app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
-api_server = APIServer(app=app_launcher)
-app_launcher.include_router(api_server.router)
-app_launcher.add_event_handler("startup", startup)
-app_launcher.add_event_handler("startup", check_or_wait_initialization)
-app_launcher.add_event_handler("shutdown", remove_flag_file)
+api_server = APIServer(app=app)
+app.include_router(api_server.router)
+app.add_event_handler("startup", startup)
+app.add_event_handler("startup", check_or_wait_initialization)
+app.add_event_handler("shutdown", remove_flag_file)
