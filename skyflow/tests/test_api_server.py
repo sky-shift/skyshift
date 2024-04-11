@@ -12,8 +12,8 @@ from pydantic import ValidationError
 
 from api_server import launch_server
 from skyflow.etcd_client.etcd_client import KeyNotFoundError
-from skyflow.globals_object import ALL_OBJECTS, NAMESPACED_OBJECTS
 from skyflow.globals import DEFAULT_NAMESPACE
+from skyflow.globals_object import ALL_OBJECTS, NAMESPACED_OBJECTS
 from skyflow.templates import Namespace, NamespaceMeta
 
 launch_server.check_and_install_etcd()

@@ -26,9 +26,9 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals_object import (ALL_OBJECTS,
-                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
-from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE)
+from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE
+from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
+                                    NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
@@ -60,6 +60,22 @@ def create_jwt(data: dict,
     return encoded_jwt
 
 
+def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
+    """Authenticates if the token is signed by API Server."""
+    global CACHED_SECRET_KEY  # pylint: disable=global-statement
+
+    if CACHED_SECRET_KEY is None:
+        secret_key = load_manager_config()["api_server"]["secret"]
+        CACHED_SECRET_KEY = secret_key
+    else:
+        secret_key = CACHED_SECRET_KEY
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+    except jwt.PyJWTError as error:
+        raise error
+    return payload
+
+
 def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     """Authenticates the request using the provided token.
 
@@ -88,22 +104,6 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     return username
 
 
-def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
-    """Authenticates if the token is signed by API Server."""
-    global CACHED_SECRET_KEY  # pylint: disable=global-statement
-
-    if CACHED_SECRET_KEY is None:
-        secret_key = load_manager_config()["api_server"]["secret"]
-        CACHED_SECRET_KEY = secret_key
-    else:
-        secret_key = CACHED_SECRET_KEY
-    try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
-    except jwt.PyJWTError as error:
-        raise error
-    return payload
-
-
 def load_manager_config():
     """Loads the API server config file."""
     try:
@@ -126,95 +126,6 @@ def update_manager_config(config: dict):
 def generate_nonce(length=32):
     """Generates a secure nonce."""
     return secrets.token_hex(length)
-
-
-# ==============================================================================
-###  API Server Code.
-
-# Hashing password
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-#@TODO:(acuadron): retrieve these from an environment variable (maybe populate through TF)
-ADMIN_USER = "admin"
-ADMIN_PWD = "admin"
-
-# Assumes authentication tokens are JWT tokens
-OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
-CACHED_SECRET_KEY = None
-
-
-def create_access_token(data: dict,
-                        secret_key: str,
-                        expires_delta: Optional[timedelta] = None):
-    """Creates access token for users."""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        # 10 years
-        expire = datetime.utcnow() + timedelta(minutes=315360000)
-    to_encode.update({"exp": expire})
-    encoded_jwt: str = jwt.encode(to_encode, secret_key, algorithm='HS512')
-    return encoded_jwt
-
-
-def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
-    """Authenticates the request using the provided token.
-
-    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
-    global CACHED_SECRET_KEY  # pylint: disable=global-statement
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    if CACHED_SECRET_KEY is None:
-        secret_key = load_manager_config()["api_server"]["secret"]
-        CACHED_SECRET_KEY = secret_key
-    else:
-        secret_key = CACHED_SECRET_KEY
-    try:
-        payload = jwt.decode(token, secret_key, algorithms=['HS512'])
-        username: str = payload.get("sub", None)
-        if username is None:
-            raise credentials_exception
-        # Check if time out
-        if datetime.utcnow() >= datetime.fromtimestamp(payload.get("exp")):
-            raise HTTPException(
-                status_code=401,
-                detail="Token expired. Please log in again.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    except jwt.PyJWTError as error:
-        raise credentials_exception from error
-    return username
-
-
-def load_manager_config():
-    """Loads the API server config file."""
-    try:
-        with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
-                  "r") as config_file:
-            config_dict = yaml.safe_load(config_file)
-    except FileNotFoundError as error:
-        raise Exception(
-            f"API server config file not found at {API_SERVER_CONFIG_PATH}."
-        ) from error
-    return config_dict
-
-
-def update_manager_config(config: dict):
-    """Updates the API server config file."""
-    with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
-        yaml.dump(config, config_file)
-
-
-class User(BaseModel):
-    """Represents a user for SkyFlow."""
-    username: str = Field(..., min_length=4, max_length=50, pattern="^[a-zA-Z0-9_]+$")
-    email: Optional[EmailStr] = None 
-    password: str = Field(..., min_length=5)
-    invite: Optional[str] = None
 
 
 def check_or_wait_initialization():
@@ -244,6 +155,17 @@ def remove_flag_file():
     completion_flag_path = "/tmp/api_server_init_done.flag"
     if os.path.exists(completion_flag_path):
         os.remove(completion_flag_path)
+
+
+# ==============================================================================
+###  API Server Code.
+
+# Hashing password
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+#@TODO:(acuadron): retrieve these from an environment variable (maybe populate through TF)
+ADMIN_USER = "admin"
+ADMIN_PWD = "admin"
 
 
 class APIServer:

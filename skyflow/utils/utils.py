@@ -12,7 +12,6 @@ import yaml
 
 from skyflow.globals import API_SERVER_CONFIG_PATH
 
-
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
 
