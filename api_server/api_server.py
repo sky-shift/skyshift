@@ -9,7 +9,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from functools import partial
-from typing import List, Optional, Optional
+from typing import List, Optional
 from urllib.parse import unquote
 
 import jsonpatch
@@ -25,7 +25,6 @@ from api_utils import generate_nonce  # pylint: disable=import-error
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -39,6 +38,7 @@ from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
 from skyflow.templates.rbac_template import ActionEnum
+from skyflow.templates.user_template import User
 from skyflow.utils import load_object, sanitize_cluster_name
 
 # Hashing password
@@ -186,9 +186,9 @@ class APIServer:
             f"invites/{admin_invite}",
             {},
         )
-        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='admin@admin.com', invite = admin_invite)
+        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='admin@admin.com')
         try:
-            self.register_user(admin_user)
+            self.register_user(admin_user, admin_invite)
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
@@ -322,12 +322,12 @@ class APIServer:
         return access_dict
 
     # Authentication/RBAC Methods
-    def register_user(self, user: User):
+    def register_user(self, user: User, invite: str = Body(...)):
         """Registers a user into Skyflow."""
         try:
-            invite_obj = self._fetch_etcd_object(f"invites/{user.invite}")
+            invite_obj = self._fetch_etcd_object(f"invites/{invite}")
             #TODO: add relavent logic after deciding what is in invite
-            self.etcd_client.delete(f"invites/{user.invite}")
+            self.etcd_client.delete(f"invites/{invite}")
         except HTTPException as error:
             if error.status_code == 404:
                 raise HTTPException(

@@ -14,9 +14,11 @@ class UserAPI(NoNamespaceObjectAPI):
 
     def register_user(self, username: str, email: str, password: str, invite: str):
         data = {
-            "username": username,
-            "email": email,
-            "password": password,
+            "user": {
+                "username": username,
+                "email": email,
+                "password": password,
+            },
             "invite": invite
         }
         response = requests.post(f"{self.base_url}/register_user", json=data)
