@@ -1,10 +1,10 @@
 """
 Utils for Skyflow CLI.
 """
+import json as json_lib
 from typing import Dict, List, Optional, Union
 
 import click
-import json as json_lib
 from tabulate import tabulate
 
 from skyflow import utils
@@ -19,7 +19,8 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
                                Namespace, NamespaceList, ObjectList, Service,
                                ServiceList, TaskStatusEnum)
-from skyflow.utils.utils import load_manager_config, update_manager_config, API_SERVER_CONFIG_PATH
+from skyflow.utils.utils import (API_SERVER_CONFIG_PATH, load_manager_config,
+                                 update_manager_config)
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -421,74 +422,91 @@ def print_role_table(roles_list):
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
 
+
 def register_user(username: str, email: str, password: str, invite: str):
     """
     Register user in API Server.
     """
-    users_api = fetch_api_client_object("user")
-    
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+
     try:
         response = users_api.register_user(username, email, password, invite)
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
-            raise click.ClickException(f"Failed to register user: {error_details}")
-        else:
-            click.echo("Registration successful.")
+            raise click.ClickException(
+                f"Failed to register user: {error_details}")
+
+        click.echo("Registration successful.")
     except APIException as error:
-        raise click.ClickException(f"Failed to register user: {error.detail}")
-    
+        raise click.ClickException(f"Failed to register user: {error}")
+
+
 def login_user(username: str, password: str):
     """
-    Send login request to API Server; access token stored locally if succeeds. 
+    Send login request to API Server; access token stored locally if succeeds.
     """
-    users_api = fetch_api_client_object("user")
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
     try:
         response = users_api.login_user(username, password)
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
             raise click.ClickException(f"Failed to login: {error_details}")
-        else:
-            data = response.json()
-            access_token = data.get("access_token")
 
-            # Store the access token to local manager config
-            manager_config = load_manager_config()
-            found_user = False
-            if 'users' not in manager_config:
-                manager_config['users'] = []
-            for user in manager_config['users']:
-                if user['name'] == username:
-                    user['access_token'] = access_token
-                    found_user = True
-                    break
-            if not found_user:
-                manager_config['users'].append({'name': username, 'access_token': access_token})
+        data = response.json()
+        access_token = data.get("access_token")
 
-            update_manager_config(manager_config)
-            click.echo(f"Login successful. Access token is stored at {API_SERVER_CONFIG_PATH}.")
+        # Store the access token to local manager config
+        manager_config = load_manager_config()
+        found_user = False
+        if 'users' not in manager_config:
+            manager_config['users'] = []
+        for user in manager_config['users']:
+            if user['name'] == username:
+                user['access_token'] = access_token
+                found_user = True
+                break
+        if not found_user:
+            manager_config['users'].append({
+                'name': username,
+                'access_token': access_token
+            })
+
+        update_manager_config(manager_config)
+        click.echo(
+            f"Login successful. Access token is stored at {API_SERVER_CONFIG_PATH}."
+        )
     except APIException as error:
-        raise click.ClickException(f"Failed to login: {error.detail}")
-    
+        raise click.ClickException(f"Failed to login: {error}")
+
+
 def create_invite(json_flag, roles):
-    users_api = fetch_api_client_object("user")
+    """
+    Send create invite request to API Server with the ROLES as to be granted.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
     try:
         response = users_api.create_invite(roles)
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
-            raise click.ClickException(f"Failed to create invite: {error_details}")
+            raise click.ClickException(
+                f"Failed to create invite: {error_details}")
+
+        data = response.json()
+        if json_flag:
+            click.echo(json_lib.dumps(data))
         else:
-            data = response.json()
-            if json_flag:
-                click.echo(json_lib.dumps(data))
-            else:
-                invite = data.get("invite")
-                click.echo(f"Invitation created successfully. Invite: {invite}")
+            invite = data.get("invite")
+            click.echo(f"Invitation created successfully. Invite: {invite}")
     except APIException as error:
-            raise click.ClickException(error['error'])
-    
+        raise click.ClickException(f"Failed to create invite: {error}")
+
+
 def switch_context(username, namespace):
+    """
+    Switch local CLI active context.
+    """
     manager_config = load_manager_config()
-    
+
     if namespace:
         manager_config['metadata']["namespace"] = namespace
         update_manager_config(manager_config)
@@ -496,7 +514,9 @@ def switch_context(username, namespace):
 
     if username:
         if 'users' not in manager_config:
-            raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
+            raise click.ClickException(
+                f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
+            )
 
         for user in manager_config['users']:
             if user['name'] == username:
@@ -504,6 +524,7 @@ def switch_context(username, namespace):
                 update_manager_config(manager_config)
                 click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
                 return
-             
-        raise click.ClickException(f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}.")
-    
+
+        raise click.ClickException(
+            f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
+        )

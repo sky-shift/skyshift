@@ -1,11 +1,11 @@
 """Utility functions for the API server."""
 import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
 import jwt
 import yaml
-import secrets
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
@@ -16,8 +16,8 @@ CACHED_SECRET_KEY = None
 
 
 def create_jwt(data: dict,
-                    secret_key: str,
-                    expires_delta: Optional[timedelta] = None):
+               secret_key: str,
+               expires_delta: Optional[timedelta] = None):
     """Creates jwt of DATA based on SECRET_KEY."""
     to_encode = data.copy()
     if expires_delta:
@@ -34,7 +34,7 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     """Authenticates the request using the provided token.
 
     If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
-    
+
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
@@ -46,7 +46,8 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
         if username is None:
             raise credentials_exception
         # Check if time out
-        if datetime.utcnow() >= datetime.fromtimestamp(payload.get("exp")):
+        if datetime.utcnow() >= datetime.fromtimestamp(
+                payload.get("exp")):  #type: ignore
             raise HTTPException(
                 status_code=401,
                 detail="Token expired. Please log in again.",
@@ -55,6 +56,7 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
     except jwt.PyJWTError as error:
         raise credentials_exception from error
     return username
+
 
 def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
     """Authenticates if the token is signed by API Server."""
@@ -89,6 +91,7 @@ def update_manager_config(config: dict):
     """Updates the API server config file."""
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
+
 
 def generate_nonce(length=32):
     """Generates a secure nonce."""

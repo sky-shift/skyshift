@@ -7,25 +7,23 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import partial
-from typing import List, Optional
+from typing import List
 from urllib.parse import unquote
 
 import jsonpatch
-import jwt
 import yaml
-from datetime import datetime
-from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
-                     Request, WebSocket, Body)
+from api_utils import authenticate_jwt  # pylint: disable=import-error
 from api_utils import authenticate_request  # pylint: disable=import-error
 from api_utils import create_jwt  # pylint: disable=import-error
+from api_utils import generate_nonce  # pylint: disable=import-error
 from api_utils import load_manager_config  # pylint: disable=import-error
 from api_utils import update_manager_config  # pylint: disable=import-error
-from api_utils import generate_nonce  # pylint: disable=import-error
-from api_utils import authenticate_jwt  # pylint: disable=import-error
+from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
+                     Request, WebSocket)
 from fastapi.responses import StreamingResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
@@ -39,7 +37,7 @@ from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
-from skyflow.templates.rbac_template import ActionEnum, Rule, RoleMeta, Role
+from skyflow.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
 from skyflow.templates.user_template import User
 from skyflow.utils import load_object, sanitize_cluster_name
 
@@ -198,18 +196,19 @@ class APIServer:
             secret_key=load_manager_config()['api_server']['secret'],
         )
 
-        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='admin@admin.com')
+        admin_user = User(username=ADMIN_USER,
+                          password=ADMIN_PWD,
+                          email='admin@admin.com')
         try:
             self.register_user(admin_user, admin_invite_jwt)
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
 
-        admin_role = Role(
-            metadata=RoleMeta(name="admin-role", namespaces=["*"]),
-            rules=[Rule(resources=["*"], actions=["*"])],
-            users=[ADMIN_USER]
-        )
+        admin_role = Role(metadata=RoleMeta(name="admin-role",
+                                            namespaces=["*"]),
+                          rules=[Rule(resources=["*"], actions=["*"])],
+                          users=[ADMIN_USER])
 
         self.etcd_client.write(
             "roles/admin-role",
@@ -219,15 +218,15 @@ class APIServer:
         # Create inviter role and add admin.
         inviter_role = Role(
             metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
-            rules=[Rule(resources=["user"], actions=["create"])], #Create user actually means can create invite to user.
-            users=[ADMIN_USER]
-        )
+            rules=[Rule(resources=["user"], actions=["create"])
+                   ],  #Create user actually means can create invite to user.
+            users=[ADMIN_USER])
 
         self.etcd_client.write(
             "roles/inviter-role",
             inviter_role.dict(),
         )
-        
+
     def _authenticate_role(self, action: str, user: str, object_type: str,
                            namespace: str) -> bool:
         """Authenticates the role of a user based on the Role objects."""
@@ -253,7 +252,7 @@ class APIServer:
             status_code=401,
             detail="Unauthorized access. User does not have the required role."
         )
-    
+
     def _authenticate_by_role_name(self, user: str, role_name: str) -> bool:
         """Authenticates the role of a user based on the Role object name."""
         try:
@@ -261,7 +260,7 @@ class APIServer:
         except Exception as error:  # Catch-all for other exceptions such as network issues
             raise HTTPException(
                 status_code=400,
-                detail=f'An error occured while authenticating user') from error
+                detail='An error occured while authenticating user') from error
 
         if user in role['users']:
             return True
@@ -344,20 +343,22 @@ class APIServer:
                     detail="Token expired. Please log in again.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            invite_obj = self._fetch_etcd_object(f"invites/{invite['invite']}")
-            
+
+            #Check invite(nonce) exist
+            self._fetch_etcd_object(f"invites/{invite['invite']}")
+
             self.etcd_client.delete(f'invites/{invite.get("invite")}')
         except HTTPException as error:
             if error.status_code == 404:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Invite is invalid.",
+                    detail="Invite is invalid.",
                 )
             raise HTTPException(
                 status_code=400,
                 detail="Unusual error occurred.",
             ) from error
-        
+
         try:
             self._fetch_etcd_object(f"users/{user.username}")
         except HTTPException as error:
@@ -367,36 +368,35 @@ class APIServer:
                     f"users/{user.username}",
                     user.model_dump(mode="json"),
                 )
-                
+
+                #Add newly created user to all the granted roles
                 role_message = ""
                 for role in invite["granted_roles"]:
                     try:
                         role_dict = self._fetch_etcd_object(f"roles/{role}")
-                        #TODO(colin): we could add additional check here about if the inviter is still valid and the given roles are still valid
                         role_dict["users"].append(user.username)
                         self.etcd_client.write(
                             f"roles/{role}",
                             role_dict,
                         )
                         role_message += f"Sucessfully added user to role {role} \n"
-                    except HTTPException as error:    
+                    except HTTPException as error:
                         role_message += f"Unusual error has occurred when trying to add user to role {role} \n"
 
                 return {
-                    "message": f"User registered successfully. \n{role_message}",
+                    "message":
+                    f"User registered successfully. \n{role_message}",
                     "user": user
                 }
             raise HTTPException(
                 status_code=400,
                 detail="Unusual error occurred.",
-            ) from error
+            )
         else:
             raise HTTPException(
                 status_code=400,
                 detail=f"User '{user.username}' already exists.",
             )
-        
-
 
     def login_for_access_token(
         self, form_data: OAuth2PasswordRequestForm = Depends()):
@@ -404,17 +404,20 @@ class APIServer:
         username = form_data.username
         password = form_data.password
         return self._login_user(username, password)
-    
-    def create_invite(self, roles: List[str] = Body(..., embed=True), username: str = Depends(authenticate_request)):
+
+    def create_invite(self,
+                      roles: List[str] = Body(..., embed=True),
+                      username: str = Depends(authenticate_request)):
         """Create invite for new user and returns the invite jwt."""
         try:
-            user = self._fetch_etcd_object(f"users/{username}")
+            # Check user exist
+            self._fetch_etcd_object(f"users/{username}")
         except HTTPException as error:
             raise HTTPException(
                 status_code=400,
                 detail="Cannot create invite. User doesn't exist",
             ) from error
-        
+
         try:
             self._authenticate_by_role_name(username, 'inviter-role')
         except HTTPException as error:
@@ -422,12 +425,14 @@ class APIServer:
                 status_code=400,
                 detail="Not authorized to create invite.",
             ) from error
-        
+
+        #Check if all roles are grantable
+        #TODO:(colin): Replace once we introduce group admin
         for to_grant_role_name in roles:
             try:
                 role = self._fetch_etcd_object(f"roles/{to_grant_role_name}")
                 if username in role['users']:
-                    continue  
+                    continue
                 rules = role['rules']
                 namespaces = role["metadata"]["namespaces"]
                 for namespace in namespaces:
@@ -435,24 +440,27 @@ class APIServer:
                         # Check if all actions permitted by RULE is also permitted for USER
                         resources = rule["resources"]
                         actions = rule["actions"]
-                        for r in resources:
+                        for rsc in resources:
                             for act in actions:
-                                if not self._authenticate_role(action=act, user = username, object_type = r, namespace=namespace):
+                                if not self._authenticate_role(
+                                        action=act,
+                                        user=username,
+                                        object_type=rsc,
+                                        namespace=namespace):
                                     raise HTTPException(
                                         status_code=401,
-                                        detail="Unauthorized access. User does not have the required role."
-                                    )    
-            except:                    
+                                        detail=
+                                        "Unauthorized access. User does not have the required role."
+                                    )
+            except:
                 raise HTTPException(
                     status_code=401,
-                    detail="Unauthorized access. User does not have the required role."
-                )         
-        
+                    detail=
+                    "Unauthorized access. User does not have the required role."
+                )
+
         nonce = generate_nonce()
-        self.etcd_client.write(
-            f"invites/{nonce}",
-            {}
-        )
+        self.etcd_client.write(f"invites/{nonce}", {})
         invite_token = create_jwt(
             data={
                 "granted_roles": roles,

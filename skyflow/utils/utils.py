@@ -127,6 +127,7 @@ def delete_unused_cluster_config(cluster_name: str):
     """Deletes the cluster config directory from the Skyconf directory."""
     shutil.rmtree(f"{os.path.expanduser('~/.skyconf')}/{cluster_name}")
 
+
 def update_manager_config(config: dict):
     """Updates the API server config file."""
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
