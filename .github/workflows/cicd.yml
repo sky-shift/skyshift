@@ -44,3 +44,12 @@ jobs:
       #     git add .
       #     git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
       #     git push
+
+  cleanup:
+    needs: build-and-test
+    runs-on: self-hosted
+    if: always()
+    steps:
+      - name: Delete checked-out repository
+        run: |
+          rm -rf $GITHUB_WORKSPACE
