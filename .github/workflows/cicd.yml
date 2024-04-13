@@ -19,6 +19,9 @@ jobs:
       - name: Print GITHUB_WORKSPACE
         run: echo $GITHUB_WORKSPACE
 
+      - name: Print configuration files
+        run: cat ~/.skyconf/config.yaml
+
       - name: Install dependencies
         run: pip install --no-cache-dir -e .[server,dev]
 
