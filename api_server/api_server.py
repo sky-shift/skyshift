@@ -162,9 +162,8 @@ def remove_flag_file():
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-#@TODO:(acuadron): retrieve these from an environment variable (maybe populate through TF)
-ADMIN_USER = "admin"
-ADMIN_PWD = "admin"
+ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin") 
+ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
 
 
 class APIServer:
