@@ -21,9 +21,12 @@ def setup_skyflow(temp_data_dir: str) -> None:
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
-        shutil.rmtree(skyconf_dir)  # Remove the original ~/.skyconf/ directory after copying.
-        print(f"Copied {skyconf_dir} to {dest_skyconf_dir} and removed the original directory.")
-
+        shutil.rmtree(
+            skyconf_dir
+        )  # Remove the original ~/.skyconf/ directory after copying.
+        print(
+            f"Copied {skyconf_dir} to {dest_skyconf_dir} and removed the original directory."
+        )
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -65,10 +68,10 @@ def shutdown_skyflow(temporal_directory: str) -> None:
     kill_process("etcd")
     # Path to the backed up .skyconf directory within the temporary directory.
     backup_skyconf_dir = os.path.join(temporal_directory, ".skyconf")
-    
+
     # Original .skyconf directory path.
     original_skyconf_dir = os.path.expanduser("~/.skyconf")
-    
+
     # Check if the backup exists.
     if os.path.exists(backup_skyconf_dir):
         # Remove the current .skyconf directory if it exists to avoid conflicts.
@@ -78,7 +81,9 @@ def shutdown_skyflow(temporal_directory: str) -> None:
         shutil.move(backup_skyconf_dir, original_skyconf_dir)
         print(f"Restored {original_skyconf_dir} from the backup.")
     else:
-        print(f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration.")
+        print(
+            f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration."
+        )
 
 
 def kill_process(process_name: str) -> None:

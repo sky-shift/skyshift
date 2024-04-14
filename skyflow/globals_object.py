@@ -1,7 +1,8 @@
 """
 Globals Object contains variables used across the Skyflow.
 This file is different from the globals.py file to avoid circular imports.
-Generally, every global variable should be defined in globals.py, unless that way causes a circular import.
+Generally, every global variable should be defined in globals.py,
+unless that way causes a circular import.
 """
 from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
                                Namespace, Role, Service)
