@@ -24,7 +24,6 @@ def setup_skyflow(temp_data_dir: str) -> None:
         
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
-        # shutil.rmtree(skyconf_dir)  # Remove the original ~/.skyconf/ directory after copying.
         print(f"Copied {skyconf_dir} to {dest_skyconf_dir}.")
 
 
