@@ -19,14 +19,13 @@ def setup_skyflow(temp_data_dir: str) -> None:
 
     skyconf_dir = os.path.expanduser("~/.skyconf/")
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
+    if os.path.exists(dest_skyconf_dir):
+        shutil.rmtree(dest_skyconf_dir) # Remove the backup directory if it exists.
+        
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
-        shutil.rmtree(
-            skyconf_dir
-        )  # Remove the original ~/.skyconf/ directory after copying.
-        print(
-            f"Copied {skyconf_dir} to {dest_skyconf_dir} and removed the original directory."
-        )
+        print(f"Copied {skyconf_dir} to {dest_skyconf_dir}.")
+
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -85,6 +84,9 @@ def shutdown_skyflow(temporal_directory: str) -> None:
             f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration."
         )
 
+    if os.path.exists(temporal_directory):
+        shutil.rmtree(temporal_directory)
+        print(f"Removed temporary directory {temporal_directory}")
 
 def kill_process(process_name: str) -> None:
     """
@@ -94,8 +96,10 @@ def kill_process(process_name: str) -> None:
         process_name (str): The name of the process to terminate.
     """
     try:
-        command = f"pkill -f '{process_name}'"
+        print("Killing process:", process_name)
+        command = f"sudo pkill -9 -f '{process_name}'"
         subprocess.run(command, shell=True, check=True)
+        print(f"Successfully killed process {process_name}")
     except subprocess.CalledProcessError:
         print(f"Failed to kill process {process_name}")
 
