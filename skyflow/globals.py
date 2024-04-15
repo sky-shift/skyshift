@@ -11,6 +11,7 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 DEFAULT_NAMESPACE = "default"
 
+
 def cluster_dir(cluster_name: str):
     """Returns the path to the cluster directory."""
     return os.path.join(SKYCONF_DIR, "cluster", cluster_name)

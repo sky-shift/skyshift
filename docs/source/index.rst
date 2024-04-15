@@ -49,3 +49,4 @@ Documentation
    cli/endpoints.rst
    cli/roles.rst
    cli/exec.rst
+   cli/users.rst
