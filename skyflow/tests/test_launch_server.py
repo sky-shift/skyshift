@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import yaml
 
 from api_server import launch_server
+from skyflow.globals import API_SERVER_CONFIG_PATH
 from skyflow.utils.utils import generate_manager_config
 from skyflow.globals import API_SERVER_CONFIG_PATH
 
@@ -29,8 +30,7 @@ class TestLaunchAPIServer(unittest.TestCase):
         """
 
         # Remove the API_SERVER_CONFIG_PATH file if it exists
-        if os.path.exists(
-                os.path.expanduser(API_SERVER_CONFIG_PATH)):
+        if os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
             os.remove(os.path.expanduser(API_SERVER_CONFIG_PATH))
 
         test_host = "127.0.0.1"
@@ -55,8 +55,7 @@ class TestLaunchAPIServer(unittest.TestCase):
         expected_config = mock_config_dict  # Or construct this as needed
 
         # Build the expected absolute file path
-        expected_file_path = os.path.expanduser(
-            API_SERVER_CONFIG_PATH)
+        expected_file_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
 
         # Verify if the directories were created
         mock_makedirs.assert_called_with(os.path.dirname(expected_file_path),
