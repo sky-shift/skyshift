@@ -1264,14 +1264,6 @@ class APIServer:
             methods=["POST"],
         )
 
-        self._add_endpoint(
-            endpoint=
-            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
-            endpoint_name="execute_command",
-            handler=self.execute_command,
-            methods=["POST"],
-        )
-
         self._add_websocket(
             path=
             "/{namespace}/exec/{tty}/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
