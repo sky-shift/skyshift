@@ -18,7 +18,7 @@ import threading
 import time
 from typing import Any, Dict
 
-from skyflow.structs import Watcher
+from skyflow.structs.watcher import Watcher
 from skyflow.templates.event_template import WatchEventEnum
 
 logging.basicConfig(

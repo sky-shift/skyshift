@@ -1,10 +1,10 @@
 """
 Job template for Skyflow.
 """
-import datetime
 import enum
 import re
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from pydantic import Field, field_validator
@@ -126,12 +126,12 @@ class JobStatus(ObjectStatus):
     def verify_conditions(cls, conditions: List[Dict[str, str]]):
         """Validates the conditions field of a job."""
         if not conditions:
-            time_str = datetime.datetime.utcnow().isoformat()
+            time_str = datetime.now(timezone.utc).isoformat()
             conditions = [{
                 "type":
                 JobStatusEnum.INIT.value,  # pylint: disable=no-member
                 "transition_time":
-                datetime.datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 "update_time":
                 time_str,
             }]
@@ -154,15 +154,14 @@ class JobStatus(ObjectStatus):
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
         if previous_status["type"] != status:
-            time_str = datetime.datetime.utcnow().isoformat()
+            time_str = datetime.now(timezone.utc).isoformat()
             self.conditions.append({
                 "type": status,
                 "transition_time": time_str,
                 "update_time": time_str,
             })
         else:
-            previous_status["update_time"] = datetime.datetime.utcnow(
-            ).isoformat()
+            previous_status["update_time"] = datetime.utcnow().isoformat()
 
 
 class JobMeta(NamespacedObjectMeta):
