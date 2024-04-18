@@ -9,8 +9,6 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
-
 DEFAULT_NAMESPACE = "default"
 
 
