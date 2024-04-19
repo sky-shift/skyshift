@@ -17,10 +17,10 @@ from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
-from skyflow.templates.job_template import Job
+from skyflow.templates.job_template import Job, TaskStatusEnum
 
-DEFAULT_HEARTBEAT_TIME = 3
-DEFAULT_RETRY_LIMIT = 3
+DEFAULT_HEARTBEAT_TIME = 3 # seconds
+DEFAULT_RETRY_LIMIT = 3 # seconds
 
 
 @contextmanager
@@ -93,8 +93,12 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         prev_jobs = list(informer_object.keys())
         for job_name, tasks in self.job_status["tasks"].items():
             # For jobs that have been submitted to the cluster but do not appear on Sky Manager.
-            if job_name not in prev_jobs:
+            
+            try:
+                prev_jobs.remove(job_name)
+            except ValueError:
                 continue
+                
             cached_job = informer_object[job_name]
             new_task_status = {}
             for _, state in tasks.items():
@@ -106,10 +110,25 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
             self.update_job(cached_job, new_task_status, tasks,
                             self.job_status["containers"])
 
+        # For jobs that are no longer present on the cluster due to expiration or deletion.
+        for job_name in prev_jobs:
+            cached_job = informer_object[job_name]
+            self.update_job(cached_job, {
+                TaskStatusEnum.FAILED.value:
+                sum(cached_job.status.replica_status[self.name].values())},
+                {},
+                self.job_status["containers"]
+            )
+
     def update_job(self, job: Job, status: dict, tasks: dict,
                    containers: dict):
         """
         Update the status of the job on the API server.
+        Args:
+            job (Job): Job object that needs to be updated.
+            status (dict): Status of the job.
+            tasks (dict): Task status of the job.
+            containers (dict): Containers status of the job.
         """
         try:
             job.status.replica_status[self.name] = status

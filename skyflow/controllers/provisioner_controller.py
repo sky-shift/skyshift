@@ -21,7 +21,7 @@ from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent, WatchEventEnum
 
-PROVISIONER_CONTROLLER_INTERVAL = 0.5
+PROVISIONER_CONTROLLER_INTERVAL = 0.5 # seconds
 
 
 def terminate_process(pid: int):
@@ -89,6 +89,7 @@ class ProvisionerController(Controller):
         watch_event: WatchEvent = self.event_queue.get()
         cluster_obj: Cluster = watch_event.object
         cluster_name = cluster_obj.get_name()
+        self.logger.info('Cluster %s: %s', cluster_name, watch_event.event_type)
         if watch_event.event_type == WatchEventEnum.ADD:
             # Launch Skylet if it is a newly added cluster.
             cluster_name = cluster_obj.get_name()
