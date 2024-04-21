@@ -22,7 +22,7 @@ from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEventEnum
 
-SKYLET_CONTROLLER_INTERVAL = 0.5 # seconds
+SKYLET_CONTROLLER_INTERVAL = 0.5  # seconds
 
 
 def terminate_process(pid: int):

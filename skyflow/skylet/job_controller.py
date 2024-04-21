@@ -20,8 +20,8 @@ from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates.job_template import Job, TaskStatusEnum
 
-DEFAULT_HEARTBEAT_TIME = 3 # seconds
-DEFAULT_RETRY_LIMIT = 3 # seconds
+DEFAULT_HEARTBEAT_TIME = 3  # seconds
+DEFAULT_RETRY_LIMIT = 3  # seconds
 
 
 @contextmanager
@@ -62,7 +62,8 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.retry_limit = retry_limit
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Job Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Job Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/job_controller.log')
 
         self.informer = Informer(JobAPI(namespace=''), logger=self.logger)
@@ -73,7 +74,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         self.job_status = self.manager_api.get_jobs_status()
 
         # Register the cleanup function
-        #signal.signal(signal.SIGTERM, self.cleanup_jobs)
+        signal.signal(signal.SIGTERM, self.cleanup_jobs)
 
     def post_init_hook(self):
         # Keeps track of cached job state.
@@ -107,7 +108,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
                 filtered_jobs.remove(job_name)
             except ValueError:
                 continue
-                
+
             cached_job = informer_object[job_name]
             new_task_status = {}
             for _, state in tasks.items():
@@ -122,12 +123,11 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         # For jobs that are no longer present on the cluster due to expiration or deletion.
         for job_name in filtered_jobs:
             cached_job = informer_object[job_name]
-            self.update_job(cached_job, {
-                TaskStatusEnum.FAILED.value:
-                sum(cached_job.status.replica_status[self.name].values())},
-                {},
-                self.job_status["containers"]
-            )
+            self.update_job(
+                cached_job, {
+                    TaskStatusEnum.FAILED.value:
+                    sum(cached_job.status.replica_status[self.name].values())
+                }, {}, self.job_status["containers"])
 
     def update_job(self, job: Job, status: dict, tasks: dict,
                    containers: dict):
@@ -152,8 +152,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
             JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
                 mode="json"))
 
-
-    def cleanup_jobs(self, sig=None, frame=None):
+    def cleanup_jobs(self, _sig=None, _frame=None):
         """Mark all jobs as EVICTED when the process is terminating."""
         informer_object = deepcopy(self.informer.get_cache())
         prev_jobs = list(informer_object.keys())
@@ -163,15 +162,18 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
             job_id for job_id in prev_jobs
             if self.name in informer_object[job_id].status.replica_status
         ]
-        self.logger.warn("Evicting jobs from cluster: %s.", self.name)
+        self.logger.warning("Evicting jobs from cluster: %s.", self.name)
         self.logger.info("Jobs to evict: %s.", filtered_jobs)
         # Mark all jobs as evicted.
         for job_name in filtered_jobs:
             job = informer_object[job_name]
             job.status.replica_status[self.name] = {
                 TaskStatusEnum.EVICTED.value:
-                sum(job.status.replica_status[self.name].values())}
-            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(mode="json"))
+                sum(job.status.replica_status[self.name].values())
+            }
+            JobAPI(namespace=job.get_namespace()).update(config=job.model_dump(
+                mode="json"))
+
 
 # Testing purposes.
 # if __name__ == "__main__":
