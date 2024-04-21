@@ -12,13 +12,15 @@ import click
 import yaml
 from click_aliases import ClickAliasedGroup
 
-from skyflow.cli.cli_utils import (create_cli_object, delete_cli_object,
-                                   fetch_job_logs, get_cli_object,
+from skyflow.cli.cli_utils import (create_cli_object, create_invite,
+                                   delete_cli_object, fetch_job_logs,
+                                   get_cli_object, login_user,
                                    print_cluster_table, print_endpoints_table,
                                    print_filter_table, print_job_table,
                                    print_link_table, print_namespace_table,
                                    print_role_table, print_service_table,
-                                   stream_cli_object)
+                                   register_user, revoke_invite_req,
+                                   stream_cli_object, switch_context)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
@@ -1092,8 +1094,9 @@ def exec_command_sync(  # pylint: disable=too-many-arguments
 
 def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals disable=too-many-branches
         resource: str, command: Tuple[str], namespace: str,
-        specified_tasks: List[str] | List[None],
-        specified_container: List[str] | List[None], quiet: bool, tty: bool):
+        specified_tasks: Union[List[str], List[None]],
+        specified_container: Union[List[str],
+                                   List[None]], quiet: bool, tty: bool):
     """
     Executes a specified command within a container of a resource.
 
@@ -1182,3 +1185,105 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
 
 cli.add_command(exec_command_sync)
+
+# ==============================================================================
+# User API as CLI
+
+
+@click.command('register',
+               help='''\
+Register a new user. \'register USERNAME PASSWORD \'
+Username should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
+Password must be 5 or more characters.
+'''
+               '  \n ')
+@click.argument('username', required=True)
+@click.argument('password', required=True)
+@click.option('--invite',
+              '-inv',
+              required=True,
+              help='Invite key sent by admin.')
+@click.option('--email',
+              default=None,
+              required=False,
+              help='Email address of the user.')
+def register(username, email, password, invite):  # pylint: disable=redefined-outer-name
+    """
+    Register a new user.
+    """
+    register_user(username, email, password, invite)
+
+
+cli.add_command(register)
+
+
+@click.command(
+    'login',
+    help=
+    'Login user. Does NOT change current active user. \'login USERNAME PASSWORD \''
+)
+@click.argument('username', required=True)
+@click.argument('password', required=True)
+def login(username, password):
+    """
+    Login command with username and password.
+    """
+    login_user(username, password)
+
+
+cli.add_command(login)
+
+
+@click.command('invite', help='Create a new invite for registery.')
+@click.option(
+    '--json',
+    is_flag=True,
+    default=False,
+    help='Output the invite in json format if succeeds. Key is \'invite\'.')
+@click.option('-r',
+              '--role',
+              multiple=True,
+              help='Enter ROLE names intended as part of the invite.')
+def invite(json, role):  # pylint: disable=redefined-outer-name
+    """
+    Create a new invite.
+    """
+    create_invite(json, list(role))
+
+
+cli.add_command(invite)
+
+
+@click.command('revoke_invite', help='Revoke created invite.')
+@click.argument('invite', required=True)
+def revoke_invite(invite):  # pylint: disable=redefined-outer-name
+    """
+    Revoke an existing invite.
+    """
+    revoke_invite_req(invite)
+
+
+cli.add_command(revoke_invite)
+
+
+@click.command('switch', help='Switch the current context.')
+@click.option('--user', default='', help='The active username to use.')
+@click.option('-ns',
+              '--namespace',
+              default='',
+              help='The active namespace to use.')
+def switch(user, namespace):
+    """
+    Switch active context of cli.
+    """
+    if not user and not namespace:
+        click.echo("No new context is specified. Nothing is changed.")
+        return
+
+    switch_context(user, namespace)
+
+
+cli.add_command(switch)
+
+if __name__ == '__main__':
+    cli()

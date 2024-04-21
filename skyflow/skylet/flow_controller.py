@@ -8,6 +8,7 @@ from queue import Queue
 
 import requests
 
+from skyflow import utils
 from skyflow.api_client import ClusterAPI, FilterPolicyAPI, JobAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -45,7 +46,7 @@ class FlowController(Controller):
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{self.name} - Flow Controller]",
+            title=f"[{utils.unsanitize_cluster_name(self.name)} - Flow Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/flow_controller.log')
 
         self.job_informer = Informer(JobAPI(namespace=''), logger=self.logger)

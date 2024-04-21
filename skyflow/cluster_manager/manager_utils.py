@@ -2,6 +2,7 @@
 """
 Utils for cluster managers.
 """
+import logging
 import os
 from typing import Union
 
@@ -16,6 +17,10 @@ KUBERNETES_ALIASES = ("kubernetes", "k8", "k8s")
 SLURM_ALIASES = ("slurm", "slurmctl")
 SUPPORTED_MANAGERS = KUBERNETES_ALIASES + SLURM_ALIASES
 SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
 class ConfigUndefinedError(Exception):
@@ -101,5 +106,7 @@ def setup_cluster_manager(
         for k, v in dict(cluster_obj.metadata).items() if k in class_params
     })
 
+    logger = logging.getLogger(
+        f"[{cluster_obj.metadata.name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
     return k8s_manager_cls(**args)
