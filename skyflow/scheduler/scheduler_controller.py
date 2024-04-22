@@ -161,7 +161,6 @@ class SchedulerController(Controller):
         # Main Scheduling loop.
         
         cached_clusters = deepcopy(self.cluster_informer.get_cache())
-        import pdb;pdb.set_trace()
         # Convert to list of clusters
         self.logger.debug("Cached clusters: %s", cached_clusters)
         clusters = [

@@ -24,7 +24,6 @@ class DefaultPlugin(BasePlugin):
 
     def filter(self, cluster: Cluster, job: Job) -> PluginStatus:
         print("in default plugin filter")
-        import pdb;pdb.set_trace()
         """This filter plugin checks if the cluster has sufficient capacity."""
         job_resuources = job.spec.resources
         cluster_resources = cluster.status.allocatable_capacity
