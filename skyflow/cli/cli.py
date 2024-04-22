@@ -12,6 +12,7 @@ import click
 import yaml
 from click_aliases import ClickAliasedGroup
 
+from skyflow import utils
 from skyflow.cli.cli_utils import (create_cli_object, create_invite,
                                    delete_cli_object, fetch_job_logs,
                                    get_cli_object, login_user,
@@ -236,6 +237,7 @@ def create_cluster(  # pylint: disable=too-many-arguments
         click.echo(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
 
+    name = utils.sanitize_cluster_name(name)
     if not validate_input_string(name):
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
@@ -388,7 +390,7 @@ def create_job(
     """Adds a new job."""
     # Validate inputs
     if not validate_input_string(name):
-        raise click.BadParameter("Invalid namespace format.")
+        raise click.BadParameter("Invalid name format.")
 
     if not validate_input_string(namespace):
         raise click.BadParameter("Invalid namespace format.")
