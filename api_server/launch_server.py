@@ -8,7 +8,9 @@ import subprocess
 from typing import Optional
 
 import uvicorn
+from etcd3.exceptions import ConnectionFailedError
 
+from skyflow.etcd_client.etcd_client import ETCDClient
 from skyflow.utils.utils import generate_manager_config
 
 API_SERVER_HOST = "127.0.0.1"
@@ -19,18 +21,14 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     """
     Checks if ETCD is installed and running. If not, installs and launches ETCD.
     """
-    result = subprocess.run(  # pylint: disable=subprocess-run-check
-        'ps aux | grep "[e]tcd"',
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return_code = result.returncode
-    if return_code == 0:
+    try:
+        ETCDClient().read_prefix("namespaces")
         print("[Installer] ETCD is running.")
         return True
-    print("[Installer] ETCD is not running, automatically installing ETCD.")
+    except ConnectionFailedError:
+        print(
+            "[Installer] ETCD is not running, automatically installing ETCD.")
+
     relative_dir = os.path.dirname(os.path.realpath(__file__))
     install_command = f"{relative_dir}/install_etcd.sh"
     # Pass data_directory to the install script if provided
