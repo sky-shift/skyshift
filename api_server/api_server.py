@@ -162,7 +162,7 @@ def remove_flag_file():
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin") 
+ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
 
 
