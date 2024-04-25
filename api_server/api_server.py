@@ -2,77 +2,68 @@
 """
 Specifies the API server and its endpoints for Skyflow.
 """
+import asyncio
 import json
 import os
+import secrets
 import signal
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
-from typing import List, Optional
+from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
 
 import jsonpatch
 import jwt
 import yaml
-from fastapi import (APIRouter, Depends, FastAPI, HTTPException, Query,
+from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
                      Request, WebSocket)
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
-from pydantic import BaseModel
 
 from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import (ALL_OBJECTS, DEFAULT_NAMESPACE,
-                             NAMESPACED_OBJECTS, NON_NAMESPACED_OBJECTS)
+from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE
+from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
+                                    NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
 from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEvent
 from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
-from skyflow.templates.rbac_template import ActionEnum, Role
+from skyflow.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
+from skyflow.templates.user_template import User
 from skyflow.utils import load_object, sanitize_cluster_name
 
-# Hashing password
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-#@TODO:(acuadron): retrieve these from an environment variable (maybe populate through TF)
-ADMIN_USER = "admin"
-ADMIN_PWD = "admin"
+###  Utility functions for the API server.
 
 # Assumes authentication tokens are JWT tokens
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 CACHED_SECRET_KEY = None
 
 
-def create_access_token(data: dict,
-                        secret_key: str,
-                        expires_delta: Optional[timedelta] = None):
-    """Creates access token for users."""
+def create_jwt(data: dict,
+               secret_key: str,
+               expires_delta: Optional[timedelta] = None):
+    """Creates jwt of DATA based on SECRET_KEY."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
         # 10 years
-        expire = datetime.utcnow() + timedelta(minutes=315360000)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=315360000)
     to_encode.update({"exp": expire})
     encoded_jwt: str = jwt.encode(to_encode, secret_key, algorithm='HS512')
     return encoded_jwt
 
 
-def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
-    """Authenticates the request using the provided token.
-
-    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
+def authenticate_jwt(token: str = Depends(OAUTH2_SCHEME)) -> dict:
+    """Authenticates if the token is signed by API Server."""
     global CACHED_SECRET_KEY  # pylint: disable=global-statement
-    credentials_exception = HTTPException(
-        status_code=401,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+
     if CACHED_SECRET_KEY is None:
         secret_key = load_manager_config()["api_server"]["secret"]
         CACHED_SECRET_KEY = secret_key
@@ -80,11 +71,29 @@ def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
         secret_key = CACHED_SECRET_KEY
     try:
         payload = jwt.decode(token, secret_key, algorithms=['HS512'])
+    except jwt.PyJWTError as error:
+        raise error
+    return payload
+
+
+def authenticate_request(token: str = Depends(OAUTH2_SCHEME)) -> str:
+    """Authenticates the request using the provided token.
+
+    If the token is valid, the username is returned. Otherwise, an HTTPException is raised."""
+
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = authenticate_jwt(token=token)
         username: str = payload.get("sub", None)
         if username is None:
             raise credentials_exception
         # Check if time out
-        if datetime.utcnow() >= datetime.fromtimestamp(payload.get("exp")):
+        if datetime.now(timezone.utc) >= datetime.fromtimestamp(
+                payload.get("exp"), tz=timezone.utc):  #type: ignore
             raise HTTPException(
                 status_code=401,
                 detail="Token expired. Please log in again.",
@@ -114,11 +123,9 @@ def update_manager_config(config: dict):
         yaml.dump(config, config_file)
 
 
-class User(BaseModel):
-    """Represents a user for SkyFlow."""
-    username: str
-    email: str
-    password: str
+def generate_nonce(length=32):
+    """Generates a secure nonce."""
+    return secrets.token_hex(length)
 
 
 def check_or_wait_initialization():
@@ -150,6 +157,16 @@ def remove_flag_file():
         os.remove(completion_flag_path)
 
 
+# ==============================================================================
+###  API Server Code.
+
+# Hashing password
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
+ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
+
+
 class APIServer:
     """
     Defines the API server for the Skyflow.
@@ -158,7 +175,7 @@ class APIServer:
     interacting with Skyflow objects. Supports CRUD operations on all objects.
     """
 
-    def __init__(self, app, etcd_port=ETCD_PORT):
+    def __init__(self, app, etcd_port=ETCD_PORT):  # pylint: disable=redefined-outer-name
         self.app = app
         self.etcd_client = ETCDClient(port=etcd_port)
         self.router = APIRouter()
@@ -174,64 +191,169 @@ class APIServer:
                 Namespace(metadata=NamespaceMeta(name="default")).model_dump(
                     mode="json"),
             )
+
+        # Create admin role.
+        admin_role = Role(metadata=RoleMeta(name="admin-role",
+                                            namespaces=["*"]),
+                          rules=[Rule(resources=["*"], actions=["*"])],
+                          users=[ADMIN_USER])
+
+        self.etcd_client.write(
+            "roles/admin-role",
+            admin_role.dict(),
+        )
+
+        # Create inviter role.
+        inviter_role = Role(
+            metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
+            rules=[Rule(resources=["user"], actions=["create"])
+                   ],  #Create user actually means can create invite to user.
+            users=[])
+
+        self.etcd_client.write(
+            "roles/inviter-role",
+            inviter_role.dict(),
+        )
+
         # Create system admin user and create authentication token.
-        admin_user = User(username=ADMIN_USER, password=ADMIN_PWD, email='N/A')
+        admin_invite_nonce = generate_nonce()
+        self.etcd_client.write(
+            f"invites/{admin_invite_nonce}",
+            {
+                "used": False,
+                "revoked": False,
+                "owner": "",
+            },
+        )
+
+        admin_invite_jwt = create_jwt(
+            data={
+                "granted_roles":
+                [admin_role.get_name(),
+                 inviter_role.get_name()],
+                "nonce": admin_invite_nonce,
+                "inviter": ""
+            },
+            secret_key=load_manager_config()['api_server']['secret'],
+        )
+
+        admin_user = User(username=ADMIN_USER,
+                          password=ADMIN_PWD,
+                          email='admin@admin.com')
         try:
-            self.register_user(admin_user)
+            self.register_user(admin_user, admin_invite_jwt)
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
-        # Create roles for admin.
-        roles_dict = {
-            "kind": "Role",
-            "metadata": {
-                "name": "admin-role",
-                "namespaces": ["*"],
-            },
-            "rules": [
-                {
-                    "resources": ["*"],
-                    "actions": ["*"],
-                },
-            ],
-            "users": [
-                ADMIN_USER,
-            ]
-        }
-        # convert dict into
-        admin_role = Role(**roles_dict)
-        # Turn roles_dict into json dict
-        roles_json = admin_role.model_dump(mode="json")
-        self.etcd_client.write(
-            "roles/admin-role",
-            roles_json,
-        )
 
-    def _authenticate_role(self, action: str, user: str, object_type: str,
-                           namespace: str) -> bool:
-        """Authenticates the role of a user based on the Role objects."""
+    def _authenticate_action(self, action: str, user: str, object_type: str,
+                             namespace: str) -> bool:
+        """Authenticates the role of a user based on intended action."""
 
-        def _verify_subset(key: str, values: List[str]) -> bool:
-            return "*" in values or key in values
-
-        is_namespace = object_type in NAMESPACED_OBJECTS
         roles = self.etcd_client.read_prefix("roles")
         for role in roles:
-            if user not in role['users']:
-                continue
-            if is_namespace and not _verify_subset(
-                    namespace, role['metadata']['namespaces']):
-                continue
-            rules = role['rules']
-            for rule in rules:
-                if _verify_subset(action, rule['actions']) and _verify_subset(
-                        object_type, rule['resources']):
-                    return True
+            if self._authenticate_action_with_role(action, user, object_type,
+                                                   namespace, role):
+                return True
 
         raise HTTPException(
             status_code=401,
             detail="Unauthorized access. User does not have the required role."
         )
+
+    # pylint: disable=too-many-arguments
+    @staticmethod
+    def _authenticate_action_with_role(action: str, user: str,
+                                       object_type: str, namespace: str,
+                                       role: Dict) -> bool:
+        """Return if USER on perform ACTION based on ROLE."""
+
+        def _verify_subset(key: str, values: List[str]) -> bool:
+            return "*" in values or key in values
+
+        if user not in role['users']:
+            return False
+
+        is_namespace = object_type in NAMESPACED_OBJECTS
+        if is_namespace and not _verify_subset(namespace,
+                                               role['metadata']['namespaces']):
+            return False
+
+        rules = role['rules']
+        for rule in rules:
+            if _verify_subset(action, rule['actions']) and _verify_subset(
+                    object_type, rule['resources']):
+                return True
+
+        return False
+
+    def _authenticate_by_role_name(self, user: str, role_name: str) -> bool:
+        """Authenticates the role of a user based on the Role object name. """
+        try:
+            role = self._fetch_etcd_object(f"roles/{role_name}")
+            return self._authenticate_by_role(user, role)
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=503,
+                detail='An error occured while authenticating user') from error
+
+    def _authenticate_by_role(
+            self,
+            user: str,
+            role: Dict,
+            assumed_roles: Optional[List[Dict]] = None) -> bool:
+        """Authenticates USER have superset of access of the ROLE. """
+
+        if user in role['users']:
+            return True
+
+        if not assumed_roles:
+            assumed_roles = self._get_all_roles(user)
+
+        rules = role['rules']
+        namespaces = role["metadata"]["namespaces"]
+        for namespace in namespaces:
+            for rule in rules:
+                # Check if all actions permitted by RULE is also permitted for USER
+                resources = rule["resources"]
+                actions = rule["actions"]
+                for rsc in resources:
+                    for act in actions:
+                        if not any(
+                                self._authenticate_action_with_role(
+                                    act, user, rsc, namespace, assumed_role)
+                                for assumed_role in assumed_roles):
+                            raise HTTPException(
+                                status_code=401,
+                                detail=
+                                "Unauthorized access. User does not have the required role."
+                            )
+        return True
+
+    def _authenticate_by_role_names(self, user: str,
+                                    role_names: List[str]) -> bool:
+        """Authenticates USER have superset of access of the ROLE_NAMES. """
+        assumed_roles = self._get_all_roles(user)
+        roles = []
+        try:
+            for role_name in role_names:
+                roles.append(self._fetch_etcd_object(f"roles/{role_name}"))
+        except Exception as error:  # Catch-all for other exceptions such as network issues
+            raise HTTPException(
+                status_code=503,
+                detail='An error occured while authenticating user') from error
+
+        return all(
+            self._authenticate_by_role(user, role, assumed_roles)
+            for role in roles)
+
+    def _get_all_roles(self, user: str) -> List[Dict]:
+        all_roles = []
+        roles = self.etcd_client.read_prefix("roles")
+        for role in roles:
+            if user in role['users']:
+                all_roles.append(role)
+        return all_roles
 
     def _check_cluster_connectivity(self, cluster: Cluster):  # pylint: disable=no-self-use
         """Checks if the cluster is accessible."""
@@ -273,7 +395,7 @@ class APIServer:
                 status_code=400,
                 detail="Incorrect username or password",
             )
-        access_token = create_access_token(
+        access_token = create_jwt(
             data={
                 "sub": username,
             },
@@ -296,8 +418,67 @@ class APIServer:
         return access_dict
 
     # Authentication/RBAC Methods
-    def register_user(self, user: User):
+    # pylint: disable=too-many-branches
+    def register_user(self, user: User, invite_token: str = Body(...)):
         """Registers a user into Skyflow."""
+        try:
+            invite = authenticate_jwt(invite_token)
+            if datetime.now(timezone.utc) >= datetime.fromtimestamp(
+                    cast(float, invite.get("exp")), tz=timezone.utc):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invite token expired. Please ask for a new one.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            #Check invite(nonce) exist
+            invite_store = self._fetch_etcd_object(
+                f"invites/{invite['nonce']}")
+            if invite_store["revoked"] or invite_store["used"]:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Invite is no longer invalid.",
+                )
+
+            inviter = invite['inviter']
+
+            # inviter being "" is special user for setting up admin
+            if inviter:
+                try:
+                    self._fetch_etcd_object(f"users/{inviter}")
+                except HTTPException as error:
+                    invite_store["revoked"] = True
+                    self.etcd_client.write(f'invites/{invite.get("nonce")}',
+                                           invite_store)
+                    raise HTTPException(
+                        status_code=404,
+                        detail=
+                        "Inviter is no longer invalid. Invalidating the invite.",
+                    ) from error
+
+                if not self._authenticate_by_role_name(inviter,
+                                                       'inviter-role'):
+                    raise HTTPException(
+                        status_code=404,
+                        detail=
+                        "Inviter can no longer invite users. Invite status not changed.",
+                    )
+
+            invite_store["used"] = True
+            self.etcd_client.write(f'invites/{invite.get("nonce")}',
+                                   invite_store)
+
+        except HTTPException as error:
+            if error.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Invite is invalid.",
+                ) from error
+            raise HTTPException(
+                status_code=500,
+                detail="Unusual error occurred.",
+            ) from error
+
         try:
             self._fetch_etcd_object(f"users/{user.username}")
         except HTTPException as error:
@@ -307,14 +488,37 @@ class APIServer:
                     f"users/{user.username}",
                     user.model_dump(mode="json"),
                 )
+
+                #Add newly created user to all the granted roles
+                role_message = ""
+                assumed_roles = self._get_all_roles(inviter)
+                for granted_role in invite["granted_roles"]:
+                    try:
+                        role_dict = self._fetch_etcd_object(
+                            f"roles/{granted_role}")
+                        # inviter being "" is special user for setting up admin
+                        if not inviter or self._authenticate_by_role(
+                                inviter, role_dict, assumed_roles):
+                            role_dict["users"].append(user.username)
+                            self.etcd_client.write(
+                                f"roles/{granted_role}",
+                                role_dict,
+                            )
+                            role_message += f"Sucessfully added user to role {granted_role}.\n"
+                        else:
+                            role_message += f"Inviter can no longer added new user to role {granted_role}.\n"  # pylint: disable=C0301
+                    except HTTPException as error:
+                        role_message += f"Unusual error has occurred when trying to add user to role {granted_role}.\n"  # pylint: disable=C0301
+
                 return {
-                    "message": "User registered successfully",
+                    "message":
+                    f"User registered successfully. \n{role_message}",
                     "user": user
                 }
-            raise HTTPException(
-                status_code=400,
+            raise HTTPException(  # pylint: disable=raise-missing-from
+                status_code=500,
                 detail="Unusual error occurred.",
-            ) from error
+            )
         else:
             raise HTTPException(
                 status_code=400,
@@ -328,6 +532,107 @@ class APIServer:
         password = form_data.password
         return self._login_user(username, password)
 
+    def create_invite(self,
+                      roles: List[str] = Body(..., embed=True),
+                      username: str = Depends(authenticate_request)):
+        """Create invite for new user and returns the invite jwt."""
+        # pylint: disable=too-many-locals
+        try:
+            # Check user exist
+            self._fetch_etcd_object(f"users/{username}")
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot create invite. User doesn't exist",
+            ) from error
+
+        try:
+            if not self._authenticate_by_role_name(username, 'inviter-role'):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Not authorized to create invite.",
+                )
+        except Exception as error:
+            raise HTTPException(
+                status_code=404,
+                detail="Something went wrong when authenticating the user.",
+            ) from error
+
+        #Check if all roles are grantable
+        #@TODO:(colin): Replace once we introduce group admin
+        if not self._authenticate_by_role_names(username, roles):
+            raise HTTPException(
+                status_code=401,
+                detail=
+                "Unauthorized access. User does not have the required role.")
+
+        nonce = generate_nonce()
+        self.etcd_client.write(f"invites/{nonce}", {
+            "used": False,
+            "revoked": False,
+            "owner": username
+        })
+        invite_token = create_jwt(
+            data={
+                "granted_roles": roles,
+                "nonce": nonce,
+                "inviter": username
+            },
+            secret_key=load_manager_config()['api_server']['secret'],
+        )
+        return {
+            "message": "invite created successfully",
+            "invite": invite_token
+        }
+
+    def revoke_invite(self,
+                      invite_token: str = Body(..., embed=True),
+                      username: str = Depends(authenticate_request)):
+        """Invoke invite."""
+        try:
+            # Check user exist
+            self._fetch_etcd_object(f"users/{username}")
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot revoke invite. User doesn't exist",
+            ) from error
+
+        try:
+            invite = authenticate_jwt(invite_token)
+            # empty invite['inviter'] means the special startup invite
+            if invite['inviter'] != username and invite['inviter']:
+                raise HTTPException(
+                    status_code=404,
+                    detail="You cannot revoke invites not from you.",
+                )
+
+            # Check invite(nonce) exist
+            invite_store = self._fetch_etcd_object(
+                f"invites/{invite['nonce']}")
+            used = invite_store["used"]
+
+            invite_store["revoked"] = True
+            self.etcd_client.write(f'invites/{invite.get("nonce")}',
+                                   invite_store)
+
+        except HTTPException as error:
+            if error.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Revoke request is invalid.",
+                ) from error
+            raise HTTPException(
+                status_code=500,
+                detail="Unusual error occurred.",
+            ) from error
+
+        return {
+            "message":
+            f"invite {invite_token} revoked" if not used else
+            f"invite {invite_token} revoked but it's used already",
+        }
+
     # General methods over objects.
     def create_object(self, object_type: str):
         """Creates an object of a given type."""
@@ -335,8 +640,8 @@ class APIServer:
         async def _create_object(request: Request,
                                  namespace: str = DEFAULT_NAMESPACE,
                                  user: str = Depends(authenticate_request)):
-            self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.DELETE.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -400,8 +705,8 @@ class APIServer:
         """
         Lists all objects of a given type.
         """
-        self._authenticate_role(ActionEnum.LIST.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.LIST.value, user, object_type,
+                                  namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -412,7 +717,7 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return self._watch_key(link_header)
+            return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -432,8 +737,8 @@ class APIServer:
         """
         Returns a specific object, raises Error otherwise.
         """
-        self._authenticate_role(ActionEnum.GET.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.GET.value, user, object_type,
+                                  namespace)
         if object_type not in ALL_OBJECTS:
             raise HTTPException(status_code=400,
                                 detail=f"Invalid object type: {object_type}")
@@ -446,10 +751,39 @@ class APIServer:
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
         if watch:
-            return self._watch_key(f"{link_header}/{object_name}")
+            return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
+
+    async def _watch_key(self, key: str):
+        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
+
+        async def generate_events():
+            try:
+                while True:
+                    try:
+                        event = await asyncio.to_thread(
+                            next, events_iterator, None)
+                        if event is None:
+                            break
+                        event_type, event_value = event
+                        event_value = load_object(event_value)
+                        # Check and validate event type.
+                        watch_event = WatchEvent(event_type=event_type.value,
+                                                 object=event_value)
+                        yield watch_event.model_dump_json() + "\n"
+                    except (StopIteration, ValueError):
+                        break
+            except asyncio.CancelledError:
+                # Happens when client disconnects.
+                pass
+            cancel_watch_fn()
+            yield "{}"
+
+        return StreamingResponse(generate_events(),
+                                 media_type="application/x-ndjson",
+                                 status_code=200)
 
     def update_object(
         self,
@@ -463,8 +797,8 @@ class APIServer:
                 user: str = Depends(authenticate_request),
         ):
             """Processes request to update an object."""
-            self._authenticate_role(ActionEnum.UPDATE.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.UPDATE.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -533,8 +867,8 @@ class APIServer:
                 namespace: str = DEFAULT_NAMESPACE,
                 user: str = Depends(authenticate_request),
         ):
-            self._authenticate_role(ActionEnum.PATCH.value, user, object_type,
-                                    namespace)
+            self._authenticate_action(ActionEnum.PATCH.value, user,
+                                      object_type, namespace)
             content_type = request.headers.get("content-type", None)
             body = await request.body()
             if content_type == "application/json":
@@ -592,7 +926,8 @@ class APIServer:
                  namespace: str = DEFAULT_NAMESPACE,
                  user: str = Depends(authenticate_request)):
         """Returns logs for a given job."""
-        self._authenticate_role(ActionEnum.GET.value, user, "jobs", namespace)
+        self._authenticate_action(ActionEnum.GET.value, user, "jobs",
+                                  namespace)
         # Fetch cluster/clusters where job is running.
         job_link_header = f"jobs/{namespace}/{object_name}"
         job_dict = self._fetch_etcd_object(job_link_header)
@@ -615,8 +950,8 @@ class APIServer:
         user: str = Depends(authenticate_request),
     ):  # pylint: disable=too-many-arguments
         """Deletes an object of a given type."""
-        self._authenticate_role(ActionEnum.DELETE.value, user, object_type,
-                                namespace)
+        self._authenticate_action(ActionEnum.DELETE.value, user, object_type,
+                                  namespace)
         if object_type in NAMESPACED_OBJECTS:
             link_header = f"{object_type}/{namespace}"
         else:
@@ -712,8 +1047,8 @@ class APIServer:
             path_params.get('command').replace("%-2-F-%2-", "/"))
         exec_command = json.loads(exec_command_json)
 
-        self._authenticate_role(ActionEnum.UPDATE.value, user, "jobs",
-                                namespace)
+        self._authenticate_action(ActionEnum.UPDATE.value, user, "jobs",
+                                  namespace)
 
         await websocket.accept()
 
@@ -759,7 +1094,7 @@ class APIServer:
             await websocket.close(code=1003
                                   )  # Close with unsupported data code
             return
-        print(cluster_obj.spec.manager)
+
         if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
             close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
             await websocket.send_text(close_message)
@@ -782,24 +1117,6 @@ class APIServer:
                                                   tty, exec_command)
         if not tty:
             await websocket.close(code=1000)  # Close with normal code
-
-    def _watch_key(self, key: str):
-        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
-
-        def generate_events():
-            try:
-                for event in events_iterator:
-                    event_type, event_value = event
-                    event_value = load_object(event_value)
-                    # Check and validate event type.
-                    watch_event = WatchEvent(event_type=event_type.value,
-                                             object=event_value)
-                    yield watch_event.model_dump_json() + "\n"
-            finally:
-                cancel_watch_fn()
-
-        return StreamingResponse(generate_events(),
-                                 media_type="application/x-ndjson")
 
     def _add_endpoint(self,
                       endpoint=None,
@@ -824,6 +1141,9 @@ class APIServer:
         """Creates FastAPI endpoints over different types of objects."""
 
         for object_type in NON_NAMESPACED_OBJECTS:
+            if object_type == "users":
+                continue
+
             self._add_endpoint(
                 endpoint=f"/{object_type}",
                 endpoint_name=f"create_{object_type}",
@@ -941,12 +1261,18 @@ class APIServer:
             handler=self.login_for_access_token,
             methods=["POST"],
         )
-
+        # Create invite
         self._add_endpoint(
-            endpoint=
-            "/{namespace}/exec/{quiet}/{resource}/{selected_tasks}/{container}/{command}",
-            endpoint_name="execute_command",
-            handler=self.execute_command,
+            endpoint="/invite",
+            endpoint_name="create_invite",
+            handler=self.create_invite,
+            methods=["POST"],
+        )
+        # Revoke invite
+        self._add_endpoint(
+            endpoint="/revoke_invite",
+            endpoint_name="revoke_invite",
+            handler=self.revoke_invite,
             methods=["POST"],
         )
 

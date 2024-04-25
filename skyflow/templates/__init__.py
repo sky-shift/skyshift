@@ -28,6 +28,7 @@ from skyflow.templates.rbac_template import Role, RoleList
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import (Service, ServiceException,
                                                 ServiceList, ServiceMeta)
+from skyflow.templates.user_template import User
 
 __all__ = [
     "AcceleratorEnum",
@@ -76,4 +77,5 @@ __all__ = [
     "TaskStatusEnum",
     "WatchEvent",
     "WatchEventEnum",
+    "User",
 ]

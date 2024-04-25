@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Union
 import requests
 import yaml
 
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+from skyflow.globals import API_SERVER_CONFIG_PATH
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
@@ -90,14 +90,14 @@ def load_single_object(item: dict):
 
 def watch_events(url: str, headers: Optional[dict] = None):
     """Yields watch events from the given URL."""
-    if headers:
-        response = requests.get(url, stream=True, headers=headers)
-    else:
-        response = requests.get(url, stream=True)
-    for line in response.iter_lines():
-        if line:
-            data = json.loads(line.decode("utf-8"))
-            yield data
+    with requests.get(url, stream=True, headers=headers) as response:
+        try:
+            for line in response.iter_lines():
+                if line:  # Make sure the line is not empty
+                    data = json.loads(line.decode("utf-8"))
+                    yield data
+        finally:
+            response.close()
 
 
 def match_labels(labels: dict, labels_selector: dict):
@@ -157,3 +157,9 @@ def compute_datetime_delta(start: str, end: str):
     if minutes > 0:
         return f"{minutes}m"
     return f"{seconds}s"
+
+
+def update_manager_config(config: dict):
+    """Updates the API server config file."""
+    with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
+        yaml.dump(config, config_file)
