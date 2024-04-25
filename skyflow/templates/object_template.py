@@ -7,7 +7,7 @@ from typing import Dict, Generic, List, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from skyflow.utils.utils import load_object
+from skyflow.utils.utils import fetch_datetime, load_object
 
 GenericType = TypeVar("GenericType")
 
@@ -34,6 +34,7 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
     labels: Dict[str, str] = Field(default={})
     annotations: Dict[str, str] = Field(default={})
+    creation_timestamp: str = Field(default="", validate_default=True)
     # ETCD resource version for an object.
     resource_version: int = Field(default=-1)
 
@@ -58,6 +59,18 @@ class ObjectMeta(BaseModel, validate_assignment=True):
         raise ValueError(("Invalid object name. Object names must follow "
                           f"regex pattern, {pattern}, and must be no more "
                           "than 63 characters long."))
+
+    @field_validator("creation_timestamp")
+    @classmethod
+    def verify_timestamp(cls, timestamp: str) -> str:
+        """
+        Validates the creation timestamp.
+
+        If it does not exist, set it to the current time.
+        """
+        if timestamp:
+            return timestamp
+        return fetch_datetime()
 
 
 class NamespacedObjectMeta(ObjectMeta):
