@@ -9,9 +9,13 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Pre-build image and run make ci-build in dev container
+        uses: devcontainers/ci@v0.3
         with:
-          cache: 'pip' # caching pip dependencies
+          runCmd: pip install -e .[server,dev] && pytest skyflow/tests
+      # - uses: actions/setup-python@v5
+      #   with:
+      #     cache: 'pip' # caching pip dependencies
 
       # - name: Print working directory
       #   run: pwd
@@ -32,8 +36,8 @@ jobs:
       #     python -m venv venv
       #     source venv/bin/activate
 
-      - name: Install dependencies
-        run: pip install -e .[server,dev]
+      # - name: Install dependencies
+      #   run: pip install -e .[server,dev]
 
       # - name: Set up environment
       #   run: |
