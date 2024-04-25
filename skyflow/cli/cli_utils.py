@@ -1,6 +1,7 @@
 """
 Utils for Skyflow CLI.
 """
+import enum
 import json as json_lib
 from typing import Dict, List, Optional, Union
 
@@ -17,11 +18,11 @@ from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
-                               Namespace, NamespaceList, ObjectList, Service,
-                               ServiceList, TaskStatusEnum)
-from skyflow.utils.utils import (API_SERVER_CONFIG_PATH, load_manager_config,
-                                 update_manager_config, compute_datetime_delta,
-                                 fetch_datetime)
+                               Namespace, NamespaceList, Object, ObjectList,
+                               Service, ServiceList, TaskStatusEnum)
+from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
+                                 compute_datetime_delta, fetch_datetime,
+                                 load_manager_config, update_manager_config)
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -38,6 +39,21 @@ NON_NAMESPACED_API_OBJECTS = {
     "user": UserAPI
 }
 ALL_API_OBJECTS = {**NON_NAMESPACED_API_OBJECTS, **NAMESPACED_API_OBJECTS}
+
+
+class FieldEnum(enum.Enum):
+    """
+    Enum for common field enums to print in tables.
+    """
+    NAME = "NAME"
+    STATUS = "STATUS"
+    AGE = "AGE"
+    NAMESPACE = "NAMESPACE"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 
 def fetch_api_client_object(object_type: str,
@@ -156,7 +172,10 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         cluster_lists = cluster_list.objects
     else:
         cluster_lists = [cluster_list]
-    field_names = ["NAME", "MANAGER", "RESOURCES", "STATUS", "AGE"]
+    field_names = [
+        FieldEnum.NAME.value, "MANAGER", "RESOURCES", FieldEnum.STATUS.value,
+        FieldEnum.AGE.value
+    ]
     table_data = []
 
     def gather_resources(data) -> Dict[str, float]:
@@ -208,8 +227,8 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
     else:
         job_lists = [job_list]
     field_names = [
-        "NAME", "CLUSTER", "REPLICAS", "RESOURCES", "NAMESPACE", "STATUS",
-        "AGE"
+        FieldEnum.NAME.value, "CLUSTER", "REPLICAS", "RESOURCES",
+        FieldEnum.NAMESPACE.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
     ]
     table_data = []
     for entry in job_lists:
@@ -290,7 +309,9 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         namespace_objs = namespace_list.objects
     else:
         namespace_objs = [namespace_list]
-    field_names = ["NAME", "STATUS", "AGE"]
+    field_names = [
+        FieldEnum.NAME.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
+    ]
     table_data = []
 
     for entry in namespace_objs:
@@ -313,13 +334,8 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
     else:
         filter_lists = [filter_list]
     field_names = [
-        "Name",
-        "Include",
-        "Exclude",
-        "Labels",
-        "Namespace",
-        "Status",
-        "Age",
+        FieldEnum.NAME.value, "Include", "Exclude", "Labels",
+        FieldEnum.NAMESPACE.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
     ]
     # all capital
     field_names = [field.upper() for field in field_names]
@@ -341,7 +357,7 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
     click.echo(f"{table}\r")
 
 
-def print_service_table(service_list: Union[Service, ServiceList]):
+def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
     """
     Prints out a table of services.
     """
@@ -351,13 +367,14 @@ def print_service_table(service_list: Union[Service, ServiceList]):
     else:
         service_lists = [service_list]
     field_names = [
-        "NAME",
+        FieldEnum.NAME.value,
         "TYPE",
         "CLUSTER-IP",
         "EXTERNAL-IP",
         "PORTS",
         "CLUSTER",
-        "AGE",
+        FieldEnum.NAMESPACE.value,
+        FieldEnum.AGE.value,
     ]
     table_data = []
 
@@ -368,6 +385,7 @@ def print_service_table(service_list: Union[Service, ServiceList]):
         cluster_ip = entry.spec.cluster_ip
         external_ip = entry.status.external_ip
         cluster = entry.spec.primary_cluster
+        namespace = entry.get_namespace()
         port_str = ""
         # port_str = '80:8080; ...'
         for idx, port_obj in enumerate(ports):
@@ -382,6 +400,7 @@ def print_service_table(service_list: Union[Service, ServiceList]):
             external_ip,
             port_str,
             cluster,
+            namespace,
             _get_object_age(entry),
         ])
 
@@ -398,7 +417,13 @@ def print_link_table(link_list: Union[Link, LinkList]):
         link_lists = link_list.objects
     else:
         link_lists = [link_list]
-    field_names = ["NAME", "SOURCE", "TARGET", "STATUS", "AGE"]
+    field_names = [
+        FieldEnum.NAME.value,
+        "SOURCE",
+        "TARGET",
+        FieldEnum.STATUS.value,
+        FieldEnum.AGE.value,
+    ]
     table_data = []
 
     for entry in link_lists:
@@ -421,7 +446,11 @@ def print_endpoints_table(endpoints_list):
         endpoints_list = endpoints_list.objects
     else:
         endpoints_list = [endpoints_list]
-    field_names = ["NAME", "NAMESPACE", "ENDPOINTS", "AGE"]
+
+    field_names = [
+        FieldEnum.NAME.value, FieldEnum.NAMESPACE.value, "ENDPOINTS",
+        FieldEnum.AGE.value
+    ]
     table_data = []
 
     for entry in endpoints_list:
@@ -447,8 +476,8 @@ def print_role_table(roles_list):
     else:
         roles_lists = [roles_list]
     field_names = [
-        "NAME",
-        "AGE",
+        FieldEnum.NAME.value,
+        FieldEnum.AGE.value,
     ]
     table_data = []
 

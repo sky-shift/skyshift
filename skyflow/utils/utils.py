@@ -5,7 +5,7 @@ import importlib
 import json
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -131,7 +131,7 @@ def delete_unused_cluster_config(cluster_name: str):
 def fetch_datetime():
     """Returns the current date and time as a string."""
     # Get the current datetime in UTC
-    current_time = datetime.utcnow()
+    current_time = datetime.now(timezone.utc).replace(tzinfo=None)
     # Format the datetime as a string in ISO 8601 format
     return current_time.isoformat(timespec='seconds')
 
