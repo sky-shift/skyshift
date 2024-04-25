@@ -11,6 +11,8 @@ API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 DEFAULT_NAMESPACE = "default"
 
+KUBE_CONFIG_DEFAULT_PATH = '~/.kube/config'
+
 
 def cluster_dir(cluster_name: str):
     """Returns the path to the cluster directory."""
