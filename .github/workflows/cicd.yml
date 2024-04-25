@@ -25,6 +25,7 @@ jobs:
       - name: Print python location and version (should be Python 3.10)
         run: |
           which python
+          which conda
           python --version
 
       - name: Create virtual environment
