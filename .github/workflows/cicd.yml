@@ -22,6 +22,16 @@ jobs:
       - name: Print configuration files
         run: cat ~/.skyconf/config.yaml
 
+      - name: Print python location and version (should be Python 3.10)
+        run: |
+          which python
+          python --version
+
+      - name: Create virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+
       - name: Install dependencies
         run: pip install --no-cache-dir -e .[server,dev]
 
