@@ -4,12 +4,14 @@
 # Usage:
 #    # Launch Skyflow with desired # of workers and logging behavior.
 #    bash launch_skyflow.sh --workers <num_workers> --log <file|stdout|none>
-#    # Kill Skyflow processes.
+#    # Kill Skyflow API server and controller manager.
 #    bash launch_skyflow.sh --kill
 
 # Default arguments
 workers=$(nproc)
 log="stdout" # Default logging to stdout for both programs
+api_log_file="api_server.log"
+manager_log_file="sky_manager.log"
 
 # Function to parse command-line arguments
 parse_args() {
@@ -18,37 +20,63 @@ parse_args() {
       -k|--kill) kill_flag=1 ;;
       -w|--workers) workers="$2"; shift ;;
       -l|--log) log="$2"; shift ;;
+      --api-log-file) api_log_file="$2"; shift ;;
+      --manager-log-file) manager_log_file="$2"; shift ;;
       *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
   done
 }
 
+# Function to check if programs are already running
+is_running() {
+  if pgrep -f "$1" >/dev/null; then
+    echo "$1 is already running."
+    return 0
+  fi
+  return 1
+}
+
+# Function to launch programs with logging options
 # Function to launch programs with logging options
 launch_skyflow() {
   cd "$(dirname "$0")"
-  
-  # Determine logging behavior and construct command
-  case $log in
-    file)
-      api_log_cmd="python api_server/launch_server.py --workers $workers > api_server.log 2>&1"
-      sky_manager_log_cmd="python skyflow/launch_sky_manager.py > sky_manager.log 2>&1"
-      ;;
-    stdout)
-      api_log_cmd="python api_server/launch_server.py --workers $workers"
-      sky_manager_log_cmd="python skyflow/launch_sky_manager.py"
-      ;;
-    none)
-      api_log_cmd="python api_server/launch_server.py --workers $workers > /dev/null 2>&1"
-      sky_manager_log_cmd="python skyflow/launch_sky_manager.py > /dev/null 2>&1"
-      ;;
-  esac
-  
-  # Execute commands with specified logging
-  eval $api_log_cmd &
-  # Sleep for two seconds for API server to fully boot up
-  sleep 2
-  eval $sky_manager_log_cmd &
+
+  # Determine logging behavior and construct command for API server
+  if ! is_running "launch_server.py"; then
+    case $log in
+      file)
+        api_log_cmd="python api_server/launch_server.py --workers $workers > $api_log_file 2>&1"
+        ;;
+      stdout)
+        api_log_cmd="python api_server/launch_server.py --workers $workers"
+        ;;
+      none)
+        api_log_cmd="python api_server/launch_server.py --workers $workers > /dev/null 2>&1"
+        ;;
+    esac
+    eval $api_log_cmd &
+    echo "API Server launched."
+    # Sleep for five seconds for API server to fully boot up
+    sleep 5
+  fi
+
+  # Determine logging behavior and construct command for Sky Manager
+  if ! is_running "launch_sky_manager.py"; then
+    case $log in
+      file)
+        sky_manager_log_cmd="python skyflow/launch_sky_manager.py > $manager_log_file 2>&1"
+        ;;
+      stdout)
+        sky_manager_log_cmd="python skyflow/launch_sky_manager.py"
+        ;;
+      none)
+        sky_manager_log_cmd="python skyflow/launch_sky_manager.py > /dev/null 2>&1"
+        ;;
+    esac
+    eval $sky_manager_log_cmd &
+    echo "Sky Manager launched."
+  fi
 }
 
 # Function to kill programs and ensure they are terminated
