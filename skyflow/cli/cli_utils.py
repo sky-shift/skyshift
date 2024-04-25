@@ -1,6 +1,8 @@
 """
 Utils for Skyflow CLI.
 """
+import enum
+import json as json_lib
 from typing import Dict, List, Optional, Union
 
 import click
@@ -9,15 +11,18 @@ from tabulate import tabulate
 from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
-                                ServiceAPI)
+                                ServiceAPI, UserAPI)
 # Import API parent class.
 from skyflow.api_client.exec_api import ExecAPI
 from skyflow.api_client.object_api import APIException, ObjectAPI
 from skyflow.globals import DEFAULT_NAMESPACE
 from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
-                               Namespace, NamespaceList, ObjectList, Service,
-                               ServiceList, TaskStatusEnum)
+                               Namespace, NamespaceList, Object, ObjectList,
+                               Service, ServiceList, TaskStatusEnum)
+from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
+                                 compute_datetime_delta, fetch_datetime,
+                                 load_manager_config, update_manager_config)
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -31,8 +36,24 @@ NON_NAMESPACED_API_OBJECTS = {
     "namespace": NamespaceAPI,
     "link": LinkAPI,
     "role": RoleAPI,
+    "user": UserAPI
 }
 ALL_API_OBJECTS = {**NON_NAMESPACED_API_OBJECTS, **NAMESPACED_API_OBJECTS}
+
+
+class FieldEnum(enum.Enum):
+    """
+    Enum for common field enums to print in tables.
+    """
+    NAME = "NAME"
+    STATUS = "STATUS"
+    AGE = "AGE"
+    NAMESPACE = "NAMESPACE"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 
 def fetch_api_client_object(object_type: str,
@@ -136,6 +157,12 @@ def fetch_job_logs(name: str, namespace: str):
         raise click.ClickException(f"Failed to fetch logs: {error}")
 
 
+def _get_object_age(obj: Object) -> str:
+    creation_str = obj.metadata.creation_timestamp
+    obj_age = compute_datetime_delta(creation_str, fetch_datetime())
+    return obj_age
+
+
 def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
@@ -145,7 +172,10 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         cluster_lists = cluster_list.objects
     else:
         cluster_lists = [cluster_list]
-    field_names = ["NAME", "MANAGER", "RESOURCES", "STATUS"]
+    field_names = [
+        FieldEnum.NAME.value, "MANAGER", "RESOURCES", FieldEnum.STATUS.value,
+        FieldEnum.AGE.value
+    ]
     table_data = []
 
     def gather_resources(data) -> Dict[str, float]:
@@ -168,6 +198,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         cluster_allocatable_resources = entry.status.allocatable_capacity
         resources = gather_resources(cluster_resources)
         allocatable_resources = gather_resources(cluster_allocatable_resources)
+        age = _get_object_age(entry)
         resources_str = ""
         for key in resources:
             if resources[key] == 0:
@@ -180,7 +211,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         if not resources_str:
             resources_str = "{}"
         status = entry.get_status()
-        table_data.append([name, manager_type, resources_str, status])
+        table_data.append([name, manager_type, resources_str, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
@@ -196,7 +227,8 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
     else:
         job_lists = [job_list]
     field_names = [
-        "NAME", "CLUSTER", "REPLICAS", "RESOURCES", "NAMESPACE", "STATUS"
+        FieldEnum.NAME.value, "CLUSTER", "REPLICAS", "RESOURCES",
+        FieldEnum.NAMESPACE.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
     ]
     table_data = []
     for entry in job_lists:
@@ -204,6 +236,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
         clusters = entry.status.replica_status
         namespace = entry.get_namespace()
         resources = entry.spec.resources
+        age = _get_object_age(entry)
         resources_str = ""
         for key in resources.keys():
             if resources[key] == 0:
@@ -250,11 +283,17 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
                     resources_str,
                     namespace,
                     status,
+                    age,
                 ])
         else:
             table_data.append([
-                name, "", f"0/{entry.spec.replicas}", resources_str, namespace,
-                status
+                name,
+                "",
+                f"0/{entry.spec.replicas}",
+                resources_str,
+                namespace,
+                status,
+                age,
             ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
@@ -270,13 +309,16 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         namespace_objs = namespace_list.objects
     else:
         namespace_objs = [namespace_list]
-    field_names = ["NAME", "STATUS"]
+    field_names = [
+        FieldEnum.NAME.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
+    ]
     table_data = []
 
     for entry in namespace_objs:
         name = entry.get_name()
         status = entry.get_status()
-        table_data.append([name, status])
+        age = _get_object_age(entry)
+        table_data.append([name, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
@@ -292,8 +334,11 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
     else:
         filter_lists = [filter_list]
     field_names = [
-        "Name", "Include", "Exclude", "Labels", "Namespace", "Status"
+        FieldEnum.NAME.value, "Include", "Exclude", "Labels",
+        FieldEnum.NAMESPACE.value, FieldEnum.STATUS.value, FieldEnum.AGE.value
     ]
+    # all capital
+    field_names = [field.upper() for field in field_names]
     table_data = []
 
     for entry in filter_lists:
@@ -303,13 +348,16 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
         namespace = entry.get_namespace()
         labels = entry.spec.labels_selector
         status = entry.get_status()
-        table_data.append([name, include, exclude, labels, namespace, status])
+        table_data.append([
+            name, include, exclude, labels, namespace, status,
+            _get_object_age(entry)
+        ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
 
 
-def print_service_table(service_list: Union[Service, ServiceList]):
+def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
     """
     Prints out a table of services.
     """
@@ -319,12 +367,14 @@ def print_service_table(service_list: Union[Service, ServiceList]):
     else:
         service_lists = [service_list]
     field_names = [
-        "NAME",
+        FieldEnum.NAME.value,
         "TYPE",
         "CLUSTER-IP",
         "EXTERNAL-IP",
         "PORTS",
         "CLUSTER",
+        FieldEnum.NAMESPACE.value,
+        FieldEnum.AGE.value,
     ]
     table_data = []
 
@@ -335,6 +385,7 @@ def print_service_table(service_list: Union[Service, ServiceList]):
         cluster_ip = entry.spec.cluster_ip
         external_ip = entry.status.external_ip
         cluster = entry.spec.primary_cluster
+        namespace = entry.get_namespace()
         port_str = ""
         # port_str = '80:8080; ...'
         for idx, port_obj in enumerate(ports):
@@ -342,8 +393,16 @@ def print_service_table(service_list: Union[Service, ServiceList]):
                 port_str += f"{port_obj.port}:{port_obj.target_port}"
             else:
                 port_str += f"{port_obj.port}:{port_obj.target_port}; "
-        table_data.append(
-            [name, service_type, cluster_ip, external_ip, port_str, cluster])
+        table_data.append([
+            name,
+            service_type,
+            cluster_ip,
+            external_ip,
+            port_str,
+            cluster,
+            namespace,
+            _get_object_age(entry),
+        ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
@@ -358,7 +417,13 @@ def print_link_table(link_list: Union[Link, LinkList]):
         link_lists = link_list.objects
     else:
         link_lists = [link_list]
-    field_names = ["NAME", "SOURCE", "TARGET", "STATUS"]
+    field_names = [
+        FieldEnum.NAME.value,
+        "SOURCE",
+        "TARGET",
+        FieldEnum.STATUS.value,
+        FieldEnum.AGE.value,
+    ]
     table_data = []
 
     for entry in link_lists:
@@ -366,7 +431,8 @@ def print_link_table(link_list: Union[Link, LinkList]):
         source = utils.unsanitize_cluster_name(entry.spec.source_cluster)
         target = utils.unsanitize_cluster_name(entry.spec.target_cluster)
         status = entry.get_status()
-        table_data.append([name, source, target, status])
+        age = _get_object_age(entry)
+        table_data.append([name, source, target, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
@@ -380,7 +446,11 @@ def print_endpoints_table(endpoints_list):
         endpoints_list = endpoints_list.objects
     else:
         endpoints_list = [endpoints_list]
-    field_names = ["NAME", "NAMESPACE", "ENDPOINTS"]
+
+    field_names = [
+        FieldEnum.NAME.value, FieldEnum.NAMESPACE.value, "ENDPOINTS",
+        FieldEnum.AGE.value
+    ]
     table_data = []
 
     for entry in endpoints_list:
@@ -388,9 +458,10 @@ def print_endpoints_table(endpoints_list):
         namespace = entry.get_namespace()
         endpoints = entry.spec.endpoints
         endpoints_str = ""
+        age = _get_object_age(entry)
         for cluster, endpoint_obj in endpoints.items():
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
-        table_data.append([name, namespace, endpoints_str])
+        table_data.append([name, namespace, endpoints_str, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
@@ -405,15 +476,145 @@ def print_role_table(roles_list):
     else:
         roles_lists = [roles_list]
     field_names = [
-        "NAME",
+        FieldEnum.NAME.value,
+        FieldEnum.AGE.value,
     ]
     table_data = []
 
     for entry in roles_lists:
         name = entry.get_name()
+        age = _get_object_age(entry)
         table_data.append([
             name,
+            age,
         ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"{table}\r")
+
+
+def register_user(username: str, email: str, password: str, invite: str):
+    """
+    Register user in API Server.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+
+    try:
+        response = users_api.register_user(username, email, password, invite)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(
+                f"Failed to register user: {error_details}")
+
+        click.echo("Registration successful.")
+    except APIException as error:
+        raise click.ClickException(f"Failed to register user: {error}")
+
+
+def login_user(username: str, password: str):
+    """
+    Send login request to API Server; access token stored locally if succeeds.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    try:
+        response = users_api.login_user(username, password)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(f"Failed to login: {error_details}")
+
+        data = response.json()
+        access_token = data.get("access_token")
+
+        # Store the access token to local manager config
+        manager_config = load_manager_config()
+        found_user = False
+        if 'users' not in manager_config:
+            manager_config['users'] = []
+        for user in manager_config['users']:
+            if user['name'] == username:
+                user['access_token'] = access_token
+                found_user = True
+                break
+        if not found_user:
+            manager_config['users'].append({
+                'name': username,
+                'access_token': access_token
+            })
+
+        update_manager_config(manager_config)
+        click.echo(
+            f"Login successful. Access token is stored at {API_SERVER_CONFIG_PATH}."
+        )
+    except APIException as error:
+        raise click.ClickException(f"Failed to login: {error}")
+
+
+def create_invite(json_flag, roles):
+    """
+    Send create invite request to API Server with the ROLES as to be granted.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    try:
+        response = users_api.create_invite(roles)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(
+                f"Failed to create invite: {error_details}")
+
+        data = response.json()
+        if json_flag:
+            click.echo(json_lib.dumps(data))
+        else:
+            invite = data.get("invite")
+            click.echo(f"Invitation created successfully. Invite: {invite}")
+    except APIException as error:
+        raise click.ClickException(f"Failed to create invite: {error}")
+
+
+def revoke_invite_req(invite: str):
+    """
+    Send revoke invite request to API Server.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    try:
+        response = users_api.revoke_invite(invite)
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(
+                f"Failed to revoke invite: {error_details}")
+
+        data = response.json()
+        message = data.get("message")
+        click.echo(f"Invitation revoked. {message}")
+
+    except APIException as error:
+        raise click.ClickException(f"Failed to create invite: {error}")
+
+
+def switch_context(username, namespace):
+    """
+    Switch local CLI active context.
+    """
+    manager_config = load_manager_config()
+
+    if namespace:
+        manager_config['metadata']["namespace"] = namespace
+        update_manager_config(manager_config)
+        click.echo(f"Updated active namespace at {API_SERVER_CONFIG_PATH}.")
+
+    if username:
+        if 'users' not in manager_config:
+            raise click.ClickException(
+                f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
+            )
+
+        for user in manager_config['users']:
+            if user['name'] == username:
+                manager_config['current_user'] = username
+                update_manager_config(manager_config)
+                click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
+                return
+
+        raise click.ClickException(
+            f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
+        )
