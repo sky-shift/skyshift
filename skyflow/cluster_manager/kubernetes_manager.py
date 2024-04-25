@@ -72,10 +72,14 @@ class K8ConnectionError(config.config_exception.ConfigException):
 class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
-    def __init__(self, name: str, config_path: str = '~/.kube/config'):
+    def __init__(self,
+                 name: str,
+                 config_path: str = '~/.kube/config',
+                 logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
-        self.logger = logging.getLogger(f"[{self.cluster_name} - K8 Manager]")
+        if not logger:
+            self.logger = logging.getLogger(f"[{name} - K8 Manager]")
         try:
             config.load_kube_config(config_file=config_path)
         except config.config_exception.ConfigException as error:
@@ -85,20 +89,23 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         all_contexts = config.list_kube_config_contexts(
             config_file=config_path)[0]
         self.context = None
+        self.context_name = None
         for context in all_contexts:
             context["name"] = utils.sanitize_cluster_name(context["name"])
             if context["name"] == self.cluster_name:
                 self.context = context
+                self.context_name = context["name"]
                 break
         assert (self.context is not None
                 ), f"Could not find context {self.cluster_name} in kubeconfig."
-
+        self.context_name = utils.unsanitize_cluster_name(self.context_name)
         self.user = self.context["context"]["user"]
         self.namespace = self.context["context"].get("namespace", "default")
         # If Kubeneretes context is identified, create Kubernetes client.
-        self.core_v1 = client.CoreV1Api()
-        self.apps_v1 = client.AppsV1Api()
-        self.discovery_v1 = client.DiscoveryV1Api()
+        api_client = config.new_client_from_config(context=self.context_name)
+        self.core_v1 = client.CoreV1Api(api_client=api_client)
+        self.apps_v1 = client.AppsV1Api(api_client=api_client)
+        self.discovery_v1 = client.DiscoveryV1Api(api_client=api_client)
         # Maps node name to accelerator type.
         # Assumes each node has at most one accelerator type.
         self.accelerator_types: Dict[str, str] = {}
