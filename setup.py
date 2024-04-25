@@ -30,7 +30,7 @@ setup(
     ],
     extras_require={
         "server": [
-            "etcd3", "fastapi", "uvicorn[standard]", "pydantic>=2.5.0",
+            "etcd3", "fastapi", "uvicorn[standard]", "pydantic[email]>=2.5.0",
             'jsonpatch', "pyjwt",
         ],
         "dev": [
