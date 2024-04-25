@@ -523,6 +523,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             if sky_job_name not in jobs_dict["tasks"]:
                 jobs_dict["tasks"][sky_job_name] = {}
             jobs_dict["tasks"][sky_job_name][pod.metadata.name] = pod_status
+            # To prevent crashes when a pod is scheduled but doesn't have containers running.
+            if not pod.status.container_statuses:
+                continue
             for container_status in pod.status.container_statuses:
                 state: str = ContainerStatusEnum.UNKNOWN.value  # Default state
                 if container_status.state.running is not None:

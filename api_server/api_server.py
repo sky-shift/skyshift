@@ -2,6 +2,7 @@
 """
 Specifies the API server and its endpoints for Skyflow.
 """
+import asyncio
 import json
 import os
 import secrets
@@ -195,7 +196,7 @@ class APIServer:
         admin_role = Role(metadata=RoleMeta(name="admin-role",
                                             namespaces=["*"]),
                           rules=[Rule(resources=["*"], actions=["*"])],
-                          users=[])
+                          users=[ADMIN_USER])
 
         self.etcd_client.write(
             "roles/admin-role",
@@ -716,7 +717,7 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return self._watch_key(link_header)
+            return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -750,10 +751,39 @@ class APIServer:
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
         if watch:
-            return self._watch_key(f"{link_header}/{object_name}")
+            return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
+
+    async def _watch_key(self, key: str):
+        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
+
+        async def generate_events():
+            try:
+                while True:
+                    try:
+                        event = await asyncio.to_thread(
+                            next, events_iterator, None)
+                        if event is None:
+                            break
+                        event_type, event_value = event
+                        event_value = load_object(event_value)
+                        # Check and validate event type.
+                        watch_event = WatchEvent(event_type=event_type.value,
+                                                 object=event_value)
+                        yield watch_event.model_dump_json() + "\n"
+                    except (StopIteration, ValueError):
+                        break
+            except asyncio.CancelledError:
+                # Happens when client disconnects.
+                pass
+            cancel_watch_fn()
+            yield "{}"
+
+        return StreamingResponse(generate_events(),
+                                 media_type="application/x-ndjson",
+                                 status_code=200)
 
     def update_object(
         self,
@@ -1064,7 +1094,7 @@ class APIServer:
             await websocket.close(code=1003
                                   )  # Close with unsupported data code
             return
-        print(cluster_obj.spec.manager)
+
         if cluster_obj.spec.manager not in ["k8", "kubernetes"]:
             close_message = f"Cluster manager '{cluster_obj.spec.manager}' is not supported."
             await websocket.send_text(close_message)
@@ -1087,24 +1117,6 @@ class APIServer:
                                                   tty, exec_command)
         if not tty:
             await websocket.close(code=1000)  # Close with normal code
-
-    def _watch_key(self, key: str):
-        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
-
-        def generate_events():
-            try:
-                for event in events_iterator:
-                    event_type, event_value = event
-                    event_value = load_object(event_value)
-                    # Check and validate event type.
-                    watch_event = WatchEvent(event_type=event_type.value,
-                                             object=event_value)
-                    yield watch_event.model_dump_json() + "\n"
-            finally:
-                cancel_watch_fn()
-
-        return StreamingResponse(generate_events(),
-                                 media_type="application/x-ndjson")
 
     def _add_endpoint(self,
                       endpoint=None,
