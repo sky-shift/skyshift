@@ -8,42 +8,43 @@ jobs:
   build-and-test:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
+          python-version: '3.10'
+          cache: 'pip' # caching pip dependencies
 
-      - name: Print working directory
-        run: pwd
+      # - name: Print working directory
+      #   run: pwd
 
-      - name: Print GITHUB_WORKSPACE
-        run: echo $GITHUB_WORKSPACE
+      # - name: Print GITHUB_WORKSPACE
+      #   run: echo $GITHUB_WORKSPACE
 
-      - name: Print configuration files
-        run: cat ~/.skyconf/config.yaml
+      # - name: Print configuration files
+      #   run: cat ~/.skyconf/config.yaml
 
-      - name: Print python location and version (should be Python 3.10)
-        run: |
-          which python
-          python --version
+      # - name: Print python location and version (should be Python 3.10)
+      #   run: |
+      #     which python
+      #     python --version
 
-      - name: Create virtual environment
-        run: |
-          python -m venv venv
-          source venv/bin/activate
+      # - name: Create virtual environment
+      #   run: |
+      #     python -m venv venv
+      #     source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install --no-cache-dir -e .[server,dev]
+        run: pip install -e .[server,dev]
 
-      - name: Set up environment
-        run: |
-          export PATH=$PATH:~/.local/bin && \
-          sudo sysctl fs.inotify.max_user_watches=524288 && \
-          sudo sysctl fs.inotify.max_user_instances=512
+      # - name: Set up environment
+      #   run: |
+      #     export PATH=$PATH:~/.local/bin && \
+      #     sudo sysctl fs.inotify.max_user_watches=524288 && \
+      #     sudo sysctl fs.inotify.max_user_instances=512
         
       # Run Tests inside Docker Container
       - name: Run tests
-        run: pytest ./skyflow/tests
+        run: pytest skyflow/tests
 
       # - name: Commit and push changes
       #   run: |
