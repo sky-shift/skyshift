@@ -196,7 +196,7 @@ class APIServer:
         admin_role = Role(metadata=RoleMeta(name="admin-role",
                                             namespaces=["*"]),
                           rules=[Rule(resources=["*"], actions=["*"])],
-                          users=[])
+                          users=[ADMIN_USER])
 
         self.etcd_client.write(
             "roles/admin-role",
@@ -773,16 +773,17 @@ class APIServer:
                         watch_event = WatchEvent(event_type=event_type.value,
                                                  object=event_value)
                         yield watch_event.model_dump_json() + "\n"
-                    except StopIteration:
+                    except (StopIteration, ValueError):
                         break
             except asyncio.CancelledError:
-                cancel_watch_fn()
-            else:
-                cancel_watch_fn()
-            yield ""
+                # Happens when client disconnects.
+                pass
+            cancel_watch_fn()
+            yield "{}"
 
         return StreamingResponse(generate_events(),
-                                 media_type="application/x-ndjson")
+                                 media_type="application/x-ndjson",
+                                 status_code=200)
 
     def update_object(
         self,
