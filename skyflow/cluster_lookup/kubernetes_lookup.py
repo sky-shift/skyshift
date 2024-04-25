@@ -10,11 +10,13 @@ from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
 
+
 def _fetch_absolute_path(path: str) -> str:
     """
     Fetches the absolute path of a given path.
     """
     return os.path.abspath(os.path.expanduser(path))
+
 
 def _load_kube_config_contexts(file_path: str) -> Tuple[List[Any], bool]:
     """
@@ -28,6 +30,7 @@ def _load_kube_config_contexts(file_path: str) -> Tuple[List[Any], bool]:
         _handle_invalid_config(file_path, str(error))
         return [], False
 
+
 def _handle_invalid_config(file_path: str, error_msg: str):
     """
     Prints an appropriate message based on the error encountered.
@@ -40,6 +43,7 @@ def _handle_invalid_config(file_path: str, error_msg: str):
     elif 'Invalid kube-config file' in error_msg:
         print(f'Invalid kubeconfig file {file_path}. Skipping this. '
               'Ensure the kubeconfig file is valid.')
+
 
 def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
@@ -57,7 +61,7 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     for cluster in cluster_api.list().objects:
         path = cluster.spec.config_path if cluster.spec.config_path else '~/.kube/config'
         path = _fetch_absolute_path(path)
-        
+
         if path not in existing_configs:
             contexts, success = _load_kube_config_contexts(path)
             if success:
@@ -66,4 +70,7 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
             else:
                 cluster_api.delete(cluster.metadata.name)
 
-    return [utils.sanitize_cluster_name(context["name"]) for context in existing_contexts]
+    return [
+        utils.sanitize_cluster_name(context["name"])
+        for context in existing_contexts
+    ]
