@@ -48,7 +48,7 @@ class SSHConnectionError(Exception):
     """ Raised when there is an error establishing SSH connection to slurm cluster. """
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
-    cluster_name = "slurmcluster1"
+    cluster_name = "slurmcluster2"
     def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
@@ -66,6 +66,13 @@ class SlurmManagerCLI(Manager):
 
             if str(_get_config(config_dict, ['testing', 'local'], optional=True)) == 'True':
                 self.is_local = True
+            elif len(str(_get_config(config_dict, ['testing', 'passkey'], optional=True))) > 0:
+                self.passkey = str(_get_config(config_dict, ['testing', 'passkey']))
+                self.remote_hostname = _get_config(config_dict, ['slurmcli', 'remote_hostname'])
+                self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
+                self.ssh_client = paramiko.SSHClient()
+                self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                self.check_reachable(True)
             else:
                 self.rsa_key_path = _get_config(config_dict, ['slurmcli','rsa_key_path'])
                 self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
@@ -106,13 +113,16 @@ class SlurmManagerCLI(Manager):
         """
         if not self.is_local:
             self.ssh_client.close()
-    def check_reachable(self):
+    def check_reachable(self, uses_passkey = False):
         """ Sanity check to make sure we can SSH into slurm login node.
         """
         try:
         # Connect to the SSH server
-            self.ssh_client.connect( hostname = self.remote_hostname,
-                username = self.remote_username, pkey = self.rsa_key )
+            if uses_passkey:
+                self.ssh_client.connect(self.remote_hostname,22,self.remote_username,self.passkey)
+            else:
+                self.ssh_client.connect( hostname = self.remote_hostname,
+                    username = self.remote_username, pkey = self.rsa_key )
         except paramiko.AuthenticationException as exception:
             raise SSHConnectionError('Unable to authenticate user, please check configuration')
         except paramiko.SSHException as exception:
@@ -538,10 +548,10 @@ def _get_config(config_dict, key, optional=False) -> str:
     return config_val
 if __name__ == '__main__':
     api = SlurmManagerCLI()
-    status = api.get_cluster_status()
-    print(status.status)
-    print(api.cluster_resources)
-    print("************")
-    print(api.allocatable_resources)
-    containers = api._discover_manager()
-    print(containers)
+    #status = api.get_cluster_status()
+    #print(status.status)
+    #print(api.cluster_resources)
+    #print("************")
+    #print(api.allocatable_resources)
+    #containers = api._discover_manager()
+    #print(containers)

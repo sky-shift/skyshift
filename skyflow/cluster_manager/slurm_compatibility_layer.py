@@ -90,7 +90,7 @@ class SlurmCompatiblityLayer():
                 'envs'][item] + ';'
         job_dict['envs'] = env_string
         job_dict['total_mem'] = int(job.spec.resources['memory'])
-
+        
         temp_script = job_dict['submission_script'].split('\\n')
         command_string = ''
         for command in temp_script:
@@ -138,7 +138,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         job_dict = {
             'submission_script':
             submission_script,
@@ -185,7 +185,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         job_dict = {
             'submission_script':
             submission_script,
@@ -228,7 +228,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
             job.spec.envs["XDG_RUNTIME_DIR"] = self.runtime_dir
         job_dict = {
@@ -274,7 +274,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         job_dict = {
             'submission_script':
             submission_script,
@@ -318,7 +318,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         job_dict = {
             'submission_script':
             submission_script,
@@ -366,7 +366,7 @@ class SlurmCompatiblityLayer():
             'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        resources = job.spec.resources
+        resources = set_min_resources(job.spec.resources)
         job_dict = {
             'submission_script':
             submission_script,
@@ -418,3 +418,9 @@ def compat_unsupported():
             ValueError: Provided unsupported container manager option in the config file.
     """
     raise ValueError('Unsupported Container Manager Solution')
+def set_min_resources(resources) -> Dict[str, Union[str,int]]:
+    if resources['cpus'] < 1:
+        resources['cpus'] = 1
+    if resources['memory'] < 32:
+        resources['memory'] = 32
+    return resources
