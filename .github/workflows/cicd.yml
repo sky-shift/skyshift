@@ -17,6 +17,7 @@ jobs:
         with:
           runCmd: |
             echo "containerId=$HOSTNAME" >> "$GITHUB_OUTPUT"
+            go install sigs.k8s.io/kind@v0.22.0 && kind create cluster
             pip install -e .[server,dev]
             minikube start
             pytest skyflow/tests
