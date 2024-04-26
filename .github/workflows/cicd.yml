@@ -11,6 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+      - name: Install curl
+        run: apt update && apt install -y curl npm
       - name: Install docker
         run: curl -fsSL https://get.docker.com -o get-docker.sh | sh
       - name: Pre-build image and run make ci-build in dev container
