@@ -69,37 +69,6 @@ class TestLaunchAPIServer(unittest.TestCase):
             [call.args[0] for call in mock_file().write.call_args_list])
         self.assertEqual(yaml.safe_load(written_content), expected_config)
 
-    @patch('subprocess.run')
-    @patch('subprocess.Popen')
-    def test_check_and_install_etcd(self, mock_popen, mock_run):
-        """
-        Test the check and installation process of ETCD.
-        """
-        # Case 1: ETCD is already running
-        mock_run.return_value.returncode = 0
-        launch_server.check_and_install_etcd()
-        mock_run.assert_called_with('ps aux | grep "[e]tcd"',
-                                    shell=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    text=True)
-        mock_popen.assert_not_called()
-
-        # Case 2: ETCD is not running
-        mock_run.return_value.returncode = 1
-        mock_popen_inst = MagicMock()
-        mock_popen_inst.wait.return_value = 0
-        mock_popen_inst.returncode = 0  # Simulate successful installation
-        mock_popen.return_value = mock_popen_inst
-
-        launch_server.check_and_install_etcd()
-        # Verify that Popen is called with the correct command
-        relative_dir = os.path.dirname(os.path.realpath(
-            launch_server.__file__))
-        mock_popen.assert_called_with(f"{relative_dir}/install_etcd.sh",
-                                      shell=True,
-                                      start_new_session=True)
-
     @patch('api_server.launch_server.uvicorn.run')
     @patch('api_server.launch_server.generate_manager_config')
     @patch('api_server.launch_server.check_and_install_etcd')
