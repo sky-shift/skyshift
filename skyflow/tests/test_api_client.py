@@ -24,8 +24,6 @@ from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        # with patch('api_server.api_server.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"), \
-        #     patch('skyflow.utils.utils.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"):
         # Kill any running sky_manager processes
         shutdown_skyflow(temp_data_dir)
         setup_skyflow(temp_data_dir)
@@ -234,92 +232,103 @@ def test_namespace_object_api_create_api_exception(
         namespace_api.create({"key": "value"})
 
 
-# def test_namespace_object_api_create_timeout(namespace_api: NamespaceObjectAPI,
-#                                              mock_timeout: Any) -> None:
-#     """Tests timeout exception handling during object creation with NamespaceObjectAPI."""
-#     with pytest.raises(Timeout):
-#         namespace_api.create({"key": "value"})
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_create_timeout(namespace_api: NamespaceObjectAPI,
+                                             mock_timeout: Any) -> None:
+    """Tests timeout exception handling during object creation with NamespaceObjectAPI."""
+    with pytest.raises(Timeout):
+        namespace_api.create({"key": "value"})
 
 
-# def test_namespace_object_api_create_wrong_response(
-#         namespace_api: NamespaceObjectAPI, mock_wrong_response: Any) -> None:
-#     """Tests handling of an unexpected response structure from NamespaceObjectAPI."""
-#     with pytest.raises(ValueError):
-#         namespace_api.create({"key": "value"})
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_create_wrong_response(
+        namespace_api: NamespaceObjectAPI, mock_wrong_response: Any) -> None:
+    """Tests handling of an unexpected response structure from NamespaceObjectAPI."""
+    with pytest.raises(ValueError):
+        namespace_api.create({"key": "value"})
 
 
-# def test_namespace_object_api_create_server_error(
-#         namespace_api: NamespaceObjectAPI, mock_server_error: Any) -> None:
-#     """Tests server error handling during object creation with NamespaceObjectAPI."""
-#     with pytest.raises(APIException) as exc_info:
-#         namespace_api.create({"key": "value"})
-#     assert "500" in str(exc_info.value)
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_create_server_error(
+        namespace_api: NamespaceObjectAPI, mock_server_error: Any) -> None:
+    """Tests server error handling during object creation with NamespaceObjectAPI."""
+    with pytest.raises(APIException) as exc_info:
+        namespace_api.create({"key": "value"})
+    assert "500" in str(exc_info.value)
 
 
-# def test_namespace_object_api_create_bad_request(
-#         namespace_api: NamespaceObjectAPI, mock_bad_request: Any) -> None:
-#     """Tests bad request error handling during object creation with NamespaceObjectAPI."""
-#     with pytest.raises(APIException) as exc_info:
-#         namespace_api.create({"key": "value"})
-#     assert "Bad request" in str(exc_info.value)
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_create_bad_request(
+        namespace_api: NamespaceObjectAPI, mock_bad_request: Any) -> None:
+    """Tests bad request error handling during object creation with NamespaceObjectAPI."""
+    with pytest.raises(APIException) as exc_info:
+        namespace_api.create({"key": "value"})
+    assert "Bad request" in str(exc_info.value)
 
 
-# def test_namespace_object_api_create_no_content_response(
-#         namespace_api: NamespaceObjectAPI, mock_no_json_response: Any) -> None:
-#     """Tests handling of no content response from NamespaceObjectAPI."""
-#     with pytest.raises(ValueError):
-#         namespace_api.create({"key": "value"})
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_create_no_content_response(
+        namespace_api: NamespaceObjectAPI, mock_no_json_response: Any) -> None:
+    """Tests handling of no content response from NamespaceObjectAPI."""
+    with pytest.raises(ValueError):
+        namespace_api.create({"key": "value"})
 
 
-# def test_namespace_object_api_update_success(namespace_api: NamespaceObjectAPI,
-#                                              mock_requests: Any) -> None:
-#     """Tests successful object update using NamespaceObjectAPI."""
-#     updated_config = {"kind": "Job", "metadata": {"name": "updated-test-job"}}
-#     response = namespace_api.update(updated_config)
-#     assert response.kind == "Job" and response.metadata.name == "updated-test-job"
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_update_success(namespace_api: NamespaceObjectAPI,
+                                             mock_requests: Any) -> None:
+    """Tests successful object update using NamespaceObjectAPI."""
+    updated_config = {"kind": "Job", "metadata": {"name": "updated-test-job"}}
+    response = namespace_api.update(updated_config)
+    assert response.kind == "Job" and response.metadata.name == "updated-test-job"
 
 
-# def test_namespace_object_api_list_success(namespace_api: NamespaceObjectAPI,
-#                                            mock_requests: Any) -> None:
-#     """Tests successful object listing using NamespaceObjectAPI."""
-#     response = namespace_api.list()
-#     assert isinstance(response, list) and len(response) > 0
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_list_success(namespace_api: NamespaceObjectAPI,
+                                           mock_requests: Any) -> None:
+    """Tests successful object listing using NamespaceObjectAPI."""
+    response = namespace_api.list()
+    assert isinstance(response, list) and len(response) > 0
 
 
-# def test_namespace_object_api_get_success(namespace_api: NamespaceObjectAPI,
-#                                           mock_requests: Any) -> None:
-#     """Tests successful object retrieval using NamespaceObjectAPI."""
-#     response = namespace_api.get("test-job")
-#     assert response.kind == "Job" and response.metadata.name == "test-job"
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_get_success(namespace_api: NamespaceObjectAPI,
+                                          mock_requests: Any) -> None:
+    """Tests successful object retrieval using NamespaceObjectAPI."""
+    response = namespace_api.get("test-job")
+    assert response.kind == "Job" and response.metadata.name == "test-job"
 
 
-# def test_namespace_object_api_delete_success(namespace_api: NamespaceObjectAPI,
-#                                              mock_requests: Any) -> None:
-#     """Tests successful object deletion using NamespaceObjectAPI."""
-#     response = namespace_api.delete("test-job")
-#     assert response.kind == "Job" and response.metadata.name == "test-job"
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_delete_success(namespace_api: NamespaceObjectAPI,
+                                             mock_requests: Any) -> None:
+    """Tests successful object deletion using NamespaceObjectAPI."""
+    response = namespace_api.delete("test-job")
+    assert response.kind == "Job" and response.metadata.name == "test-job"
 
 
-# def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI,
-#                                     monkeypatch: Any) -> None:
-#     """Tests the watch functionality of NamespaceObjectAPI."""
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_namespace_object_api_watch(namespace_api: NamespaceObjectAPI,
+                                    monkeypatch: Any) -> None:
+    """Tests the watch functionality of NamespaceObjectAPI."""
 
-#     def mock_watch_events(
-#             url: str,
-#             headers: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
-#         yield {"kind": "Job", "metadata": {"name": "watched-test-job"}}
+    def mock_watch_events(
+            url: str,
+            headers: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
+        yield {"kind": "Job", "metadata": {"name": "watched-test-job"}}
 
-#     monkeypatch.setattr("skyflow.api_client.object_api.watch_events",
-#                         mock_watch_events)
+    monkeypatch.setattr("skyflow.api_client.object_api.watch_events",
+                        mock_watch_events)
 
-#     for response in namespace_api.watch():
-#         assert response.kind == "Job" and response.metadata.name == "watched-test-job"
-#         break
+    for response in namespace_api.watch():
+        assert response.kind == "Job" and response.metadata.name == "watched-test-job"
+        break
 
 
-# def test_no_namespace_object_api_create_success(
-#         nonamespace_api: NoNamespaceObjectAPI, mock_requests: Any) -> None:
-#     """Tests successful object creation using NoNamespaceObjectAPI."""
-#     valid_config = {"kind": "Cluster", "metadata": {"name": "test-cluster"}}
-#     response = nonamespace_api.create(valid_config)
-#     assert response.kind == "Cluster" and response.metadata.name == "test-cluster"
+# @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
+def test_no_namespace_object_api_create_success(
+        nonamespace_api: NoNamespaceObjectAPI, mock_requests: Any) -> None:
+    """Tests successful object creation using NoNamespaceObjectAPI."""
+    valid_config = {"kind": "Cluster", "metadata": {"name": "test-cluster"}}
+    response = nonamespace_api.create(valid_config)
+    assert response.kind == "Cluster" and response.metadata.name == "test-cluster"

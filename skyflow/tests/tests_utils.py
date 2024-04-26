@@ -101,8 +101,7 @@ def kill_process(process_name: str) -> None:
         subprocess.run(command, shell=True, check=True)
         print(f"Successfully killed process {process_name}")
     except subprocess.CalledProcessError:
-        print(f"Failed to kill process {process_name} hiiiiiii")
-        print("hiii")
+        print(f"Failed to kill process {process_name}")
 
 
 def retrieve_current_working_dir(relative_path_to_script: str) -> str:
