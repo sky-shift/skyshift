@@ -7,11 +7,12 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    container: docker:dind
+    container: ubuntu:24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install bash & npm
-        run: apk add --no-cache bash npm
+      - uses: actions/setup-node@v4
+      - name: Install docker
+        run: curl -fsSL https://get.docker.com -o get-docker.sh | sh
       - name: Pre-build image and run make ci-build in dev container
         uses: devcontainers/ci@v0.3
         with:
