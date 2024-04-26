@@ -7,9 +7,9 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    container:
-      image: docker:dind
-      options: --privileged
+    # container:
+    #   image: docker:dind
+    #   options: --privileged
     steps:
       - uses: actions/checkout@v4
       # - uses: actions/setup-node@v4
