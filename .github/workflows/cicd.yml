@@ -20,6 +20,7 @@ jobs:
       - name: Pre-build image and run make ci-build in dev container
         uses: devcontainers/ci@v0.3
         with:
+          noCache: true
           runCmd: pip install -e .[server,dev] && minikube start && pytest skyflow/tests
       # - uses: actions/setup-python@v5
       #   with:
