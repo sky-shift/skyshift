@@ -978,126 +978,115 @@ class TestAPIServer(unittest.TestCase):
 
         self.run_async(async_test())
 
-    @pytest.mark.skip(reason="Broken and (probably) difficult to fix")
     def test_get_object_extended(self):
         """
         Extended tests for the get_object functionality, covering various scenarios like different object names and complex object data.
         """
 
-        async def async_test():
-            # 1. Test Different Namespaces
-            for namespace in ["namespace1", "namespace2"]:
-                self.mock_etcd_client_instance.read.return_value = {
-                    "metadata": {
-                        "name": f"test-object-{namespace}"
-                    }
-                }
-                obj = self.api_server.get_object("jobs",
-                                                 "test-object",
-                                                 namespace,
-                                                 watch=False)
-                self.assertIsNotNone(obj)
-
-            # 2. Test Object Name Variations
-            object_names = ["a", "special-object", "123"]
-            for name in object_names:
-                self.mock_etcd_client_instance.read.return_value = {
-                    "metadata": {
-                        "name": name
-                    }
-                }
-                obj = self.api_server.get_object("jobs", name, watch=False)
-                self.assertIsNotNone(obj)
-
-            # 2.1 Test Invalid Object Names
-            object_names = ["", 123]
-            for name in object_names:
-                self.mock_etcd_client_instance.read.return_value = {
-                    "metadata": {
-                        "name": name
-                    }
-                }
-                with self.assertRaises(ValidationError):
-                    self.api_server.get_object("jobs", name, watch=False)
-
-            # 3. Test Watch Parameter with Event Generation
-            self.mock_etcd_client_instance.watch.return_value = ([("PUT", {
-                "metadata": {
-                    "name": "watched-object"
-                }
-            })], lambda: None)
-            watch_response = self.api_server.get_object("jobs",
-                                                        "watched-object",
-                                                        namespace=namespace,
-                                                        watch=True)
-            link_header = f"{'jobs'}/{namespace}" if namespace else "jobs"
-            self.mock_etcd_client_instance.watch.assert_called_once_with(
-                f"{link_header}/{'watched-object'}")
-            self.assertIsInstance(watch_response, StreamingResponse)
-
-            # 4. Test with Complex Object Data
-            complex_data = {
-                "metadata": {
-                    "name": "complex-object"
-                },
-                "spec": {
-                    "key": "value",  #Should be ignored
-                    "image": "ubuntu:latest",
-                    "resources": {
-                        "cpus": 1.0,
-                        "memory": 0.0
-                    },
-                    "run": "",
-                    "envs": {},
-                    "ports": [],
-                    "replicas": 1,
-                    "restart_policy": "Always"
-                }
-            }
-            self.mock_etcd_client_instance.read.return_value = complex_data
-            obj = self.api_server.get_object("jobs",
-                                             "complex-object",
-                                             watch=False)
-            self.assertEqual(obj.metadata.name,
-                             complex_data["metadata"]["name"])
-            self.assertEqual(obj.spec.image, complex_data["spec"]["image"])
-            self.assertEqual(obj.spec.resources,
-                             complex_data["spec"]["resources"])
-            self.assertEqual(obj.spec.run, complex_data["spec"]["run"])
-            self.assertEqual(obj.spec.envs, complex_data["spec"]["envs"])
-            self.assertEqual(obj.spec.ports, complex_data["spec"]["ports"])
-            self.assertEqual(obj.spec.replicas,
-                             complex_data["spec"]["replicas"])
-            self.assertEqual(obj.spec.restart_policy,
-                             complex_data["spec"]["restart_policy"])
-            with self.assertRaises(AttributeError):
-                obj.spec.key
-
-            # 5. Test Retrieval of Non-Namespaced Objects
+        # 1. Test Different Namespaces
+        for namespace in ["namespace1", "namespace2"]:
             self.mock_etcd_client_instance.read.return_value = {
                 "metadata": {
-                    "name": "non-namespaced-object"
+                    "name": f"test-object-{namespace}"
                 }
             }
-            obj = self.api_server.get_object("clusters",
-                                             "non-namespaced-object",
-                                             watch=False)
-            self.assertIsNotNone(obj)
-
-            # 6. Test Invalid Object Names
-            self.mock_etcd_client_instance.read.return_value = None
-            with self.assertRaises(HTTPException):
-                self.api_server.get_object("jobs", "invalid_name", watch=False)
-
-            # 7. Test Handling of Partial Object Data
-            partial_data = {"metadata": {"name": "partial-object"}}
-            self.mock_etcd_client_instance.read.return_value = partial_data
             obj = self.api_server.get_object("jobs",
-                                             "partial-object",
+                                             "test-object",
+                                             namespace,
                                              watch=False)
             self.assertIsNotNone(obj)
 
-        self.run_async(async_test())
+        # 2. Test Object Name Variations
+        object_names = ["a", "special-object", "123"]
+        for name in object_names:
+            self.mock_etcd_client_instance.read.return_value = {
+                "metadata": {
+                    "name": name
+                }
+            }
+            obj = self.api_server.get_object("jobs", name, watch=False)
+            self.assertIsNotNone(obj)
+
+        # 2.1 Test Invalid Object Names
+        object_names = ["", 123]
+        for name in object_names:
+            self.mock_etcd_client_instance.read.return_value = {
+                "metadata": {
+                    "name": name
+                }
+            }
+            with self.assertRaises(ValidationError):
+                self.api_server.get_object("jobs", name, watch=False)
+
+        # 3. Test Watch Parameter with Event Generation
+        self.mock_etcd_client_instance.watch.return_value = ([("PUT", {
+            "metadata": {
+                "name": "watched-object"
+            }
+        })], lambda: None)
+        watch_response = self.api_server.get_object("jobs",
+                                                    "watched-object",
+                                                    namespace=namespace,
+                                                    watch=True)
+        link_header = f"{'jobs'}/{namespace}" if namespace else "jobs"
+        self.mock_etcd_client_instance.watch.assert_called_once_with(
+            f"{link_header}/{'watched-object'}")
+        self.assertIsInstance(watch_response, StreamingResponse)
+
+        # 4. Test with Complex Object Data
+        complex_data = {
+            "metadata": {
+                "name": "complex-object"
+            },
+            "spec": {
+                "key": "value",  #Should be ignored
+                "image": "ubuntu:latest",
+                "resources": {
+                    "cpus": 1.0,
+                    "memory": 0.0
+                },
+                "run": "",
+                "envs": {},
+                "ports": [],
+                "replicas": 1,
+                "restart_policy": "Always"
+            }
+        }
+        self.mock_etcd_client_instance.read.return_value = complex_data
+        obj = self.api_server.get_object("jobs", "complex-object", watch=False)
+        self.assertEqual(obj.metadata.name, complex_data["metadata"]["name"])
+        self.assertEqual(obj.spec.image, complex_data["spec"]["image"])
+        self.assertEqual(obj.spec.resources, complex_data["spec"]["resources"])
+        self.assertEqual(obj.spec.run, complex_data["spec"]["run"])
+        self.assertEqual(obj.spec.envs, complex_data["spec"]["envs"])
+        self.assertEqual(obj.spec.ports, complex_data["spec"]["ports"])
+        self.assertEqual(obj.spec.replicas, complex_data["spec"]["replicas"])
+        self.assertEqual(obj.spec.restart_policy,
+                         complex_data["spec"]["restart_policy"])
+        with self.assertRaises(AttributeError):
+            obj.spec.key
+
+        # 5. Test Retrieval of Non-Namespaced Objects
+        self.mock_etcd_client_instance.read.return_value = {
+            "metadata": {
+                "name": "non-namespaced-object"
+            }
+        }
+        obj = self.api_server.get_object("clusters",
+                                         "non-namespaced-object",
+                                         watch=False)
+        self.assertIsNotNone(obj)
+
+        # 6. Test Invalid Object Names
+        self.mock_etcd_client_instance.read.return_value = None
+        with self.assertRaises(HTTPException):
+            self.api_server.get_object("jobs", "invalid_name", watch=False)
+
+        # 7. Test Handling of Partial Object Data
+        partial_data = {"metadata": {"name": "partial-object"}}
+        self.mock_etcd_client_instance.read.return_value = partial_data
+        obj = self.api_server.get_object("jobs", "partial-object", watch=False)
+        self.assertIsNotNone(obj)
 
     def test_update_object(self):
         """
