@@ -7,16 +7,16 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    # outputs:
-    #   runCmdOutput: ${{ steps.devc.outputs.runCmdOutput }}
+    outputs:
+      containerId: ${{ steps.devcontainer.outputs.containerId }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build dev container and run tests
-        # id: devc
+      - id: devcontainer
+        name: Build dev container and run tests
         uses: devcontainers/ci@v0.3
         with:
           runCmd: |
-            echo "CID=$HOSTNAME" >> $GITHUB_ENV
+            echo "containerId=$HOSTNAME" >> "$GITHUB_OUTPUT"
             pip install -e .[server,dev]
             minikube start
             pytest skyflow/tests
@@ -27,9 +27,6 @@ jobs:
     if: always()
     steps:
       - name: Delete checked-out repository
-        run: |
-          # docker rm -f ${{ needs.build-and-test.outputs.runCmdOutput }}
-          docker rm -f $CID
+        run: docker rm -f ${{ needs.build-and-test.outputs.containerId }}
       - name: Delete checked-out repository
-        run: |
-          rm -rf $GITHUB_WORKSPACE
+        run: rm -rf $GITHUB_WORKSPACE
