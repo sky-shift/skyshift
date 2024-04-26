@@ -10,6 +10,8 @@ jobs:
     container: ubuntu:24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install Python
+        run: apt update && apt install -y python3 python3-pip
       - name: Install dependencies
         run: pip install -e .[server,dev]
       - name: Run tests
