@@ -717,7 +717,10 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            return asyncio.run(self._watch_key(link_header))
+            try:
+                return asyncio.get_event_loop().run_until_complete(self._watch_key(link_header))
+            except:
+                return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -751,7 +754,10 @@ class APIServer:
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
         if watch:
-            return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
+            try:
+                return asyncio.get_event_loop().run_until_complete(self._watch_key(f"{link_header}/{object_name}"))
+            except:
+                return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
