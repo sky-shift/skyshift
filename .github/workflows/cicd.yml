@@ -7,12 +7,13 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
+    container: node:18
     steps:
       - uses: actions/checkout@v4
       - name: Pre-build image and run make ci-build in dev container
         uses: devcontainers/ci@v0.3
         with:
-          runCmd: pip install -e .[server,dev] && pytest skyflow/tests
+          runCmd: pip install -e .[server,dev] && minikube start && pytest skyflow/tests
       # - uses: actions/setup-python@v5
       #   with:
       #     cache: 'pip' # caching pip dependencies
@@ -45,9 +46,9 @@ jobs:
       #     sudo sysctl fs.inotify.max_user_watches=524288 && \
       #     sudo sysctl fs.inotify.max_user_instances=512
         
-      # Run Tests inside Docker Container
-      - name: Run tests
-        run: pytest skyflow/tests
+      # # Run Tests inside Docker Container
+      # - name: Run tests
+      #   run: pytest skyflow/tests
 
       # - name: Commit and push changes
       #   run: |
