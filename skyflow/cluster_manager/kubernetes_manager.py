@@ -222,15 +222,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        except ApiException as e:
+        except ApiException as error:
             # Handle cases where the Kubernetes API itself returns an error
-            print(f"API Exception: {e}")
+            print(f"API Exception: {error}")
             return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-except
             # Catch-all for any other exception, which likely indicates an ERROR state
             print(f"Unexpected error: {error}")
             return ClusterStatus(
@@ -260,7 +260,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         limit = None
         continue_token = ""
         nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token, _request_timeout=CLUSTER_TIMEOUT)
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
         nodes = nodes.items
 
         # Initialize a dictionary to store available resources per node
@@ -285,7 +287,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         limit = None
         continue_token = ""
         nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token, _request_timeout=CLUSTER_TIMEOUT)
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
         nodes = nodes.items
 
         available_resources = {}
