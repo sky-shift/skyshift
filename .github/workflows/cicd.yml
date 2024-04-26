@@ -7,66 +7,12 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    # container:
-    #   image: docker:dind
-    #   options: --privileged
     steps:
       - uses: actions/checkout@v4
-      # - uses: actions/setup-node@v4
-      # - name: Install bash & npm
-      #   run: sudo apt update && sudo apt install --update add bash npm
-      # - name: Install docker
-      #   run: curl -fsSL https://get.docker.com | sh
       - name: Pre-build image and run make ci-build in dev container
         uses: devcontainers/ci@v0.3
         with:
-          noCache: true
           runCmd: pip install -e .[server,dev] && minikube start && pytest skyflow/tests
-      # - uses: actions/setup-python@v5
-      #   with:
-      #     cache: 'pip' # caching pip dependencies
-
-      # - name: Print working directory
-      #   run: pwd
-
-      # - name: Print GITHUB_WORKSPACE
-      #   run: echo $GITHUB_WORKSPACE
-
-      # - name: Print configuration files
-      #   run: cat ~/.skyconf/config.yaml
-
-      # - name: Print python location and version (should be Python 3.10)
-      #   run: |
-      #     which python
-      #     python --version
-
-      # - name: Create virtual environment
-      #   run: |
-      #     python -m venv venv
-      #     source venv/bin/activate
-
-      # - name: Install dependencies
-      #   run: pip install -e .[server,dev]
-
-      # - name: Set up environment
-      #   run: |
-      #     export PATH=$PATH:~/.local/bin && \
-      #     sudo sysctl fs.inotify.max_user_watches=524288 && \
-      #     sudo sysctl fs.inotify.max_user_instances=512
-        
-      # # Run Tests inside Docker Container
-      # - name: Run tests
-      #   run: pytest skyflow/tests
-
-      # - name: Commit and push changes
-      #   run: |
-      #     chmod +x ./format.sh
-      #     ./format.sh
-      #     git config --global user.name 'Huanzhi Mao'
-      #     git config --global user.email 'huanzhimao@gmail.com'
-      #     git add .
-      #     git diff --staged --quiet || git commit -m "Github Action Bot Apply Code Formatting"
-      #     git push
 
   cleanup:
     needs: build-and-test
