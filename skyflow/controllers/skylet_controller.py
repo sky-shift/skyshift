@@ -22,7 +22,7 @@ from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEventEnum
 
-SKYLET_CONTROLLER_INTERVAL = 0.5
+SKYLET_CONTROLLER_INTERVAL = 0.5  # seconds
 
 
 def terminate_process(pid: int):
@@ -102,6 +102,7 @@ class SkyletController(Controller):
 
     def _load_clusters(self):
         existing_clusters = lookup_kube_config(self.cluster_api)
+        self.logger.info("Found existing clusters: %s.", existing_clusters)
         for cluster_name in existing_clusters:
             self.logger.info("Found existing cluster: %s.", cluster_name)
             try:

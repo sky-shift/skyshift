@@ -1,10 +1,10 @@
 """
 Job template for Skyflow.
 """
-import datetime
 import enum
 import re
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from pydantic import Field, field_validator
@@ -66,6 +66,20 @@ class TaskStatusEnum(enum.Enum):
         return super().__eq__(other)
 
 
+class ContainerStatusEnum(enum.Enum):
+    """A job consists of many containers. This enum represents the status of a container."""
+    RUNNING = "RUNNING"
+    TERMINATED = "TERMINATED"
+    WAITING = "WAITING"
+    PULLED = "PULLED"
+    UNKNOWN = "UNKNOWN"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
+
 class RestartPolicyEnum(enum.Enum):
     """Represents the restart policy of a job."""
 
@@ -98,17 +112,24 @@ class JobStatus(ObjectStatus):
     # Job-IDs for each set of replicas per cluster.
     job_ids: Dict[str, str] = Field(default={}, validate_default=True)
 
+    # Task-IDs for each set of replicas per cluster.
+    task_status: Dict[str, Dict[str, str]] = Field(default={},
+                                                   validate_default=True)
+
+    container_status: Dict[str, Dict[str, str]] = Field(default={},
+                                                        validate_default=True)
+
     @field_validator("conditions")
     @classmethod
     def verify_conditions(cls, conditions: List[Dict[str, str]]):
         """Validates the conditions field of a job."""
         if not conditions:
-            time_str = datetime.datetime.utcnow().isoformat()
+            time_str = datetime.now(timezone.utc).isoformat()
             conditions = [{
                 "type":
                 JobStatusEnum.INIT.value,  # pylint: disable=no-member
                 "transition_time":
-                datetime.datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 "update_time":
                 time_str,
             }]
@@ -131,15 +152,15 @@ class JobStatus(ObjectStatus):
         # Check most recent status of the cluster.
         previous_status = self.conditions[-1]
         if previous_status["type"] != status:
-            time_str = datetime.datetime.utcnow().isoformat()
+            time_str = datetime.now(timezone.utc).isoformat()
             self.conditions.append({
                 "type": status,
                 "transition_time": time_str,
                 "update_time": time_str,
             })
         else:
-            previous_status["update_time"] = datetime.datetime.utcnow(
-            ).isoformat()
+            previous_status["update_time"] = datetime.now(
+                timezone.utc).isoformat()
 
 
 class JobMeta(NamespacedObjectMeta):

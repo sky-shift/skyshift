@@ -18,6 +18,7 @@ VALID_OBJECT_CLASSES = [
     'links',
     'roles',
     'rolebindings',
+    'user',
 ]
 
 

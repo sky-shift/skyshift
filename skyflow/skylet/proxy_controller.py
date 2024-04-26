@@ -8,6 +8,7 @@ from typing import List
 
 import requests
 
+from skyflow import utils
 from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -47,7 +48,7 @@ class ProxyController(Controller):
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{self.name} - Proxy Controller]",
+            title=f"[{utils.unsanitize_cluster_name(self.name)} - Proxy Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/proxy_controller.log')
 
         self.service_informer = Informer(ServiceAPI(namespace=''),

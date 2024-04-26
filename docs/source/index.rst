@@ -19,14 +19,34 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Core Concepts
+
+   Architecture <architecture/architecture.rst>
+
+.. toctree::
+   :maxdepth: 1
    :caption: Getting Started
 
    getting_started/installation.rst
    getting_started/setup.rst
-
 
 .. toctree::
    :maxdepth: 1
    :caption: Quickstart
 
    quickstart/quickstart.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Using Skyflow
+
+   cli/clusters.rst
+   cli/jobs.rst
+   cli/namespaces.rst
+   cli/filterpolicies.rst
+   cli/links.rst
+   cli/services.rst
+   cli/endpoints.rst
+   cli/roles.rst
+   cli/exec.rst
+   cli/users.rst
