@@ -12,11 +12,11 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - name: Install curl & npm
-        run: apt update && apt install -y curl npm
-      - name: Install docker
-        run: curl -fsSL https://get.docker.com | sh
+      # - uses: actions/setup-node@v4
+      - name: Install bash & npm
+        run: apk --update add bash npm
+      # - name: Install docker
+      #   run: curl -fsSL https://get.docker.com | sh
       - name: Pre-build image and run make ci-build in dev container
         uses: devcontainers/ci@v0.3
         with:
