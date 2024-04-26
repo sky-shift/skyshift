@@ -7,7 +7,9 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    container: ubuntu:24.04
+    container:
+      image: docker:dind
+      options: --privileged
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
