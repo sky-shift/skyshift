@@ -47,7 +47,7 @@ class Manager:
     def get_cluster_status(self):
         """Gets the cluster status."""
         return ClusterStatus(
-            status=ClusterStatusEnum.READY.value,
+            status=ClusterStatusEnum.INIT.value,
             capacity=self.cluster_resources,
             allocatable_capacity=self.allocatable_resources,
         )

@@ -13,6 +13,8 @@ DEFAULT_NAMESPACE = "default"
 
 KUBE_CONFIG_DEFAULT_PATH = '~/.kube/config'
 
+CLUSTER_TIMEOUT = 10  # seconds
+
 
 def cluster_dir(cluster_name: str):
     """Returns the path to the cluster directory."""
