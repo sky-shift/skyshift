@@ -31,7 +31,9 @@ def etcd_backup_and_restore():
         #     patch('skyflow.globals.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"), \
         #     patch('skyflow.utils.utils.API_SERVER_CONFIG_PATH', new=temp_data_dir + "/.skyconf/config.yaml"):
         # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
+        
+        # disable for now
+        # shutdown_skyflow(temp_data_dir)
         setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
