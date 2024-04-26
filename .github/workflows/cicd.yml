@@ -7,26 +7,29 @@ on:
 jobs:
   build-and-test:
     runs-on: self-hosted
-    # container: ubuntu:24.04
+    # outputs:
+    #   runCmdOutput: ${{ steps.devc.outputs.runCmdOutput }}
     steps:
       - uses: actions/checkout@v4
-      # - name: Install Python
-      #   run: apt update && apt install -y python3 python3-pip
-      # - name: Install dependencies
-      #   run: pip install -e .[server,dev]
-      # - name: Run tests
-      #   run: pytest skyflow/tests
-      - name: Pre-build image and run make ci-build in dev container
+      - name: Build dev container and run tests
+        # id: devc
         uses: devcontainers/ci@v0.3
         with:
-          # noCache: true
-          runCmd: echo $HOSTNAME && pip install -e .[server,dev] && minikube start && pytest skyflow/tests
+          runCmd: |
+            echo "CID=$HOSTNAME" >> $GITHUB_ENV
+            pip install -e .[server,dev]
+            minikube start
+            pytest skyflow/tests
 
   cleanup:
     needs: build-and-test
     runs-on: self-hosted
     if: always()
     steps:
+      - name: Delete checked-out repository
+        run: |
+          # docker rm -f ${{ needs.build-and-test.outputs.runCmdOutput }}
+          docker rm -f $CID
       - name: Delete checked-out repository
         run: |
           rm -rf $GITHUB_WORKSPACE
