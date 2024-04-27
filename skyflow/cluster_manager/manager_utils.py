@@ -12,11 +12,13 @@ from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
 from skyflow.cluster_manager.slurm_manager_cli import SlurmManagerCLI
 from skyflow.cluster_manager.slurm_manager_rest import SlurmManagerREST
 from skyflow.templates.cluster_template import Cluster
+from skyflow.utils import *
+from skyflow.utils.slurm_utils import (VerifySlurmConfig, SlurmInterfaceEnum)
+from skyflow.globals import KUBERNETES_ALIASES
+from skyflow.globals import SLURM_ALIASES
+from skyflow.globals import SUPPORTED_MANAGERS
 
-KUBERNETES_ALIASES = ("kubernetes", "k8", "k8s")
-SLURM_ALIASES = ("slurm", "slurmctl")
-SUPPORTED_MANAGERS = KUBERNETES_ALIASES + SLURM_ALIASES
-SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+from skyflow.globals import SLURM_CONFIG_PATH
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,15 +49,12 @@ def setup_cluster_manager(
     elif cluster_type in SLURM_ALIASES:
         #Get the cluster name to correspond it to nested yaml keys
         cluster_name = str(cluster_obj.metadata.name)
-        #print("CLUSTER NAME" + cluster_name)
         #Get the manager interface type
-        config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
-        with open(config_absolute_path, 'r') as config_file:
-            config_dict = yaml.safe_load(config_file)
-            #Configure tools
-            interface_type = config_dict[cluster_name]['slurm_interface'].lower()
+        SlurmConfig = VerifySlurmConfig()
+        SlurmConfig.verify_configuration(cluster_name)
+        interface_type = SlurmConfig.interface_type
 
-        if interface_type == "rest":
+        if interface_type == SlurmInterfaceEnum.REST:
             slurm_manager_rest_cls = SlurmManagerREST
             # Get the constructor of the class
             slurm_constructor = slurm_manager_rest_cls.__init__
@@ -85,7 +84,7 @@ def setup_cluster_manager(
             k: v
             for k, v in dict(cluster_obj.metadata).items() if k in class_params
         }
-        print("STARTING SLURM CLI MANAGER")
+        logger.info("STARTING SLURM CLI MANAGER")
         # Create an instance of the class with the extracted arguments.
         return slurm_manager_cli_cls(**args)
     #KubernetesManager

@@ -16,8 +16,10 @@ from skyflow.cluster_manager.slurm_compatibility_layer import \
 from skyflow.templates import (AcceleratorEnum, ContainerEnum, EndpointObject,
                                Job, ResourceEnum, Service, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
+from skyflow.utils.slurm_utils import (SSHConnectionError, SlurmctldConnectionError, get_config)
 
-SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+from skyflow.globals import SLURM_CONFIG_PATH
+
 SUPPORTED_CONTAINER_SOLUTIONS = [
     "containerd", "singularity", "docker", "podman", "podman-hpc"
 ]
@@ -42,10 +44,7 @@ class ConfigUndefinedError(Exception):
         super().__init__(f"Variable '{variable_name}' is not provided in the YAML file.")
 
 
-class SlurmctldConnectionError(Exception):
-    """ Raised when there is an error connecting to slurmctld. """
-class SSHConnectionError(Exception):
-    """ Raised when there is an error establishing SSH connection to slurm cluster. """
+
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
     cluster_name = "slurmcluster2"
