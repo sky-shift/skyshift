@@ -161,7 +161,8 @@ class JobStatus(ObjectStatus):
                 "update_time": time_str,
             })
         else:
-            previous_status["update_time"] = datetime.utcnow().isoformat()
+            previous_status["update_time"] = datetime.now(
+                timezone.utc).isoformat()
 
 
 class JobMeta(NamespacedObjectMeta):

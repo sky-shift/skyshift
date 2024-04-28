@@ -18,6 +18,7 @@ from kubernetes.stream import stream
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
+from skyflow.globals import CLUSTER_TIMEOUT
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, RestartPolicyEnum, Service,
@@ -187,7 +188,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             "nvidia.com/gpu.product", "cloud.google.com/gke-accelerator"
         ]
         accelerator_types = {}
-        node_list = self.core_v1.list_node()
+        node_list = self.core_v1.list_node(_request_timeout=CLUSTER_TIMEOUT)
         for node in node_list.items:
             node_name = node.metadata.name
             # Fetch type from list of labels. None otherwise.
@@ -204,9 +205,11 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
     def get_cluster_status(self):
         """
-        Returns the current status of a Kubernetes cluster.
+        Returns the current status of a Kubernetes cluster with a timeout on the list_node call.
         """
         try:
+            # Set a timeout for the API call. For example, timeout of 10 seconds.
+            self.core_v1.list_node(_request_timeout=CLUSTER_TIMEOUT)
             return ClusterStatus(
                 status=ClusterStatusEnum.READY.value,
                 capacity=self.cluster_resources,
@@ -216,6 +219,14 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             # If there's a configuration issue, it might mean the cluster is not set up yet
             return ClusterStatus(
                 status=ClusterStatusEnum.INIT.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
+        except ApiException as error:
+            # Handle cases where the Kubernetes API itself returns an error
+            print(f"API Exception: {error}")
+            return ClusterStatus(
+                status=ClusterStatusEnum.ERROR.value,
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
@@ -249,7 +260,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         limit = None
         continue_token = ""
         nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token)
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
         nodes = nodes.items
 
         # Initialize a dictionary to store available resources per node
@@ -274,7 +287,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         limit = None
         continue_token = ""
         nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token)
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
         nodes = nodes.items
 
         available_resources = {}
@@ -522,6 +537,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             if sky_job_name not in jobs_dict["tasks"]:
                 jobs_dict["tasks"][sky_job_name] = {}
             jobs_dict["tasks"][sky_job_name][pod.metadata.name] = pod_status
+            # To prevent crashes when a pod is scheduled but doesn't have containers running.
+            if not pod.status.container_statuses:
+                continue
             for container_status in pod.status.container_statuses:
                 state: str = ContainerStatusEnum.UNKNOWN.value  # Default state
                 if container_status.state.running is not None:

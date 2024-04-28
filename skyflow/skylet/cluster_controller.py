@@ -19,8 +19,8 @@ from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
-DEFAULT_HEARTBEAT_TIME = 5
-DEFAULT_RETRY_LIMIT = 5
+DEFAULT_HEARTBEAT_TIME = 5  # seconds
+DEFAULT_RETRY_LIMIT = 2  # seconds
 
 
 @contextmanager
@@ -118,7 +118,8 @@ class ClusterController(Controller):
     def update_unhealthy_cluster(self):
         """Updates the unhealthy cluster status (ERROR)."""
         # When the cluster is unhealthy, we need to update the cluster
-        # status to ERROR in the API server.
+        # status to ERROR in the API server. But not kill the skylet
+        # (maybe it reestablishes connection later)
         cluster_api = ClusterAPI()
         cluster_obj = cluster_api.get(self.name)
         cluster_status = cluster_obj.status
