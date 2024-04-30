@@ -84,7 +84,6 @@ def setup_cluster_manager(
             k: v
             for k, v in dict(cluster_obj.metadata).items() if k in class_params
         }
-        logger.info("STARTING SLURM CLI MANAGER")
         # Create an instance of the class with the extracted arguments.
         return slurm_manager_cli_cls(**args)
     #KubernetesManager
