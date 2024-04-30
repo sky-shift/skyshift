@@ -49,7 +49,7 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     return False
 
 
-def main(host: str, port: int, workers: int, reconfigure: bool, data_directory=None, ):
+def main(host: str, port: int, workers: int, reset: bool, data_directory=None, ):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
@@ -58,7 +58,7 @@ def main(host: str, port: int, workers: int, reconfigure: bool, data_directory=N
     #Create temperorary directory used for worker sync
     generate_temp_directory(CONF_FLAG_DIR)
     #Remove flag to trigger new initialzations
-    if reconfigure:
+    if reset:
         remove_flag_file()
     uvicorn.run(
         "api_server:app",
@@ -96,7 +96,7 @@ def parse_args():
         help="Optional directory for ETCD data (default: uses ~/.etcd/)",
     )
     parser.add_argument(
-        "--reconfigure",
+        "--reset",
         action='store_true',
         help="Rewrite configuration file (default: False)",
     )
@@ -109,4 +109,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     main(host=args.host, port=args.port, workers=args.workers, 
-         data_directory=args.data_directory, reconfigure=args.reconfigure)
+         data_directory=args.data_directory, reset=args.reset)
