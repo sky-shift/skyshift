@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Union
 import requests
 import yaml
 
-from skyflow.globals import API_SERVER_CONFIG_PATH
+from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
@@ -63,6 +63,15 @@ def generate_manager_config(host: str, port: int):
     os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
     with open(absolute_path, "w") as config_file:
         yaml.dump(config_dict, config_file)
+
+def generate_temp_directory(directory_path):
+    """
+    Generates temporary directorys in SKYCONF for system use.
+    """
+    absolute_path = os.path.expanduser(SKYCONF_DIR + directory_path)
+    if os.path.exists(absolute_path + directory_path):
+        return
+    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
 
 
 def load_object(response: Union[Dict, List[Dict]]):

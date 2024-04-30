@@ -27,7 +27,7 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE
+from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE, SKYCONF_DIR
 from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
                                     NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
@@ -130,8 +130,8 @@ def generate_nonce(length=32):
 
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
-    lock_file_path = "/tmp/api_server_init.lock"
-    completion_flag_path = "/tmp/api_server_init_done.flag"
+    lock_file_path = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
+    completion_flag_path = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
     if os.path.exists(completion_flag_path):
         return
 
@@ -152,7 +152,7 @@ def check_or_wait_initialization():
 
 def remove_flag_file():
     """Removes the flag file to indicate that the API server has been shut down."""
-    completion_flag_path = "/tmp/api_server_init_done.flag"
+    completion_flag_path = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
     if os.path.exists(completion_flag_path):
         os.remove(completion_flag_path)
 
@@ -165,7 +165,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
-
+CONF_FLAG_DIR = '/.tmp/'
 
 class APIServer:
     """
@@ -1293,6 +1293,7 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer(app=app)
+api_server.etcd_client.delete_all()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
 app.add_event_handler("startup", check_or_wait_initialization)
