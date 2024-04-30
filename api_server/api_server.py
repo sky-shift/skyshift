@@ -1293,7 +1293,6 @@ app = FastAPI(debug=True)
 # Launch the API service with the parsed arguments
 
 api_server = APIServer(app=app)
-api_server.etcd_client.delete_all()
 app.include_router(api_server.router)
 app.add_event_handler("startup", startup)
 app.add_event_handler("startup", check_or_wait_initialization)
