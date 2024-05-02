@@ -109,8 +109,8 @@ class SlurmCompatiblityLayer():
         command = command + '--mem=' + str(job_dict['total_mem']) + ' '
         if job_dict['gpus'] != 0:
             command = command + '--gpus=' + str(job_dict['gpus']) + ' '
-        command = command + '--wrap="bash -c ' + job_dict['envs'] + job_dict[
-            'submission_script'] + '" '
+        command = command + '--wrap=\'' + job_dict['envs'] + job_dict[
+            'submission_script'] + '\' '
         return command
 
     def compat_docker(self, job: Job) -> Dict[str, Union[int, str]]:
@@ -343,3 +343,10 @@ def set_min_allocatable_resources(job: Job) -> Job:
         min_resources['memory'] = 32
     temp_job.spec.resources = min_resources
     return temp_job
+
+if __name__ == '__main__':
+    job = Job()
+    job.spec.resources['gpus'] = 0
+    job.spec.envs = {'test1':1, 'test2':2}
+    sl = SlurmCompatiblityLayer('docker', '/home/run/1000', 900, 'mluo')
+    print(sl.create_slurm_sbatch(job))
