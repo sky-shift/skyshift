@@ -5,6 +5,12 @@ import logging
 import enum
 from skyflow.globals import SLURM_CONFIG_PATH
 from skyflow.globals import SLURM_SUPPORTED_INTERFACES
+from skyflow.globals import SKYCONF_DIR
+from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 class ConfigNotDefinedError(Exception):
     """ Raised when there is an error in slurm config yaml. """
     def __init__(self, variable_name):
@@ -17,7 +23,26 @@ class SSHConnectionError(Exception):
 class SlurmInterfaceEnum(enum.Enum):
     REST = 'rest'
     CLI = 'cli'
+SLURM_LOG_DIR = SKYCONF_DIR + './slurm/'
+SLURM_JOB_LOG = SLURM_LOG_DIR + 'skyflow_slurm_logs.log'
+def log_job(msg):
+    if not os.path.exists(SLURM_LOG_DIR):
+        print("creating " + SLURM_LOG_DIR)
+        os.makedirs(Path(SLURM_LOG_DIR))
+    if not os.path.exists(SLURM_JOB_LOG):
+        try:
+            print("creating " + SLURM_JOB_LOG)
 
+            with open(SLURM_JOB_LOG, 'w'):  
+                pass  
+        except OSError as e:
+            logging.info(f"Error creating file '{SLURM_JOB_LOG}': {e}")
+    try:
+        print("writing slurm log")
+        with open(SLURM_JOB_LOG, 'a') as file:
+            file.write(msg + '\n')  # Append content to the file
+    except OSError as e:
+        logging.info(f"Error appending to file '{SLURM_JOB_LOG}': {e}")
 def get_config(config_dict, key, optional=False) -> str:
     """Fetches key from config dict extracted from yaml.
         Allows optional keys to be fetched without returning an error.
@@ -65,14 +90,18 @@ def check_reachable(remote_hostname, remote_username, rsa_key='', passkey='', us
                     username = remote_username, pkey = rsa_key)
                 logging.info('Slurm Cluster: ' + remote_hostname + '@' + remote_username + ' Reachable')
 
-        except paramiko.AuthenticationException as exception:
-            raise SSHConnectionError('Unable to authenticate user, please check configuration')
-        except paramiko.SSHException as exception:
-            raise SSHConnectionError('SSH protocol negotiation failed, \
-            please check if remote server is reachable') from exception
-        except Exception as exception:
-            raise SSHConnectionError("Unexpected exception") from exception
-        ssh_client.close()
+        except paramiko.AuthenticationException:
+            logging.info('Unable to authenticate user, please check configuration')
+            return False
+        except paramiko.SSHException:
+            logging.info('SSH protocol negotiation failed, \
+            please check if remote server is reachable') 
+            return False
+        except Exception:
+            logging.info("Unexpected exception") 
+            return False
+        #ssh_client.close()
+        return True
 def check_key_existence(config_dict, key):
     """Checks if key exists in the yaml.
 
@@ -103,23 +132,33 @@ class VerifySlurmConfig():
     def verify_all_clusters(self):
         for cluster_name in self.config_dict:
             self.verify_configuration(str(cluster_name))
+    def get_clusters(self):
+        return self.config_dict.keys()
     def verify_configuration(self, cluster_name):
         if not check_key_existence(self.config_dict, [cluster_name]):
             self.logger.info('Cluster name provided does not match one in the yaml.')
+            return False
         cluster_dict = self.config_dict[cluster_name]
+
         interface_key = ['slurm_interface']
+        if not check_key_existence(cluster_dict, interface_key):
+            self.log_slurm('Interface key not present in yaml', 'slurm_interface', cluster_name)
+            return False
         interface = get_config(cluster_dict, interface_key)
         if interface not in SLURM_SUPPORTED_INTERFACES:
             self.log_slurm('Unsupported Slurm interface requested', 'slurm_interface', cluster_name)
+            return False
         else: 
             if 'rest' in interface.lower():
-                self.verify_rest_config(cluster_dict)
-                self.logger.info('Slurm REST endpoint reachable!')
-                self.interface_type = SlurmInterfaceEnum.REST
+                if self.verify_rest_config(cluster_dict):
+                    self.logger.info('Slurm REST endpoint reachable!')
+                    self.interface_type = SlurmInterfaceEnum.REST
+                    return True
             else:
-                self.verify_cli_config(cluster_dict)
-                self.logger.info('Slurm CLI login node reachable!')
-
+                if self.verify_cli_config(cluster_dict):
+                    self.logger.info('Slurm CLI login node reachable!')
+                    return True
+        return False
     def log_slurm(self, message, cluster_name, bad_key):
         log_msg = message + ' Check ' + bad_key + ' in ' + cluster_name + ' in configuration at ' + SLURM_CONFIG_PATH
         self.logger.info(log_msg)
@@ -136,11 +175,10 @@ class VerifySlurmConfig():
                 {SLURM_CONFIG_PATH}.')
             
             rsa_key = paramiko.RSAKey.from_private_key_file(rsa_key_path)
-            check_reachable(remote_hostname, remote_username, rsa_key=rsa_key)
+            return check_reachable(remote_hostname, remote_username, rsa_key=rsa_key)
         else:
             passkey = get_config(cluster_dict, ['testing', 'passkey'])
-            check_reachable(remote_hostname, remote_username, passkey=passkey, uses_passkey=True)
-
+            return check_reachable(remote_hostname, remote_username, passkey=passkey, uses_passkey=True)
     def verify_rest_config(self, nested_dict):
         raise NotImplementedError
 if __name__ == '__main__':
