@@ -16,7 +16,7 @@ from skyflow.cluster_manager.slurm_compatibility_layer import \
 from skyflow.templates import (AcceleratorEnum, ContainerEnum, EndpointObject,
                                Job, ResourceEnum, Service, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
-from skyflow.utils.slurm_utils import (SSHConnectionError, SlurmctldConnectionError, get_config)
+from skyflow.utils.slurm_utils import log_job
 
 from skyflow.globals import SLURM_CONFIG_PATH
 
@@ -47,7 +47,7 @@ class ConfigUndefinedError(Exception):
 
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
-    cluster_name = "slurmcluster2"
+    cluster_name = "slurmcluster1"
     def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
@@ -56,13 +56,14 @@ class SlurmManagerCLI(Manager):
                 ConfigUndefinedError: Value required in config yaml not not defined.
         """
         super().__init__(self.cluster_name)
+        print(self.cluster_name)
         self.is_local = False
         config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
         with open(config_absolute_path, 'r') as config_file:
             config_dict = yaml.safe_load(config_file)
             #Configure tools
             config_dict = config_dict[self.cluster_name]
-
+            #Allow interfacing with local slurm controller
             if str(_get_config(config_dict, ['testing', 'local'], optional=True)) == 'True':
                 self.is_local = True
             elif len(str(_get_config(config_dict, ['testing', 'passkey'], optional=True))) > 0:
@@ -71,8 +72,10 @@ class SlurmManagerCLI(Manager):
                 self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
                 self.ssh_client = paramiko.SSHClient()
                 self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                self.check_reachable(True)
+                self.ssh_client.connect(hostname = self.remote_hostname,
+                    username = self.remote_username, password=self.passkey)
             else:
+                print("connecting remote host via RSA pubkey")
                 self.rsa_key_path = _get_config(config_dict, ['slurmcli','rsa_key_path'])
                 self.rsa_key_path = os.path.expanduser(self.rsa_key_path)
                 if not os.path.exists(self.rsa_key_path):
@@ -85,7 +88,8 @@ class SlurmManagerCLI(Manager):
                 self.rsa_key = paramiko.RSAKey.from_private_key_file(self.rsa_key_path)
                 self.ssh_client = paramiko.SSHClient()
                 self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                self.check_reachable()
+                self.ssh_client.connect(hostname = self.remote_hostname,
+                    username = self.remote_username, pkey = self.rsa_key)
             self.container_manager = self._discover_manager().replace('-', '_')
             self.runtime_dir = ''
             if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
@@ -96,9 +100,6 @@ class SlurmManagerCLI(Manager):
             #Get slurm time limit
             self.slurm_time_limit = _get_config(config_dict, ['properties', 'time_limit'])
         #Configure SSH
-        #For testing, allow interfacing with local slurm controller
-        
-        
         #Configure container manager compatibility layer
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager.lower(),
             self.runtime_dir, self.slurm_time_limit, self.slurm_account)
@@ -112,23 +113,6 @@ class SlurmManagerCLI(Manager):
         """
         if not self.is_local:
             self.ssh_client.close()
-    def check_reachable(self, uses_passkey = False):
-        """ Sanity check to make sure we can SSH into slurm login node.
-        """
-        try:
-        # Connect to the SSH server
-            if uses_passkey:
-                self.ssh_client.connect(self.remote_hostname,22,self.remote_username,self.passkey)
-            else:
-                self.ssh_client.connect( hostname = self.remote_hostname,
-                    username = self.remote_username, pkey = self.rsa_key )
-        except paramiko.AuthenticationException as exception:
-            raise SSHConnectionError('Unable to authenticate user, please check configuration')
-        except paramiko.SSHException as exception:
-            raise SSHConnectionError('SSH protocol negotiation failed, \
-            please check if remote server is reachable') from exception
-        except Exception as exception:
-            raise SSHConnectionError("Unexpected exception") from exception
     def _send_command(self, command):
         """Seconds command locally, or through ssh to a remote cluster
             
@@ -138,6 +122,7 @@ class SlurmManagerCLI(Manager):
             Returns:
                 stdout
         """
+        log_job(command)
         if self.is_local:
             result = subprocess.run(
                 ['bash', '-c', command], 
@@ -547,10 +532,10 @@ def _get_config(config_dict, key, optional=False) -> str:
     return config_val
 if __name__ == '__main__':
     api = SlurmManagerCLI()
-    #status = api.get_cluster_status()
-    #print(status.status)
-    #print(api.cluster_resources)
-    #print("************")
-    #print(api.allocatable_resources)
-    #containers = api._discover_manager()
-    #print(containers)
+    status = api.get_cluster_status()
+    print(status.status)
+    print(api.cluster_resources)
+    print("************")
+    print(api.allocatable_resources)
+    containers = api._discover_manager()
+    print(containers)

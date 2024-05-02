@@ -17,8 +17,8 @@ from skyflow.utils.slurm_utils import (VerifySlurmConfig, SlurmInterfaceEnum)
 from skyflow.globals import KUBERNETES_ALIASES
 from skyflow.globals import SLURM_ALIASES
 from skyflow.globals import SUPPORTED_MANAGERS
+from skyflow.api_client import ClusterAPI
 
-from skyflow.globals import SLURM_CONFIG_PATH
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,7 +51,9 @@ def setup_cluster_manager(
         cluster_name = str(cluster_obj.metadata.name)
         #Get the manager interface type
         SlurmConfig = VerifySlurmConfig()
-        SlurmConfig.verify_configuration(cluster_name)
+        if not SlurmConfig.verify_configuration(cluster_name):
+            print("raising slurm exp")
+            raise Exception("Cannot reach slurm cluster" + cluster_name)
         interface_type = SlurmConfig.interface_type
 
         if interface_type == SlurmInterfaceEnum.REST:
