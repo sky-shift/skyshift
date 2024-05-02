@@ -23,26 +23,24 @@ class SSHConnectionError(Exception):
 class SlurmInterfaceEnum(enum.Enum):
     REST = 'rest'
     CLI = 'cli'
-SLURM_LOG_DIR = SKYCONF_DIR + './slurm/'
+SLURM_LOG_DIR = SKYCONF_DIR + '/slurm/'
 SLURM_JOB_LOG = SLURM_LOG_DIR + 'skyflow_slurm_logs.log'
 def log_job(msg):
     if not os.path.exists(SLURM_LOG_DIR):
-        print("creating " + SLURM_LOG_DIR)
+        logging.info(f"Creating directory '{SLURM_LOG_DIR}'")
         os.makedirs(Path(SLURM_LOG_DIR))
     if not os.path.exists(SLURM_JOB_LOG):
         try:
-            print("creating " + SLURM_JOB_LOG)
-
+            logging.info(f"Creating log file '{SLURM_JOB_LOG}'")
             with open(SLURM_JOB_LOG, 'w'):  
                 pass  
         except OSError as e:
-            logging.info(f"Error creating file '{SLURM_JOB_LOG}': {e}")
+            logging.info(f"Error creating file '{SLURM_JOB_LOG}'")
     try:
-        print("writing slurm log")
         with open(SLURM_JOB_LOG, 'a') as file:
             file.write(msg + '\n')  # Append content to the file
     except OSError as e:
-        logging.info(f"Error appending to file '{SLURM_JOB_LOG}': {e}")
+        logging.info(f"Error appending to file '{SLURM_JOB_LOG}'")
 def get_config(config_dict, key, optional=False) -> str:
     """Fetches key from config dict extracted from yaml.
         Allows optional keys to be fetched without returning an error.
