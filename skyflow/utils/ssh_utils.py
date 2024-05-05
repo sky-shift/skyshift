@@ -1,15 +1,13 @@
 import paramiko 
 import os
-import yaml
 import logging
 import enum
 from skyflow.globals import SKYCONF_DIR
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Any
 from scp import SCPClient
 import time
-import sys
 import threading
 from paramiko.config import SSHConfig
 DEFAULT_SSH_CONFIG_PATH = '~/.ssh/config'
@@ -94,13 +92,37 @@ def read_ssh_config(host_entry, config_path=DEFAULT_SSH_CONFIG_PATH):
     absolute_path = os.path.expanduser(config_path)
     config = SSHConfig.from_path(absolute_path)
     host_config = config.lookup(host_entry)
-    required_keys = ['hostname', 'user']
-    if all(elem in host_config.keys() for elem in required_keys): 
-      ssh_params = SSHParams(remote_hostname=host_config['hostname'], 
-        remote_username=host_config['user'])
-    else:
-        return SSHParams()
-    return ssh_params
+    return host_config
+def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG_PATH):
+    """
+        Uses ssh config file to read entries and connect clients
+    """
+    ssh_client = paramiko.SSHClient() 
+    host_config: paramiko.SSHConfigDict = read_ssh_config(host_entry, config_path)
+    ssh_client.load_system_host_keys() 
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) 
+    ssh_client.connect( 
+         hostname=host_config['hostname'], 
+         port=int(host_config.get('port', 22)), 
+         username=host_config['user'], 
+         key_filename=host_config['identityfile'][0], 
+         look_for_keys=host_config.get('identitiesonly', 'yes').lower() in [ 
+             'yes', 'true'] 
+     ) 
+    return ssh_client
+def read_and_connect_from_config(host_entries: List[str], config_file=DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
+    """
+        Uses ssh config file to read entries and connect all clients.
+        Args:
+            host_entries: List of hostnames in ssh configuration file.
+        Returns:
+            Dict of all hostnamnes and clients.
+    """
+    ssh_clients = {}
+    for host in host_entries:
+        ssh_client = read_and_connect_from_config(host, config_file)
+        ssh_clients[host] = ssh_client
+    
 def get_host_entrys(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
     """
         Returns all hosts configured in SSH config file
@@ -113,6 +135,44 @@ def get_host_entrys(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
     with open(absolute_path) as f:
         config.parse(f)
     return(config.get_hostnames())
+def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH):
+    """
+        Creates list of SSHClient objects from ssh config file.
+        Arg:
+            config_path:
+                ssh configuration file path.
+        Returns:    
+            List containing all open ssh_clients.
+    """
+    hosts = get_host_entrys(config_path)
+    ssh_params = []
+    ssh_clients = []
+    for host in hosts:
+        ssh_params.append(read_ssh_config(host))
+    for ssh_param in ssh_params:
+        ssh_clients.append(connect_ssh_client(ssh_param))
+def close_ssh_clients(ssh_clients: List[paramiko.SSHClient]):
+    for client in ssh_clients:
+        client.close()
+def close_ssh_clients(ssh_client:paramiko.SSHClient):
+    ssh_client.close()
+def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH) -> List[paramiko.SSHClient]:
+    """
+        Creates list of SSHClient objects from ssh config file.
+        Arg:
+            config_path:
+                ssh configuration file path.
+        Returns:    
+            List containing all open ssh_clients.
+    """
+    hosts = get_host_entrys(config_path)
+    ssh_params = []
+    ssh_clients = []
+    for host in hosts:
+        ssh_params.append(read_ssh_config(host))
+    for ssh_param in ssh_params:
+        ssh_clients.append(connect_ssh_client(ssh_param))
+    return ssh_clients
 def check_reachable(ssh_params: SSHParams):
     """ Sanity check to make sure login node is reachable via SSH.
         Args:
@@ -187,138 +247,14 @@ def verify_ssh_client(ssh_params: SSHParams):
         return ssh_struct.status
     else:
         return ssh_struct.status
-def create_scp_client(ssh_client: paramiko.SSHClient) -> SCPClient:
-    """
-        Creates and opens scp client.
-        Args:
-            ssh_client:
-                A Paramiko opened ssh client object.
-        Returns:
-            scp client object
-    """
-    scp = SCPClient(ssh_client.get_transport())
-    return scp
-def simple_scp(ssh_params, file_path_dict):
-    ssh = paramiko.SSHClient()
-    #ssh.load_system_host_keys()
-    ssh_struct = connect_ssh_client(ssh_params)
-    scp = SCPClient(ssh_struct.ssh_client.get_transport())
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp.put(local_file_path, remote_file_path)
-def connect_scp_client(ssh_params: SSHParams):
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh_struct = connect_ssh_client(ssh_params)
-    scp = SCPClient(ssh_struct.ssh_client.get_transport(), progress=progress)
-    return SCPStruct(ssh_struct.status, scp)
-def create_scp_client(ssh_params: SSHParams):
-    """
-        Creates connects paramiko transport client object.
-        Args:
-            ssh_params:
-                Struct of parameters required to establish a SSH connection
-        Returns:
-            List[bool of connection status, Connected paramiko transport client]
-    """
-    return connect_scp_client(ssh_params).scp_client
-def create_and_send_scp(file_path_dict: Dict[str, str], ssh_params: SSHParams, is_async=True):
-    """"
-        Establishes SFTP connection, and sends all files before closing the connection.
-        Args:
-            file_path_dict: Local file paths as keys, and destination file paths as values.
-            ssh_params: Struct of parameters required to establish a SSH connection.
-            is_async: Whether we send files asynchronously, or block and send one by one.
-    """
-    scp_struct = connect_scp_client(ssh_params)
-    #Check if transport client failed to connect to remote host.
-    if scp_struct.status == SSHStatusEnum.NOT_REACHABLE:
-        return False
-    scp_client = scp_struct.scp_client
-    if is_async:
-        send_scp_async(scp_client, file_path_dict)
-    else:
-        send_scp_sync(scp_client, file_path_dict)
-    scp_client.close()
-def send_scp_sync(scp_client: SCPClient, file_path_dict):
-    """
-        Synchronous file transfer, waits until file is present on remote before return.
-        Do we want to spawn asynchronous tasks for this?
-        Args: 
-            sftp: Connected paramiko STFPClient object.
-            file_path_dict: Dict of local file paths and remote file paths.
-    """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp_client.put(local_file_path, remote_file_path)
-        wait_until_file_sent(scp_client, remote_file_path)
-def send_scp_async(scp_client, file_path_dict):
-    """Async file transfer, sends files and does not wait.
-    """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp_client.put(local_file_path, remote_file_path)
-def get_scp_sync(sftp: paramiko.SFTPClient, file_path_dict):
-    """Async file transfer, sends files and does not wait.
-    """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        sftp.get(local_file_path, remote_file_path)
-def get_scp_async(sftp: paramiko.SFTPClient, file_path_dict):
-    """Async file transfer, sends files and does not wait.
-    """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        sftp.put(local_file_path, remote_file_path)
-        wait_until_file_recieved(sftp, remote_file_path)
-def wait_until_file_recieved(sftp, local_file, remote_file):
-    while True:
-        try:
-            remote_file_size = sftp.stat(remote_file).st_size
-            local_file_size = os.path.getsize(local_file)
-            if remote_file_size == local_file_size:
-                return
-        except FileNotFoundError:
-            pass
-        time.sleep(2)
-def wait_until_file_sent(transport, remote_file):
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    prev_size = 0
-    while True:
-        try:
-            file_attr = sftp.stat(remote_file)
-            curr_size = file_attr.st_size
-            if curr_size == prev_size:
-                break  # File transfer completed
-            prev_size = curr_size
-        except FileNotFoundError:
-            pass
-        time.sleep(2)  
-def progress(filename, size, sent):
-    sys.stdout.write("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100) )
-
-class MaintainedSSHConnection():
-    def __init__(self, ssh_params):
-        self.ssh_params = None
-        self.ssh_client = None
-        self.tp_client = None
-class SCPTransferThread(threading.Thread):
-    def __init__(self, scp_client, local_file, remote_file):
-        super().__init__()
-        self.scp_client = scp_client
-        self.local_file = local_file
-        self.remote_file = remote_file
-
-    def run(self):
-        self.scp.put(self.local_file, self.remote_file, preserve_times=True, recursive=False)
+def ssh_send_command(ssh_client, command) -> Any:
+    """Sends command to remote machine over ssh pipe"""
+    _, stdout, _ = ssh_client.exec_command(command)
+    return stdout.read().decode().strip()
 
 if __name__ == '__main__':
     ssh_params = (read_ssh_config('mac'))
     #client = create_ssh_client(ssh_params)
     #sftp_client = connect_sftp_client(ssh_params)
-    big_file = '/home/cdaron/projects/skyflow/skyflow/utils/archlinux-2024.05.01-x86_64.iso'
-    file_dict = {big_file:'/Users/daronchang/archlin.iso'}
-    scp_client = create_scp_client(ssh_params)
-    send_scp_async(scp_client, file_dict)
     print('done')
     #send_scp_async(sftp_client, file_dict)
