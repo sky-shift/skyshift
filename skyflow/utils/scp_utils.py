@@ -1,6 +1,5 @@
 import paramiko 
 import os
-import yaml
 import logging
 import enum
 from skyflow.globals import SKYCONF_DIR
@@ -12,6 +11,9 @@ import time
 import threading
 from paramiko.config import SSHConfig
 from skyflow.utils.ssh_utils import *
+from threading import Thread
+
+paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
@@ -71,7 +73,7 @@ def send_scp_sync(scp_client: SCPClient, file_path_dict: Dict[str, str]):
     for local_file_path in file_path_dict:
         remote_file_path = file_path_dict[local_file_path]
         scp_client.put(files=local_file_path, remote_path=remote_file_path)
-def get_scp_sync(scp: SCPClient, file_path_dict):
+def get_scp_sync(scp: SCPClient, file_path_dict: Dict[str, str]):
     """Sync file transfer, sends files and does not wait.
     """
     for local_file_path in file_path_dict:
@@ -107,7 +109,7 @@ class FileDirEnum(enum.Enum):
     SEND = 'SEND'
 @dataclass 
 class FileTransferStruct():
-    def __init__(self, local_file, remote_file: str, direction: FileDirEnum):
+    def __init__(self, local_file, remote_file: str, direction: FileDirEnum=FileDirEnum.SEND):
         self.local_file = local_file
         self.remote_file = remote_file
         self.direction = direction
@@ -126,16 +128,23 @@ class SCPTransferThread(threading.Thread):
             self.scp_client.put(self.local_file, self.remote_file, preserve_times=True, recursive=False)
         else:
             self.scp_client.get(self.remote_file, self.local_file, preserve_times=True, recursive=False)
-
+def start_SCP_threads(ssh_client, ftp_structs:List[FileTransferStruct]):
+    threads = []
+    for ftp_struct in len(ftp_structs.keys()):
+        thread = Thread(target=SCPTransferThread(ssh_client, ftp_struct))
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
 if __name__ == '__main__':
     ssh_params = (read_ssh_config('mac'))
-    #client = create_ssh_client(ssh_params)
-    #sftp_client = connect_sftp_client(ssh_params)
     big_file = '/home/cdaron/projects/skyflow/skyflow/utils/archlinux-2024.05.01-x86_64.iso'
     small_file = '/home/cdaron/projects/skyflow/skyflow/utils/20M.txt'
-    send_file_dict = {big_file:'/Users/daronchang/skytest20M.txt'}
-    rec_file_dict = {'/Users/daronchang/archlin.iso': small_file+'.test'}
-    scp_client = create_scp_client(ssh_params)
+    send_file_dict = {small_file:'/Users/daronchang/skytest20M.txt'}
+    rec_file_dict = {'/Users/daronchang/skytest20M.txt': small_file+'.test'}
+    ssh_client = read_and_connect_from_config('mac')
+    print(ssh_client)
+    scp_client = create_scp_client(ssh_client)
     send_scp_sync(scp_client, send_file_dict)
     get_scp_sync(scp_client, rec_file_dict)
     print('done')

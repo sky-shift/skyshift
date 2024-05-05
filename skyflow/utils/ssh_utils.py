@@ -11,6 +11,9 @@ import time
 import threading
 from paramiko.config import SSHConfig
 DEFAULT_SSH_CONFIG_PATH = '~/.ssh/config'
+PARAMIKO_LOG_PATH = '~/.skyconf/paramiko.log'
+paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
@@ -92,25 +95,26 @@ def read_ssh_config(host_entry, config_path=DEFAULT_SSH_CONFIG_PATH):
     absolute_path = os.path.expanduser(config_path)
     config = SSHConfig.from_path(absolute_path)
     host_config = config.lookup(host_entry)
+    print(host_config)
     return host_config
 def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG_PATH):
     """
         Uses ssh config file to read entries and connect clients
     """
     ssh_client = paramiko.SSHClient() 
-    host_config: paramiko.SSHConfigDict = read_ssh_config(host_entry, config_path)
+    host_config = paramiko.SSHConfigDict = read_ssh_config(host_entry, config_path)
     ssh_client.load_system_host_keys() 
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) 
     ssh_client.connect( 
          hostname=host_config['hostname'], 
          port=int(host_config.get('port', 22)), 
          username=host_config['user'], 
-         key_filename=host_config['identityfile'][0], 
+         key_filename=host_config.get('identityfile', None), 
          look_for_keys=host_config.get('identitiesonly', 'yes').lower() in [ 
              'yes', 'true'] 
      ) 
     return ssh_client
-def read_and_connect_from_config(host_entries: List[str], config_file=DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
+def read_and_connect_list_from_config(host_entries: List[str], config_file=DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
     """
         Uses ssh config file to read entries and connect all clients.
         Args:
@@ -253,7 +257,9 @@ def ssh_send_command(ssh_client, command) -> Any:
     return stdout.read().decode().strip()
 
 if __name__ == '__main__':
-    ssh_params = (read_ssh_config('mac'))
+    print(read_ssh_config('mac'))
+    print(get_host_entrys())
+    
     #client = create_ssh_client(ssh_params)
     #sftp_client = connect_sftp_client(ssh_params)
     print('done')
