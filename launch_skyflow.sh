@@ -95,11 +95,18 @@ terminate_skyflow() {
   sleep 2 # Give some time for processes to terminate gracefully
 
   # While these processes exist, kill them.
+  sigints_sent=0
   while pgrep -f launch_server.py || pgrep -f launch_sky_manager.py; do
-    pkill -9 -f launch_server.py
+    if [ "$sigints_sent" -ge 10 ]; then
+      echo "Issuing sigterm to remaining processes"
+      pkill -9 -f launch_server.py
+      pkill -9 -f launch_sky_manager.py
+    fi
+    pkill -f launch_server.py
     pkill -9 -f "multiprocessing.spawn"
-    pkill -9 -f launch_sky_manager.py
+    pkill -f launch_sky_manager.py
     sleep 1
+    (( sigints_sent++ ))
   done
 
   echo "Skyflow processes terminated successfully."

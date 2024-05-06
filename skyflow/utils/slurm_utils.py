@@ -98,7 +98,7 @@ def check_reachable(remote_hostname, remote_username, rsa_key='', passkey='', us
         except Exception:
             logging.info("Unexpected exception") 
             return False
-        #ssh_client.close()
+        ssh_client.close()
         return True
 def check_key_existence(config_dict, key):
     """Checks if key exists in the yaml.
@@ -168,10 +168,9 @@ class VerifySlurmConfig():
             rsa_key_path = get_config(cluster_dict, ['slurmcli','rsa_key_path'])
             rsa_key_path = os.path.expanduser(rsa_key_path)
             if not os.path.exists(rsa_key_path):
-                raise ValueError(
-                f'RSA private key file does not exist! {rsa_key_path} in \
-                {SLURM_CONFIG_PATH}.')
-            
+                self.logger.info('RSA private key file does not exist! {rsa_key_path} in \
+                {SLURM_CONFIG_PATH}.' )   
+                return False
             rsa_key = paramiko.RSAKey.from_private_key_file(rsa_key_path)
             return check_reachable(remote_hostname, remote_username, rsa_key=rsa_key)
         else:

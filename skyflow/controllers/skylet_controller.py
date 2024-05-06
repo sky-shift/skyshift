@@ -13,7 +13,7 @@ import psutil
 
 from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
-from skyflow.cluster_lookup import lookup_kube_config
+from skyflow.cluster_lookup import lookup_kube_config, lookup_slurm_config
 from skyflow.controllers import Controller, controller_error_handler
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
@@ -101,10 +101,14 @@ class SkyletController(Controller):
                              cluster_name)
 
     def _load_clusters(self):
+        self._load_kubernetes_clusters()
+        self._load_slurm_clusters()
+    def _load_kubernetes_clusters(self):
         existing_clusters = lookup_kube_config(self.cluster_api)
-        self.logger.info("Found existing clusters: %s.", existing_clusters)
+        print(existing_clusters)
+        self.logger.info("Found existing Kubernetes clusters: %s.", existing_clusters)
         for cluster_name in existing_clusters:
-            self.logger.info("Found existing cluster: %s.", cluster_name)
+            self.logger.info("Found existing Kubernetes cluster: %s.", cluster_name)
             try:
                 cluster_obj = ClusterAPI().get(cluster_name)
             except APIException:
@@ -126,7 +130,32 @@ class SkyletController(Controller):
                         cluster_name, error)
                     continue
             self._launch_skylet(cluster_obj)
-
+    def _load_slurm_clusters(self):
+        existing_clusters = lookup_slurm_config(self.cluster_api)
+        self.logger.info("Found existing Slurm clusters: %s.", existing_clusters)
+        for cluster_name in existing_clusters:
+            self.logger.info("Found existing Slurm cluster: %s.", cluster_name)
+            try:
+                cluster_obj = ClusterAPI().get(cluster_name)
+            except APIException:
+                cluster_dictionary = {
+                    "kind": "Cluster",
+                    "metadata": {
+                        "name": cluster_name,
+                    },
+                    "spec": {
+                        "manager": "slurm",
+                    },
+                }
+                try:
+                    cluster_obj = ClusterAPI().create(
+                        config=cluster_dictionary)
+                except APIException as error:
+                    self.logger.error(
+                        "Failed to create cluster: %s. Error: %s",
+                        cluster_name, error)
+                    continue
+            self._launch_skylet(cluster_obj)
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
         cluster_name = cluster_obj.get_name()
