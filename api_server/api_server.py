@@ -13,7 +13,6 @@ from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
-from pathlib import Path
 
 import jsonpatch
 import jwt
@@ -28,7 +27,7 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE, SKYCONF_DIR
+from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE
 from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
                                     NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
@@ -128,36 +127,34 @@ def generate_nonce(length=32):
     """Generates a secure nonce."""
     return secrets.token_hex(length)
 
-CONF_FLAG_DIR = '/.tmp/'
-WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
-WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
+
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
-    absolute_done_flag = Path(WORKER_DONE_FLAG)
-    absolute_lock_file = Path(WORKER_LOCK_FILE)
-    if os.path.exists(absolute_done_flag):
+    lock_file_path = "/tmp/api_server_init.lock"
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
         return
 
-    while os.path.exists(absolute_lock_file):
+    while os.path.exists(lock_file_path):
         # Initialization in progress by another worker, wait...
         time.sleep(1)
 
-    if not os.path.exists(absolute_done_flag):
+    if not os.path.exists(completion_flag_path):
         # This worker is responsible for initialization
-        open(absolute_lock_file, 'a').close()
+        open(lock_file_path, 'a').close()
         try:
             api_server.installation_hook()
-            open(absolute_done_flag,
+            open(completion_flag_path,
                  'a').close()  # Mark initialization as complete
         finally:
-            os.remove(absolute_lock_file)
+            os.remove(lock_file_path)
 
 
 def remove_flag_file():
     """Removes the flag file to indicate that the API server has been shut down."""
-    absolute_done_flag = Path(WORKER_DONE_FLAG)
-    if os.path.exists(absolute_done_flag):
-        os.remove(absolute_done_flag)
+    completion_flag_path = "/tmp/api_server_init_done.flag"
+    if os.path.exists(completion_flag_path):
+        os.remove(completion_flag_path)
 
 
 # ==============================================================================
@@ -168,6 +165,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
+
 
 class APIServer:
     """
