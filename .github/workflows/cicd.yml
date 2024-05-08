@@ -15,6 +15,7 @@ jobs:
         name: Build dev container and run tests
         uses: devcontainers/ci@v0.3
         with:
+          noCache: True
           runCmd: |
             echo "containerId=$HOSTNAME" >> "$GITHUB_OUTPUT"
             go install sigs.k8s.io/kind@v0.22.0 && kind create cluster
