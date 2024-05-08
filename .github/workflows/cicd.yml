@@ -17,9 +17,9 @@ jobs:
         with:
           runCmd: |
             echo "containerId=$HOSTNAME" >> "$GITHUB_OUTPUT"
-            go install sigs.k8s.io/kind@v0.22.0 && kind create cluster
+            go install sigs.k8s.io/kind@v0.22.0
             pip install -e .[server,dev]
-            minikube delete && minikube start
+            minikube delete && minikube start && kind create cluster
             pytest skyflow/tests
 
   cleanup:
