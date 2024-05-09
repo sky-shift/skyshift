@@ -80,7 +80,8 @@ class TestLaunchAPIServer(unittest.TestCase):
         test_port = 8080
         launch_server.main(test_host,
                            test_port,
-                           workers=multiprocessing.cpu_count())
+                           workers=multiprocessing.cpu_count(),
+                           reset=False)
 
         mock_check_etcd.assert_called_once()
         mock_generate_config.assert_called_with(test_host, test_port)
