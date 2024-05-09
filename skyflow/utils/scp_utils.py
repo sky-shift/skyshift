@@ -35,7 +35,7 @@ def create_all_scp_clients(ssh_clients: List[paramiko.SSHClient]):
     for client in ssh_clients:
         scp_clients.append(SCPClient(client.get_transport()))
     return scp_clients
-def create_scp_client(ssh_client):
+def create_scp_client(ssh_client: paramiko.SSHClient):
     """
         Creates connects paramiko transport client object.
         Args:
@@ -65,20 +65,22 @@ def create_and_send_scp(file_path_dict: Dict[str, str], ssh_params: SSHParams, i
     return True
 def send_scp_sync(scp_client: SCPClient, file_path_dict: Dict[str, str]):
     """
-        Synchronous file transfer, waits until file is present on remote before return.
+        Synchronous file transfer, waits until files are present on remote before return.
         Args: 
-            sftp: Connected paramiko STFPClient object.
+            scp_client: Connected SCP client object.
             file_path_dict: Dict of local file paths and remote file paths.
     """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp_client.put(files=local_file_path, remote_path=remote_file_path)
-def get_scp_sync(scp: SCPClient, file_path_dict: Dict[str, str]):
-    """Sync file transfer, sends files and does not wait.
+    file_transfers = convert_file_path_dict_to_struct(file_path_dict, FileDirEnum.SEND)
+    start_scp_threads(scp_client, file_transfers)
+def get_scp_sync(scp_client: SCPClient, file_path_dict: Dict[str, str]):
     """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp.get(remote_path = remote_file_path, local_path=local_file_path)
+        Synchronous file retrieval, waits until files are presents locally before return.
+        Args:
+            scp: Connected SCP client object.
+            file_path_dict: Dict of remote file paths and local file paths.
+    """
+    file_transfers = convert_file_path_dict_to_struct(file_path_dict, FileDirEnum.RECIEVE)
+    start_scp_threads(scp_client, file_transfers)
 def wait_until_file_received(sftp, local_file, remote_file):
     while True:
         try:
@@ -113,10 +115,27 @@ class FileTransferStruct():
         self.local_file = local_file
         self.remote_file = remote_file
         self.direction = direction
+
+
+def convert_file_path_dict_to_struct(file_path_dict: Dict[str, str], direction: FileDirEnum) -> List[FileTransferStruct]:
+    """
+        Converts a dictionary of file paths to a list of file transfer structs.
+        Args:
+            file_path_dict: Dict of local file paths and remote file paths.
+            direction: Enum of whether we are sending or recieving files.
+        Returns:
+            List of file transfer structs.
+    """
+    file_structs = []
+    for local_file_path in file_path_dict:
+        remote_file_path = file_path_dict[local_file_path]
+        file_structs.append(FileTransferStruct(local_file_path, remote_file_path, direction))
+    return file_structs
+
+
 class SCPTransferThread(threading.Thread):
     """
         Spawn multiple SCP clients to multithread file transfers.
-        TODO Async thread spawn and join after done
     """
     def __init__(self, scp_client: SCPClient, file_struct: FileTransferStruct):
         super().__init__()
@@ -125,13 +144,13 @@ class SCPTransferThread(threading.Thread):
 
     def run(self):
         if self.file_struct.direction == FileDirEnum.SEND:
-            self.scp_client.put(self.local_file, self.remote_file, preserve_times=True, recursive=False)
+            self.scp_client.put(self.file_struct.local_file, self.file_struct.remote_file, preserve_times=True, recursive=False)
         else:
-            self.scp_client.get(self.remote_file, self.local_file, preserve_times=True, recursive=False)
-def start_SCP_threads(ssh_client, ftp_structs:List[FileTransferStruct]):
+            self.scp_client.get(self.file_struct.remote_file, self.file_struct.local_file, preserve_times=True, recursive=False)
+def start_scp_threads(scp_client: SCPClient, ftp_structs:List[FileTransferStruct]):
     threads = []
-    for ftp_struct in len(ftp_structs.keys()):
-        thread = Thread(target=SCPTransferThread(ssh_client, ftp_struct))
+    for ftp_struct in ftp_structs:
+        thread = Thread(target=SCPTransferThread(scp_client, ftp_struct))
         thread.start()
         threads.append(thread)
     for thread in threads:
