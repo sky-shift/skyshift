@@ -17,6 +17,7 @@ import time
 
 import pytest
 from click.testing import CliRunner
+from unittest.mock import patch
 
 from skyflow.cli.cli import cli
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
@@ -25,8 +26,6 @@ from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
         setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
