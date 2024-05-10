@@ -982,7 +982,7 @@ class TestAPIServer(unittest.TestCase):
         Extended tests for the get_object functionality, covering various scenarios like different object names and complex object data.
         """
 
-        async def async_test():
+        def test():
             # 1. Test Different Namespaces
             for namespace in ["namespace1", "namespace2"]:
                 self.mock_etcd_client_instance.read.return_value = {
@@ -1095,7 +1095,7 @@ class TestAPIServer(unittest.TestCase):
                                              watch=False)
             self.assertIsNotNone(obj)
 
-        self.run_async(async_test())
+        test()
 
     def test_update_object(self):
         """

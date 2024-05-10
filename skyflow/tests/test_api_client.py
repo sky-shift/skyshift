@@ -15,7 +15,7 @@ from typing import Any, Dict, Generator, List, Tuple, Union
 import pytest
 import requests
 from requests import Timeout
-
+from unittest.mock import patch
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow

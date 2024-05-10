@@ -1,0 +1,12 @@
+{
+	"name": "Kubernetes - Minikube-in-Docker",
+	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+		"ghcr.io/devcontainers/features/python:1": {
+			"installTools": false
+		},
+		"ghcr.io/devcontainers/features/go:1": {}
+	}
+}
