@@ -127,7 +127,7 @@ def read_and_connect_list_from_config(host_entries: List[str], config_file=DEFAU
         ssh_client = read_and_connect_from_config(host, config_file)
         ssh_clients[host] = ssh_client
     
-def get_host_entrys(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
+def get_host_entries(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
     """
         Returns all hosts configured in SSH config file
         Return:
@@ -148,7 +148,7 @@ def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH):
         Returns:    
             List containing all open ssh_clients.
     """
-    hosts = get_host_entrys(config_path)
+    hosts = get_host_entries(config_path)
     ssh_params = []
     ssh_clients = []
     for host in hosts:
@@ -169,7 +169,7 @@ def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH) -> List[paramiko
         Returns:    
             List containing all open ssh_clients.
     """
-    hosts = get_host_entrys(config_path)
+    hosts = get_host_entries(config_path)
     ssh_params = []
     ssh_clients = []
     for host in hosts:
@@ -258,7 +258,7 @@ def ssh_send_command(ssh_client, command) -> Any:
 
 if __name__ == '__main__':
     print(read_ssh_config('mac'))
-    print(get_host_entrys())
+    print(get_host_entries())
     
     #client = create_ssh_client(ssh_params)
     #sftp_client = connect_sftp_client(ssh_params)
