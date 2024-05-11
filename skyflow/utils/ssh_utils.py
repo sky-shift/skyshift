@@ -92,11 +92,12 @@ def read_ssh_config(host_entry, config_path=DEFAULT_SSH_CONFIG_PATH):
         Read SSH config from ssh_config file. 
         This assumes pubkey is copied to the remote host, and the pubkey is in the ~/.ssh directory
     """
-    absolute_path = os.path.expanduser(config_path)
+    absolute_path = os.path.abspath(os.path.expanduser(config_path))
     config = SSHConfig.from_path(absolute_path)
     host_config = config.lookup(host_entry)
     print(host_config)
     return host_config
+
 def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG_PATH):
     """
         Uses ssh config file to read entries and connect clients
@@ -105,15 +106,54 @@ def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG
     host_config = paramiko.SSHConfigDict = read_ssh_config(host_entry, config_path)
     ssh_client.load_system_host_keys() 
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) 
-    ssh_client.connect( 
-         hostname=host_config['hostname'], 
-         port=int(host_config.get('port', 22)), 
-         username=host_config['user'], 
-         key_filename=host_config.get('identityfile', None), 
-         look_for_keys=host_config.get('identitiesonly', 'yes').lower() in [ 
-             'yes', 'true'] 
-     ) 
+    try:
+        ssh_client.connect( 
+            hostname=host_config['hostname'], 
+            port=int(host_config.get('port', 22)), 
+            username=host_config['user'], 
+            key_filename=host_config.get('identityfile', None), 
+            look_for_keys=host_config.get('identitiesonly', 'yes').lower() in [ 
+                'yes', 'true'] 
+        )
+    except paramiko.ssh_exception.SSHException as error:
+        logging.error(f"SSH connection setup failed: {error}")
+        raise error
     return ssh_client
+
+def load_private_key(key_path:str):
+    """
+        Loads private key from file.
+    """
+    try:
+        with open(os.path.abspath(os.path.expanduser(key_path)), "r") as key_file:
+            private_key = paramiko.RSAKey.from_private_key(key_file)
+    except paramiko.ssh_exception.PasswordRequiredException as error:
+        logging.error(f"Private key password required: {error}")
+        raise error
+    except paramiko.ssh_exception.SSHException as error:
+        logging.error(f"Private key error: {error}")
+        raise error
+    return private_key
+
+def connect_from_args(hostname: str, private_key_file: str, username: str, port=22):
+    """
+        Connects to remote host using provided arguments.
+    """
+    ssh_client = paramiko.SSHClient()
+    ssh_client.load_system_host_keys()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        ssh_client.connect(
+             hostname=hostname,
+             port=port,
+             username=username,
+             pkey=load_private_key(private_key_file)
+         )
+    except paramiko.ssh_exception.SSHException as error:
+        logging.error(f"SSH connection setup failed: {error}")
+        raise error
+    return ssh_client
+
 def read_and_connect_list_from_config(host_entries: List[str], config_file=DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
     """
         Uses ssh config file to read entries and connect all clients.
@@ -133,7 +173,7 @@ def get_host_entries(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
         Return:
             List of host entries in ssh configuration file.
     """
-    absolute_path = os.path.expanduser(config_path) 
+    absolute_path = os.path.abspath(os.path.expanduser(config_path)) 
     # Load SSH config file
     config = SSHConfig()
     with open(absolute_path) as f:

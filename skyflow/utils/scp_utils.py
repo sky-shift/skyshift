@@ -79,7 +79,7 @@ def get_scp_sync(scp: SCPClient, file_path_dict: Dict[str, str]):
     for local_file_path in file_path_dict:
         remote_file_path = file_path_dict[local_file_path]
         scp.get(remote_path = remote_file_path, local_path=local_file_path)
-def wait_until_file_recieved(sftp, local_file, remote_file):
+def wait_until_file_received(sftp, local_file, remote_file):
     while True:
         try:
             remote_file_size = sftp.stat(remote_file).st_size
@@ -105,7 +105,7 @@ def wait_until_file_sent(transport, remote_file):
 def progress(filename, size, sent):
     logging.info("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100) )
 class FileDirEnum(enum.Enum):
-    RECIEVE =  'RECIEVE'
+    RECEIVE =  'RECEIVE'
     SEND = 'SEND'
 @dataclass 
 class FileTransferStruct():
