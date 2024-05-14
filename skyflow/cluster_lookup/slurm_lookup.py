@@ -10,6 +10,10 @@ from skyflow.utils.slurm_utils import *
 def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Loads clusters listed under the Kube config file.
+        Args:
+            cluster_api: cluster api object to interface with api server.
+        Returns:
+            List of sanitized Slurm cluster names.
     """
     slurm_config = VerifySlurmConfig()
     cluster_contexts = []
