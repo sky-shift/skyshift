@@ -12,8 +12,6 @@ def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
     Loads clusters listed under the Kube config file.
     """
     slurm_config = VerifySlurmConfig()
-    slurm_clusters = slurm_config.get_clusters()
-    print(slurm_config.get_clusters())
     cluster_contexts = []
     for cluster in cluster_api.list().objects:
         if slurm_config.verify_configuration(cluster.metadata.name):
