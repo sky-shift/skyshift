@@ -23,8 +23,11 @@ from skyflow.network.cluster_linkv2 import (create_link, delete_export_service,
 
 CL1 = "peer1"
 CL2 = "peer2"
+CL3 = "peer3"
+
 CL1NAME = "kind-" + CL1
 CL2NAME = "kind-" + CL2
+CL3NAME = "kind-" + CL3
 
 HTTPIMAGE = "hashicorp/http-echo"
 HTTP_SERVER = "http-server"
@@ -40,6 +43,7 @@ def _cleanup_clusters():
     """ Cleans up test environment """
     _delete_cluster(CL1)
     _delete_cluster(CL2)
+    _delete_cluster(CL3)
 
 
 def _setup_clusters():
@@ -53,16 +57,23 @@ def _setup_clusters():
     time.sleep(1)
     _create_cluster(CL2)
     time.sleep(1)
+    _create_cluster(CL3)
+    time.sleep(1)
 
 
-def _load_services():
+def _load_exporter_services(cluster:str):
     """ Loads the services in clusters to be used for connectivity tests """
-    os.system(f"kubectl config use-context {CL2NAME}")
+    os.system(f"kubectl config use-context {cluster}")
     os.system(
         f"kubectl run http-server --image {HTTPIMAGE}"
         " --port 8080 -l app=http-server -- -listen=:8080 -text=clusterlink-hello"
     )
     os.system("kubectl wait --for=condition=Ready pod/http-server")
+    os.system("kubectl create service nodeport http-server --tcp=8080:8080")
+
+def _setup_importer_service():
+    """ Creates the service for replicas imported from other clusters """
+    os.system(f"kubectl config use-context {CL1NAME}")
     os.system("kubectl create service nodeport http-server --tcp=8080:8080")
 
 
@@ -107,15 +118,27 @@ def test_clusterlink():
     _setup_clusters()
     cluster1_manager = KubernetesManager(CL1NAME)
     cluster2_manager = KubernetesManager(CL2NAME)
+    cluster3_manager = KubernetesManager(CL3NAME)
 
     # Test Setup of Clusterlink on a fresh kubernetes cluster
     assert launch_clusterlink(cluster1_manager) is True
     assert launch_clusterlink(cluster2_manager) is True
+    assert launch_clusterlink(cluster3_manager) is True
+
     assert create_link(cluster1_manager, cluster2_manager) is True
-    _load_services()
+    assert create_link(cluster1_manager, cluster3_manager) is True
+
+    _load_exporter_services(CL2NAME)
+    _load_exporter_services(CL3NAME)
+
+    _setup_importer_service()
     assert export_service(HTTP_SERVER, cluster2_manager, [DSTPORT]) is True
+    assert export_service(HTTP_SERVER, cluster3_manager, [DSTPORT]) is True
+
     assert import_service(HTTP_SERVER, cluster1_manager,
                           cluster2_manager.cluster_name, [DSTPORT]) is True
+    assert import_service(HTTP_SERVER, cluster1_manager,
+                          cluster3_manager.cluster_name, [DSTPORT]) is True
     _wait()
     assert _try_connection() is True
 
