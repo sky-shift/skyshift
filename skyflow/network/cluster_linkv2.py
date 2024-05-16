@@ -20,10 +20,10 @@ logging.basicConfig(
 
 cl_logger = logging.getLogger("[Clusterlink Module]")
 cl_logger.setLevel(logging.INFO)
+
 CL_DIRECTORY = os.path.expanduser('~/.skyconf/cl/')
 CL_FABRIC_DIRECTORY = os.path.expanduser('~/.skyconf/cl/default_fabric/')
 INSTALL_LOCK_PATH = os.path.expanduser('~/.skyconf/install.lock')
-
 POLICY_FILE = 'allowAll.json'
 CERT = "cert.pem"
 KEY = "key.pem"
@@ -44,10 +44,6 @@ CL_INSTALL_CMD = (
 
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("clusterlink create fabric")
-
-CLA_PEER_CMD = (
-    "clusterlink create peer-cert --name {cluster_name} --namespace {namespace} --tag {tag}"
-)
 CLA_PEER_CERT_CMD = (
     "clusterlink create peer-cert --name {cluster_name}"
 )
@@ -61,12 +57,14 @@ CL_INIT_CMD = (
     "gwctl init --id {cluster_name} --gwIP {cl_gw_ip}"
     " --gwPort {gw_port}  --certca {certca} --cert {cert} --key {key}")
 CL_STATUS_CMD = ("gwctl get all --myid {cluster_name}")
+
 # Link/Peer management
 CL_LINK_CMD = (
     "gwctl create peer --myid {cluster_name} --name {peer} --host {target_ip} --port {target_port}"
 )
 CL_LINK_STATUS_CMD = ("gwctl get peer --myid {cluster_name} --name {peer}")
 CL_LINK_DELETE_CMD = ("gwctl delete peer --myid {cluster_name} --name {peer}")
+
 # Service Management
 CL_EXPORT_CMD = (
     "gwctl create export --myid {cluster_name} --name {service_name}"
