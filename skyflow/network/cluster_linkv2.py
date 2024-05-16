@@ -34,6 +34,7 @@ CL_VERSION = "v0.2.1"
 CL_DATAPLANE = "cl-dataplane"
 CL_SERVICE = "cl-dataplane-load-balancer"
 CL_INSTALL_DIR = os.path.expanduser("~/.local/bin/")
+CL_ROOT_INSTALL_DIR = os.path.expanduser("/usr/local/bin/")
 
 CL_INSTALL_CMD = (
     "export VERSION={version};"
@@ -108,7 +109,12 @@ def _install_lock_acquire():
     open(INSTALL_LOCK_PATH,'w').close()
 
 def _install_lock_release():
+    """Releases the lock by deleting the file"""
     os.remove(INSTALL_LOCK_PATH)
+
+def _is_clusterink_installed():
+    """Checks clusterlink install directory for the binary"""
+    return os.path.exists(f"{CL_INSTALL_DIR}/clusterlink") or os.path.exists(f"{CL_ROOT_INSTALL_DIR}/clusterlink")
 
 def _wait_for_ready_deployment(k8s_api_client: client.ApiClient,
                                name,
@@ -372,7 +378,7 @@ def launch_clusterlink(manager: KubernetesManager):
         cl_logger.info("Acquired Lock %s.. tring to install.", cluster_name)
         os.makedirs(CL_DIRECTORY, exist_ok=True)
         fabric_cert = os.path.join(CL_FABRIC_DIRECTORY, CERT)
-        if not os.path.exists(f"{CL_INSTALL_DIR}/clusterlink"):
+        if not _is_clusterink_installed():
             _install_clusterlink()
         cl_logger.info(fabric_cert)
         if not os.path.exists(fabric_cert):
