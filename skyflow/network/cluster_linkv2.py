@@ -8,7 +8,6 @@ import shutil
 import subprocess
 import time
 from typing import List
-import threading
 
 from kubernetes import client, config, utils
 
@@ -31,7 +30,7 @@ KEY = "key.pem"
 KIND_PREFIX = "kind-"
 DEFAULT_CL_PORT = 443
 DEFAULT_CL_PORT_KIND = 30443
-CL_VERSION = "v0.2.0"
+CL_VERSION = "v0.2.1"
 CL_DATAPLANE = "cl-dataplane"
 CL_SERVICE = "cl-dataplane-load-balancer"
 CL_INSTALL_DIR = os.path.expanduser("~/.local/bin/")
@@ -467,7 +466,7 @@ def export_service(service_name: str, manager: KubernetesManager,
 
 def _get_existing_import_clusters(service_name: str, cluster_name: str):
     """Gets the list of clusters a service is imported from"""
-    sources = []
+    sources : List[str]
     port = ""
     get_import_cmd = CL_GET_IMPORT_CMD.format(cluster_name=cluster_name,
                                       service_name=service_name)   
@@ -482,8 +481,8 @@ def _get_existing_import_clusters(service_name: str, cluster_name: str):
             peer = source["peer"]
             sources.append(peer)
         return sources, port
-    except Exception as e:
-        cl_logger.error("Error parsing imports: %s", e)
+    except json.JSONDecodeError as error:
+        cl_logger.error("Error decoding imports: %s", error)
         return None, ""
         
 
@@ -497,7 +496,7 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
     if sources is not None:
         # Update existing import
         for source in sources:
-            peer += ","+ source
+            peer += "," + source
         cl_logger.info("Updating imported service %s from %s", service_name, peer)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
                                         service_name=service_name,
@@ -541,15 +540,17 @@ def delete_import_service(service_name: str, manager: KubernetesManager,
     cluster_name = manager.cluster_name
     output = ""
     sources, port = _get_existing_import_clusters(service_name, cluster_name)
-    if sources is not None:
+    if sources is not None and len(sources) > 1:
         # Update existing import to remove the specific peer from source
+        new_peers = ""
         for source in sources:
-            peer += " "+ source
-        cl_logger.info("Updating imported service %s from %s", service_name, peer)
+            if source != peer:
+                new_peers += source + ","
+        cl_logger.info("Updating imported service %s from %s", service_name, new_peers)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
                                         service_name=service_name,
                                         port=port,
-                                        peer=peer)
+                                        peer=new_peers)
         output = subprocess.getoutput(import_cmd)             
     else:
         # Remove the import as it has only one source

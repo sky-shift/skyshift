@@ -32,6 +32,20 @@ HTTPIMAGE = "hashicorp/http-echo"
 HTTP_SERVER = "http-server"
 DSTPORT = 8080
 
+HTTP_SERVICE = '''
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-server
+  namespace: default
+spec:
+  selector: {}
+  ports:
+  - port: 8080 
+    targetPort: 8080 
+    nodePort: 30000
+  type: NodePort
+'''
 
 def _cleanup_clusters():
 
@@ -72,8 +86,10 @@ def _load_exporter_services(cluster:str):
 
 def _setup_importer_service():
     """ Creates the service for replicas imported from other clusters """
+    print("new comand")
     os.system(f"kubectl config use-context {CL1NAME}")
-    os.system("kubectl create service nodeport http-server --tcp=8080:8080")
+    kubectl_process = subprocess.Popen(['kubectl', 'apply', '-f', '-'], stdin=subprocess.PIPE)
+    kubectl_process.communicate(input=bytes(HTTP_SERVICE, 'utf-8'))
 
 
 def _try_connection():
@@ -84,7 +100,7 @@ def _try_connection():
         os.system("kubectl wait --for=condition=Ready pod/gwctl")
         direct_output = subprocess.check_output(
             f"kubectl exec -i gwctl -- timeout 30 sh -c "
-            f"'until wget -T 1 http-server-{CL2NAME}:{DSTPORT} -q -O -; do sleep 0.1; done'",
+            f"'until wget -T 1 http-server:{DSTPORT} -q -O -; do sleep 0.1; done'",
             shell=True)
 
         logging.debug(f"{direct_output.decode()}")
@@ -141,11 +157,16 @@ def test_clusterlink():
     _wait()
     assert _try_connection() is True
 
-    logging.debug("Starting re-export/import connection test")
-    # Test deletion and export/import again
-    assert delete_export_service(HTTP_SERVER, cluster2_manager) is True
+    logging.debug("Starting delete import connection test")
+    # Test deletion of service from the first cluster
     assert delete_import_service(HTTP_SERVER, cluster1_manager,
                                  cluster2_manager.cluster_name) is True
+    assert _try_connection() is True
+    # Test deletion of service from the second cluster
+    assert delete_import_service(HTTP_SERVER, cluster1_manager,
+                                 cluster3_manager.cluster_name) is True
+    assert _try_connection() is False
+    logging.debug("Starting re-export/import connection test")
     time.sleep(1)
     assert export_service(HTTP_SERVER, cluster2_manager, [DSTPORT]) is True
     assert import_service(HTTP_SERVER, cluster1_manager,
