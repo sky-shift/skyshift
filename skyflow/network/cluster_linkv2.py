@@ -495,13 +495,13 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
     sources, _ = _get_existing_import_clusters(service_name, cluster_name)
     if sources is not None:
         # Update existing import
-        for source in sources:
-            peer += "," + source
-        cl_logger.info("Updating imported service %s from %s", service_name, peer)
+        sources.append(peer)
+        peers = ",".join(sources)
+        cl_logger.info("Updating imported service %s from %s", service_name, peers)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
                                         service_name=service_name,
                                         port=ports[0],
-                                        peer=peer)
+                                        peer=peers)
         cl_logger.info("%s", import_cmd)
         output = subprocess.getoutput(import_cmd)       
     else:
@@ -542,15 +542,13 @@ def delete_import_service(service_name: str, manager: KubernetesManager,
     sources, port = _get_existing_import_clusters(service_name, cluster_name)
     if sources is not None and len(sources) > 1:
         # Update existing import to remove the specific peer from source
-        new_peers = ""
-        for source in sources:
-            if source != peer:
-                new_peers += source + ","
-        cl_logger.info("Updating imported service %s from %s", service_name, new_peers)
+        sources.remove(peer)
+        peers = ",".join(sources)
+        cl_logger.info("Updating imported service %s from %s", service_name, peers)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
                                         service_name=service_name,
                                         port=port,
-                                        peer=new_peers)
+                                        peer=peers)
         output = subprocess.getoutput(import_cmd)             
     else:
         # Remove the import as it has only one source
