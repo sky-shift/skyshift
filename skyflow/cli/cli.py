@@ -23,7 +23,7 @@ from skyflow.cli.cli_utils import (create_cli_object, create_invite,
                                    register_user, revoke_invite_req,
                                    stream_cli_object, switch_context)
 from skyflow.cloud.utils import cloud_cluster_dir
-from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
+from skyflow.cluster_manager.manager import RAY_MANAGERS, SUPPORTED_CLUSTER_MANAGERS
 from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import RestartPolicyEnum
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
@@ -180,7 +180,7 @@ cli.add_command(apply_config)
               default='k8',
               show_default=True,
               required=True,
-              help='Cluster manager type (e.g. k8, slurm).')
+              help='Cluster manager type (e.g. k8, slurm, ray).')
 @click.option('--cpus',
               default=None,
               type=str,
@@ -225,13 +225,39 @@ cli.add_command(apply_config)
     show_default=True,
     required=False,
 )
+@click.option(
+    '--ssh_key_path',
+    '-k',
+    default="",
+    show_default=True,
+    required=False,
+    help='SSH key to use for Ray clusters. It can be a path to a file or the key itself'
+)
+@click.option(
+    '--host',
+    '-h',
+    '--hostname',
+    '-H',
+    default="",
+    show_default=True,
+    required=False,
+    help='Host to use for the cluster'
+)
+@click.option(
+    '--username',
+    '-u',
+    default="",
+    show_default=True,
+    required=False,
+    help='Username to use for the cluster'
+)
 @click.option('--provision',
               is_flag=True,
               help='True if cluster needs to be provisioned on the cloud.')
 def create_cluster(  # pylint: disable=too-many-arguments
         name: str, manager: str, cpus: str, memory: str, disk_size: int,
         accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, provision: bool):
+        region: str, provision: bool, ssh_key_path: str, host: str, username: str):
     """Attaches a new cluster."""
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         click.echo(f"Unsupported manager_type: {manager}")
@@ -241,6 +267,10 @@ def create_cluster(  # pylint: disable=too-many-arguments
     if not validate_input_string(name):
         click.echo("Error: Name format is invalid.", err=True)
         raise click.BadParameter("Name format is invalid.")
+    
+    if manager in RAY_MANAGERS and (not host or not username):
+        click.echo("Error: Host and username must be provided for Ray clusters.")
+        raise click.BadParameter("Host and username must be provided for Ray clusters.")
 
     if ports:
         ports = list(ports)
@@ -271,6 +301,12 @@ def create_cluster(  # pylint: disable=too-many-arguments
             num_nodes,
             'provision':
             provision,
+            'ssh_key_path':
+            ssh_key_path,
+            'host':
+            host,
+            'username':
+            username,
             'config_path':
             "~/.kube/config" if not provision else
             f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",

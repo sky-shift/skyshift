@@ -14,6 +14,7 @@ import requests
 from skyflow import utils
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
+from skyflow.cluster_manager.ray_manager import RayManager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
@@ -73,17 +74,22 @@ class ClusterController(Controller):
         self.logger.info("Initializing Cluster Controller: %s", self.name)
         cluster_obj = ClusterAPI().get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
-        # For now, we only support Kubernetes. (Slurm TODO)
+        # For now, we only support Kubernetes and ray. (Slurm TODO)
+        self.logger.info("Setting up Cluster Manager API.")
+        self.logger.info(cluster_obj)
         self.manager_api = setup_cluster_manager(cluster_obj)
+        self.logger.info("Cluster Manager API")
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
         # request specific accelerators such as T4 GPU.
         # @TODO(acuadron): Add specific exception
-        try:
-            self.accelerator_types = self.manager_api.get_accelerator_types()
-        except Exception:  # pylint: disable=broad-except
-            self.logger.error("Failed to fetch accelerator types.")
-            self.update_unhealthy_cluster()
+        #try:
+        #    self.accelerator_types = self.manager_api.get_accelerator_types()
+        #    self.logger.info("Accelerator types fetched. %s", self.accelerator_types)
+        #except Exception:  # pylint: disable=broad-except
+        #    self.logger.error("Failed to fetch accelerator types.")
+        #    self.update_unhealthy_cluster()
+        self.logger.info("Accelerator types fetched. try")
 
     def run(self):
         self.logger.info(
