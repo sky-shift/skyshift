@@ -33,7 +33,7 @@ def fetch_allocatable_resources():
             elif "CPU" in resource_name.upper():
                 allocatable_resources[node][ResourceEnum.CPU.value] = quantity
             elif "memory" in resource_name.lower():
-                allocatable_resources[node][ResourceEnum.GPU.value] = quantity / (1024 ** 2)  # MB
+                allocatable_resources[node][ResourceEnum.MEMORY.value] = quantity / (1024 ** 2)  # MB
             elif "GPU" in resource_name.upper():
                 allocatable_resources[node][ResourceEnum.GPU.value] = quantity
 
