@@ -63,27 +63,48 @@ class AcceleratorEnum(enum.Enum):
     M6: str = "M6"
     M4: str = "M4"
 
-    # GeForce Series (added for completeness)
+    # GeForce 10 Series
     GTX1080: str = "GTX 1080"
+    GTX1080Ti: str = "GTX 1080 Ti"
     GTX1070: str = "GTX 1070"
+    GTX1070Ti: str = "GTX 1070 Ti"
     GTX1060: str = "GTX 1060"
     GTX1050: str = "GTX 1050"
+    GTX1050Ti: str = "GTX 1050 Ti"
+    GT1030: str = "GT 1030"
+    GT1010: str = "GT 1010"
+
+    # GeForce 16 Series
     GTX1660: str = "GTX 1660"
+    GTX1660Ti: str = "GTX 1660 Ti"
     GTX1650: str = "GTX 1650"
+    GTX1650Super: str = "GTX 1650 Super"
+
+    # GeForce 20 Series
     RTX2080: str = "RTX 2080"
+    RTX2080Ti: str = "RTX 2080 Ti"
     RTX2070: str = "RTX 2070"
+    RTX2070Super: str = "RTX 2070 Super"
     RTX2060: str = "RTX 2060"
-    RTX3080: str = "RTX 3080"
-    RTX3070: str = "RTX 3070"
-    RTX3060: str = "RTX 3060"
+    RTX2060Super: str = "RTX 2060 Super"
+
+    # GeForce 30 Series
     RTX3090: str = "RTX 3090"
+    RTX3080: str = "RTX 3080"
+    RTX3080Ti: str = "RTX 3080 Ti"
+    RTX3070: str = "RTX 3070"
+    RTX3070Ti: str = "RTX 3070 Ti"
+    RTX3060: str = "RTX 3060"
+    RTX3060Ti: str = "RTX 3060 Ti"
+
+    # GeForce 40 Series
     RTX4090: str = "RTX 4090"
     RTX4080: str = "RTX 4080"
     RTX4070: str = "RTX 4070"
     RTX4060: str = "RTX 4060"
     RTX4050: str = "RTX 4050"
 
-    # Quadro Series (added for completeness)
+    # Quadro Series
     QuadroRTX8000: str = "Quadro RTX 8000"
     QuadroRTX6000: str = "Quadro RTX 6000"
     QuadroRTX5000: str = "Quadro RTX 5000"
@@ -96,7 +117,7 @@ class AcceleratorEnum(enum.Enum):
     QuadroK5200: str = "Quadro K5200"
     QuadroK4200: str = "Quadro K4200"
 
-    # Tesla Series (older series)
+    # Tesla Series
     TeslaK80: str = "Tesla K80"
     TeslaK40: str = "Tesla K40"
     TeslaK20: str = "Tesla K20"
@@ -108,7 +129,7 @@ class AcceleratorEnum(enum.Enum):
     TeslaP4: str = "Tesla P4"
     TeslaV100: str = "Tesla V100"
 
-    # Jetson Series (for embedded systems)
+    # Jetson Series
     JetsonTX2: str = "Jetson TX2"
     JetsonXavierNX: str = "Jetson Xavier NX"
     JetsonNano: str = "Jetson Nano"
@@ -126,21 +147,11 @@ class AcceleratorEnum(enum.Enum):
     RTXA4000: str = "RTX A4000"
     RTXA2000: str = "RTX A2000"
 
-    # Other older or specific models
+    # Other models
     GRIDK520: str = "GRID K520"
     GRIDM40: str = "GRID M40"
     GRIDDGXA100: str = "GRID DGX A100"
     NVIDIADGX1: str = "NVIDIA DGX-1"
     NVIDIADGX2: str = "NVIDIA DGX-2"
     NVIDIADGXStation: str = "NVIDIA DGX Station"
-
-    # RTX (Standard consumer models)
-    RTX2060Super: str = "RTX 2060 Super"
-    RTX2070Super: str = "RTX 2070 Super"
-    RTX2080Super: str = "RTX 2080 Super"
-    RTX3070Ti: str = "RTX 3070 Ti"
-    RTX3080Ti: str = "RTX 3080 Ti"
-    RTX4070Ti: str = "RTX 4070 Ti"
-    RTX4080Ti: str = "RTX 4080 Ti"
-    RTX4090Ti: str = "RTX 4090 Ti"
 
