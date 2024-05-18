@@ -1,33 +1,23 @@
 """
 Represents the comptability layer over Ray native API.
 """
+import json
 import logging
 import os
-import time
-import uuid
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional
 
 import paramiko
-import yaml
 import ray
-from ray import serve
-from ray.job_submission import JobSubmissionClient, JobStatus
-from fastapi import WebSocket
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from ray.job_submission import JobSubmissionClient
 from kubernetes import client, config
-from kubernetes.client.exceptions import ApiException
-from kubernetes.stream import stream
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
-from skyflow.globals import CLUSTER_TIMEOUT
-from skyflow.templates import (AcceleratorEnum, ClusterStatus,
-                               ClusterStatusEnum, EndpointObject, Endpoints,
-                               Job, ResourceEnum, RestartPolicyEnum, Service,
+from skyflow.templates import (ClusterStatus,
+                               ClusterStatusEnum,
+                               Job, ResourceEnum,
                                TaskStatusEnum)
-from skyflow.templates.job_template import ContainerStatusEnum
 from skyflow.templates.resource_template import ContainerEnum
-from skyflow.utils.utils import parse_resource_cpu, parse_resource_memory
 
 RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
@@ -83,17 +73,13 @@ class RayManager(Manager):
             self._setup_ssh_client()
             self._install_ray()
             self.client = self._connect_to_ray_cluster()
-        ray.shutdown()
 
     def _connect_to_ray_cluster(self):
         """Connect to the Ray cluster using the Ray client."""
         client = None
         try:
-            if not ray.is_initialized():
-                ray.init(address=f"ray://{self.host}:{RAY_CLIENT_PORT}", logging_level='ERROR')
             #TODO: change to https
             client = JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
-            self.logger.info("Successfully connected to the Job Submission Server")
         except Exception as error:
             self.logger.error(f"Failed to connect to the Job Submission Server: {error}")
         return client
@@ -226,11 +212,8 @@ class RayManager(Manager):
             container_managers = self._find_available_container_manager()
             self._setup_containerized_ray(container_managers)  # Assuming it returns a single manager
             # Retry connecting to Ray after setup
-            if not ray.is_initialized():
-                ray.init(address=f"ray://{self.host}:{RAY_CLIENT_PORT}", logging_level='ERROR')
-            assert ray.is_initialized()
+            self.client = JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
             self.logger.info("Successfully installed ray on the remote system.")
-            ray.shutdown()
         except Exception as setup_error:
             self.logger.error(f"Failed to setup Ray: {setup_error}")
 
@@ -306,68 +289,69 @@ class RayManager(Manager):
 
     @property
     def cluster_resources(self):
-        """Gets total cluster resources for each node using Ray, excluding the internal head node."""
-        
-        self._connect_to_ray_cluster()
-        # Fetch resources directly from Ray
-        resources = ray.cluster_resources()
+        """
+        Gets total cluster resources for each node using Ray,
+        excluding the internal head node.
+        """
 
-        # Initialize a dictionary to store available resources per node
-        cluster_resources = {}
-        # Filter and identify node names, excluding '__internal_head__'
-        nodes = {name.split(':', 1)[1]: {} for name in resources.keys() 
-                if name.startswith('node:') and '__internal_head__' not in name}
+        # Connect to the Ray cluster
+        self.client = self._connect_to_ray_cluster()
 
-        # Process each resource and assign it to the correct node
-        for node in nodes:
-            if node not in cluster_resources:
-                cluster_resources[node] = {}
-            for resource_name, quantity in resources.items():
-                # Assuming format node:node_name, resource_type (e.g., 'CPU', 'memory')
-                # We also assume CPU is counted as cores and memory in bytes
-                if "object_store" in resource_name:
-                    cluster_resources[node][ResourceEnum.DISK.value] = quantity
-                elif ResourceEnum.CPU.value[:-1] in resource_name.lower():
-                    cluster_resources[node][ResourceEnum.CPU.value] = quantity
-                elif ResourceEnum.MEMORY.value in resource_name.lower():
-                    cluster_resources[node][ResourceEnum.MEMORY.value] = quantity / (1024 ** 2) # MB
-                elif ResourceEnum.GPU.value[:-1] in resource_name.lower():
-                    cluster_resources[node][ResourceEnum.GPU.value] = quantity
+        # Submit a job to fetch the cluster resources
+        job_id = self.client.submit_job(
+            entrypoint="python /fetch_ray_resources.py"
+        )
 
-        ray.shutdown()
+        # Wait for the job to finish and fetch the results
+        job_info = self.client.get_job_info(job_id)
+        while job_info.status != 'SUCCEEDED':
+            job_info = self.client.get_job_info(job_id)
+
+        # Fetch the job logs
+        logs = self.client.get_job_logs(job_id)
+
+        print(logs)
+        # Check if the last line is a valid JSON string
+        try:
+            cluster_resources = json.loads(logs)
+        except json.JSONDecodeError as e:
+            print("Failed to decode JSON from the logs, check the log output for errors.", e)
+            cluster_resources = None
+
         return cluster_resources
 
-
     @property
-    def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
-        """Gets currently allocatable (available) resources for each node using Ray."""
-        self._connect_to_ray_cluster()
-        # Fetch available resources directly from Ray
-        resources = ray.available_resources()
+    def allocatable_resources(self):
+        """
+        Gets total cluster resources for each node using Ray,
+        excluding the internal head node.
+        """
 
-        # Initialize a dictionary to store available resources per node
-        allocatable_resources = {}
-        nodes = {name.split(':', 1)[1]: {} for name in resources.keys() 
-                if name.startswith('node:') and '__internal_head__' not in name}
+        # Connect to the Ray cluster
+        self.client = self._connect_to_ray_cluster()
 
-        # Process each resource and assign it to the correct node
-        for node in nodes:
-            if node not in allocatable_resources:
-                allocatable_resources[node] = {}
-            for resource_name, quantity in resources.items():
-                # Assuming format node:node_name, resource_type (e.g., 'CPU', 'memory')
-                # We also assume CPU is counted as cores and memory in bytes
-                if "object_store" in resource_name:
-                    allocatable_resources[node][ResourceEnum.DISK.value] = quantity
-                elif ResourceEnum.CPU.value[:-1] in resource_name.lower():
-                    allocatable_resources[node][ResourceEnum.CPU.value] = quantity
-                elif ResourceEnum.MEMORY.value in resource_name.lower():
-                    allocatable_resources[node][ResourceEnum.MEMORY.value] = quantity / (1024 ** 2) # MB
-                elif ResourceEnum.GPU.value[:-1] in resource_name.lower():
-                    allocatable_resources[node][ResourceEnum.GPU.value] = quantity
+        # Submit a job to fetch the cluster resources
+        job_id = self.client.submit_job(
+            entrypoint="python /fetch_ray_allocatable_resources.py"
+        )
 
-        ray.shutdown()
-        return allocatable_resources
+        # Wait for the job to finish and fetch the results
+        job_info = self.client.get_job_info(job_id)
+        while job_info.status != 'SUCCEEDED':
+            job_info = self.client.get_job_info(job_id)
+
+        # Fetch the job logs
+        logs = self.client.get_job_logs(job_id)
+
+        print(logs)
+        # Check if the last line is a valid JSON string
+        try:
+            cluster_resources = json.loads(logs)
+        except json.JSONDecodeError as e:
+            print("Failed to decode JSON from the logs, check the log output for errors.", e)
+            cluster_resources = None
+
+        return cluster_resources
 
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
@@ -402,7 +386,7 @@ class RayManager(Manager):
         }
         # Submit the job to the Ray cluster
         self.client.submit_job(
-            entrypoint=job.spec.run,
+            entrypoint=job.specluster_resourcesc.run,
             runtime_env=runtime_env,
             submission_id=job_id,
             job_id=job_id,
@@ -422,8 +406,6 @@ class RayManager(Manager):
         }
         self.job_registry[job_id] = job.get_name()
 
-        ray.shutdown()
-        
         return submission_details
 
 
@@ -459,7 +441,7 @@ class RayManager(Manager):
         # Remove the job from the registry
         del self.job_registry[job_id]
         self.logger.info(f"Removed job {job_id} from job registry.")
-        ray.shutdown()
+        
 
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         """
@@ -489,7 +471,7 @@ class RayManager(Manager):
                 jobs_dict["containers"][job_name][job_id] = job_status.value
             except Exception as error:
                 self.logger.error(f"Failed to get status for job {job_name} (Ray ID: {job_id}): {error}")
-        ray.shutdown()
+        
         return jobs_dict
 
     def get_job_logs(self, job: Job) -> List[str]:
@@ -518,12 +500,13 @@ class RayManager(Manager):
                 self.logger.info(f"Fetched logs for job {job_id} on the Ray cluster.")
             except Exception as e:
                 self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
-            ray.shutdown()
+            
             return logs
     
 #print("Ray Manager")
-#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.132.112.244")
-#print(rm.get_cluster_status())
+#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.170.52.164")
+#print(rm.cluster_resources)
+#print(rm.allocatable_resources)
 #mr = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.132.112.244")
 #print(mr.get_cluster_status())
 

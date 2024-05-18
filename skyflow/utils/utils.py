@@ -4,6 +4,7 @@ Utility functions for Skyflow.
 import importlib
 import json
 import os
+import re
 import shutil
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union
@@ -14,6 +15,22 @@ import yaml
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
+
+
+def parse_resource_cpu(resource_str):
+    """Parse CPU string to cpu count."""
+    unit_map = {"m": 1e-3, "K": 1e3}
+    value = re.search(r"\d+", resource_str).group()
+    unit = resource_str[len(value):]
+    return float(value) * unit_map.get(unit, 1)
+
+
+def parse_resource_memory(resource_str):
+    """Parse resource string to megabytes."""
+    unit_map = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
+    value = re.search(r"\d+", resource_str).group()
+    unit = resource_str[len(value):]
+    return float(value) * unit_map.get(unit, 1) / (2**20)
 
 
 def sanitize_cluster_name(value: str) -> str:
