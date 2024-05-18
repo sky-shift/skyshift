@@ -28,6 +28,7 @@ setup(
         "skypilot==0.5.0",
         "bcrypt==4.0.1",
         "paramiko",
+        "ray",
     ],
     extras_require={
         "server": [
