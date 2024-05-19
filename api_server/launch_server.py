@@ -10,10 +10,11 @@ from typing import Optional
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
 
+from api_server import CONF_FLAG_DIR, remove_flag_file
 from skyflow.etcd_client.etcd_client import ETCDClient
-from skyflow.utils.utils import generate_manager_config, generate_temp_directory
-from api_server import remove_flag_file
-from api_server import CONF_FLAG_DIR
+from skyflow.utils.utils import (generate_manager_config,
+                                 generate_temp_directory)
+
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 

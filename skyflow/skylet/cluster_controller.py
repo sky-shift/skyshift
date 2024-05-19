@@ -19,8 +19,8 @@ from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
-DEFAULT_HEARTBEAT_TIME = 5  # seconds
-DEFAULT_RETRY_LIMIT = 2  # seconds
+DEFAULT_HEARTBEAT_TIME = 3  # seconds
+DEFAULT_RETRY_LIMIT = 5
 
 
 @contextmanager
@@ -71,9 +71,9 @@ class ClusterController(Controller):
             log_path=f'{cluster_dir(self.name)}/logs/cluster_controller.log')
 
         self.logger.info("Initializing Cluster Controller: %s", self.name)
-        cluster_obj = ClusterAPI().get(name)
+        self.cluster_api = ClusterAPI()
+        cluster_obj = self.cluster_api.get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
-        # For now, we only support Kubernetes. (Slurm TODO)
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
@@ -101,41 +101,39 @@ class ClusterController(Controller):
         cluster_status = self.manager_api.get_cluster_status()
         if cluster_status.status == ClusterStatusEnum.ERROR.value:
             self.update_unhealthy_cluster()
-            return
-        self.update_healthy_cluster(cluster_status)
-        self.logger.debug("Updated cluster state.")
+        else:
+            self.update_healthy_cluster(cluster_status)
+            self.logger.debug("Updated cluster state.")
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         """Updates the healthy cluster status (READY)."""
-        cluster_api = ClusterAPI()
-        cluster_obj = cluster_api.get(self.name)
+        cluster_obj = self.cluster_api.get(self.name)
         prev_cluster_status = cluster_obj.status
         prev_cluster_status.update_status(cluster_status.status)
         prev_cluster_status.update_capacity(cluster_status.capacity)
         prev_cluster_status.update_allocatable_capacity(
             cluster_status.allocatable_capacity)
-        cluster_api.update(cluster_obj.model_dump(mode="json"))
+        self.cluster_api.update(cluster_obj.model_dump(mode="json"))
 
     def update_unhealthy_cluster(self):
         """Updates the unhealthy cluster status (ERROR)."""
         # When the cluster is unhealthy, we need to update the cluster
         # status to ERROR in the API server. But not kill the skylet
         # (maybe it reestablishes connection later)
-        cluster_api = ClusterAPI()
-        cluster_obj = cluster_api.get(self.name)
+        cluster_obj = self.cluster_api.get(self.name)
         cluster_status = cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
-        cluster_api.update(cluster_obj.model_dump(mode="json"))
+        self.cluster_api.update(cluster_obj.model_dump(mode="json"))
 
 
-# Testing purposes.
 # if __name__ == "__main__":
+#     # For debugging purposes...
 #     cluster_api = ClusterAPI()
 #     try:
 #         cluster_api.create({
 #             "kind": "Cluster",
 #             "metadata": {
-#                 "name": "mluo-onprem"
+#                 "name": "kind-cluster1"
 #             },
 #             "spec": {
 #                 "manager": "k8",
@@ -143,5 +141,5 @@ class ClusterController(Controller):
 #         })
 #     except:
 #         pass
-#     hc = ClusterController("mluo-onprem")
+#     hc = ClusterController("kind-cluster1")
 #     hc.run()

@@ -13,13 +13,20 @@ Typical usage example:
 """
 
 import logging
-import queue
 import threading
 import time
+import traceback
+from queue import Empty, Queue
 from typing import Any, Dict
 
+import requests
+
 from skyflow.structs.watcher import Watcher
-from skyflow.templates.event_template import WatchEventEnum
+from skyflow.templates.event_template import WatchEvent, WatchEventEnum
+
+DEFAULT_RETRY_LIMIT = int(1e9)
+MAX_BACKOFF_TIME = 16  # seconds
+CACHE_RESYNC_PERIOD = 1800  # every 30 minutes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,13 +38,21 @@ class Informer:  # pylint: disable=too-many-instance-attributes
     It regularly watches the API server and updates the cache asynchronously.
     """
 
-    def __init__(self, api: object, logger=logging.getLogger("[Informer]")):
+    def __init__(self,
+                 api: object,
+                 logger=logging.getLogger("[Informer]"),
+                 cache_resync_period=CACHE_RESYNC_PERIOD,
+                 retry_limit: int = DEFAULT_RETRY_LIMIT,
+                 max_backoff_time: int = MAX_BACKOFF_TIME):
         self.api = api
         self.logger = logger
         self.watcher = Watcher(self.api)
-        self.informer_queue: queue.Queue = queue.Queue()
+        self.informer_queue: Queue = Queue()
         self.lock = threading.Lock()
         self.cache: Dict[str, Any] = {}
+        self.cache_resync_period = cache_resync_period
+        self.retry_limit = retry_limit
+        self.max_backoff_time = max_backoff_time
 
         # This thread reflects changes over the watch and
         # populates the informer queue.
@@ -57,14 +72,42 @@ class Informer:  # pylint: disable=too-many-instance-attributes
             name = obj.metadata.name
             self.cache[name] = obj
 
+    def resync_cache(self):
+        """Resyncs the cache with the API server."""
+        api_object = self.api.list()
+        obj_names = []
+        for obj in api_object.objects:
+            watch_event_type = None
+            obj_name = obj.get_name()
+
+            if obj_name in self.cache:
+                if obj != self.cache[obj_name]:
+                    watch_event_type = WatchEventEnum.UPDATE
+            else:
+                watch_event_type = WatchEventEnum.ADD
+
+            if watch_event_type:
+                watch_event = WatchEvent(event_type=watch_event_type,
+                                         object=obj)
+                self.informer_queue.put(watch_event)
+            obj_names.append(obj_name)
+
+        # For objects not in the cache, add a 'DELETED' event
+        # to the informer queue.
+        cache_keys = [obj_name for obj_name in self.cache.keys()]
+        for obj_name in cache_keys:
+            if obj_name not in obj_names:
+                watch_event = WatchEvent(event_type=WatchEventEnum.DELETE,
+                                         object=obj)
+                self.informer_queue.put(watch_event)
+
     def start(self):
         """Starts the informer."""
+        # Populate informer cache.
+        self.sync_cache()
         # Start the reflector and event controller threads.
         self.reflector.start()
         self.event_controller.start()
-
-        # Populate informer cache.
-        self.sync_cache()
 
     def join(self):
         """Joins the informer threads."""
@@ -88,16 +131,50 @@ class Informer:  # pylint: disable=too-many-instance-attributes
             self.callback_handler["delete"] = delete_event_callback
 
     def _reflect_events(self):
-        for watch_event in self.watcher.watch():
-            self.informer_queue.put(watch_event)
+        """Establishes a watch and appends modifications to a queue."""
+        retry = 0
+        backoff_time = 1
+        while True:
+            try:
+                self.resync_cache()
+                retry = 0
+                for watch_event in self.watcher.watch():
+                    self.informer_queue.put(watch_event)
+            except Exception as error:  # pylint: disable=broad-except
+                retry += 1
+                if isinstance(error, requests.exceptions.ConnectionError):
+                    self.logger.error("Unable to connect to API Server.")
+                elif isinstance(error,
+                                requests.exceptions.ChunkedEncodingError):
+                    self.logger.error("API server restarting. Reconnecting...")
+                else:
+                    self.logger.error(traceback.format_exc())
+                    self.logger.error(
+                        "Encountered unusual error. Trying again.")
+                time.sleep(backoff_time)
+                backoff_time = min(backoff_time * 2, self.max_backoff_time)
+
+            if retry >= self.retry_limit:
+                self.logger.error("Retry limit exceeded. Terminating watch.")
+                break
 
     def _event_controller(self):
+        resync_start_time = time.time()
         while True:
-            watch_event = self.informer_queue.get()
+            cur_time = time.time()
+            wait_time = self.cache_resync_period - (cur_time -
+                                                    resync_start_time)
+            if wait_time < 0:
+                wait_time = 1
+            try:
+                watch_event = self.informer_queue.get(timeout=wait_time)
+            except Empty:
+                resync_start_time = time.time()
+                self.resync_cache()
+                continue
             event_type = watch_event.event_type
             watch_obj = watch_event.object
             obj_name = watch_obj.get_name()
-
             if event_type == WatchEventEnum.ADD:
                 with self.lock:
                     self.cache[obj_name] = watch_obj
@@ -120,6 +197,10 @@ class Informer:  # pylint: disable=too-many-instance-attributes
             self.logger.debug("Cache: %s", self.cache)
             return self.cache
 
+    def set_retry_limit(self, retry_limit: int):
+        """Sets the retry limit."""
+        self.retry_limit = retry_limit
+
 
 if __name__ == "__main__":
     from skyflow.api_client import ClusterAPI
@@ -129,4 +210,4 @@ if __name__ == "__main__":
     informer.start()
     while True:
         print(informer.get_cache())
-        time.sleep(1)
+        time.sleep(10)

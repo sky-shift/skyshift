@@ -11,6 +11,9 @@ def verify_response(input_data):
     """
     Verifies API response or data to check for error.
     """
+    if not input_data:
+        raise APIException(
+            "Connection with API server unexpectedly terminated.")
     if hasattr(input_data, 'status_code') and callable(
             getattr(input_data, 'json', None)):
         if input_data.status_code >= 300:

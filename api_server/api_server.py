@@ -11,9 +11,9 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from functools import partial
+from pathlib import Path
 from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
-from pathlib import Path
 
 import jsonpatch
 import jwt
@@ -28,7 +28,8 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE, SKYCONF_DIR
+from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE,
+                             SKYCONF_DIR)
 from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
                                     NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException

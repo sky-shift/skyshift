@@ -14,10 +14,10 @@ import shutil
 import subprocess
 import tempfile
 import time
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
-from unittest.mock import patch
 
 from skyflow.cli.cli import cli
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
