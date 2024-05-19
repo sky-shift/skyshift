@@ -1485,15 +1485,19 @@ def status():  # pylint: disable=too-many-locals
     resources for clusters in the READY state,
     as well as the newest 10 running jobs.
     """
-    from skyflow.cli.cli_utils import \
-        print_table  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import ( # pylint: disable=import-outside-toplevel
+        print_table, get_table_str,
+        calculate_total_resources, get_oldest_cluster_age,
+        display_running_jobs
+    )
     from skyflow.globals import \
         APP_NAME  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.cluster_template import (  # pylint: disable=import-outside-toplevel
+    from skyflow.templates.cluster_template import(   # pylint: disable=import-outside-toplevel
         Cluster, ClusterList, ClusterMeta, ClusterSpec, ClusterStatus,
         ClusterStatusEnum)
-
-    cluster_list = fetch_clusters()
+    from skyflow.api_client import ClusterAPI, JobAPI  # pylint: disable=import-outside-toplevel
+    
+    cluster_list = ClusterAPI().list().objects
     click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Clusters{Style.RESET_ALL}")
     cluster_table_str = get_table_str('cluster',
                                       ClusterList(objects=cluster_list))
@@ -1524,92 +1528,8 @@ def status():  # pylint: disable=too-many-locals
     # Print synthetic SkyShift cluster
     print_table('cluster', synthetic_cluster_list)
 
-    job_list = fetch_jobs()
+    job_list = JobAPI().list()
     display_running_jobs(job_list)
-
-
-def get_table_str(table_type, *args, **kwargs):
-    """Capture the printed table as a string."""
-    import io  # pylint: disable=import-outside-toplevel
-    from contextlib import \
-        redirect_stdout  # pylint: disable=import-outside-toplevel
-
-    from skyflow.cli.cli_utils import \
-        print_table  # pylint: disable=import-outside-toplevel
-
-    buf = io.StringIO()
-    with redirect_stdout(buf):
-        print_table(table_type, *args, **kwargs)
-    return buf.getvalue()
-
-
-def get_oldest_cluster_age(cluster_list):
-    """
-    Get the creation timestamp of the oldest cluster.
-    """
-    oldest_creation_timestamp = ""
-    for cluster in cluster_list:
-        if oldest_creation_timestamp == "" or \
-           cluster.metadata.creation_timestamp < oldest_creation_timestamp:
-            oldest_creation_timestamp = cluster.metadata.creation_timestamp
-    return oldest_creation_timestamp
-
-
-def fetch_clusters():
-    """Fetch clusters."""
-    from skyflow.cli.cli_utils import \
-        get_cli_object  # pylint: disable=import-outside-toplevel
-    cluster_list = get_cli_object(object_type="cluster")
-    return cluster_list.objects  # return the list of cluster objects
-
-
-def calculate_total_resources(cluster_list):
-    """Calculate the total and available resources for READY clusters."""
-    total_resources = {}
-    available_resources = {}
-    from skyflow.templates.cluster_template import \
-        ClusterStatusEnum  # pylint: disable=import-outside-toplevel
-    for cluster in cluster_list:
-        if cluster.status.status == ClusterStatusEnum.READY.value:
-            total_resources.update(cluster.status.capacity)
-            available_resources.update(cluster.status.allocatable_capacity)
-    return total_resources, available_resources
-
-
-def display_total_resources(total_resources, available_resources):
-    """Display the total and available resources for READY clusters."""
-    click.echo(f"{Fore.BLUE}{Style.BRIGHT}Resources{Style.RESET_ALL}")
-    for resource in total_resources:
-        total = total_resources[resource]
-        available = available_resources.get(resource, 0)
-        click.echo(f"{resource}: {available}/{total}")
-
-
-def fetch_jobs():
-    """Fetch the jobs"""
-    from skyflow.cli.cli_utils import \
-        get_cli_object  # pylint: disable=import-outside-toplevel
-    job_list = get_cli_object(object_type="job")
-    return job_list
-
-
-def display_running_jobs(job_list):
-    """Display the jobs"""
-    from skyflow.cli.cli_utils import \
-        print_table  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.job_template import (  # pylint: disable=import-outside-toplevel
-        JobList, JobStatusEnum)
-    running_jobs = [
-        job for job in job_list.objects
-        if job.status.conditions[-1]["type"] == JobStatusEnum.ACTIVE.value
-    ]
-    running_jobs_sorted = sorted(
-        running_jobs,
-        key=lambda job: job.metadata.creation_timestamp,
-        reverse=True)
-
-    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs:{Style.RESET_ALL}")
-    print_table('job', JobList(objects=running_jobs_sorted))
 
 
 cli.add_command(status)

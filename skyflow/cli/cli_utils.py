@@ -1,7 +1,9 @@
 """
 Utils for Skyflow CLI.
 """
+from contextlib import redirect_stdout
 import enum
+import io
 import json as json_lib
 import time
 from typing import Dict, List, Optional, Union
@@ -24,6 +26,7 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                Namespace, NamespaceList, Object, ObjectList,
                                Service, ServiceList, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatusEnum
+from skyflow.templates.job_template import JobStatusEnum
 from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  compute_datetime_delta, fetch_datetime,
                                  load_manager_config, update_manager_config)
@@ -730,3 +733,60 @@ def show_loading(stop_event):
             spinner.n = 0
         time.sleep(0.05)
     spinner.close()
+
+
+
+def get_table_str(table_type, *args, **kwargs):
+    """Capture the printed table as a string."""
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_table(table_type, *args, **kwargs)
+    return buf.getvalue()
+
+
+def get_oldest_cluster_age(cluster_list):
+    """
+    Get the creation timestamp of the oldest cluster.
+    """
+    oldest_creation_timestamp = ""
+    for cluster in cluster_list:
+        if oldest_creation_timestamp == "" or \
+           cluster.metadata.creation_timestamp < oldest_creation_timestamp:
+            oldest_creation_timestamp = cluster.metadata.creation_timestamp
+    return oldest_creation_timestamp
+
+
+
+def calculate_total_resources(cluster_list):
+    """Calculate the total and available resources for READY clusters."""
+    total_resources = {}
+    available_resources = {}
+    for cluster in cluster_list:
+        if cluster.status.status == ClusterStatusEnum.READY.value:
+            total_resources.update(cluster.status.capacity)
+            available_resources.update(cluster.status.allocatable_capacity)
+    return total_resources, available_resources
+
+
+def display_total_resources(total_resources, available_resources):
+    """Display the total and available resources for READY clusters."""
+    click.echo(f"{Fore.BLUE}{Style.BRIGHT}Resources{Style.RESET_ALL}")
+    for resource in total_resources:
+        total = total_resources[resource]
+        available = available_resources.get(resource, 0)
+        click.echo(f"{resource}: {available}/{total}")
+
+
+def display_running_jobs(job_list):
+    """Display the jobs"""
+    running_jobs = [
+        job for job in job_list.objects
+        if job.status.conditions[-1]["type"] == JobStatusEnum.ACTIVE.value
+    ]
+    running_jobs_sorted = sorted(
+        running_jobs,
+        key=lambda job: job.metadata.creation_timestamp,
+        reverse=True)
+
+    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs:{Style.RESET_ALL}")
+    print_table('job', JobList(objects=running_jobs_sorted))
