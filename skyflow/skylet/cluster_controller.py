@@ -20,7 +20,7 @@ from skyflow.globals import cluster_dir
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 DEFAULT_HEARTBEAT_TIME = 3  # seconds
-DEFAULT_RETRY_LIMIT = 5
+DEFAULT_RETRY_LIMIT = 5  # attempts
 
 
 @contextmanager

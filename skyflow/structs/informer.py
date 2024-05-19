@@ -76,7 +76,7 @@ class Informer:  # pylint: disable=too-many-instance-attributes
     def resync_cache(self):
         """Resyncs the cache with the API server."""
         api_object = self.api.list()
-        obj_names = []
+        obj_names = set([obj.get_name() for obj in api_object.objects])
         for obj in api_object.objects:
             watch_event_type = None
             obj_name = obj.get_name()
@@ -91,7 +91,6 @@ class Informer:  # pylint: disable=too-many-instance-attributes
                 watch_event = WatchEvent(event_type=watch_event_type,
                                          object=obj)
                 self.informer_queue.put(watch_event)
-            obj_names.append(obj_name)
 
         # For objects not in the cache, add a 'DELETED' event
         # to the informer queue.
