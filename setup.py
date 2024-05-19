@@ -27,6 +27,7 @@ setup(
         "types-requests",
         "skypilot==0.5.0",
         "bcrypt==4.0.1",
+        "halo",
     ],
     extras_require={
         "server": [
