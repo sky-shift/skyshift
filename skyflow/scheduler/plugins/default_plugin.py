@@ -96,4 +96,3 @@ class DefaultPlugin(BasePlugin):
         success = PluginStatus(code=StatusCode.SUCCESS,
                                message="Spread computed.")
         return {k: v for k, v in job_clusters.items() if v > 0}, success
-print(is_subset_and_values_smaller({"CPU": 10}, {"CPU": 5, "GPU": 0}))
