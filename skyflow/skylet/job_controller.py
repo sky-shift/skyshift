@@ -21,7 +21,7 @@ from skyflow.structs import Informer
 from skyflow.templates.job_template import Job, TaskStatusEnum
 
 DEFAULT_HEARTBEAT_TIME = 3  # seconds
-DEFAULT_RETRY_LIMIT = 3  # seconds
+DEFAULT_RETRY_LIMIT = 5
 
 
 @contextmanager
