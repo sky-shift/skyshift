@@ -13,7 +13,7 @@ import yaml
 from click_aliases import ClickAliasedGroup
 from colorama import Fore, Style
 from halo import Halo
-
+from inspect import signature
 
 def halo_spinner(text):
     """
@@ -21,12 +21,17 @@ def halo_spinner(text):
     """
 
     def decorator(func):
+        sig = signature(func)
+        params = sig.parameters
 
         def wrapper(*args, **kwargs):
             spinner = Halo(text=text, spinner='dots', color='green')
             spinner.start()
             try:
-                result = func(*args, spinner=spinner, **kwargs)
+                if 'spinner' in params:
+                    result = func(*args, spinner=spinner, **kwargs)
+                else:
+                    result = func(*args, **kwargs)
                 spinner.succeed(f"{text} completed successfully.")
                 return result
             except Exception as error:  # pylint: disable=broad-except
@@ -36,6 +41,7 @@ def halo_spinner(text):
         return wrapper
 
     return decorator
+
 
 
 @click.group()
