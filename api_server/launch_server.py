@@ -7,6 +7,7 @@ import os
 import subprocess
 from typing import Optional
 
+import requests
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
 
@@ -15,7 +16,7 @@ from skyflow.etcd_client.etcd_client import ETCDClient
 from skyflow.utils.utils import (generate_manager_config,
                                  generate_temp_directory)
 
-API_SERVER_HOST = "127.0.0.1"
+API_SERVER_HOST = "0.0.0.0"
 API_SERVER_PORT = 50051
 
 
@@ -61,6 +62,7 @@ def main(
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
         return
+
     generate_manager_config(host, port)
     #Create temperorary directory used for worker sync
     generate_temp_directory(CONF_FLAG_DIR)
