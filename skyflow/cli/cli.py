@@ -12,9 +12,8 @@ from urllib.parse import quote
 import click
 import yaml
 from click_aliases import ClickAliasedGroup
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 from halo import Halo
-
 
 def halo_spinner(text):
     """
@@ -26,7 +25,7 @@ def halo_spinner(text):
         params = sig.parameters
 
         def wrapper(*args, **kwargs):
-            spinner = Halo(text=text, spinner='dots', color='green')
+            spinner = Halo(text=text, spinner='dots', color='cyan')
             spinner.start()
             try:
                 if 'spinner' in params:
@@ -326,13 +325,10 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
 @halo_spinner("Fetching clusters")
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_cluster_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
-    api_response = get_cli_object(object_type="cluster",
-                                  name=name,
-                                  watch=watch)
-    print_cluster_table(api_response)
+    api_response = get_cli_object(object_type="cluster", name=name, watch=watch)
+    print_table('cluster', api_response)
 
 
 @delete.command(name="cluster", aliases=["clusters"])
@@ -340,8 +336,7 @@ def get_clusters(name: str, watch: bool):
 @halo_spinner("Deleting cluster")
 def delete_cluster(name: str):
     """Removes/detaches a cluster from Sky Manager."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="cluster", name=name)
 
@@ -386,8 +381,7 @@ def delete_cluster(name: str):
     type=int,
     default=0,
     show_default=True,
-    help=
-    "Number of GPUs per task. Note that these GPUs can be any type of GPU.",
+    help="Number of GPUs per task. Note that these GPUs can be any type of GPU.",
 )
 @click.option(
     "--accelerators",
@@ -434,10 +428,10 @@ def create_job(
     spinner,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Adds a new job."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.resource_template import \
-        ResourceEnum  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object 
+    # pylint: disable=import-outside-toplevel
+    from skyflow.templates.resource_template import ResourceEnum 
+    # pylint: disable=import-outside-toplevel
 
     # Validate inputs
     if not validate_input_string(name):
@@ -512,14 +506,13 @@ def create_job(
 @halo_spinner("Fetching jobs")
 def get_job(name: str, namespace: str, watch: bool):
     """Fetches a job."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_job_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     api_response = get_cli_object(object_type="job",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
-    print_job_table(api_response)
+    print_table('job', api_response)
 
 
 @click.command(name="logs")
@@ -534,8 +527,7 @@ def get_job(name: str, namespace: str, watch: bool):
 @halo_spinner("Fetching job logs")
 def job_logs(name: str, namespace: str):
     """Fetches a job's logs."""
-    from skyflow.cli.cli_utils import \
-        fetch_job_logs  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import fetch_job_logs # pylint: disable=import-outside-toplevel
 
     fetch_job_logs(name=name, namespace=namespace)
 
@@ -555,8 +547,7 @@ cli.add_command(job_logs)
 @halo_spinner("Deleting job")
 def delete_job(name: str, namespace: str):
     """Deletes a job."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="job", name=name, namespace=namespace)
 
@@ -568,8 +559,7 @@ def delete_job(name: str, namespace: str):
 @halo_spinner("Creating namespace")
 def create_namespace(name: str, spinner):
     """Creates a new namespace."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
 
     # Validate the namespace name
     if not validate_input_string(name):
@@ -595,13 +585,12 @@ def create_namespace(name: str, spinner):
 @halo_spinner("Fetching namespaces")
 def get_namespace(name: str, watch: bool):
     """Gets all namespaces."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_namespace_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     api_response = get_cli_object(object_type="namespace",
                                   name=name,
                                   watch=watch)
-    print_namespace_table(api_response)
+    print_table('namespace', api_response)
 
 
 @delete.command(name="namespace", aliases=["namespaces"])
@@ -609,8 +598,7 @@ def get_namespace(name: str, watch: bool):
 @halo_spinner("Deleting namespace")
 def delete_namespace(name: str):
     """Removes/detaches a cluster from Sky Manager."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="namespace", name=name)
 
@@ -656,8 +644,7 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
         name: str, namespace: str, labelselector: List[Tuple[str, str]],
         includecluster: List[str], excludecluster: List[str], spinner):
     """Adds a new filter policy."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
 
     # Validate name and namespace
     if not validate_input_string(name) or not validate_input_string(namespace):
@@ -714,8 +701,7 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
 @halo_spinner("Fetching filter policies")
 def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
     """Fetches a filter policy."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_filter_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     if not validate_input_string(namespace):
         spinner.fail("Name or namespace format is invalid.")
@@ -725,7 +711,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
-    print_filter_table(api_response)
+    print_table('filterpolicy', api_response)
 
 
 @delete.command(name="filterPolicy",
@@ -741,8 +727,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
 @halo_spinner("Deleting filter policy")
 def delete_filter_policy(name: str, namespace: str, spinner):
     """Deletes a filter policy."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     if not validate_input_string(name) or not validate_input_string(namespace):
         spinner.fail("Name or namespace format is invalid.")
@@ -762,8 +747,7 @@ def delete_filter_policy(name: str, namespace: str, spinner):
 @halo_spinner("Creating link")
 def create_link(name: str, source: str, target: str, spinner):
     """Creates a new link between two clusters."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
 
     if not validate_input_string(name):
         spinner.fail(f"Link name {name} is invalid.")
@@ -811,11 +795,10 @@ def create_link(name: str, source: str, target: str, spinner):
 @halo_spinner("Fetching links")
 def get_links(name: str, watch: bool):
     """Gets link (or links if None is specified)."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_link_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     api_response = get_cli_object(object_type="link", name=name, watch=watch)
-    print_link_table(api_response)
+    print_table('link', api_response)
 
 
 @delete.command(name="link", aliases=["links"])
@@ -823,8 +806,7 @@ def get_links(name: str, watch: bool):
 @halo_spinner("Deleting link")
 def delete_link(name: str):
     """Removes/detaches a cluster from Sky Manager."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="link", name=name)
 
@@ -877,10 +859,8 @@ def create_service(
     spinner,
 ):  # pylint: disable=too-many-arguments
     """Creates a new service."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.service_template import \
-        ServiceType  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
+    from skyflow.templates.service_template import ServiceType # pylint: disable=import-outside-toplevel
 
     # Validate service name and namespace
     if not validate_input_string(name):
@@ -961,14 +941,13 @@ def create_service(
 @halo_spinner("Fetching services")
 def get_service(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_service_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     api_response = get_cli_object(object_type="service",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
-    print_service_table(api_response)
+    print_table('service', api_response)
 
 
 @delete.command(name="service", aliases=["services", "svc"])
@@ -983,8 +962,7 @@ def get_service(name: str, namespace: str, watch: bool):
 @halo_spinner("Deleting service")
 def delete_service(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="service", namespace=namespace, name=name)
 
@@ -1017,8 +995,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
         name, namespace, num_endpoints, exposed, primary_cluster, selector,
         spinner):
     """Creates a new set of endpoints."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
 
     # Validate inputs
     if not validate_input_string(name):
@@ -1082,14 +1059,13 @@ def create_endpoints(  # pylint: disable=too-many-arguments
 @halo_spinner("Fetching endpoints")
 def get_endpoints(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_endpoints_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     api_response = get_cli_object(object_type="endpoints",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
-    print_endpoints_table(api_response)
+    print_table('endpoints', api_response)
 
 
 @delete.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
@@ -1104,8 +1080,7 @@ def get_endpoints(name: str, namespace: str, watch: bool):
 @halo_spinner("Deleting endpoints")
 def delete_endpoints(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     delete_cli_object(object_type="endpoints", namespace=namespace, name=name)
 
@@ -1145,8 +1120,7 @@ def create_role(  # pylint: disable=too-many-arguments
         name: str, action: List[str], resource: List[str],
         namespace: List[str], users: List[str], spinner):
     """Create a new role."""
-    from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_cli_object # pylint: disable=import-outside-toplevel
 
     if not validate_input_string(name):
         spinner.fail("Name format is invalid.")
@@ -1179,15 +1153,14 @@ def create_role(  # pylint: disable=too-many-arguments
 @halo_spinner("Fetching roles")
 def get_roles(name: str, watch: bool, spinner):
     """Gets a role (or all roles if None is specified)."""
-    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
-        get_cli_object, print_role_table)
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
 
     if name and not validate_input_string(name):
         spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
 
     api_response = get_cli_object(object_type="role", name=name, watch=watch)
-    print_role_table(api_response)
+    print_table('role', api_response)
 
 
 @delete.command(name="role", aliases=["roles"])
@@ -1195,8 +1168,7 @@ def get_roles(name: str, watch: bool, spinner):
 @halo_spinner("Deleting role")
 def delete_role(name, spinner):
     """Removes a role."""
-    from skyflow.cli.cli_utils import \
-        delete_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import delete_cli_object # pylint: disable=import-outside-toplevel
 
     if not validate_input_string(name):
         spinner.fail("Name format is invalid.")
@@ -1305,8 +1277,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
             of the execution
         dictionary (`exec_dict`) used to frame the execution request.
     """
-    from skyflow.cli.cli_utils import \
-        stream_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import stream_cli_object # pylint: disable=import-outside-toplevel
 
     if len(command) == 0:
         raise click.ClickException("No command specified.")
@@ -1383,8 +1354,7 @@ def register(username, email, password, invite):  # pylint: disable=redefined-ou
     """
     Register a new user.
     """
-    from skyflow.cli.cli_utils import \
-        register_user  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import register_user # pylint: disable=import-outside-toplevel
 
     register_user(username, email, password, invite)
 
@@ -1404,8 +1374,7 @@ def login(username, password):
     """
     Login command with username and password.
     """
-    from skyflow.cli.cli_utils import \
-        login_user  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import login_user # pylint: disable=import-outside-toplevel
 
     login_user(username, password)
 
@@ -1428,8 +1397,7 @@ def invite(json, role):  # pylint: disable=redefined-outer-name
     """
     Create a new invite.
     """
-    from skyflow.cli.cli_utils import \
-        create_invite  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import create_invite # pylint: disable=import-outside-toplevel
 
     create_invite(json, list(role))
 
@@ -1444,8 +1412,7 @@ def revoke_invite(invite):  # pylint: disable=redefined-outer-name
     """
     Revoke an existing invite.
     """
-    from skyflow.cli.cli_utils import \
-        revoke_invite_req  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import revoke_invite_req # pylint: disable=import-outside-toplevel
 
     revoke_invite_req(invite)
 
@@ -1464,8 +1431,7 @@ def switch(user, namespace, spinner):
     """
     Switch local CLI active context.
     """
-    from skyflow.cli.cli_utils import \
-        switch_context  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import switch_context # pylint: disable=import-outside-toplevel
 
     if not user and not namespace:
         spinner.warn("No new context is specified. Nothing is changed.")
@@ -1485,13 +1451,12 @@ def status():
     resources for clusters in the READY state,
     as well as the newest 10 running jobs.
     """
-    from skyflow.cli.cli_utils import \
-        print_cluster_table  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import print_table # pylint: disable=import-outside-toplevel
 
     cluster_list = fetch_clusters()
-    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Clusters:\
+    click.echo(f"\n{Fore.CYAN}{Style.BRIGHT}Clusters\
                {Style.RESET_ALL}")
-    print_cluster_table(cluster_list)
+    print_table('cluster', cluster_list)
     click.echo("=============================================")
     total_resources = calculate_total_resources(cluster_list)
     display_total_resources(total_resources)
@@ -1501,8 +1466,7 @@ def status():
 
 def fetch_clusters():
     """Fetch clusters."""
-    from skyflow.cli.cli_utils import \
-        get_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
     cluster_list = get_cli_object(object_type="cluster")
     return cluster_list
 
@@ -1510,8 +1474,7 @@ def fetch_clusters():
 def calculate_total_resources(cluster_list):
     """Calculate the total available resources for READY clusters."""
     total_resources = {}
-    from skyflow.templates.cluster_template import \
-        ClusterStatusEnum  # pylint: disable=import-outside-toplevel
+    from skyflow.templates.cluster_template import ClusterStatusEnum # pylint: disable=import-outside-toplevel
     for cluster in cluster_list.objects:
         if cluster.status.status == ClusterStatusEnum.READY.value \
             and cluster.status.allocatable_capacity:
@@ -1527,7 +1490,7 @@ def calculate_total_resources(cluster_list):
 def display_total_resources(total_resources):
     """Display the total available resources for READY clusters."""
     click.echo(
-        f"\n{Fore.GREEN}{Style.BRIGHT}Total Available Resources (READY clusters):\
+        f"\n{Fore.CYAN}{Style.BRIGHT}Total Available Resources (READY clusters):\
                {Style.RESET_ALL}")
     for resource, amount in total_resources.items():
         click.echo(f"{resource}: {amount}")
@@ -1535,16 +1498,14 @@ def display_total_resources(total_resources):
 
 def fetch_jobs():
     """Fetch the newest 10 running jobs."""
-    from skyflow.cli.cli_utils import \
-        get_cli_object  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import get_cli_object # pylint: disable=import-outside-toplevel
     job_list = get_cli_object(object_type="job")
     return job_list
 
 
 def display_running_jobs(job_list):
     """Display the newest 10 running jobs."""
-    from skyflow.cli.cli_utils import \
-        print_job_table  # pylint: disable=import-outside-toplevel
+    from skyflow.cli.cli_utils import print_table # pylint: disable=import-outside-toplevel
     from skyflow.templates.job_template import (  # pylint: disable=import-outside-toplevel
         JobList, JobStatusEnum)
     running_jobs = [
@@ -1557,9 +1518,9 @@ def display_running_jobs(job_list):
         reverse=True)
 
     click.echo(
-        f"\n{Fore.GREEN}{Style.BRIGHT}Newest 10 Running Jobs:{Style.RESET_ALL}"
+        f"\n{Fore.CYAN}{Style.BRIGHT}Jobs:{Style.RESET_ALL}"
     )
-    print_job_table(JobList(objects=running_jobs_sorted))
+    print_table('job', JobList(objects=running_jobs_sorted))
 
 
 cli.add_command(status)

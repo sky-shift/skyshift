@@ -157,6 +157,30 @@ def delete_cli_object(object_type: str,
     click.echo(f"Deleted {object_type} {name}.")
     return api_response
 
+def init_colorama_once():
+    if not hasattr(init_colorama_once, "initialized"):
+        init(autoreset=True)
+        init_colorama_once.initialized = True
+
+def print_table(table_type, *args, **kwargs):
+    init_colorama_once()
+    table_function_map = {
+        'cluster': print_cluster_table,
+        'job': print_job_table,
+        'namespace': print_namespace_table,
+        'filter': print_filter_table,
+        'service': print_service_table,
+        'link': print_link_table,
+        'endpoints': print_endpoints_table,
+        'role': print_role_table
+    }
+    print_function = table_function_map.get(table_type)
+    if print_function:
+        print_function(*args, **kwargs)
+    else:
+        raise ValueError("Invalid table type provided")
+
+
 
 def fetch_job_logs(name: str, namespace: str):
     """
@@ -186,7 +210,6 @@ def colorize_status(status: str) -> str:
     """
     Returns the status text with appropriate color.
     """
-    init_colorama()
     if status in [ClusterStatusEnum.READY.value, TaskStatusEnum.RUNNING.value]:
         return f"{Fore.GREEN}{status}{Style.RESET_ALL}"
     if status in [ClusterStatusEnum.ERROR.value, TaskStatusEnum.FAILED.value]:
