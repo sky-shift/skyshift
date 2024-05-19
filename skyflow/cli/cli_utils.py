@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Optional, Union
 
 import click
+from colorama import Fore, Style, init
 from tabulate import tabulate
 from tqdm import tqdm
 
@@ -22,9 +23,13 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                FilterPolicyList, Job, JobList, Link, LinkList,
                                Namespace, NamespaceList, Object, ObjectList,
                                Service, ServiceList, TaskStatusEnum)
+from skyflow.templates.cluster_template import ClusterStatusEnum
 from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  compute_datetime_delta, fetch_datetime,
                                  load_manager_config, update_manager_config)
+
+# Initialize colorama
+init(autoreset=True)
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -165,6 +170,17 @@ def _get_object_age(obj: Object) -> str:
     return obj_age
 
 
+def colorize_status(status: str) -> str:
+    """
+    Returns the status text with appropriate color.
+    """
+    if status in [ClusterStatusEnum.READY.value, TaskStatusEnum.RUNNING.value]:
+        return f"{Fore.GREEN}{status}{Style.RESET_ALL}"
+    if status in [ClusterStatusEnum.ERROR.value, TaskStatusEnum.FAILED.value]:
+        return f"{Fore.RED}{status}{Style.RESET_ALL}"
+    return f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
+
+
 def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
@@ -212,14 +228,14 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
             resources_str += f"{key}: {available_resources}/{resources[key]}\n"
         if not resources_str:
             resources_str = "{}"
-        status = entry.get_status()
+        status = colorize_status(entry.get_status())
         table_data.append([name, manager_type, resources_str, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
     click.echo(f"\n{table}\r")
 
 
-def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-locals, too-many-branches
+def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches
     """
     Prints out a table of jobs.
     """
@@ -284,7 +300,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
                     f"{active_count}/{replica_count}",
                     resources_str,
                     namespace,
-                    status,
+                    colorize_status(status),
                     age,
                 ])
         else:
@@ -294,7 +310,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
                 f"0/{entry.spec.replicas}",
                 resources_str,
                 namespace,
-                status,
+                colorize_status(status),
                 age,
             ])
 
@@ -318,7 +334,7 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
 
     for entry in namespace_objs:
         name = entry.get_name()
-        status = entry.get_status()
+        status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, status, age])
 
@@ -349,7 +365,7 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
         exclude = entry.spec.cluster_filter.exclude
         namespace = entry.get_namespace()
         labels = entry.spec.labels_selector
-        status = entry.get_status()
+        status = colorize_status(entry.get_status())
         table_data.append([
             name, include, exclude, labels, namespace, status,
             _get_object_age(entry)
@@ -432,7 +448,7 @@ def print_link_table(link_list: Union[Link, LinkList]):
         name = entry.get_name()
         source = utils.unsanitize_cluster_name(entry.spec.source_cluster)
         target = utils.unsanitize_cluster_name(entry.spec.target_cluster)
-        status = entry.get_status()
+        status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, source, target, status, age])
 
@@ -499,7 +515,7 @@ def register_user(username: str, email: str, password: str, invite: str):
     """
     Register user in API Server.
     """
-    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
 
     try:
         response = users_api.register_user(username, email, password, invite)
@@ -517,7 +533,7 @@ def login_user(username: str, password: str):
     """
     Send login request to API Server; access token stored locally if succeeds.
     """
-    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.login_user(username, password)
         if response.status_code != 200:
@@ -555,7 +571,7 @@ def create_invite(json_flag, roles):
     """
     Send create invite request to API Server with the ROLES as to be granted.
     """
-    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.create_invite(roles)
         if response.status_code != 200:
@@ -577,7 +593,7 @@ def revoke_invite_req(invite: str):
     """
     Send revoke invite request to API Server.
     """
-    users_api: UserAPI = fetch_api_client_object("user")  #type: ignore
+    users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.revoke_invite(invite)
         if response.status_code != 200:

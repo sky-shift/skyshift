@@ -13,3 +13,5 @@ slurm/log.txt
 slurm/slurm
 slurm/slurm.pub
 log.txt
+research/scheduling_time_measurer.py
+research/scheduling_delays.csv

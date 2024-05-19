@@ -1570,11 +1570,15 @@ def status():
     spinner = Halo(spinner='dots', color='green')
     spinner.start()
 
+    from skyflow.cli.cli_utils import \
+        print_cluster_table  # pylint: disable=import-outside-toplevel
+
     cluster_list = fetch_clusters(spinner)
-    display_cluster_status(cluster_list)
+    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Cluster status:\
+               {Style.RESET_ALL}")
+    print_cluster_table(cluster_list)
     total_resources = calculate_total_resources(cluster_list)
     display_total_resources(total_resources)
-
     job_list = fetch_jobs(spinner)
     display_running_jobs(job_list)
 
@@ -1588,24 +1592,6 @@ def fetch_clusters(spinner):
         get_cli_object  # pylint: disable=import-outside-toplevel
     cluster_list = get_cli_object(object_type="cluster")
     return cluster_list
-
-
-def display_cluster_status(cluster_list):
-    """Display the status of each cluster."""
-    from skyflow.cli.cli_utils import \
-        utils  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.cluster_template import \
-        ClusterStatusEnum  # pylint: disable=import-outside-toplevel
-    click.echo(f"{Fore.GREEN}{Style.BRIGHT}Cluster Status:{Style.RESET_ALL}")
-    max_cluster_name_length = max(
-        len(utils.unsanitize_cluster_name(cluster.metadata.name))
-        for cluster in cluster_list.objects)
-    for cluster in cluster_list.objects:
-        cluster_name = utils.unsanitize_cluster_name(cluster.metadata.name)
-        cluster_status = cluster.status.status
-        status_color = Fore.GREEN if cluster_status == ClusterStatusEnum.READY.value else Fore.RED
-        click.echo(f"{cluster_name.ljust(max_cluster_name_length)}\
-                {status_color}{cluster_status}{Style.RESET_ALL}")
 
 
 def calculate_total_resources(cluster_list):
