@@ -157,12 +157,20 @@ def delete_cli_object(object_type: str,
     click.echo(f"Deleted {object_type} {name}.")
     return api_response
 
+
 def init_colorama_once():
+    """
+    Initializes colorama once.
+    """
     if not hasattr(init_colorama_once, "initialized"):
         init(autoreset=True)
         init_colorama_once.initialized = True
 
+
 def print_table(table_type, *args, **kwargs):
+    """
+    Prints out a table of objects.
+    """
     init_colorama_once()
     table_function_map = {
         'cluster': print_cluster_table,
@@ -179,7 +187,6 @@ def print_table(table_type, *args, **kwargs):
         print_function(*args, **kwargs)
     else:
         raise ValueError("Invalid table type provided")
-
 
 
 def fetch_job_logs(name: str, namespace: str):
