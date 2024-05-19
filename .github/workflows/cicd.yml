@@ -6,7 +6,6 @@ on:
 
 jobs:
   build-and-test:
-    # runs-on: self-hosted
     runs-on: ubuntu-latest
     outputs:
       containerId: ${{ steps.devcontainer.outputs.containerId }}
@@ -22,13 +21,3 @@ jobs:
             pip install -e .[server,dev]
             minikube delete && minikube start && kind delete clusters $(kind get clusters) && kind create cluster
             python -m pytest skyflow/tests
-
-  cleanup:
-    needs: build-and-test
-    runs-on: self-hosted
-    if: always()
-    steps:
-      - name: Delete docker container
-        run: docker rm -f ${{ needs.build-and-test.outputs.containerId }}
-      - name: Delete checked-out repository
-        run: rm -rf $GITHUB_WORKSPACE
