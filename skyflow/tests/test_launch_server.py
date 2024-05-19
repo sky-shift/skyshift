@@ -11,7 +11,6 @@ import yaml
 from api_server import launch_server
 from skyflow.globals import API_SERVER_CONFIG_PATH
 from skyflow.utils.utils import generate_manager_config
-from skyflow.globals import API_SERVER_CONFIG_PATH
 
 
 class TestLaunchAPIServer(unittest.TestCase):

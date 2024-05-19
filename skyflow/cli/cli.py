@@ -11,6 +11,8 @@ from urllib.parse import quote
 import click
 import yaml
 from click_aliases import ClickAliasedGroup
+from colorama import Fore, Style, init
+from halo import Halo
 
 from skyflow import utils
 from skyflow.cli.cli_utils import (create_cli_object, create_invite,
@@ -24,10 +26,14 @@ from skyflow.cli.cli_utils import (create_cli_object, create_invite,
                                    stream_cli_object, switch_context)
 from skyflow.cloud.utils import cloud_cluster_dir
 from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
-from skyflow.templates.cluster_template import Cluster
-from skyflow.templates.job_template import RestartPolicyEnum
+from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
+from skyflow.templates.job_template import (JobList, JobStatusEnum,
+                                            RestartPolicyEnum)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.templates.service_template import ServiceType
+
+# Initialize colorama
+init(autoreset=True)
 
 
 @click.group()
@@ -233,13 +239,15 @@ def create_cluster(  # pylint: disable=too-many-arguments
         accelerators: str, ports: List[str], num_nodes: int, cloud: str,
         region: str, provision: bool):
     """Attaches a new cluster."""
+    spinner = Halo(text='Creating cluster...', spinner='dots', color='green')
+    spinner.start()
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
-        click.echo(f"Unsupported manager_type: {manager}")
+        spinner.fail(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
 
     name = utils.sanitize_cluster_name(name)
     if not validate_input_string(name):
-        click.echo("Error: Name format is invalid.", err=True)
+        spinner.fail("Error: Name format is invalid.")
         raise click.BadParameter("Name format is invalid.")
 
     if ports:
@@ -277,6 +285,7 @@ def create_cluster(  # pylint: disable=too-many-arguments
         },
     }
     create_cli_object(cluster_dictionary)
+    spinner.succeed("Cluster created successfully.")
 
 
 @get.command(name="cluster", aliases=["clusters"])
@@ -288,18 +297,23 @@ def create_cluster(  # pylint: disable=too-many-arguments
               help="Performs a watch.")
 def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
-
+    spinner = Halo(text='Fetching clusters...', spinner='dots', color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
     print_cluster_table(api_response)
+    spinner.succeed("Clusters fetched successfully.")
 
 
 @delete.command(name="cluster", aliases=["clusters"])
 @click.argument("name", required=True)
 def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
+    spinner = Halo(text='Deleting cluster...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="cluster", name=name)
+    spinner.succeed("Cluster deleted successfully.")
 
 
 # ==============================================================================
@@ -388,20 +402,27 @@ def create_job(
     restart_policy,
 ):  # pylint: disable=too-many-arguments
     """Adds a new job."""
+    spinner = Halo(text='Creating job...', spinner='dots', color='green')
+    spinner.start()
     # Validate inputs
     if not validate_input_string(name):
+        spinner.fail("Invalid name format.")
         raise click.BadParameter("Invalid name format.")
 
     if not validate_input_string(namespace):
+        spinner.fail("Invalid namespace format.")
         raise click.BadParameter("Invalid namespace format.")
 
     if not validate_label_selector(labels):
+        spinner.fail("Invalid label selector format.")
         raise click.BadParameter("Invalid label selector format.")
 
     if not validate_image_format(image):
+        spinner.fail("Invalid image format.")
         raise click.BadParameter("Invalid image format.")
 
     if not validate_restart_policy(restart_policy):
+        spinner.fail("Invalid restart policy.")
         raise click.BadParameter("Invalid restart policy.")
 
     resource_dict = {
@@ -410,9 +431,11 @@ def create_job(
         ResourceEnum.MEMORY.value: memory
     }
     if not validate_resources(resource_dict):
+        spinner.fail("Invalid resource format.")
         raise click.BadParameter("Invalid resource format.")
 
     if not validate_accelerator(accelerators):
+        spinner.fail("Invalid accelerator format.")
         raise click.BadParameter("Invalid accelerator format.")
 
     labels = dict(labels)
@@ -435,6 +458,7 @@ def create_job(
         },
     }
     create_cli_object(job_dictionary)
+    spinner.succeed("Job created successfully.")
 
 
 @get.command(name="job", aliases=["jobs"])
@@ -453,11 +477,14 @@ def create_job(
               help="Performs a watch.")
 def get_job(name: str, namespace: str, watch: bool):
     """Fetches a job."""
+    spinner = Halo(text='Fetching jobs...', spinner='dots', color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="job",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
     print_job_table(api_response)
+    spinner.succeed("Jobs fetched successfully.")
 
 
 @click.command(name="logs")
@@ -471,7 +498,10 @@ def get_job(name: str, namespace: str, watch: bool):
 )
 def job_logs(name: str, namespace: str):
     """Fetches a job's logs."""
+    spinner = Halo(text='Fetching job logs...', spinner='dots', color='green')
+    spinner.start()
     fetch_job_logs(name=name, namespace=namespace)
+    spinner.succeed("Job logs fetched successfully.")
 
 
 cli.add_command(job_logs)
@@ -488,7 +518,10 @@ cli.add_command(job_logs)
 )
 def delete_job(name: str, namespace: str):
     """Deletes a job."""
+    spinner = Halo(text='Deleting job...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="job", name=name, namespace=namespace)
+    spinner.succeed("Job deleted successfully.")
 
 
 # ==============================================================================
@@ -497,8 +530,11 @@ def delete_job(name: str, namespace: str):
 @click.argument("name", required=True)
 def create_namespace(name: str):
     """Creates a new namespace."""
+    spinner = Halo(text='Creating namespace...', spinner='dots', color='green')
+    spinner.start()
     # Validate the namespace name
     if not validate_input_string(name):
+        spinner.fail("The namespace name is invalid.")
         raise click.BadParameter(f"The namespace name '{name}' is invalid.")
 
     namespace_dictionary = {
@@ -508,6 +544,7 @@ def create_namespace(name: str):
         },
     }
     create_cli_object(namespace_dictionary)
+    spinner.succeed("Namespace created successfully.")
 
 
 @get.command(name="namespace", aliases=["namespaces"])
@@ -519,17 +556,25 @@ def create_namespace(name: str):
               help="Performs a watch.")
 def get_namespace(name: str, watch: bool):
     """Gets all namespaces."""
+    spinner = Halo(text='Fetching namespaces...',
+                   spinner='dots',
+                   color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="namespace",
                                   name=name,
                                   watch=watch)
     print_namespace_table(api_response)
+    spinner.succeed("Namespaces fetched successfully.")
 
 
 @delete.command(name="namespace", aliases=["namespaces"])
 @click.argument("name", required=True)
 def delete_namespace(name: str):
     """Removes/detaches a cluster from Sky Manager."""
+    spinner = Halo(text='Deleting namespace...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="namespace", name=name)
+    spinner.succeed("Namespace deleted successfully.")
 
 
 # ==============================================================================
@@ -572,30 +617,32 @@ def create_filter_policy(name: str, namespace: str,
                          labelselector: List[Tuple[str, str]],
                          includecluster: List[str], excludecluster: List[str]):
     """Adds a new filter policy."""
+    spinner = Halo(text='Creating filter policy...',
+                   spinner='dots',
+                   color='green')
+    spinner.start()
     # Validate name and namespace
     if not validate_input_string(name) or not validate_input_string(namespace):
-        click.echo("Error: Name or namespace format is invalid.", err=True)
+        spinner.fail("Name or namespace format is invalid.")
         raise click.BadParameter("Name or namespace format is invalid.")
 
     # Validate label selectors
     if not validate_label_selector(labelselector):
-        click.echo("Error: Label selector format is invalid.", err=True)
+        spinner.fail("Label selector format is invalid.")
         raise click.BadParameter("Label selector format is invalid.")
 
-    # Check if any input cluster is also an output cluster and viceversa
+    # Check if any input cluster is also an output cluster and vice versa
     if any(cluster in includecluster for cluster in excludecluster):
-        click.echo("Error: Clusters cannot be both included and excluded.",
-                   err=True)
+        spinner.fail("Clusters cannot be both included and excluded.")
         raise click.BadParameter(
             "Clusters cannot be both included and excluded.")
 
     # Check if clusters exist
     for cluster_name in set(includecluster + excludecluster):
         if not cluster_exists(cluster_name):
-            click.echo(f"Error: Cluster '{cluster_name}' does not exist.",
-                       err=True)
+            spinner.fail(f"Cluster '{cluster_name}' does not exist.")
             raise click.BadParameter(
-                f"Error: Cluster '{cluster_name}' does not exist.")
+                f"Cluster '{cluster_name}' does not exist.")
 
     labels = dict(labelselector)
     obj_dictionary = {
@@ -613,6 +660,7 @@ def create_filter_policy(name: str, namespace: str,
         },
     }
     create_cli_object(obj_dictionary)
+    spinner.succeed("Filter policy created successfully.")
 
 
 @get.command(name="filterPolicy",
@@ -627,9 +675,13 @@ def create_filter_policy(name: str, namespace: str,
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 def get_filter_policy(name: str, namespace: str, watch: bool):
-    """Fetches a job."""
+    """Fetches a filter policy."""
+    spinner = Halo(text='Fetching filter policies...',
+                   spinner='dots',
+                   color='green')
+    spinner.start()
     if not validate_input_string(namespace):
-        click.echo("Error: Name or namespace format is invalid.", err=True)
+        spinner.fail("Name or namespace format is invalid.")
         raise click.BadParameter("Name or namespace format is invalid.")
 
     api_response = get_cli_object(object_type="filterpolicy",
@@ -637,6 +689,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
                                   namespace=namespace,
                                   watch=watch)
     print_filter_table(api_response)
+    spinner.succeed("Filter policies fetched successfully.")
 
 
 @delete.command(name="filterPolicy",
@@ -650,14 +703,19 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
     help="Namespace corresponding to policy's location.",
 )
 def delete_filter_policy(name: str, namespace: str):
-    """Deletes a job."""
+    """Deletes a filter policy."""
+    spinner = Halo(text='Deleting filter policy...',
+                   spinner='dots',
+                   color='green')
+    spinner.start()
     if not validate_input_string(name) or not validate_input_string(namespace):
-        click.echo("Error: Name or namespace format is invalid.", err=True)
+        spinner.fail("Name or namespace format is invalid.")
         raise click.BadParameter("Name or namespace format is invalid.")
 
     delete_cli_object(object_type="filterpolicy",
                       name=name,
                       namespace=namespace)
+    spinner.succeed("Filter policy deleted successfully.")
 
 
 # ==============================================================================
@@ -668,22 +726,29 @@ def delete_filter_policy(name: str, namespace: str):
 @click.option("--target", "-t", required=True, help="Target cluster name")
 def create_link(name: str, source: str, target: str):
     """Creates a new link between two clusters."""
-
+    spinner = Halo(text='Creating link...', spinner='dots', color='green')
+    spinner.start()
     if not validate_input_string(name):
+        spinner.fail(f"Link name {name} is invalid.")
         raise click.BadParameter(f"Link name {name} is invalid.")
 
     if not validate_input_string(source):
+        spinner.fail(f"Source cluster {source} is invalid.")
         raise click.BadParameter(f"Source cluster {source} is invalid.")
     if not validate_input_string(target):
+        spinner.fail(f"Target cluster {target} is invalid.")
         raise click.BadParameter(f"Target cluster {target} is invalid.")
 
     if source == target:
+        spinner.fail("Source and target clusters cannot be the same.")
         raise click.BadParameter(
             "Source and target clusters cannot be the same.")
 
     if not cluster_exists(source):
+        spinner.fail(f"Source cluster '{source}' does not exist.")
         raise click.BadParameter(f"Source cluster '{source}' does not exist.")
     if not cluster_exists(target):
+        spinner.fail(f"Target cluster '{target}' does not exist.")
         raise click.BadParameter(f"Target cluster '{target}' does not exist.")
 
     obj_dict = {
@@ -697,6 +762,7 @@ def create_link(name: str, source: str, target: str):
         },
     }
     create_cli_object(obj_dict)
+    spinner.succeed("Link created successfully.")
 
 
 @get.command(name="link", aliases=["links"])
@@ -708,15 +774,21 @@ def create_link(name: str, source: str, target: str):
               help="Performs a watch.")
 def get_links(name: str, watch: bool):
     """Gets link (or links if None is specified)."""
+    spinner = Halo(text='Fetching links...', spinner='dots', color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="link", name=name, watch=watch)
     print_link_table(api_response)
+    spinner.succeed("Links fetched successfully.")
 
 
 @delete.command(name="link", aliases=["links"])
 @click.argument("name", required=True)
 def delete_link(name: str):
     """Removes/detaches a cluster from Sky Manager."""
+    spinner = Halo(text='Deleting link...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="link", name=name)
+    spinner.succeed("Link deleted successfully.")
 
 
 # ==============================================================================
@@ -765,14 +837,19 @@ def create_service(
     cluster: str,
 ):  # pylint: disable=too-many-arguments
     """Creates a new service."""
+    spinner = Halo(text='Creating service...', spinner='dots', color='green')
+    spinner.start()
     # Validate service name and namespace
     if not validate_input_string(name):
+        spinner.fail(f"Service name {name} is invalid.")
         raise click.BadParameter(f"Service name {name} is invalid.")
     if not validate_input_string(namespace):
+        spinner.fail(f"Namespace {namespace} is invalid.")
         raise click.BadParameter(f"Namespace {namespace} is invalid.")
 
     # Validate service type
     if not ServiceType.has_value(service_type):
+        spinner.fail(f"Service type '{service_type}' is not supported.")
         raise click.BadParameter(
             f"Service type '{service_type}' is not supported.")
 
@@ -785,19 +862,23 @@ def create_service(
     if not all(
             validate_input_string(k) and validate_input_string(v)
             for k, v in selector):
+        spinner.fail(f"Selector {selector} is invalid.")
         raise click.BadParameter(f"Selector {selector} is invalid.")
 
     # Validate ports
     for port, target_port in ports:
         if not 0 < port <= 65535:
+            spinner.fail(f"Port {port} is out of valid range.")
             raise click.BadParameter(f"Port {port} is out of valid range.")
         if not 0 < target_port <= 65535:
+            spinner.fail(f"Target port {target_port} is out of valid range.")
             raise click.BadParameter(
                 f"Target port {target_port} is out of valid range.")
 
     # @TODO(mluo|acuadron): Implement auto
     # Validate cluster
     if cluster != "auto" and not cluster_exists(cluster):
+        spinner.fail(f"Cluster '{cluster}' does not exist.")
         raise click.BadParameter(f"Cluster '{cluster}' does not exist.")
 
     ports_list = [{
@@ -822,6 +903,7 @@ def create_service(
         },
     }
     create_cli_object(service_dictionary)
+    spinner.succeed("Service created successfully.")
 
 
 @get.command(name="service", aliases=["services", "svc"])
@@ -831,16 +913,19 @@ def create_service(
     type=str,
     default="default",
     show_default=True,
-    help="Namespace corresponding to service`s locaton.",
+    help="Namespace corresponding to service`s location.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 def get_service(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
+    spinner = Halo(text='Fetching services...', spinner='dots', color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="service",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
     print_service_table(api_response)
+    spinner.succeed("Services fetched successfully.")
 
 
 @delete.command(name="service", aliases=["services", "svc"])
@@ -850,11 +935,14 @@ def get_service(name: str, namespace: str, watch: bool):
     type=str,
     default="default",
     show_default=True,
-    help="Namespace corresponding to service`s locaton.",
+    help="Namespace corresponding to service`s location.",
 )
 def delete_service(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
+    spinner = Halo(text='Deleting service...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="service", namespace=namespace, name=name)
+    spinner.succeed("Service deleted successfully.")
 
 
 # ==============================================================================
@@ -883,21 +971,28 @@ def delete_service(name: str, namespace: str):
 def create_endpoints(  # pylint: disable=too-many-arguments
         name, namespace, num_endpoints, exposed, primary_cluster, selector):
     """Creates a new set of endpoints."""
+    spinner = Halo(text='Creating endpoints...', spinner='dots', color='green')
+    spinner.start()
     # Validate inputs
     if not validate_input_string(name):
+        spinner.fail(f"Invalid name {name} for endpoints.")
         raise click.BadParameter(f"Invalid name {name} for endpoints.")
 
     if not validate_input_string(namespace):
+        spinner.fail(f"Invalid namespace name: {namespace}.")
         raise click.BadParameter(f"Invalid namespace name: {namespace}.")
 
     if num_endpoints is not None and num_endpoints < 0:
+        spinner.fail("Number of endpoints must be non-negative.")
         raise click.BadParameter("Number of endpoints must be non-negative.")
 
     if exposed and not primary_cluster:
+        spinner.fail("Exposed endpoints must specify a primary cluster.")
         raise click.BadParameter(
             "Exposed endpoints must specify a primary cluster.")
 
     if primary_cluster != "auto" and not cluster_exists(primary_cluster):
+        spinner.fail(f"Invalid primary cluster name: {primary_cluster}")
         raise click.BadParameter(
             f"Invalid primary cluster name: {primary_cluster}")
 
@@ -925,6 +1020,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     }
 
     create_cli_object(endpoints_object)
+    spinner.succeed("Endpoints created successfully.")
 
 
 @get.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
@@ -934,16 +1030,19 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     type=str,
     default="default",
     show_default=True,
-    help="Namespace corresponding to service`s locaton.",
+    help="Namespace corresponding to service`s location.",
 )
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 def get_endpoints(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
+    spinner = Halo(text='Fetching endpoints...', spinner='dots', color='green')
+    spinner.start()
     api_response = get_cli_object(object_type="endpoints",
                                   name=name,
                                   namespace=namespace,
                                   watch=watch)
     print_endpoints_table(api_response)
+    spinner.succeed("Endpoints fetched successfully.")
 
 
 @delete.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
@@ -953,11 +1052,14 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     type=str,
     default="default",
     show_default=True,
-    help="Namespace corresponding to service`s locaton.",
+    help="Namespace corresponding to service`s location.",
 )
 def delete_endpoints(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
+    spinner = Halo(text='Deleting endpoints...', spinner='dots', color='green')
+    spinner.start()
     delete_cli_object(object_type="endpoints", namespace=namespace, name=name)
+    spinner.succeed("Endpoints deleted successfully.")
 
 
 # ==============================================================================
@@ -993,8 +1095,10 @@ def delete_endpoints(name: str, namespace: str):
 def create_role(name: str, action: List[str], resource: List[str],
                 namespace: List[str], users: List[str]):
     """Create a new role."""
-
+    spinner = Halo(text='Creating role...', spinner='dots', color='green')
+    spinner.start()
     if not validate_input_string(name):
+        spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
 
     # Construct the endpoints object
@@ -1012,6 +1116,7 @@ def create_role(name: str, action: List[str], resource: List[str],
         "users": users,
     }
     create_cli_object(role_object)
+    spinner.succeed("Role created successfully.")
 
 
 @get.command(name="role", aliases=["roles"])
@@ -1023,20 +1128,28 @@ def create_role(name: str, action: List[str], resource: List[str],
               help="Performs a watch.")
 def get_roles(name: str, watch: bool):
     """Gets a role (or all roles if None is specified)."""
+    spinner = Halo(text='Fetching roles...', spinner='dots', color='green')
+    spinner.start()
     if name and not validate_input_string(name):
+        spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
 
     api_response = get_cli_object(object_type="role", name=name, watch=watch)
     print_role_table(api_response)
+    spinner.succeed("Roles fetched successfully.")
 
 
 @delete.command(name="role", aliases=["roles"])
 @click.argument("name", required=True)
 def delete_role(name):
     """Removes a role."""
+    spinner = Halo(text='Deleting role...', spinner='dots', color='green')
+    spinner.start()
     if not validate_input_string(name):
+        spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
     delete_cli_object(object_type="role", name=name)
+    spinner.succeed("Role deleted successfully.")
 
 
 # ==============================================================================
@@ -1139,15 +1252,24 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
             of the execution
         dictionary (`exec_dict`) used to frame the execution request.
     """
+    spinner = Halo(text='Executing command...', spinner='dots', color='green')
+    spinner.start()
     if len(command) == 0:
+        spinner.fail("No command specified.")
         raise click.ClickException("No command specified.")
 
     if tty:
         if len(specified_tasks) > 1:
+            spinner.fail(
+                "Multiple tasks specified. TTY mode is only supported for a single task. \
+                    Defaulting to the first running task in the job.")
             raise click.ClickException(
                 "Multiple tasks specified. TTY mode is only supported for a single task. \
                     Defaulting to the first running task in the job.")
         if len(specified_container) > 1:
+            spinner.fail(
+                "Multiple containers specified. TTY mode is only supported for a single container."
+            )
             raise click.ClickException(
                 "Multiple containers specified. TTY mode is only supported for a single container."
             )
@@ -1184,6 +1306,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
             if not quiet and tty:
                 print("Opening the next TTY session...")
             stream_cli_object(exec_dict)
+    spinner.succeed("Command executed successfully.")
 
 
 cli.add_command(exec_command_sync)
@@ -1213,7 +1336,10 @@ def register(username, email, password, invite):  # pylint: disable=redefined-ou
     """
     Register a new user.
     """
+    spinner = Halo(text='Registering user...', spinner='dots', color='green')
+    spinner.start()
     register_user(username, email, password, invite)
+    spinner.succeed("User registered successfully.")
 
 
 cli.add_command(register)
@@ -1230,7 +1356,10 @@ def login(username, password):
     """
     Login command with username and password.
     """
+    spinner = Halo(text='Logging in...', spinner='dots', color='green')
+    spinner.start()
     login_user(username, password)
+    spinner.succeed("Login successful.")
 
 
 cli.add_command(login)
@@ -1250,7 +1379,10 @@ def invite(json, role):  # pylint: disable=redefined-outer-name
     """
     Create a new invite.
     """
+    spinner = Halo(text='Creating invite...', spinner='dots', color='green')
+    spinner.start()
     create_invite(json, list(role))
+    spinner.succeed("Invite created successfully.")
 
 
 cli.add_command(invite)
@@ -1262,7 +1394,10 @@ def revoke_invite(invite):  # pylint: disable=redefined-outer-name
     """
     Revoke an existing invite.
     """
+    spinner = Halo(text='Revoking invite...', spinner='dots', color='green')
+    spinner.start()
     revoke_invite_req(invite)
+    spinner.succeed("Invite revoked successfully.")
 
 
 cli.add_command(revoke_invite)
@@ -1276,16 +1411,112 @@ cli.add_command(revoke_invite)
               help='The active namespace to use.')
 def switch(user, namespace):
     """
-    Switch active context of cli.
+    Switch local CLI active context.
     """
+    spinner = Halo(text='Switching context...', spinner='dots', color='green')
+    spinner.start()
     if not user and not namespace:
-        click.echo("No new context is specified. Nothing is changed.")
+        spinner.warn("No new context is specified. Nothing is changed.")
         return
 
     switch_context(user, namespace)
+    spinner.succeed("Context switched successfully.")
 
 
 cli.add_command(switch)
+
+
+@click.command(name="status")
+def status():
+    """
+    Displays the status of clusters and the total available
+    resources for clusters in the READY state,
+    as well as the newest 10 running jobs.
+    """
+    spinner = Halo(spinner='dots', color='green')
+    spinner.start()
+
+    cluster_list = fetch_clusters(spinner)
+    display_cluster_status(cluster_list)
+    total_resources = calculate_total_resources(cluster_list)
+    display_total_resources(total_resources)
+
+    job_list = fetch_jobs(spinner)
+    display_running_jobs(job_list)
+
+    spinner.succeed("Status fetched successfully.")
+
+
+def fetch_clusters(spinner):
+    """Fetch clusters."""
+    spinner.text = "Fetching clusters..."
+    cluster_list = get_cli_object(object_type="cluster")
+    return cluster_list
+
+
+def display_cluster_status(cluster_list):
+    """Display the status of each cluster."""
+    click.echo(f"{Fore.GREEN}{Style.BRIGHT}Cluster Status:{Style.RESET_ALL}")
+    max_cluster_name_length = max(
+        len(utils.unsanitize_cluster_name(cluster.metadata.name))
+        for cluster in cluster_list.objects)
+    for cluster in cluster_list.objects:
+        cluster_name = utils.unsanitize_cluster_name(cluster.metadata.name)
+        cluster_status = cluster.status.status
+        status_color = Fore.GREEN if cluster_status == ClusterStatusEnum.READY.value else Fore.RED
+        click.echo(f"{cluster_name.ljust(max_cluster_name_length)}\
+                {status_color}{cluster_status}{Style.RESET_ALL}")
+
+
+def calculate_total_resources(cluster_list):
+    """Calculate the total available resources for READY clusters."""
+    total_resources = {}
+    for cluster in cluster_list.objects:
+        if cluster.status.status == ClusterStatusEnum.READY.value \
+            and cluster.status.allocatable_capacity:
+            for _, node_res in cluster.status.allocatable_capacity.items():
+                for resource, amount in node_res.items():
+                    if resource in total_resources:
+                        total_resources[resource] += amount
+                    else:
+                        total_resources[resource] = amount
+    return total_resources
+
+
+def display_total_resources(total_resources):
+    """Display the total available resources for READY clusters."""
+    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Total Available \
+            Resources (READY clusters):{Style.RESET_ALL}")
+    for resource, amount in total_resources.items():
+        click.echo(f"{resource}: {amount}")
+
+
+def fetch_jobs(spinner):
+    """Fetch the newest 10 running jobs."""
+    spinner.text = "Fetching jobs..."
+    job_list = get_cli_object(object_type="job")
+    return job_list
+
+
+def display_running_jobs(job_list):
+    """Display the newest 10 running jobs."""
+    running_jobs = [
+        job for job in job_list.objects
+        if job.status.conditions[-1]["type"] == JobStatusEnum.ACTIVE.value
+    ]
+    running_jobs_sorted = sorted(
+        running_jobs,
+        key=lambda job: job.metadata.creation_timestamp,
+        reverse=True)
+    newest_running_jobs = running_jobs_sorted[:10]
+
+    click.echo(
+        f"\n{Fore.GREEN}{Style.BRIGHT}Newest 10 Running Jobs:{Style.RESET_ALL}"
+    )
+    print_job_table(JobList(objects=newest_running_jobs))
+
+
+cli.add_command(status)
 
 if __name__ == '__main__':
     cli()

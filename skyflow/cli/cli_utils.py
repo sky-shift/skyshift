@@ -3,10 +3,12 @@ Utils for Skyflow CLI.
 """
 import enum
 import json as json_lib
+import time
 from typing import Dict, List, Optional, Union
 
 import click
 from tabulate import tabulate
+from tqdm import tqdm
 
 from skyflow import utils
 from skyflow.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
@@ -214,7 +216,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         table_data.append([name, manager_type, resources_str, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-locals, too-many-branches
@@ -297,7 +299,7 @@ def print_job_table(job_list: Union[JobList, Job]):  #pylint: disable=too-many-l
             ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
@@ -321,7 +323,7 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         table_data.append([name, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
@@ -354,7 +356,7 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
         ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
@@ -405,7 +407,7 @@ def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: d
         ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_link_table(link_list: Union[Link, LinkList]):
@@ -435,7 +437,7 @@ def print_link_table(link_list: Union[Link, LinkList]):
         table_data.append([name, source, target, status, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_endpoints_table(endpoints_list):
@@ -464,7 +466,7 @@ def print_endpoints_table(endpoints_list):
         table_data.append([name, namespace, endpoints_str, age])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def print_role_table(roles_list):
@@ -490,7 +492,7 @@ def print_role_table(roles_list):
         ])
 
     table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"{table}\r")
+    click.echo(f"\n{table}\r")
 
 
 def register_user(username: str, email: str, password: str, invite: str):
@@ -618,3 +620,17 @@ def switch_context(username, namespace):
         raise click.ClickException(
             f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
         )
+
+
+def show_loading(stop_event):
+    """ Show a loading spinner. """
+    spinner = tqdm(total=100,
+                   bar_format="{l_bar}{bar}",
+                   colour="green",
+                   ncols=75)
+    while not stop_event.is_set():
+        spinner.update(1)
+        if spinner.n >= 100:
+            spinner.n = 0
+        time.sleep(0.05)
+    spinner.close()
