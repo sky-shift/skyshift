@@ -70,7 +70,6 @@ class SkyletController(Controller):
         self.cluster_informer.start()
 
     def run(self):
-        # Establish a watch over added clusters.
         self.logger.info(
             "Executing Skylet controller - Manages launching and terminating Skylets for clusters."
         )
@@ -94,7 +93,7 @@ class SkyletController(Controller):
                 self._launch_skylet(cluster_obj)
                 self.logger.info('Launched Skylet for cluster: %s.',
                                  cluster_name)
-        else:
+        elif event_type == WatchEventEnum.DELETE:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
             self.logger.info("Terminated Skylet for cluster: %s.",
