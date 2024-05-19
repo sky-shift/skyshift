@@ -11,9 +11,9 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from functools import partial
+from pathlib import Path
 from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
-from pathlib import Path
 
 import jsonpatch
 import jwt
@@ -28,7 +28,8 @@ from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE, SKYCONF_DIR
+from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE,
+                             SKYCONF_DIR)
 from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
                                     NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
@@ -128,9 +129,12 @@ def generate_nonce(length=32):
     """Generates a secure nonce."""
     return secrets.token_hex(length)
 
+
 CONF_FLAG_DIR = '/.tmp/'
 WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
 WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
+
+
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
     absolute_done_flag = Path(WORKER_DONE_FLAG)
@@ -168,6 +172,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
+
 
 class APIServer:
     """
@@ -720,7 +725,8 @@ class APIServer:
 
         if watch:
             try:
-                return asyncio.get_event_loop().run_until_complete(self._watch_key(link_header))
+                return asyncio.get_event_loop().run_until_complete(
+                    self._watch_key(link_header))
             except:
                 return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
@@ -757,9 +763,11 @@ class APIServer:
             object_name = sanitize_cluster_name(object_name)
         if watch:
             try:
-                return asyncio.get_event_loop().run_until_complete(self._watch_key(f"{link_header}/{object_name}"))
+                return asyncio.get_event_loop().run_until_complete(
+                    self._watch_key(f"{link_header}/{object_name}"))
             except:
-                return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
+                return asyncio.run(
+                    self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
