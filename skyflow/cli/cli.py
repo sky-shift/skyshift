@@ -1483,9 +1483,10 @@ def status():
         print_cluster_table  # pylint: disable=import-outside-toplevel
 
     cluster_list = fetch_clusters()
-    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Cluster status:\
+    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Clusters:\
                {Style.RESET_ALL}")
     print_cluster_table(cluster_list)
+    click.echo("=============================================")
     total_resources = calculate_total_resources(cluster_list)
     display_total_resources(total_resources)
     job_list = fetch_jobs()
@@ -1548,12 +1549,11 @@ def display_running_jobs(job_list):
         running_jobs,
         key=lambda job: job.metadata.creation_timestamp,
         reverse=True)
-    newest_running_jobs = running_jobs_sorted[:10]
 
     click.echo(
         f"\n{Fore.GREEN}{Style.BRIGHT}Newest 10 Running Jobs:{Style.RESET_ALL}"
     )
-    print_job_table(JobList(objects=newest_running_jobs))
+    print_job_table(JobList(objects=running_jobs_sorted))
 
 
 cli.add_command(status)
