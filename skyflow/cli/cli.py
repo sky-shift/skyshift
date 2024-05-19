@@ -5,6 +5,7 @@ Skyflow CLI.
 import json
 import os
 import re
+from inspect import signature
 from typing import Dict, List, Tuple, Union
 from urllib.parse import quote
 
@@ -13,7 +14,7 @@ import yaml
 from click_aliases import ClickAliasedGroup
 from colorama import Fore, Style
 from halo import Halo
-from inspect import signature
+
 
 def halo_spinner(text):
     """
@@ -41,7 +42,6 @@ def halo_spinner(text):
         return wrapper
 
     return decorator
-
 
 
 @click.group()
