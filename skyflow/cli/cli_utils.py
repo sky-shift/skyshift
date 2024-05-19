@@ -231,8 +231,11 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
         status = colorize_status(entry.get_status())
         table_data.append([name, manager_type, resources_str, status, age])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No clusters found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches
@@ -314,8 +317,11 @@ def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-
                 age,
             ])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No jobs found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
@@ -338,8 +344,11 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         age = _get_object_age(entry)
         table_data.append([name, status, age])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No namespaces found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
@@ -371,8 +380,11 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
             _get_object_age(entry)
         ])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No filter policies found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
@@ -422,8 +434,11 @@ def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: d
             _get_object_age(entry),
         ])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No services found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_link_table(link_list: Union[Link, LinkList]):
@@ -452,8 +467,11 @@ def print_link_table(link_list: Union[Link, LinkList]):
         age = _get_object_age(entry)
         table_data.append([name, source, target, status, age])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No links found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_endpoints_table(endpoints_list):
@@ -481,8 +499,11 @@ def print_endpoints_table(endpoints_list):
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
         table_data.append([name, namespace, endpoints_str, age])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No endpoints found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def print_role_table(roles_list):
@@ -507,8 +528,11 @@ def print_role_table(roles_list):
             age,
         ])
 
-    table = tabulate(table_data, field_names, tablefmt="plain")
-    click.echo(f"\n{table}\r")
+    if not table_data:
+        click.echo("No roles found.")
+    else:
+        table = tabulate(table_data, field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
 
 
 def register_user(username: str, email: str, password: str, invite: str):
