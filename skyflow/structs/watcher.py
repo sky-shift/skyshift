@@ -15,7 +15,7 @@ logging.basicConfig(
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
-class Watcher:
+class Watcher:  # pylint: disable=too-few-public-methods
     """Watches for changes to sets of objects."""
 
     def __init__(

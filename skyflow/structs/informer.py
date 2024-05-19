@@ -38,12 +38,13 @@ class Informer:  # pylint: disable=too-many-instance-attributes
     It regularly watches the API server and updates the cache asynchronously.
     """
 
-    def __init__(self,
-                 api: object,
-                 logger=logging.getLogger("[Informer]"),
-                 cache_resync_period=CACHE_RESYNC_PERIOD,
-                 retry_limit: int = DEFAULT_RETRY_LIMIT,
-                 max_backoff_time: int = MAX_BACKOFF_TIME):
+    def __init__(  # pylint: disable=too-many-arguments
+            self,
+            api: object,
+            logger=logging.getLogger("[Informer]"),
+            cache_resync_period=CACHE_RESYNC_PERIOD,
+            retry_limit: int = DEFAULT_RETRY_LIMIT,
+            max_backoff_time: int = MAX_BACKOFF_TIME):
         self.api = api
         self.logger = logger
         self.watcher = Watcher(self.api)
@@ -94,12 +95,13 @@ class Informer:  # pylint: disable=too-many-instance-attributes
 
         # For objects not in the cache, add a 'DELETED' event
         # to the informer queue.
-        cache_keys = [obj_name for obj_name in self.cache.keys()]
+        cache_keys = [
+            obj_name for obj_name in self.cache if obj_name not in obj_names
+        ]
         for obj_name in cache_keys:
-            if obj_name not in obj_names:
-                watch_event = WatchEvent(event_type=WatchEventEnum.DELETE,
-                                         object=obj)
-                self.informer_queue.put(watch_event)
+            watch_event = WatchEvent(event_type=WatchEventEnum.DELETE,
+                                     object=self.cache[obj_name])
+            self.informer_queue.put(watch_event)
 
     def start(self):
         """Starts the informer."""

@@ -11,9 +11,6 @@ def verify_response(input_data):
     """
     Verifies API response or data to check for error.
     """
-    if not input_data:
-        raise APIException(
-            "Connection with API server unexpectedly terminated.")
     if hasattr(input_data, 'status_code') and callable(
             getattr(input_data, 'json', None)):
         if input_data.status_code >= 300:
@@ -198,4 +195,6 @@ class NoNamespaceObjectAPI(ObjectAPI):
     def watch(self):
         for data in watch_events(f"{self.url}?watch=true",
                                  headers=self.auth_headers):
+            if not data:
+                raise APIException("Watch unexpectedly terminated.")
             yield verify_response(data)

@@ -44,7 +44,7 @@ def heartbeat_error_handler(controller: "ClusterController"):
         controller.update_unhealthy_cluster()
 
 
-class ClusterController(Controller):
+class ClusterController(Controller):  # pylint: disable=too-many-instance-attributes
     """
     Regularly polls the cluster for its status and updates the API server of
     the latest status.

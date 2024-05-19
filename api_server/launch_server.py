@@ -50,7 +50,13 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     return False
 
 
-def main(host: str, port: int, workers: int, reset: bool, data_directory=None, ):
+def main(
+    host: str,
+    port: int,
+    workers: int,
+    reset: bool,
+    data_directory=None,
+):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
@@ -109,5 +115,8 @@ def parse_args():
 # -b :50051 api_server.api_server:app`
 if __name__ == "__main__":
     args = parse_args()
-    main(host=args.host, port=args.port, workers=args.workers, 
-         data_directory=args.data_directory, reset=args.reset)
+    main(host=args.host,
+         port=args.port,
+         workers=args.workers,
+         data_directory=args.data_directory,
+         reset=args.reset)
