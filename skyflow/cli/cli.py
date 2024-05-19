@@ -14,23 +14,6 @@ from click_aliases import ClickAliasedGroup
 from colorama import Fore, Style, init
 from halo import Halo
 
-from skyflow import utils
-from skyflow.cli.cli_utils import (create_cli_object, create_invite,
-                                   delete_cli_object, fetch_job_logs,
-                                   get_cli_object, login_user,
-                                   print_cluster_table, print_endpoints_table,
-                                   print_filter_table, print_job_table,
-                                   print_link_table, print_namespace_table,
-                                   print_role_table, print_service_table,
-                                   register_user, revoke_invite_req,
-                                   stream_cli_object, switch_context)
-from skyflow.cloud.utils import cloud_cluster_dir
-from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
-from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
-from skyflow.templates.job_template import (JobList, JobStatusEnum,
-                                            RestartPolicyEnum)
-from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
-from skyflow.templates.service_template import ServiceType
 
 # Initialize colorama
 init(autoreset=True)
@@ -110,7 +93,8 @@ def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
 
 def cluster_exists(name: str) -> bool:
     """Checks if the given cluster exists in the database."""
-    api_response: Cluster = get_cli_object(object_type="cluster", name=name)
+    from skyflow.cli.cli_utils import get_cli_object
+    api_response = get_cli_object(object_type="cluster", name=name)
     return api_response is not None and api_response.metadata.name == name
 
 
@@ -126,6 +110,7 @@ def validate_resources(resources: Dict[str, float]) -> bool:
     """
     Validates resource specifications.
     """
+    from skyflow.templates.resource_template import ResourceEnum
     valid_resource_types = {item.value for item in ResourceEnum}
     return all(key in valid_resource_types and value >= 0
                for key, value in resources.items())
@@ -133,6 +118,7 @@ def validate_resources(resources: Dict[str, float]) -> bool:
 
 def validate_accelerator(accelerator: Union[str, None]) -> bool:
     """Validates accelerator specification format and checks if it's a valid type."""
+    from skyflow.templates.job_template import AcceleratorEnum
     if accelerator is None:
         return True  # No accelerator specified, considered valid
 
@@ -151,6 +137,7 @@ def validate_accelerator(accelerator: Union[str, None]) -> bool:
 
 def validate_restart_policy(policy: str) -> bool:
     """Validates if the given restart policy is supported."""
+    from skyflow.templates.job_template import RestartPolicyEnum
     return RestartPolicyEnum.has_value(policy)
 
 
@@ -162,17 +149,25 @@ def validate_restart_policy(policy: str) -> bool:
               help="Path to config file (YAML).")
 def apply_config(file: str):
     """Converts a config file to a Skyflow object."""
+    spinner = Halo(text='Applying configuration...', spinner='dots', color='green')
+    spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     if file is None:
+        spinner.fail("File must be specified.")
         raise Exception("File must be specified.")
 
     absolute_config_path = os.path.abspath(os.path.expanduser(file))
     if not os.path.exists(absolute_config_path):
+        spinner.fail(f"File {absolute_config_path} does not exist.")
         raise Exception(f"File {absolute_config_path} does not exist.")
 
     with open(os.path.expanduser(absolute_config_path), "r") as config_file:
         config_dict = yaml.safe_load(config_file)
 
     create_cli_object(config_dict)
+    spinner.succeed("Configuration applied successfully.")
 
 
 cli.add_command(apply_config)
@@ -241,6 +236,12 @@ def create_cluster(  # pylint: disable=too-many-arguments
     """Attaches a new cluster."""
     spinner = Halo(text='Creating cluster...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow import utils
+    from skyflow.cloud.utils import cloud_cluster_dir
+    from skyflow.cluster_manager.manager import SUPPORTED_CLUSTER_MANAGERS
+    from skyflow.cli.cli_utils import create_cli_object
+
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         spinner.fail(f"Unsupported manager_type: {manager}")
         raise click.BadParameter(f"Unsupported manager_type: {manager}")
@@ -299,6 +300,9 @@ def get_clusters(name: str, watch: bool):
     """Gets a cluster (or clusters if None is specified)."""
     spinner = Halo(text='Fetching clusters...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_cluster_table
+
     api_response = get_cli_object(object_type="cluster",
                                   name=name,
                                   watch=watch)
@@ -312,6 +316,9 @@ def delete_cluster(name):
     """Removes/detaches a cluster from Sky Manager."""
     spinner = Halo(text='Deleting cluster...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="cluster", name=name)
     spinner.succeed("Cluster deleted successfully.")
 
@@ -384,7 +391,7 @@ def delete_cluster(name):
               help="Number of replicas to run job.")
 @click.option("--restart_policy",
               type=str,
-              default=RestartPolicyEnum.ALWAYS.value,
+              default="Always",
               show_default=True,
               help="Restart policy for job tasks.")
 def create_job(
@@ -404,6 +411,10 @@ def create_job(
     """Adds a new job."""
     spinner = Halo(text='Creating job...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+    from skyflow.templates.resource_template import ResourceEnum
+
     # Validate inputs
     if not validate_input_string(name):
         spinner.fail("Invalid name format.")
@@ -479,6 +490,9 @@ def get_job(name: str, namespace: str, watch: bool):
     """Fetches a job."""
     spinner = Halo(text='Fetching jobs...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_job_table
+
     api_response = get_cli_object(object_type="job",
                                   name=name,
                                   namespace=namespace,
@@ -500,6 +514,9 @@ def job_logs(name: str, namespace: str):
     """Fetches a job's logs."""
     spinner = Halo(text='Fetching job logs...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import fetch_job_logs
+
     fetch_job_logs(name=name, namespace=namespace)
     spinner.succeed("Job logs fetched successfully.")
 
@@ -520,6 +537,9 @@ def delete_job(name: str, namespace: str):
     """Deletes a job."""
     spinner = Halo(text='Deleting job...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="job", name=name, namespace=namespace)
     spinner.succeed("Job deleted successfully.")
 
@@ -532,6 +552,9 @@ def create_namespace(name: str):
     """Creates a new namespace."""
     spinner = Halo(text='Creating namespace...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     # Validate the namespace name
     if not validate_input_string(name):
         spinner.fail("The namespace name is invalid.")
@@ -560,6 +583,9 @@ def get_namespace(name: str, watch: bool):
                    spinner='dots',
                    color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_namespace_table
+
     api_response = get_cli_object(object_type="namespace",
                                   name=name,
                                   watch=watch)
@@ -573,6 +599,9 @@ def delete_namespace(name: str):
     """Removes/detaches a cluster from Sky Manager."""
     spinner = Halo(text='Deleting namespace...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="namespace", name=name)
     spinner.succeed("Namespace deleted successfully.")
 
@@ -621,6 +650,9 @@ def create_filter_policy(name: str, namespace: str,
                    spinner='dots',
                    color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     # Validate name and namespace
     if not validate_input_string(name) or not validate_input_string(namespace):
         spinner.fail("Name or namespace format is invalid.")
@@ -680,6 +712,9 @@ def get_filter_policy(name: str, namespace: str, watch: bool):
                    spinner='dots',
                    color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_filter_table
+
     if not validate_input_string(namespace):
         spinner.fail("Name or namespace format is invalid.")
         raise click.BadParameter("Name or namespace format is invalid.")
@@ -708,6 +743,9 @@ def delete_filter_policy(name: str, namespace: str):
                    spinner='dots',
                    color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     if not validate_input_string(name) or not validate_input_string(namespace):
         spinner.fail("Name or namespace format is invalid.")
         raise click.BadParameter("Name or namespace format is invalid.")
@@ -728,6 +766,9 @@ def create_link(name: str, source: str, target: str):
     """Creates a new link between two clusters."""
     spinner = Halo(text='Creating link...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     if not validate_input_string(name):
         spinner.fail(f"Link name {name} is invalid.")
         raise click.BadParameter(f"Link name {name} is invalid.")
@@ -776,6 +817,9 @@ def get_links(name: str, watch: bool):
     """Gets link (or links if None is specified)."""
     spinner = Halo(text='Fetching links...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_link_table
+
     api_response = get_cli_object(object_type="link", name=name, watch=watch)
     print_link_table(api_response)
     spinner.succeed("Links fetched successfully.")
@@ -787,6 +831,9 @@ def delete_link(name: str):
     """Removes/detaches a cluster from Sky Manager."""
     spinner = Halo(text='Deleting link...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="link", name=name)
     spinner.succeed("Link deleted successfully.")
 
@@ -839,6 +886,10 @@ def create_service(
     """Creates a new service."""
     spinner = Halo(text='Creating service...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+    from skyflow.templates.service_template import ServiceType
+
     # Validate service name and namespace
     if not validate_input_string(name):
         spinner.fail(f"Service name {name} is invalid.")
@@ -920,6 +971,9 @@ def get_service(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
     spinner = Halo(text='Fetching services...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_service_table
+
     api_response = get_cli_object(object_type="service",
                                   name=name,
                                   namespace=namespace,
@@ -941,6 +995,9 @@ def delete_service(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
     spinner = Halo(text='Deleting service...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="service", namespace=namespace, name=name)
     spinner.succeed("Service deleted successfully.")
 
@@ -973,6 +1030,9 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     """Creates a new set of endpoints."""
     spinner = Halo(text='Creating endpoints...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     # Validate inputs
     if not validate_input_string(name):
         spinner.fail(f"Invalid name {name} for endpoints.")
@@ -1037,6 +1097,9 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     """Gets all services or fetches a specific service."""
     spinner = Halo(text='Fetching endpoints...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_endpoints_table
+
     api_response = get_cli_object(object_type="endpoints",
                                   name=name,
                                   namespace=namespace,
@@ -1058,6 +1121,9 @@ def delete_endpoints(name: str, namespace: str):
     """Removes/detaches a cluster from Sky Manager."""
     spinner = Halo(text='Deleting endpoints...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     delete_cli_object(object_type="endpoints", namespace=namespace, name=name)
     spinner.succeed("Endpoints deleted successfully.")
 
@@ -1097,6 +1163,9 @@ def create_role(name: str, action: List[str], resource: List[str],
     """Create a new role."""
     spinner = Halo(text='Creating role...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_cli_object
+
     if not validate_input_string(name):
         spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
@@ -1130,6 +1199,9 @@ def get_roles(name: str, watch: bool):
     """Gets a role (or all roles if None is specified)."""
     spinner = Halo(text='Fetching roles...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import get_cli_object, print_role_table
+
     if name and not validate_input_string(name):
         spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
@@ -1145,6 +1217,9 @@ def delete_role(name):
     """Removes a role."""
     spinner = Halo(text='Deleting role...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import delete_cli_object
+
     if not validate_input_string(name):
         spinner.fail("Name format is invalid.")
         raise click.BadParameter(f"Name format is invalid: {name}")
@@ -1254,6 +1329,9 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
     """
     spinner = Halo(text='Executing command...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import stream_cli_object
+
     if len(command) == 0:
         spinner.fail("No command specified.")
         raise click.ClickException("No command specified.")
@@ -1338,6 +1416,9 @@ def register(username, email, password, invite):  # pylint: disable=redefined-ou
     """
     spinner = Halo(text='Registering user...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import register_user
+
     register_user(username, email, password, invite)
     spinner.succeed("User registered successfully.")
 
@@ -1358,6 +1439,9 @@ def login(username, password):
     """
     spinner = Halo(text='Logging in...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import login_user
+
     login_user(username, password)
     spinner.succeed("Login successful.")
 
@@ -1381,6 +1465,9 @@ def invite(json, role):  # pylint: disable=redefined-outer-name
     """
     spinner = Halo(text='Creating invite...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import create_invite
+
     create_invite(json, list(role))
     spinner.succeed("Invite created successfully.")
 
@@ -1396,6 +1483,9 @@ def revoke_invite(invite):  # pylint: disable=redefined-outer-name
     """
     spinner = Halo(text='Revoking invite...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import revoke_invite_req
+
     revoke_invite_req(invite)
     spinner.succeed("Invite revoked successfully.")
 
@@ -1415,6 +1505,9 @@ def switch(user, namespace):
     """
     spinner = Halo(text='Switching context...', spinner='dots', color='green')
     spinner.start()
+
+    from skyflow.cli.cli_utils import switch_context
+
     if not user and not namespace:
         spinner.warn("No new context is specified. Nothing is changed.")
         return
@@ -1450,12 +1543,15 @@ def status():
 def fetch_clusters(spinner):
     """Fetch clusters."""
     spinner.text = "Fetching clusters..."
+    from skyflow.cli.cli_utils import get_cli_object
     cluster_list = get_cli_object(object_type="cluster")
     return cluster_list
 
 
 def display_cluster_status(cluster_list):
     """Display the status of each cluster."""
+    from skyflow.templates.cluster_template import ClusterStatusEnum
+    from skyflow.cli.cli_utils import utils
     click.echo(f"{Fore.GREEN}{Style.BRIGHT}Cluster Status:{Style.RESET_ALL}")
     max_cluster_name_length = max(
         len(utils.unsanitize_cluster_name(cluster.metadata.name))
@@ -1471,6 +1567,7 @@ def display_cluster_status(cluster_list):
 def calculate_total_resources(cluster_list):
     """Calculate the total available resources for READY clusters."""
     total_resources = {}
+    from skyflow.templates.cluster_template import ClusterStatusEnum
     for cluster in cluster_list.objects:
         if cluster.status.status == ClusterStatusEnum.READY.value \
             and cluster.status.allocatable_capacity:
@@ -1485,8 +1582,8 @@ def calculate_total_resources(cluster_list):
 
 def display_total_resources(total_resources):
     """Display the total available resources for READY clusters."""
-    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Total Available \
-            Resources (READY clusters):{Style.RESET_ALL}")
+    click.echo(f"\n{Fore.GREEN}{Style.BRIGHT}Total Available Resources (READY clusters):\
+               {Style.RESET_ALL}")
     for resource, amount in total_resources.items():
         click.echo(f"{resource}: {amount}")
 
@@ -1494,12 +1591,15 @@ def display_total_resources(total_resources):
 def fetch_jobs(spinner):
     """Fetch the newest 10 running jobs."""
     spinner.text = "Fetching jobs..."
+    from skyflow.cli.cli_utils import get_cli_object
     job_list = get_cli_object(object_type="job")
     return job_list
 
 
 def display_running_jobs(job_list):
     """Display the newest 10 running jobs."""
+    from skyflow.cli.cli_utils import print_job_table
+    from skyflow.templates.job_template import JobStatusEnum, JobList
     running_jobs = [
         job for job in job_list.objects
         if job.status.conditions[-1]["type"] == JobStatusEnum.ACTIVE.value
