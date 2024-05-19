@@ -142,20 +142,23 @@ class Informer:  # pylint: disable=too-many-instance-attributes
                 backoff_time = 1
                 for watch_event in self.watcher.watch():
                     self.informer_queue.put(watch_event)
-            except requests.exceptions.ConnectionError:
-                self.logger.error("Unable to connect to API Server.")
-            except requests.exceptions.ChunkedEncodingError:
-                self.logger.error("API server restarting. Reconnecting...")
-            except Exception:  # pylint: disable=broad-except
-                self.logger.error(traceback.format_exc())
-                self.logger.error("Encountered unusual error. Trying again.")
-
-            retry += 1
-            time.sleep(backoff_time)
-            backoff_time = min(backoff_time * 2, self.max_backoff_time)
-            if retry >= self.retry_limit:
-                self.logger.error("Retry limit exceeded. Terminating watch.")
-                break
+            except Exception as error:  # pylint: disable=broad-except
+                retry += 1
+                if isinstance(error, requests.exceptions.ConnectionError):
+                    self.logger.error("Unable to connect to API Server.")
+                elif isinstance(error,
+                                requests.exceptions.ChunkedEncodingError):
+                    self.logger.error("API server restarting. Reconnecting...")
+                else:
+                    self.logger.error(traceback.format_exc())
+                    self.logger.error(
+                        "Encountered unusual error. Trying again.")
+                time.sleep(backoff_time)
+                backoff_time = min(backoff_time * 2, self.max_backoff_time)
+                if retry >= self.retry_limit:
+                    self.logger.error(
+                        "Retry limit exceeded. Terminating informer.")
+                    break
 
     def _event_controller(self):
         resync_start_time = time.time()
