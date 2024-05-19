@@ -4,10 +4,10 @@ Launches the API server for Sky Manager.
 import argparse
 import multiprocessing
 import os
-import requests
 import subprocess
 from typing import Optional
 
+import requests
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
 
