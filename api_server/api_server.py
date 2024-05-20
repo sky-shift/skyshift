@@ -45,6 +45,9 @@ from skyflow.utils import load_object, sanitize_cluster_name
 # Assumes authentication tokens are JWT tokens
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
 CACHED_SECRET_KEY = None
+CONF_FLAG_DIR = '/.tmp/'
+WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
+WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
 
 
 def create_jwt(data: dict,
@@ -130,11 +133,6 @@ def generate_nonce(length=32):
     return secrets.token_hex(length)
 
 
-CONF_FLAG_DIR = '/.tmp/'
-WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
-WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
-
-
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
     absolute_done_flag = Path(WORKER_DONE_FLAG)
@@ -214,7 +212,7 @@ class APIServer:
         inviter_role = Role(
             metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
             rules=[Rule(resources=["user"], actions=["create"])
-                   ],  #Create user actually means can create invite to user.
+                   ],  #Creatuser actually means can create invite to user.
             users=[])
 
         self.etcd_client.write(
@@ -421,6 +419,22 @@ class APIServer:
                 break
         if not found_user:
             admin_config['users'].append(access_dict)
+        
+        if 'contexts' not in admin_config:
+            admin_config['contexts'] = []
+        
+        # Fetch all namespaces that a user is in.
+        roles = self.etcd_client.read_prefix("roles")
+        allowed_namespaces = []
+        # for role in roles:
+        #     if self._authenticate_action_with_role(action, user, object_type,
+        #                                            namespace, role):
+        #         return True
+        
+        for context in admin_config['contexts']:
+            if context['user'] == username:
+                pass
+        
         update_manager_config(admin_config)
         return access_dict
 

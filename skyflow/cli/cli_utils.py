@@ -591,7 +591,7 @@ def revoke_invite_req(invite: str):
         raise click.ClickException(f"Failed to create invite: {error}")
 
 
-def switch_context(username, namespace):
+def switch_context(username: str, namespace: str):
     """
     Switch local CLI active context.
     """

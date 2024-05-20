@@ -54,7 +54,9 @@ def generate_manager_config(host: str, port: int):
 
             if (config_dict["api_server"]["host"] == host
                     and config_dict["api_server"]["port"] == port
-                    and "secret" in config_dict["api_server"]):
+                    and "secret" in config_dict["api_server"]
+                    and "contexts" in config_dict
+                    and "users" in config_dict):
                 print("API server config already exists. Skipping generation.")
                 return
 
@@ -64,6 +66,7 @@ def generate_manager_config(host: str, port: int):
             "port": port,
             "secret": os.urandom(256).hex(),
         },
+        "contexts": [],
         "users": [],
     }
     os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
