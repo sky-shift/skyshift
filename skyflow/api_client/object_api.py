@@ -32,19 +32,34 @@ def verify_response(input_data):
     return load_object(body)
 
 
-def fetch_auth_token(admin_config: dict) -> str:
-    """Fetches the auth token from the Skyflow config."""
-    target_user = admin_config.get('current_user', None)
+def fetch_context(admin_config: dict) -> str:
+    """Fetches the context from the admin config."""
+    target_context = admin_config.get('current_context', None)
     users = admin_config.get('users', [])
     if not users:
         raise APIException("No user found in config file")
-    if target_user:
-        for user in users:
-            user_name = user.get('name', None)
-            if user_name == target_user:
-                return user['access_token']
-        raise APIException(f"User {target_user} not found in config file")
-    return users[0]['access_token']
+    if not target_context:
+        raise APIException("No current context found in config file.")
+    
+    found_context = None
+    for context in admin_config.get('contexts', []):
+        context_name = context.get('name', None)
+        if context_name == target_context:
+            found_context = context
+            break
+    if not found_context:
+        raise APIException(f"Context {target_context} not found in config file")
+    
+    context_user = found_context.get('user', None)
+    if not context_user:
+        raise APIException(f"No user found in context {target_context}")
+    if 'namespace' not in found_context:
+        raise APIException(f"No namespace found in context {target_context}")
+    
+    for user in users:
+        if user['name'] == context_user:
+            found_context['access_token'] = user['access_token']
+    return found_context
 
 
 # @TODO(mluo): Introduce different types of API exceptions.
@@ -96,6 +111,11 @@ class NamespaceObjectAPI(ObjectAPI):
         admin_config = load_manager_config()
         self.host = admin_config["api_server"]["host"]
         self.port = admin_config["api_server"]["port"]
+        
+        context = fetch_context(admin_config)
+        if not self.namespace:
+            self.namespace = context["namespace"]
+        access_token = context['access_token']
 
         self.object_type = object_type
         if namespace:
@@ -104,7 +124,7 @@ class NamespaceObjectAPI(ObjectAPI):
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
         self.auth_headers = {
-            "Authorization": f"Bearer {fetch_auth_token(admin_config)}"
+            "Authorization": f"Bearer {access_token}"
         }
 
     def create(self, config: dict):
@@ -159,8 +179,11 @@ class NoNamespaceObjectAPI(ObjectAPI):
         self.port = admin_config["api_server"]["port"]
         self.base_url = f"http://{self.host}:{self.port}"
         self.url = f"{self.base_url}/{self.object_type}"
+        
+        context = fetch_context(admin_config)
+        access_token = context["access_token"]
         self.auth_headers = {
-            "Authorization": f"Bearer {fetch_auth_token(admin_config)}"
+            "Authorization": f"Bearer {access_token}"
         }
 
     def create(self, config: dict):

@@ -11,5 +11,5 @@ class ServiceAPI(NamespaceObjectAPI):
     Service API for handling Service objects.
     """
 
-    def __init__(self, namespace: str = DEFAULT_NAMESPACE):
+    def __init__(self, namespace: str = None):
         super().__init__(namespace=namespace, object_type="services")

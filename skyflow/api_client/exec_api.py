@@ -19,7 +19,7 @@ class ExecAPI(NamespaceObjectAPI):
     Exec API for initiating exec connections with apiserver.
     """
 
-    def __init__(self, namespace: str = DEFAULT_NAMESPACE):
+    def __init__(self, namespace: str = None):
         """
         Initializes the ExecAPI with a namespace and sets the object type to 'exec'.
         """
