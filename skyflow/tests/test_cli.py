@@ -1136,3 +1136,11 @@ def test_switch_context(runner):
     cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+    cmd_switch_fail = ['config', 'use-context', f'not_exist-default']
+    result_switch_fail = runner.invoke(cli, cmd_switch_fail)
+    assert result_switch_fail.exit_code != 0
