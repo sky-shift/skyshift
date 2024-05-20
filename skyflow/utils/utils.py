@@ -42,6 +42,11 @@ def generate_manager_config(host: str, port: int):
     """Generates the API server config file."""
     absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
 
+    if host == '0.0.0.0':
+        # Fetch public IP address of the machine.
+        response = requests.get('https://api.ipify.org?format=json')
+        host = response.json()['ip']
+
     # If path exists, check if host and port are identical
     if os.path.exists(absolute_path):
         with open(absolute_path, "r") as config_file:
@@ -64,6 +69,7 @@ def generate_manager_config(host: str, port: int):
     os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
     with open(absolute_path, "w") as config_file:
         yaml.dump(config_dict, config_file)
+
 
 def generate_temp_directory(directory_path):
     """
