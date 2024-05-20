@@ -86,7 +86,6 @@ def _load_exporter_services(cluster:str):
 
 def _setup_importer_service():
     """ Creates the service for replicas imported from other clusters """
-    print("new comand")
     os.system(f"kubectl config use-context {CL1NAME}")
     kubectl_process = subprocess.Popen(['kubectl', 'apply', '-f', '-'], stdin=subprocess.PIPE)
     kubectl_process.communicate(input=bytes(HTTP_SERVICE, 'utf-8'))
