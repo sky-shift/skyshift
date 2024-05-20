@@ -1,11 +1,11 @@
 """
 Utils for Skyflow CLI.
 """
-from contextlib import redirect_stdout
 import enum
 import io
 import json as json_lib
 import time
+from contextlib import redirect_stdout
 from typing import Dict, List, Optional, Union
 
 import click
@@ -30,7 +30,6 @@ from skyflow.templates.job_template import JobStatusEnum
 from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  compute_datetime_delta, fetch_datetime,
                                  load_manager_config, update_manager_config)
-
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -182,9 +181,8 @@ def print_table(table_type, *args, **kwargs):
     }
     print_function = table_function_map.get(table_type)
     if print_function:
-        print_function(*args, **kwargs)
-    else:
-        raise ValueError("Invalid table type provided")
+        return print_function(*args, **kwargs)
+    raise ValueError("Invalid table type provided")
 
 
 def fetch_job_logs(name: str, namespace: str):
@@ -271,12 +269,13 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
             resources_str = "{}"
         status = colorize_status(entry.get_status())
         table_data.append([name, manager_type, resources_str, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo clusters found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches
@@ -358,12 +357,13 @@ def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-
                 colorize_status(status),
                 age,
             ])
-
+    table = None
     if not table_data:
         click.echo("\nNo jobs found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
@@ -386,12 +386,13 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo namespaces found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
@@ -423,12 +424,13 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
             name, include, exclude, labels, namespace, status,
             _get_object_age(entry)
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo filter policies found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
@@ -478,12 +480,13 @@ def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: d
             namespace,
             _get_object_age(entry),
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo services found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_link_table(link_list: Union[Link, LinkList]):
@@ -512,7 +515,7 @@ def print_link_table(link_list: Union[Link, LinkList]):
         status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, source, target, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo links found.")
     else:
@@ -545,7 +548,7 @@ def print_endpoints_table(endpoints_list):
         for cluster, endpoint_obj in endpoints.items():
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
         table_data.append([name, namespace, endpoints_str, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo endpoints found.")
     else:
@@ -575,7 +578,7 @@ def print_role_table(roles_list):
             name,
             age,
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo roles found.")
     else:
@@ -729,13 +732,12 @@ def show_loading(stop_event):
     spinner.close()
 
 
-
 def get_table_str(table_type, *args, **kwargs):
     """Capture the printed table as a string."""
     buf = io.StringIO()
     with redirect_stdout(buf):
-        print_table(table_type, *args, **kwargs)
-    return buf.getvalue()
+        output_str = print_table(table_type, *args, **kwargs)
+    return f"\n{output_str}\r"
 
 
 def get_oldest_cluster_age(cluster_list):
@@ -748,7 +750,6 @@ def get_oldest_cluster_age(cluster_list):
            cluster.metadata.creation_timestamp < oldest_creation_timestamp:
             oldest_creation_timestamp = cluster.metadata.creation_timestamp
     return oldest_creation_timestamp
-
 
 
 def calculate_total_resources(cluster_list):
@@ -782,5 +783,5 @@ def display_running_jobs(job_list):
         key=lambda job: job.metadata.creation_timestamp,
         reverse=True)
 
-    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs:{Style.RESET_ALL}")
+    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs{Style.RESET_ALL}", nl=False)
     print_table('job', JobList(objects=running_jobs_sorted))

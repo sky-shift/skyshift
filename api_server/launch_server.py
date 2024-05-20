@@ -7,7 +7,6 @@ import os
 import subprocess
 from typing import Optional
 
-import requests
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
 
