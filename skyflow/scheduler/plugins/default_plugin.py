@@ -14,11 +14,10 @@ def is_subset_and_values_smaller(dict1: dict, dict2: dict) -> bool:
     """Determines if all values in dict2 are smaller than \
         corresponding values in dict1, ignoring keys with value 0 in dict2."""
     filtered_dict2 = {key: value for key, value in dict2.items() if value != 0}
-    
+
     if all(key in dict1 for key in filtered_dict2):
         return all(filtered_dict2[key] <= dict1[key] for key in filtered_dict2)
     return False
-
 
 
 class DefaultPlugin(BasePlugin):
