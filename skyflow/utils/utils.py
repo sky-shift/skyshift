@@ -54,12 +54,13 @@ def generate_manager_config(host: str, port: int):
 
             if (config_dict["api_server"]["host"] == host
                     and config_dict["api_server"]["port"] == port
-                    and "secret" in config_dict["api_server"]
-                    and "contexts" in config_dict
-                    and "users" in config_dict
-                    and "current_context" in config_dict):
-                print("API server config already exists. Skipping generation.")
-                return
+                    and "secret" in config_dict["api_server"]):
+                if ("contexts" in config_dict and "users" in config_dict
+                        and "current_context" in config_dict):
+                    print(
+                        "API server config already exists. Skipping generation."
+                    )
+                    return
 
     config_dict = {
         "api_server": {

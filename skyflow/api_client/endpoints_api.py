@@ -9,5 +9,5 @@ class EndpointsAPI(NamespaceObjectAPI):
     Endpoints API for handling Endpoints objects.
     """
 
-    def __init__(self, namespace: str = None):
+    def __init__(self, namespace: str = ""):
         super().__init__(namespace=namespace, object_type="endpoints")

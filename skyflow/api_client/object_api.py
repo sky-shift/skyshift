@@ -32,7 +32,7 @@ def verify_response(input_data):
     return load_object(body)
 
 
-def fetch_context(admin_config: dict) -> str:
+def fetch_context(admin_config: dict) -> dict:
     """Fetches the context from the admin config."""
     target_context = admin_config.get('current_context', None)
     users = admin_config.get('users', [])
@@ -40,7 +40,7 @@ def fetch_context(admin_config: dict) -> str:
         raise APIException("No user found in config file")
     if not target_context:
         raise APIException("No current context found in config file.")
-    
+
     found_context = None
     for context in admin_config.get('contexts', []):
         context_name = context.get('name', None)
@@ -48,14 +48,15 @@ def fetch_context(admin_config: dict) -> str:
             found_context = context
             break
     if not found_context:
-        raise APIException(f"Context {target_context} not found in config file")
-    
+        raise APIException(
+            f"Context {target_context} not found in config file")
+
     context_user = found_context.get('user', None)
     if not context_user:
         raise APIException(f"No user found in context {target_context}")
     if 'namespace' not in found_context:
         raise APIException(f"No namespace found in context {target_context}")
-    
+
     for user in users:
         if user['name'] == context_user:
             found_context['access_token'] = user['access_token']
@@ -111,7 +112,7 @@ class NamespaceObjectAPI(ObjectAPI):
         admin_config = load_manager_config()
         self.host = admin_config["api_server"]["host"]
         self.port = admin_config["api_server"]["port"]
-        
+
         context = fetch_context(admin_config)
         if not self.namespace:
             self.namespace = context["namespace"]
@@ -123,9 +124,7 @@ class NamespaceObjectAPI(ObjectAPI):
         else:
             self.url = f"http://{self.host}:{self.port}/{self.object_type}"
 
-        self.auth_headers = {
-            "Authorization": f"Bearer {access_token}"
-        }
+        self.auth_headers = {"Authorization": f"Bearer {access_token}"}
 
     def create(self, config: dict):
         assert self.namespace, "Method `create` requires a namespace."
@@ -179,12 +178,10 @@ class NoNamespaceObjectAPI(ObjectAPI):
         self.port = admin_config["api_server"]["port"]
         self.base_url = f"http://{self.host}:{self.port}"
         self.url = f"{self.base_url}/{self.object_type}"
-        
+
         context = fetch_context(admin_config)
         access_token = context["access_token"]
-        self.auth_headers = {
-            "Authorization": f"Bearer {access_token}"
-        }
+        self.auth_headers = {"Authorization": f"Bearer {access_token}"}
 
     def create(self, config: dict):
         response = requests.post(self.url,

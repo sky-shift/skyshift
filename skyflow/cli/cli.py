@@ -79,6 +79,7 @@ def logs():
     """Fetch logs for a job."""
     return
 
+
 @click.group(cls=ClickAliasedGroup)
 def config():
     """Fetch logs for a job."""
@@ -1459,10 +1460,12 @@ def revoke_invite(invite):  # pylint: disable=redefined-outer-name
 cli.add_command(revoke_invite)
 
 
-@config.command(name="use-context", aliases=["use-context"], help='Swap to a specified context (see .skyconf/config.yaml).')
+@config.command(name="use-context",
+                aliases=["use-context"],
+                help='Swap to a specified context (see .skyconf/config.yaml).')
 @click.argument('name', required=True)
 @halo_spinner("Switching context")
-def use_context(name: str):
+def use_sky_context(name: str, spinner):
     """
     Switch local CLI active context.
     """

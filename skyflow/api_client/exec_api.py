@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 import websockets
 
 from skyflow.api_client.object_api import NamespaceObjectAPI
-from skyflow.globals import DEFAULT_NAMESPACE
 
 
 class ExecAPI(NamespaceObjectAPI):
@@ -19,7 +18,7 @@ class ExecAPI(NamespaceObjectAPI):
     Exec API for initiating exec connections with apiserver.
     """
 
-    def __init__(self, namespace: str = None):
+    def __init__(self, namespace: str = ""):
         """
         Initializes the ExecAPI with a namespace and sets the object type to 'exec'.
         """

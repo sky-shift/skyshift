@@ -250,14 +250,15 @@ class APIServer:
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
-        
+
         # Create current context if it not populated yet.
         admin_config = load_manager_config()
-        current_context = admin_config["current_context"] if "current_context" in admin_config else None
+        current_context = admin_config[
+            "current_context"] if "current_context" in admin_config else None
         if not current_context:
-            admin_config["current_context"] = f'{ADMIN_USER}-{DEFAULT_NAMESPACE}'
+            admin_config[
+                "current_context"] = f'{ADMIN_USER}-{DEFAULT_NAMESPACE}'
             update_manager_config(admin_config)
-            
 
     def _authenticate_action(self, action: str, user: str, object_type: str,
                              namespace: str) -> bool:
@@ -394,7 +395,7 @@ class APIServer:
             )
         return obj_dict
 
-    def _login_user(self, username: str, password: str):
+    def _login_user(self, username: str, password: str):  # pylint: disable=too-many-locals, too-many-branches
         """Helper method that logs in a user."""
         try:
             user_dict = self._fetch_etcd_object(f"users/{username}")
@@ -427,10 +428,10 @@ class APIServer:
                 break
         if not found_user:
             admin_config['users'].append(access_dict)
-        
+
         if 'contexts' not in admin_config:
             admin_config['contexts'] = []
-        
+
         all_namespaces = self.etcd_client.read_prefix("namespaces")
         # Fetch all namespaces that a user is in.
         user_roles = self._get_all_roles(username)
@@ -438,20 +439,27 @@ class APIServer:
         for role in user_roles:
             role_namespaces = role['metadata']['namespaces']
             if '*' in role_namespaces:
-                allowed_namespaces = set([n['metadata']['name'] for n in all_namespaces])
+                allowed_namespaces = {
+                    n['metadata']['name']
+                    for n in all_namespaces
+                }
                 break
-            else:
-                allowed_namespaces.update(role_namespaces)
-        
+            allowed_namespaces.update(role_namespaces)
+
         # Populate config contexts with new (username, namespace) tuples
         for namespace in allowed_namespaces:
             found = False
             for context in admin_config['contexts']:
-                if context['user'] == username and context['namespace'] == namespace:
+                if context['user'] == username and context[
+                        'namespace'] == namespace:
                     found = True
                     break
             if not found:
-                context_dict = {'namespace': namespace, 'user': username, 'name': f'{username}-{namespace}'}
+                context_dict = {
+                    'namespace': namespace,
+                    'user': username,
+                    'name': f'{username}-{namespace}'
+                }
                 admin_config['contexts'].append(context_dict)
         update_manager_config(admin_config)
         return access_dict
