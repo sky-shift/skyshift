@@ -727,7 +727,7 @@ class APIServer:
             try:
                 return asyncio.get_event_loop().run_until_complete(
                     self._watch_key(link_header))
-            except:
+            except Exception:  # pylint: disable=broad-except
                 return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
@@ -765,7 +765,7 @@ class APIServer:
             try:
                 return asyncio.get_event_loop().run_until_complete(
                     self._watch_key(f"{link_header}/{object_name}"))
-            except:
+            except Exception:  # pylint: disable=broad-except
                 return asyncio.run(
                     self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")

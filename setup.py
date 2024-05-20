@@ -30,6 +30,8 @@ setup(
         "types-PyYAML",
         "types-requests",
         "websockets",
+        "halo",
+        "tqdm",
     ],
     extras_require={
         "server": [
