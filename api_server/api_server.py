@@ -208,6 +208,17 @@ class APIServer:
             admin_role.dict(),
         )
 
+        # Create reader role (can only read objects).
+        reader_role = Role(
+            metadata=RoleMeta(name="reader-role", namespaces=["*"]),
+            rules=[Rule(resources=["*"], actions=["get", "list"])],
+            users=[ADMIN_USER])
+
+        self.etcd_client.write(
+            "roles/reader-role",
+            reader_role.dict(),
+        )
+
         # Create inviter role.
         inviter_role = Role(
             metadata=RoleMeta(name="inviter-role", namespaces=["*"]),

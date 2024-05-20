@@ -1040,7 +1040,7 @@ def test_create_invite_failure(runner):
     password = "password"
     cmd_register = [
         'register', name, password, "--invite",
-        get_invite_helper(runner)
+        get_invite_helper(runner, roles=['reader-role'])
     ]
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
@@ -1049,7 +1049,7 @@ def test_create_invite_failure(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_inviter_fail']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1058,7 +1058,7 @@ def test_create_invite_failure(runner):
     assert result_invite.exit_code != 0
 
     #make sure active is changed back to admin
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1089,7 +1089,7 @@ def test_create_invite_failure_role(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_inviter_fail_without_role']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1102,22 +1102,22 @@ def test_create_invite_failure_role(runner):
     assert result_invite_invalid.exit_code != 0
 
     #make sure active is changed back to admin
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
 
-def test_switch_user(runner):
+def test_switch_context(runner):
     name = "user_cannot_invite"
     password = "password"
     cmd_register = [
         'register', name, password, "--invite",
-        get_invite_helper(runner)
+        get_invite_helper(runner, roles=['reader-role'])
     ]
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_cannot_invite']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code != 0
 
@@ -1125,7 +1125,7 @@ def test_switch_user(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_cannot_invite']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1133,14 +1133,6 @@ def test_switch_user(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code != 0
 
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
-
-    cmd_invite = ['invite']
-    result_invite = runner.invoke(cli, cmd_invite)
-    assert result_invite.exit_code == 0
-
-    cmd_switch_fail = ['switch', '--user', 'not_exist']
-    result_switch_fail = runner.invoke(cli, cmd_switch_fail)
-    assert result_switch_fail.exit_code != 0

@@ -692,7 +692,6 @@ def use_context(context_name: str):
     """
     Switch to a specified context name.
     """
-
     manager_config = load_manager_config()
     contexts = manager_config.get('contexts', [])
 
@@ -706,7 +705,7 @@ def use_context(context_name: str):
 
     for context in contexts:
         if context['name'] == context_name:
-            manager_config['current_context'] == context_name  # pylint: disable=pointless-statement
+            manager_config['current_context'] = context_name  # pylint: disable=pointless-statement
             update_manager_config(manager_config)
             click.echo(f'Current context set to {context_name}.')
             return
