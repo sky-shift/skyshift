@@ -32,11 +32,6 @@ from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  load_manager_config, update_manager_config)
 
 
-def init_colorama():
-    """Initializes colorama."""
-    init(autoreset=True)
-
-
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
     "filterpolicy": FilterPolicyAPI,
@@ -74,7 +69,7 @@ def fetch_api_client_object(object_type: str,
     """
     Fetches the API client object for the given object type.
     """
-    init_colorama()
+
     is_namespace_object = object_type in NAMESPACED_API_OBJECTS
     if is_namespace_object:
         if namespace is None:
@@ -90,7 +85,7 @@ def create_cli_object(config: dict):
     """
     Creates an object through Python API.
     """
-    init_colorama()
+
     namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
     object_type = config["kind"].lower()
     api_object = fetch_api_client_object(object_type, namespace)
@@ -107,7 +102,7 @@ def stream_cli_object(config: dict):
     """
     Creates a bi-directional stream through the Python API.
     """
-    init_colorama()
+
     namespace = config["metadata"].get("namespace", DEFAULT_NAMESPACE)
     object_type = config["kind"].lower()
     api_object = fetch_api_client_object(object_type, namespace)
@@ -128,7 +123,7 @@ def get_cli_object(
     """
     Gets an object through Python API.
     """
-    init_colorama()
+
     api_object = fetch_api_client_object(object_type, namespace)
     try:
         if watch:
@@ -151,7 +146,7 @@ def delete_cli_object(object_type: str,
     """
     Deletes an object through Python API.
     """
-    init_colorama()
+
     api_object = fetch_api_client_object(object_type, namespace)
     try:
         api_response = api_object.delete(name=name)
@@ -196,7 +191,7 @@ def fetch_job_logs(name: str, namespace: str):
     """
     Get logs of a Job.
     """
-    init_colorama()
+
     job_api = JobAPI(namespace=namespace)
     try:
         logs = job_api.logs(name)
@@ -231,7 +226,6 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
     """
     Prints out a table of clusters.
     """
-    init_colorama()
     cluster_lists: List[Cluster] = []
     if isinstance(cluster_list, ObjectList):
         cluster_lists = cluster_list.objects
@@ -289,7 +283,7 @@ def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-
     """
     Prints out a table of jobs.
     """
-    init_colorama()
+
     job_lists: List[Job] = []
     if isinstance(job_list, ObjectList):
         job_lists = job_list.objects
@@ -376,7 +370,7 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
     """
     Prints out a table of namespaces.
     """
-    init_colorama()
+
     namespace_objs: List[Namespace] = []
     if isinstance(namespace_list, ObjectList):
         namespace_objs = namespace_list.objects
@@ -404,7 +398,7 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
     """
     Prints out a table of Filter Policies.
     """
-    init_colorama()
+
     filter_lists: List[FilterPolicy] = []
     if isinstance(filter_list, ObjectList):
         filter_lists = filter_list.objects
@@ -441,7 +435,7 @@ def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: d
     """
     Prints out a table of services.
     """
-    init_colorama()
+
     service_lists: List[Service] = []
     if isinstance(service_list, ServiceList):
         service_lists = service_list.objects
@@ -496,7 +490,7 @@ def print_link_table(link_list: Union[Link, LinkList]):
     """
     Prints out a table of links.
     """
-    init_colorama()
+
     link_lists: List[Link] = []
     if isinstance(link_list, LinkList):
         link_lists = link_list.objects
@@ -530,7 +524,7 @@ def print_endpoints_table(endpoints_list):
     """
     Prints out a table of Endpoints.
     """
-    init_colorama()
+
     if isinstance(endpoints_list, ObjectList):
         endpoints_list = endpoints_list.objects
     else:
@@ -563,7 +557,7 @@ def print_role_table(roles_list):
     """
     Prints out a table of Roles.
     """
-    init_colorama()
+
     if isinstance(roles_list, ObjectList):
         roles_lists = roles_list.objects
     else:
@@ -593,7 +587,7 @@ def register_user(username: str, email: str, password: str, invite: str):
     """
     Register user in API Server.
     """
-    init_colorama()
+
     users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
 
     try:
@@ -612,7 +606,7 @@ def login_user(username: str, password: str):
     """
     Send login request to API Server; access token stored locally if succeeds.
     """
-    init_colorama()
+
     users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.login_user(username, password)
@@ -651,7 +645,7 @@ def create_invite(json_flag, roles):
     """
     Send create invite request to API Server with the ROLES as to be granted.
     """
-    init_colorama()
+
     users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.create_invite(roles)
@@ -674,7 +668,7 @@ def revoke_invite_req(invite: str):
     """
     Send revoke invite request to API Server.
     """
-    init_colorama()
+
     users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
     try:
         response = users_api.revoke_invite(invite)
@@ -695,7 +689,7 @@ def switch_context(username, namespace):
     """
     Switch local CLI active context.
     """
-    init_colorama()
+
     manager_config = load_manager_config()
 
     if namespace:
