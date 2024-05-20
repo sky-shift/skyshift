@@ -690,34 +690,31 @@ def revoke_invite_req(invite: str):
         raise click.ClickException(f"Failed to create invite: {error}")
 
 
-def switch_context(username, namespace):
+def use_context(context_name: str):
     """
-    Switch local CLI active context.
+    Switch to a specified context name.
     """
-
     manager_config = load_manager_config()
+    contexts = manager_config.get('contexts', [])
 
-    if namespace:
-        manager_config['metadata']["namespace"] = namespace
-        update_manager_config(manager_config)
-        click.echo(f"Updated active namespace at {API_SERVER_CONFIG_PATH}.")
+    if manager_config.get('current_context', None) == context_name:
+        click.echo(f'Current context is already set to {context_name}.')
+        return
 
-    if username:
-        if 'users' not in manager_config:
-            raise click.ClickException(
-                f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
-            )
-
-        for user in manager_config['users']:
-            if user['name'] == username:
-                manager_config['current_user'] = username
-                update_manager_config(manager_config)
-                click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
-                return
-
+    if not contexts:
         raise click.ClickException(
-            f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
-        )
+            f"No contexts found at {API_SERVER_CONFIG_PATH}.")
+
+    for context in contexts:
+        if context['name'] == context_name:
+            manager_config['current_context'] = context_name  # pylint: disable=pointless-statement
+            update_manager_config(manager_config)
+            click.echo(f'Current context set to {context_name}.')
+            return
+
+    raise click.ClickException(
+        f"{context_name} does not exist as a context at {API_SERVER_CONFIG_PATH}."
+    )
 
 
 def show_loading(stop_event):
