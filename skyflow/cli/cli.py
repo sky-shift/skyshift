@@ -26,7 +26,7 @@ def halo_spinner(text):
         params = sig.parameters
 
         def wrapper(*args, **kwargs):
-            spinner = Halo(text=text, spinner='dots', color='cyan')
+            spinner = Halo(text=f'{text}\n', spinner='dots', color='cyan')
             spinner.start()
             try:
                 if 'spinner' in params:
@@ -35,8 +35,8 @@ def halo_spinner(text):
                     result = func(*args, **kwargs)
                 spinner.succeed(f"{text} completed successfully.")
                 return result
-            except Exception as error:  # pylint: disable=broad-except
-                spinner.fail(f"{text} failed: {str(error)}")
+            except Exception:  # pylint: disable=broad-except
+                spinner.fail(f"{text} failed.")
                 raise
 
         return wrapper
