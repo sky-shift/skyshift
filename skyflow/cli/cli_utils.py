@@ -179,7 +179,7 @@ def print_table(table_type, *args, **kwargs):
         'cluster': print_cluster_table,
         'job': print_job_table,
         'namespace': print_namespace_table,
-        'filter': print_filter_table,
+        'filterpolicy': print_filter_table,
         'service': print_service_table,
         'link': print_link_table,
         'endpoints': print_endpoints_table,
