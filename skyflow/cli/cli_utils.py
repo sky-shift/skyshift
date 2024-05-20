@@ -91,9 +91,10 @@ def create_cli_object(config: dict):
     try:
         api_response = api_object.create(config)
     except APIException as error:
-        raise click.ClickException(f"Failed to create {object_type}: {error}")
+        raise click.ClickException(
+            f"\nFailed to create {object_type}: {error}")
     if object_type != "exec":
-        click.echo(f"Created {object_type} {config['metadata']['name']}.")
+        click.echo(f"\nCreated {object_type} {config['metadata']['name']}.")
     return api_response
 
 
@@ -135,7 +136,7 @@ def get_cli_object(
         else:
             api_response = api_object.get(name=name)
     except APIException as error:
-        raise click.ClickException(f"Failed to get {object_type}: {error}")
+        raise click.ClickException(f"\nFailed to get {object_type}: {error}")
     return api_response
 
 
@@ -150,8 +151,9 @@ def delete_cli_object(object_type: str,
     try:
         api_response = api_object.delete(name=name)
     except APIException as error:
-        raise click.ClickException(f"Failed to delete {object_type}: {error}")
-    click.echo(f"Deleted {object_type} {name}.")
+        raise click.ClickException(
+            f"\nFailed to delete {object_type}: {error}")
+    click.echo(f"\nDeleted {object_type} {name}.")
     return api_response
 
 
@@ -197,7 +199,7 @@ def fetch_job_logs(name: str, namespace: str):
             click.echo(log)
             click.echo('\n')
     except APIException as error:
-        raise click.ClickException(f"Failed to fetch logs: {error}")
+        raise click.ClickException(f"\nFailed to fetch logs: {error}")
 
 
 def _get_object_age(obj: Object) -> str:
