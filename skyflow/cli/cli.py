@@ -295,6 +295,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         cloud_cluster_dir  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_manager.manager import \
         SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_manager.manager import \
+        RAY_MANAGERS  # pylint: disable=import-outside-toplevel
 
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         spinner.fail(f"Unsupported manager_type: {manager}")

@@ -4,11 +4,14 @@ Represents the comptability layer over Ray native API.
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 import paramiko
 import ray
 from ray.job_submission import JobSubmissionClient
+from ray.runtime_env import RuntimeEnv
 from kubernetes import client, config
 
 from skyflow import utils
@@ -17,6 +20,7 @@ from skyflow.templates import (ClusterStatus,
                                ClusterStatusEnum,
                                Job, ResourceEnum,
                                TaskStatusEnum)
+from skyflow.templates.job_template import RestartPolicyEnum
 from skyflow.templates.resource_template import ContainerEnum
 
 RAY_CLIENT_PORT = 10001
@@ -124,9 +128,28 @@ class RayManager(Manager):
             self.logger.error("Failed to retrieve memory information from the remote system.")
             raise Exception("Failed to retrieve memory information from the remote system.")
 
+    def _copy_file_to_remote(self, local_path: str, remote_path: str):
+        """Copy a file from the local system to the remote system."""
+        sftp = self.ssh_client.open_sftp()
+        sftp.put(local_path, remote_path)
+        sftp.close()
 
-    def _setup_containerized_ray(self, container_managers: List[ContainerEnum]):
-        """Set up and start Ray within a chosen container environment."""
+    def _copy_required_files(self):
+        """Copy the required files to the remote system."""
+        # Copy the job launcher script to the remote system
+        job_launcher_path = os.path.join(os.path.dirname(__file__), "job_launcher.py")
+        self._copy_file_to_remote(job_launcher_path, "job_launcher.py")
+
+        # Copy the fetch_ray_resources script to the remote system
+        fetch_ray_resources_path = os.path.join(os.path.dirname(__file__), "fetch_ray_resources.py")
+        self._copy_file_to_remote(fetch_ray_resources_path, "fetch_ray_resources.py")
+
+        # Copy the fetch_ray_allocatable_resources script to the remote system
+        fetch_ray_allocatable_resources_path = os.path.join(os.path.dirname(__file__), "fetch_ray_allocatable_resources.py")
+        self._copy_file_to_remote(fetch_ray_allocatable_resources_path, "fetch_ray_allocatable_resources.py")
+
+    def _setup_ray(self):
+        """Set up ray using miniconda."""
 
         try:
             remote_memory_gb = self._get_remote_system_memory()  # Get remote memory in GB
@@ -144,39 +167,6 @@ class RayManager(Manager):
                     f"-p {RAY_JOBS_PORT}:{RAY_JOBS_PORT} "
                     f"-p {RAY_CLIENT_PORT}:{RAY_CLIENT_PORT} "
                     f"--shm-size={recommended_shm_size}gb "
-                    "alexmontoril23/ray-manager:latest /bin/bash -c "
-                    f"\"ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0; tail -f /dev/null\""
-                )
-            elif container_manager == ContainerEnum.PODMAN:
-                command = (
-                    f"podman run -d -p {RAY_NODES_PORT}:{RAY_NODES_PORT} "
-                    f"-p {RAY_JOBS_PORT}:{RAY_JOBS_PORT} "
-                    f"-p {RAY_CLIENT_PORT}:{RAY_CLIENT_PORT} "
-                    f"--shm-size={recommended_shm_size}gb "
-                    "alexmontoril23/ray-manager:latest /bin/bash -c "
-                    f"\"ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0; tail -f /dev/null\""
-                )
-            elif container_manager == ContainerEnum.CONTAINERD:
-                # Example command using containerd (assumes use of ctr)
-                command = (
-                    f"ctr run -d --net-host --memory {recommended_shm_size}G "
-                    "alexmontoril23/ray-manager:latest ray "
-                    f"/bin/bash -c \"ray start --head --port={RAY_NODES_PORT}; tail -f /dev/null\""
-                )
-            elif container_manager == ContainerEnum.SINGULARITY:
-                # Singularity command to pull and run the specified Docker image
-                command = (
-                    f"singularity exec docker://alexmontoril23/ray-manager:latest "
-                    f"/bin/bash -c \"ray start --head --port={RAY_NODES_PORT}; tail -f /dev/null\""
-                )
-            elif container_manager == ContainerEnum.PODMANHPC:
-                # Customized command for Podman in HPC environments
-                command = (
-                    f"podman run -d --userns=keep-id -p {RAY_NODES_PORT}:{RAY_NODES_PORT} "
-                    f"-p {RAY_JOBS_PORT}:{RAY_JOBS_PORT} "
-                    f"-p {RAY_CLIENT_PORT}:{RAY_CLIENT_PORT} "
-                    f"--shm-size={recommended_shm_size}gb "
-                    "--security-opt label=disable "  # This might be necessary in some HPC environments
                     "alexmontoril23/ray-manager:latest /bin/bash -c "
                     f"\"ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0; tail -f /dev/null\""
                 )
@@ -367,44 +357,37 @@ class RayManager(Manager):
         """
         self.client = self._connect_to_ray_cluster()
         # Generate a unique identifier for the job
-        job_id = f"{job.get_namespace()}-{job.get_name()}"
-        
+        job_id = f"{job.get_namespace()}-{job.get_name()}-{uuid4().hex[:10]}"
+
         # Check if the job has already been submitted
-        if job_id in self.job_registry:
-            return self.job_registry[job_id]
-        
-        # Prepare runtime environment and job submission parameters
-        runtime_env = {
-            "working_dir": ".",
-            "containers": [{
-                "image": job.spec.image,
-                "resources": job.spec.resources,
-                "replicas": job.spec.replicas,
-                "env": job.spec.envs,
-                "ports": job.spec.ports
-            }]
-        }
+        if job.get_name() in self.job_registry:
+            return self.job_registry[job.get_name()]
+
+        # Serialize the job object to JSON
+        job_json = json.dumps(job.model_dump())
+
+        # Prepare the entrypoint for the job
+        entrypoint = f"python /job_launcher.py '{job_json}'"
+
         # Submit the job to the Ray cluster
         self.client.submit_job(
-            entrypoint=job.specluster_resourcesc.run,
-            runtime_env=runtime_env,
+            entrypoint=entrypoint,
+            runtime_env={"working_dir": "."},
             submission_id=job_id,
-            job_id=job_id,
             entrypoint_num_cpus=job.spec.resources.get(ResourceEnum.CPU.value, 0),
             entrypoint_num_gpus=job.spec.resources.get(ResourceEnum.GPU.value, 0),
             entrypoint_memory=int(job.spec.resources.get(ResourceEnum.MEMORY.value, 0)),
             entrypoint_resources={k: v for k, v in job.spec.resources.items()
                                   if k not in {ResourceEnum.CPU.value,
                                                ResourceEnum.GPU.value,
-                                               ResourceEnum.MEMORY.value}
-                                               }
+                                               ResourceEnum.MEMORY.value}}
         )
 
         # Store additional information about the job submission
         submission_details = {
             "manager_job_id": job_id,
         }
-        self.job_registry[job_id] = job.get_name()
+        self.job_registry[job.get_name()] = job_id
 
         return submission_details
 
@@ -420,27 +403,25 @@ class RayManager(Manager):
             None
         """
         self.client = self._connect_to_ray_cluster()
-        job_id = f"{job.get_namespace()}-{job.get_name()}"
+        job_id = self.job_registry.get(job.get_name())
         
         # Check if the job has been submitted
         if job_id not in self.job_registry:
             self.logger.info(f"Job {job_id} not found in job registry.")
             return
         
-        ray_job_id = self.job_registry[job_id]
-        
         try:
             # Stop the job in the Ray cluster
-            self.client.stop_job(ray_job_id)
-            self.logger.info(f"Successfully stopped job {ray_job_id} on the Ray cluster.")
-            self.client.delete_job(ray_job_id)
-            self.logger.info(f"Successfully deleted job {ray_job_id} from the Ray cluster.")
+            self.client.stop_job(job_id)
+            self.logger.info(f"Successfully stopped job {job.get_name()} on the Ray cluster.")
+            self.client.delete_job(job_id)
+            self.logger.info(f"Successfully deleted job {job.get_name()} from the Ray cluster.")
         except Exception as e:
-            self.logger.error(f"Failed to stop job {ray_job_id}: {e}")
+            self.logger.error(f"Failed to stop job {job_id}: {e}")
         
         # Remove the job from the registry
-        del self.job_registry[job_id]
-        self.logger.info(f"Removed job {job_id} from job registry.")
+        del self.job_registry[job.get_name()]
+        self.logger.info(f"Removed job {job.get_name()} from job registry.")
         
 
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
@@ -456,7 +437,7 @@ class RayManager(Manager):
             "containers": {}
         }
 
-        for job_id, job_name in self.job_registry.items():
+        for job_name, job_id in self.job_registry.items():
             print(job_id, job_name)
             try:
                 job_status = self.client.get_job_status(job_id)
@@ -504,27 +485,39 @@ class RayManager(Manager):
             return logs
     
 #print("Ray Manager")
-#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.170.52.164")
+#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
 #print(rm.cluster_resources)
 #print(rm.allocatable_resources)
-#mr = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.132.112.244")
+rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
 #print(mr.get_cluster_status())
 
 # Create a Job instance
-#job = Job()
-#job.spec.image = "python:3.8-slim"
-#job.spec.resources = {
-#    ResourceEnum.CPU.value: 1,
-#    ResourceEnum.MEMORY.value: 512  # In MB
-#}
-#job.spec.run = "echo hello world"
-#job.spec.envs = {"ENV_VAR": "value"}
-#job.spec.ports = [8080]
-#job.spec.replicas = 1
-#job.spec.restart_policy = RestartPolicyEnum.NEVER.value
+job = Job()
+job.spec.image = "anakli/cca:parsec_blackscholes"
+job.spec.resources = {
+    ResourceEnum.CPU.value: 1,
+    ResourceEnum.MEMORY.value: 512  # In MB
+}
+job.spec.run = "ls -la && taskset -c 1 ./run -a run -S parsec -p blackscholes -i native -n 1"
+job.spec.envs = {"ENV_VAR": "value"}
+job.spec.ports = [8080]
+job.spec.replicas = 1
+job.spec.restart_policy = RestartPolicyEnum.NEVER.value
 #
 ## Submit the Job
-#rm.submit_job(job)
+rm.submit_job(job)
 #time.sleep(5)
 #print(rm.get_jobs_status())
 #print(rm.get_job_logs(job))
+
+#runtime_env = RuntimeEnv(
+#    container={
+#        "image": "rayproject/ray:latest-cpu"
+#    }
+#)
+#
+#client = JobSubmissionClient(os.environ.get("RAY_ADDRESS", "http://34.30.51.77:8265"))
+#job_id = client.submit_job(
+#    entrypoint="python batch_inference", runtime_env=runtime_env
+#)
+#print(job_id)
