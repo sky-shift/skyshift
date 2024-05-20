@@ -223,7 +223,7 @@ class APIServer:
         inviter_role = Role(
             metadata=RoleMeta(name="inviter-role", namespaces=["*"]),
             rules=[Rule(resources=["user"], actions=["create"])
-                   ],  #Creatuser actually means can create invite to user.
+                   ],  #Create user actually means can create invite to user.
             users=[])
 
         self.etcd_client.write(
@@ -264,8 +264,7 @@ class APIServer:
 
         # Create current context if it not populated yet.
         admin_config = load_manager_config()
-        current_context = admin_config[
-            "current_context"] if "current_context" in admin_config else None
+        current_context = admin_config.get('current_context', None)
         if not current_context:
             admin_config[
                 "current_context"] = f'{ADMIN_USER}-{DEFAULT_NAMESPACE}'

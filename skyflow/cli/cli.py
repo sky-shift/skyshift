@@ -1461,7 +1461,7 @@ cli.add_command(revoke_invite)
 
 
 @config.command(name="use-context",
-                aliases=["use-context"],
+                aliases=["use-ctx", "swap-context", "swap-ctx"],
                 help='Swap to a specified context (see .skyconf/config.yaml).')
 @click.argument('name', required=True)
 @halo_spinner("Switching context")
