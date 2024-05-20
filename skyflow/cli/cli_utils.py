@@ -1,11 +1,11 @@
 """
 Utils for Skyflow CLI.
 """
-from contextlib import redirect_stdout
 import enum
 import io
 import json as json_lib
 import time
+from contextlib import redirect_stdout
 from typing import Dict, List, Optional, Union
 
 import click
@@ -30,7 +30,6 @@ from skyflow.templates.job_template import JobStatusEnum
 from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  compute_datetime_delta, fetch_datetime,
                                  load_manager_config, update_manager_config)
-
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,
@@ -92,9 +91,10 @@ def create_cli_object(config: dict):
     try:
         api_response = api_object.create(config)
     except APIException as error:
-        raise click.ClickException(f"Failed to create {object_type}: {error}")
+        raise click.ClickException(
+            f"\nFailed to create {object_type}: {error}")
     if object_type != "exec":
-        click.echo(f"Created {object_type} {config['metadata']['name']}.")
+        click.echo(f"\nCreated {object_type} {config['metadata']['name']}.")
     return api_response
 
 
@@ -136,7 +136,7 @@ def get_cli_object(
         else:
             api_response = api_object.get(name=name)
     except APIException as error:
-        raise click.ClickException(f"Failed to get {object_type}: {error}")
+        raise click.ClickException(f"\nFailed to get {object_type}: {error}")
     return api_response
 
 
@@ -151,8 +151,9 @@ def delete_cli_object(object_type: str,
     try:
         api_response = api_object.delete(name=name)
     except APIException as error:
-        raise click.ClickException(f"Failed to delete {object_type}: {error}")
-    click.echo(f"Deleted {object_type} {name}.")
+        raise click.ClickException(
+            f"\nFailed to delete {object_type}: {error}")
+    click.echo(f"\nDeleted {object_type} {name}.")
     return api_response
 
 
@@ -182,9 +183,8 @@ def print_table(table_type, *args, **kwargs):
     }
     print_function = table_function_map.get(table_type)
     if print_function:
-        print_function(*args, **kwargs)
-    else:
-        raise ValueError("Invalid table type provided")
+        return print_function(*args, **kwargs)
+    raise ValueError("Invalid table type provided")
 
 
 def fetch_job_logs(name: str, namespace: str):
@@ -199,7 +199,7 @@ def fetch_job_logs(name: str, namespace: str):
             click.echo(log)
             click.echo('\n')
     except APIException as error:
-        raise click.ClickException(f"Failed to fetch logs: {error}")
+        raise click.ClickException(f"\nFailed to fetch logs: {error}")
 
 
 def _get_object_age(obj: Object) -> str:
@@ -271,12 +271,13 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
             resources_str = "{}"
         status = colorize_status(entry.get_status())
         table_data.append([name, manager_type, resources_str, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo clusters found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches
@@ -358,12 +359,13 @@ def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-
                 colorize_status(status),
                 age,
             ])
-
+    table = None
     if not table_data:
         click.echo("\nNo jobs found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
@@ -386,12 +388,13 @@ def print_namespace_table(namespace_list: Union[NamespaceList, Namespace]):
         status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo namespaces found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
@@ -423,12 +426,13 @@ def print_filter_table(filter_list: Union[FilterPolicyList, FilterPolicy]):
             name, include, exclude, labels, namespace, status,
             _get_object_age(entry)
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo filter policies found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: disable=too-many-locals
@@ -478,12 +482,13 @@ def print_service_table(service_list: Union[Service, ServiceList]):  # pylint: d
             namespace,
             _get_object_age(entry),
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo services found.")
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+    return table
 
 
 def print_link_table(link_list: Union[Link, LinkList]):
@@ -512,7 +517,7 @@ def print_link_table(link_list: Union[Link, LinkList]):
         status = colorize_status(entry.get_status())
         age = _get_object_age(entry)
         table_data.append([name, source, target, status, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo links found.")
     else:
@@ -545,7 +550,7 @@ def print_endpoints_table(endpoints_list):
         for cluster, endpoint_obj in endpoints.items():
             endpoints_str += f"{cluster}: {endpoint_obj.num_endpoints}\n"
         table_data.append([name, namespace, endpoints_str, age])
-
+    table = None
     if not table_data:
         click.echo("\nNo endpoints found.")
     else:
@@ -575,7 +580,7 @@ def print_role_table(roles_list):
             name,
             age,
         ])
-
+    table = None
     if not table_data:
         click.echo("\nNo roles found.")
     else:
@@ -685,34 +690,31 @@ def revoke_invite_req(invite: str):
         raise click.ClickException(f"Failed to create invite: {error}")
 
 
-def switch_context(username, namespace):
+def use_context(context_name: str):
     """
-    Switch local CLI active context.
+    Switch to a specified context name.
     """
-
     manager_config = load_manager_config()
+    contexts = manager_config.get('contexts', [])
 
-    if namespace:
-        manager_config['metadata']["namespace"] = namespace
-        update_manager_config(manager_config)
-        click.echo(f"Updated active namespace at {API_SERVER_CONFIG_PATH}.")
+    if manager_config.get('current_context', None) == context_name:
+        click.echo(f'Current context is already set to {context_name}.')
+        return
 
-    if username:
-        if 'users' not in manager_config:
-            raise click.ClickException(
-                f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
-            )
-
-        for user in manager_config['users']:
-            if user['name'] == username:
-                manager_config['current_user'] = username
-                update_manager_config(manager_config)
-                click.echo(f"Updated active user at {API_SERVER_CONFIG_PATH}.")
-                return
-
+    if not contexts:
         raise click.ClickException(
-            f"{username} does not exist as a user at {API_SERVER_CONFIG_PATH}."
-        )
+            f"No contexts found at {API_SERVER_CONFIG_PATH}.")
+
+    for context in contexts:
+        if context['name'] == context_name:
+            manager_config['current_context'] = context_name  # pylint: disable=pointless-statement
+            update_manager_config(manager_config)
+            click.echo(f'Current context set to {context_name}.')
+            return
+
+    raise click.ClickException(
+        f"{context_name} does not exist as a context at {API_SERVER_CONFIG_PATH}."
+    )
 
 
 def show_loading(stop_event):
@@ -729,13 +731,12 @@ def show_loading(stop_event):
     spinner.close()
 
 
-
 def get_table_str(table_type, *args, **kwargs):
     """Capture the printed table as a string."""
     buf = io.StringIO()
     with redirect_stdout(buf):
-        print_table(table_type, *args, **kwargs)
-    return buf.getvalue()
+        output_str = print_table(table_type, *args, **kwargs)
+    return f"\n{output_str}\r"
 
 
 def get_oldest_cluster_age(cluster_list):
@@ -748,7 +749,6 @@ def get_oldest_cluster_age(cluster_list):
            cluster.metadata.creation_timestamp < oldest_creation_timestamp:
             oldest_creation_timestamp = cluster.metadata.creation_timestamp
     return oldest_creation_timestamp
-
 
 
 def calculate_total_resources(cluster_list):
@@ -782,5 +782,5 @@ def display_running_jobs(job_list):
         key=lambda job: job.metadata.creation_timestamp,
         reverse=True)
 
-    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs:{Style.RESET_ALL}")
+    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs{Style.RESET_ALL}", nl=False)
     print_table('job', JobList(objects=running_jobs_sorted))
