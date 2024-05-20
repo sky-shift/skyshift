@@ -1485,48 +1485,44 @@ def status():  # pylint: disable=too-many-locals
     resources for clusters in the READY state,
     as well as the newest 10 running jobs.
     """
-    from skyflow.cli.cli_utils import ( # pylint: disable=import-outside-toplevel
-        print_table, get_table_str,
-        calculate_total_resources, get_oldest_cluster_age,
-        display_running_jobs
-    )
+    from skyflow.api_client import (  # pylint: disable=import-outside-toplevel
+        ClusterAPI, JobAPI)
+    from skyflow.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
+        calculate_total_resources, display_running_jobs,
+        get_oldest_cluster_age, get_table_str, print_table)
     from skyflow.globals import \
         APP_NAME  # pylint: disable=import-outside-toplevel
-    from skyflow.templates.cluster_template import(   # pylint: disable=import-outside-toplevel
+    from skyflow.templates.cluster_template import (  # pylint: disable=import-outside-toplevel
         Cluster, ClusterList, ClusterMeta, ClusterSpec, ClusterStatus,
         ClusterStatusEnum)
-    from skyflow.api_client import ClusterAPI, JobAPI  # pylint: disable=import-outside-toplevel
-    
+
     cluster_list = ClusterAPI().list().objects
-    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Clusters{Style.RESET_ALL}")
+    click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Clusters{Style.RESET_ALL}",
+               nl=False)
     cluster_table_str = get_table_str('cluster',
                                       ClusterList(objects=cluster_list))
-    click.echo(cluster_table_str)
+    click.echo(cluster_table_str, nl=False)
 
     # Create the separator line with the same length as the longest line in the table
     longest_line_length = max(
         len(line) for line in cluster_table_str.split('\n'))
     separator_line = "=" * longest_line_length
-    click.echo(separator_line)
+    click.echo('\n+\n' + separator_line, nl=False)
 
     total_resources, available_resources = calculate_total_resources(
         cluster_list)
-
-    # Create synthetic SkyShift cluster
-    synthetic_cluster = Cluster(metadata=ClusterMeta(name=APP_NAME),
-                                spec=ClusterSpec(manager=APP_NAME),
-                                status=ClusterStatus(
-                                    status=ClusterStatusEnum.READY.value,
-                                    capacity=total_resources,
-                                    allocatable_capacity=available_resources))
-    synthetic_cluster.metadata.creation_timestamp = get_oldest_cluster_age(  # pylint: disable=assigning-non-slot
+    # Create aggregate cluster (sum of all existing READY clusters)
+    total_cluster = Cluster(metadata=ClusterMeta(name='Merged-Cluster'),
+                            spec=ClusterSpec(manager=APP_NAME),
+                            status=ClusterStatus(
+                                status=ClusterStatusEnum.READY.value,
+                                capacity=total_resources,
+                                allocatable_capacity=available_resources))
+    total_cluster.metadata.creation_timestamp = get_oldest_cluster_age(  # pylint: disable=assigning-non-slot
         cluster_list)
-
-    # Wrap the synthetic cluster in a ClusterList
-    synthetic_cluster_list = ClusterList(objects=[synthetic_cluster])
-
-    # Print synthetic SkyShift cluster
-    print_table('cluster', synthetic_cluster_list)
+    total_cluster_list = ClusterList(objects=[total_cluster])
+    # Print aggregate cluster
+    print_table('cluster', total_cluster_list)
 
     job_list = JobAPI().list()
     display_running_jobs(job_list)

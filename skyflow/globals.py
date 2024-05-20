@@ -15,7 +15,7 @@ KUBE_CONFIG_DEFAULT_PATH = '~/.kube/config'
 
 CLUSTER_TIMEOUT = 10  # seconds
 
-APP_NAME = "SkyShift"
+APP_NAME = "Skyflow"
 
 
 def cluster_dir(cluster_name: str):
