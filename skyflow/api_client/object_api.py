@@ -195,4 +195,6 @@ class NoNamespaceObjectAPI(ObjectAPI):
     def watch(self):
         for data in watch_events(f"{self.url}?watch=true",
                                  headers=self.auth_headers):
+            if not data:
+                raise APIException("Watch unexpectedly terminated.")
             yield verify_response(data)

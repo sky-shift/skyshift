@@ -7,11 +7,11 @@ from typing import Dict, List, Optional
 
 from pydantic import Field, field_validator
 
-from skyflow.utils import sanitize_cluster_name
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.utils import sanitize_cluster_name
 
 
 class ClusterStatusEnum(enum.Enum):
