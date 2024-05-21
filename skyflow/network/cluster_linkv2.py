@@ -44,9 +44,7 @@ CL_INSTALL_CMD = (
 
 # Clusterlink deployment commands to deploy on a cluster
 CLA_FABRIC_CMD = ("clusterlink create fabric")
-CLA_PEER_CERT_CMD = (
-    "clusterlink create peer-cert --name {cluster_name}"
-)
+CLA_PEER_CERT_CMD = ("clusterlink create peer-cert --name {cluster_name}")
 CLA_DEPLOY_CMD = (
     "clusterlink deploy peer --name {cluster_name} --namespace {namespace} --tag {tag} --start none"
 )
@@ -79,8 +77,7 @@ CL_UPDATE_IMPORT_CMD = (
     " --port {port} --peer {peer} --merge")
 
 CL_POLICY_CMD = (
-    "gwctl create policy --myid {cluster_name} --policyFile {policy_file}"
-)
+    "gwctl create policy --myid {cluster_name} --policyFile {policy_file}")
 CL_EXPORT_DELETE_CMD = (
     "gwctl delete export --myid {cluster_name} --name {service_name}")
 CL_IMPORT_DELETE_CMD = (
@@ -100,19 +97,24 @@ POLICY_ALLOW_ALL = {
     }
 }
 
+
 def _install_lock_acquire():
     """Blocks until lock using a file"""
     while os.path.exists(INSTALL_LOCK_PATH):
         time.sleep(0.1)
-    open(INSTALL_LOCK_PATH,'w').close()
+    open(INSTALL_LOCK_PATH, 'w').close()
+
 
 def _install_lock_release():
     """Releases the lock by deleting the file"""
     os.remove(INSTALL_LOCK_PATH)
 
+
 def _is_clusterink_installed():
     """Checks clusterlink install directory for the binary"""
-    return os.path.exists(f"{CL_INSTALL_DIR}/clusterlink") or os.path.exists(f"{CL_ROOT_INSTALL_DIR}/clusterlink")
+    return os.path.exists(f"{CL_INSTALL_DIR}/clusterlink") or\
+          os.path.exists(f"{CL_ROOT_INSTALL_DIR}/clusterlink")
+
 
 def _wait_for_ready_deployment(k8s_api_client: client.ApiClient,
                                name,
@@ -342,8 +344,9 @@ def _deploy_clusterlink_gateway(k8s_api_client: client.ApiClient, cluster_name,
                                 namespace: str):
     """Deploys the clusterlink gateway and its components on a cluster."""
     try:
-        cl_logger.info("Deploying file %s", os.path.join(CL_FABRIC_DIRECTORY, cluster_name,
-                                            "k8s.yaml"))
+        cl_logger.info(
+            "Deploying file %s",
+            os.path.join(CL_FABRIC_DIRECTORY, cluster_name, "k8s.yaml"))
         utils.create_from_yaml(k8s_api_client,
                                os.path.join(CL_FABRIC_DIRECTORY, cluster_name,
                                             "k8s.yaml"),
@@ -392,8 +395,8 @@ def launch_clusterlink(manager: KubernetesManager):
 
         cl_peer_command = CLA_PEER_CERT_CMD.format(cluster_name=cluster_name)
         cl_deploy_command = CLA_DEPLOY_CMD.format(cluster_name=cluster_name,
-                                              namespace=namespace,
-                                              tag=CL_VERSION)
+                                                  namespace=namespace,
+                                                  tag=CL_VERSION)
         cl_logger.info("Doing clusterlink deploy : %s", cl_deploy_command)
 
         _remove_cluster_certs(cluster_name)
@@ -468,12 +471,13 @@ def export_service(service_name: str, manager: KubernetesManager,
         return False
     return True
 
+
 def _get_existing_import_clusters(service_name: str, cluster_name: str):
     """Gets the list of clusters a service is imported from"""
-    sources : List[str]
+    sources: List[str]
     port = ""
     get_import_cmd = CL_GET_IMPORT_CMD.format(cluster_name=cluster_name,
-                                      service_name=service_name)   
+                                              service_name=service_name)
     output = subprocess.getoutput(get_import_cmd)
     if not _parse_clusterlink_op(output):
         return None, ""
@@ -488,7 +492,6 @@ def _get_existing_import_clusters(service_name: str, cluster_name: str):
     except json.JSONDecodeError as error:
         cl_logger.error("Error decoding imports: %s", error)
         return None, ""
-        
 
 
 def import_service(service_name: str, manager: KubernetesManager, peer: str,
@@ -501,20 +504,21 @@ def import_service(service_name: str, manager: KubernetesManager, peer: str,
         # Update existing import
         sources.append(peer)
         peers = ",".join(sources)
-        cl_logger.info("Updating imported service %s from %s", service_name, peers)
+        cl_logger.info("Updating imported service %s from %s", service_name,
+                       peers)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
-                                        service_name=service_name,
-                                        port=ports[0],
-                                        peer=peers)
+                                                 service_name=service_name,
+                                                 port=ports[0],
+                                                 peer=peers)
         cl_logger.info("%s", import_cmd)
-        output = subprocess.getoutput(import_cmd)       
+        output = subprocess.getoutput(import_cmd)
     else:
         # New import
         cl_logger.info("Importing service %s from %s", service_name, peer)
         import_cmd = CL_IMPORT_CMD.format(cluster_name=cluster_name,
-                                        service_name=service_name,
-                                        port=ports[0],
-                                        peer=peer)
+                                          service_name=service_name,
+                                          port=ports[0],
+                                          peer=peer)
         output = subprocess.getoutput(import_cmd)
 
     if not _parse_clusterlink_op(output):
@@ -548,18 +552,19 @@ def delete_import_service(service_name: str, manager: KubernetesManager,
         # Update existing import to remove the specific peer from source
         sources.remove(peer)
         peers = ",".join(sources)
-        cl_logger.info("Updating imported service %s from %s", service_name, peers)
+        cl_logger.info("Updating imported service %s from %s", service_name,
+                       peers)
         import_cmd = CL_UPDATE_IMPORT_CMD.format(cluster_name=cluster_name,
-                                        service_name=service_name,
-                                        port=port,
-                                        peer=peers)
-        output = subprocess.getoutput(import_cmd)             
+                                                 service_name=service_name,
+                                                 port=port,
+                                                 peer=peers)
+        output = subprocess.getoutput(import_cmd)
     else:
         # Remove the import as it has only one source
         cl_logger.info("Removing imported service %s from %s", service_name,
-                    peer)
+                       peer)
         import_cmd = CL_IMPORT_DELETE_CMD.format(cluster_name=cluster_name,
-                                                service_name=service_name)
+                                                 service_name=service_name)
         output = subprocess.getoutput(import_cmd)
 
     if not _parse_clusterlink_op(output):

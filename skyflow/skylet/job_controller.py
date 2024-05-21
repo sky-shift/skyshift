@@ -18,7 +18,7 @@ from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
-from skyflow.templates.job_template import Job, JobStatusEnum, TaskStatusEnum
+from skyflow.templates.job_template import Job, TaskStatusEnum
 
 DEFAULT_HEARTBEAT_TIME = 3  # seconds
 DEFAULT_RETRY_LIMIT = 5
@@ -125,11 +125,13 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
             self.logger.warning("Job %s not found on cluster.", job_name)
             cached_job = informer_object[job_name]
             # Ensure the job was in the RUNNING state before marking it as FAILED
-            if cached_job.status.conditions[-1]["type"] == TaskStatusEnum.RUNNING.value:
+            if cached_job.status.conditions[-1][
+                    "type"] == TaskStatusEnum.RUNNING.value:
                 self.update_job(
                     cached_job, {
                         TaskStatusEnum.FAILED.value:
-                        sum(cached_job.status.replica_status[self.name].values())
+                        sum(cached_job.status.replica_status[
+                            self.name].values())
                     }, {}, self.job_status["containers"])
 
     def update_job(self, job: Job, status: dict, tasks: dict,
