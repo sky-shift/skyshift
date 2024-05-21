@@ -4,6 +4,7 @@ Represents the comptability layer over Ray native API.
 import json
 import logging
 import os
+import tarfile
 import time
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -58,6 +59,8 @@ class RayConnectionError(config.config_exception.ConfigException):
 class RayManager(Manager):
     """ Compatibility layer for Ray cluster manager. """
 
+    is_initialized = False
+
     def __init__(self, name: str, ssh_key_path: Optional[str], username: str,
                  host: str, logger: Optional[logging.Logger] = None):
         super().__init__(name)
@@ -75,7 +78,7 @@ class RayManager(Manager):
             self.ssh_client = paramiko.SSHClient()
             self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             self._setup_ssh_client()
-            self._install_ray()
+            self._setup_ray()
             self.client = self._connect_to_ray_cluster()
 
     def _connect_to_ray_cluster(self):
@@ -91,11 +94,11 @@ class RayManager(Manager):
     def _setup_ssh_client(self):
         """Reads the SSH key file, and setups the SSH client."""
         try:
-            if not os.path.exists(os.path.abspath(os.path.expanduser(self.ssh_key_path))):
+            key_file_path = os.path.abspath(os.path.expanduser(self.ssh_key_path))
+            if not key_file_path:
                 raise FileNotFoundError(f"SSH key file not found: {self.ssh_key_path}")
 
-            with open(os.path.abspath(os.path.expanduser(self.ssh_key_path)), "r") as key_file:
-                private_key = paramiko.RSAKey.from_private_key(key_file)
+            private_key = paramiko.RSAKey.from_private_key_file(key_file_path)
             self.ssh_client.connect(hostname=self.host, username=self.username, pkey=private_key)
         except (IOError, paramiko.ssh_exception.SSHException) as e:
             self.logger.error(f"SSH connection setup failed: {e}")
@@ -117,73 +120,124 @@ class RayManager(Manager):
         
         return available_containers  # Return the first available container manager
 
-    def _get_remote_system_memory(self):
-        """Retrieve total memory available on the remote system in gigabytes."""
-        command = "grep MemTotal /proc/meminfo | awk '{print $2}'"  # This command gets the memory in KB
-        _, stdout, _ = self.ssh_client.exec_command(command)
-        mem_kb = stdout.read().decode().strip()
-        if mem_kb:
-            return int(mem_kb) // 1024 // 1024  # Convert KB to GB
-        else:
-            self.logger.error("Failed to retrieve memory information from the remote system.")
-            raise Exception("Failed to retrieve memory information from the remote system.")
-
     def _copy_file_to_remote(self, local_path: str, remote_path: str):
         """Copy a file from the local system to the remote system."""
         sftp = self.ssh_client.open_sftp()
         sftp.put(local_path, remote_path)
         sftp.close()
 
+    def _create_archive(self, directory: str, archive_name: str):
+        """Create a tar archive of the directory excluding ray_manager.py."""
+        with tarfile.open(archive_name, "w:gz") as tar:
+            tar.add(directory, arcname=os.path.basename(directory), 
+                    filter=lambda x: None if x.name.endswith('ray_manager.py') else x)
+
+
+    def _extract_archive_on_remote(self, remote_archive_path: str, remote_extract_path: str):
+        """Extract the tar archive on the remote system."""
+        command = f"tar -xzf {remote_archive_path} -C {remote_extract_path}"
+        _, stdout, stderr = self.ssh_client.exec_command(command)
+        stdout.channel.recv_exit_status()
+        self.logger.info(stdout.read().decode())
+        self.logger.error(stderr.read().decode())
+
     def _copy_required_files(self):
         """Copy the required files to the remote system."""
-        # Copy the job launcher script to the remote system
-        job_launcher_path = os.path.join(os.path.dirname(__file__), "job_launcher.py")
-        self._copy_file_to_remote(job_launcher_path, "job_launcher.py")
+        local_directory = '.'
+        archive_name = 'ray_manager_files.tar.gz'
+        #TODO: let the user customize this
+        remote_archive_path = f'/home/alex/ray_manager_files.tar.gz'
+        remote_extract_path = '/home/alex'
 
-        # Copy the fetch_ray_resources script to the remote system
-        fetch_ray_resources_path = os.path.join(os.path.dirname(__file__), "fetch_ray_resources.py")
-        self._copy_file_to_remote(fetch_ray_resources_path, "fetch_ray_resources.py")
+        self._create_archive(local_directory, archive_name)
+        self._copy_file_to_remote(archive_name, remote_archive_path)
+        self._extract_archive_on_remote(remote_archive_path, remote_extract_path)
 
-        # Copy the fetch_ray_allocatable_resources script to the remote system
-        fetch_ray_allocatable_resources_path = os.path.join(os.path.dirname(__file__), "fetch_ray_allocatable_resources.py")
-        self._copy_file_to_remote(fetch_ray_allocatable_resources_path, "fetch_ray_allocatable_resources.py")
+        # Clean up local archive
+        os.remove(archive_name)
+
+    def _get_remote_system_memory(self):
+        """Get the memory of the remote system in GB."""
+        _, stdout, _ = self.ssh_client.exec_command("free -g | awk '/^Mem:/ {print $2}'")
+        return int(stdout.read().strip())
+
+    def _detect_shell(self):
+        """Detect the shell used by the remote system."""
+        _, stdout, _ = self.ssh_client.exec_command("echo $SHELL")
+        shell = stdout.read().decode().strip().split('/')[-1]
+        return shell
+
+    def _restart_ssh_connection(self):
+        """Restart the SSH connection."""
+        self.ssh_client.close()
+        self._setup_ssh_client()
 
     def _setup_ray(self):
-        """Set up ray using miniconda."""
+        """Set up Ray using Miniconda."""
+
+        if self.is_initialized:
+            self.logger.info("Ray is already initialized.")
+            return
+        self.is_initialized = True
 
         try:
-            remote_memory_gb = self._get_remote_system_memory()  # Get remote memory in GB
-            # 30% of total memory for Ray's object store
-            recommended_shm_size = f"{int(remote_memory_gb * 0.3)}G"
-        except Exception as e:
-            self.logger.error(f"Error calculating remote memory: {e}")
-            return
+            self._copy_required_files()
+            self.logger.info("Copied required files to the remote system.")
 
-        for container_manager in container_managers:
-            self.logger.info(f"Setting up Ray using {container_manager.value}.")
-            if container_manager == ContainerEnum.DOCKER:
-                command = (
-                    f"docker run -d -p {RAY_NODES_PORT}:{RAY_NODES_PORT} "
-                    f"-p {RAY_JOBS_PORT}:{RAY_JOBS_PORT} "
-                    f"-p {RAY_CLIENT_PORT}:{RAY_CLIENT_PORT} "
-                    f"--shm-size={recommended_shm_size}gb "
-                    "alexmontoril23/ray-manager:latest /bin/bash -c "
-                    f"\"ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0; tail -f /dev/null\""
-                )
+            # Detect the shell and source the appropriate profile
+            shell = self._detect_shell()
+            if shell == 'zsh':
+                profile_cmd = "source ~/.zshrc"
+            elif shell == 'ksh':
+                profile_cmd = "source ~/.kshrc"
             else:
-                self.logger.error(f"Unsupported container manager: {container_manager.value}")
-                continue
+                profile_cmd = "source ~/.bashrc"  # Default to bashrc if unknown
 
-            # Logging the command for debugging purposes
-            self.logger.debug(f"Command for {container_manager.value}: {command}")
+            # Install Miniconda
+            self.logger.info("Installing Miniconda...")
+            install_conda_cmd = f"bash ~/miniconda_install.sh && {profile_cmd}"
+            _, stdout, stderr = self.ssh_client.exec_command(install_conda_cmd)
+            stdout.channel.recv_exit_status()
+            self.logger.info(stdout.read().decode())
+            self.logger.error(stderr.read().decode())
 
-            _, _, stderr = self.ssh_client.exec_command(command)
-            if stderr.read():
-                error_msg = stderr.read().decode()
-                self.logger.error(f"Failed to start Ray in {container_manager.value}: {error_msg} \
-                                  Trying next container manager.")
-                continue
-            self.logger.info(f"Ray successfully started using {container_manager.value}.")
+            # Restart SSH connection
+            self.logger.info("Restarting SSH connection...")
+            self._restart_ssh_connection()
+
+            # Include the explicit path to the conda binary
+            conda_path = "/home/alex/miniconda/bin/conda"
+            if shell == 'zsh':
+                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.zshrc"
+            elif shell == 'ksh':
+                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.kshrc"
+            else:
+                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.bashrc"
+
+            # Create conda environment and install Ray
+            self.logger.info("Setting up Ray environment...")
+            setup_cmd = f"{conda_profile_cmd} && {conda_path} create -n my_ray_env python=3.10 -y && {conda_path} run -n my_ray_env pip install ray[all]"
+            _, stdout, stderr = self.ssh_client.exec_command(setup_cmd)
+            stdout.channel.recv_exit_status()
+            self.logger.info(stdout.read().decode())
+            self.logger.error(stderr.read().decode())
+
+            remote_memory_gb = self._get_remote_system_memory()  # Get remote memory in GB
+            recommended_shm_size = int(remote_memory_gb * 0.3 * 1024 * 1024 * 1024)  # in bytes
+
+            # Start Ray in the new conda environment
+            start_ray_cmd = f"""
+                {conda_profile_cmd} && \
+                {conda_path} run -n my_ray_env ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0 --object-store-memory={recommended_shm_size}
+            """
+            _, stdout, stderr = self.ssh_client.exec_command(start_ray_cmd)
+            stdout.channel.recv_exit_status()
+            self.logger.info(stdout.read().decode())
+            self.logger.error(stderr.read().decode())
+
+            self.logger.info("Ray successfully started.")
+        except Exception as error:  # pylint: disable=broad-except
+            self.logger.error(f"Error setting up Ray: {error}")
 
     def _check_ray_connection(self):
         """Attempt to initialize the Ray client, to check if it is reachable"""
@@ -194,18 +248,6 @@ class RayManager(Manager):
         except Exception as error:
             self.logger.error(f"Failed to connect to Ray at {self.host}: {error}")
         return False
-
-    def _install_ray(self):
-        """Install Ray on the remote system."""
-        self.logger.info("Ray is not installed or not reachable. Checking for container managers.")
-        try:
-            container_managers = self._find_available_container_manager()
-            self._setup_containerized_ray(container_managers)  # Assuming it returns a single manager
-            # Retry connecting to Ray after setup
-            self.client = JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
-            self.logger.info("Successfully installed ray on the remote system.")
-        except Exception as setup_error:
-            self.logger.error(f"Failed to setup Ray: {setup_error}")
 
     def close(self):
         """Closes the SSH connection."""
@@ -289,7 +331,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint="python /fetch_ray_resources.py"
+            entrypoint="python /home/alex/fetch_ray_resources.py"
         )
 
         # Wait for the job to finish and fetch the results
@@ -322,7 +364,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint="python /fetch_ray_allocatable_resources.py"
+            entrypoint="python /home/alex/fetch_ray_allocatable_resources.py"
         )
 
         # Wait for the job to finish and fetch the results
@@ -488,8 +530,8 @@ class RayManager(Manager):
 #rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
 #print(rm.cluster_resources)
 #print(rm.allocatable_resources)
-rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
-#print(mr.get_cluster_status())
+rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
+print(rm.get_cluster_status())
 
 # Create a Job instance
 job = Job()
@@ -505,7 +547,7 @@ job.spec.replicas = 1
 job.spec.restart_policy = RestartPolicyEnum.NEVER.value
 #
 ## Submit the Job
-rm.submit_job(job)
+#rm.submit_job(job)
 #time.sleep(5)
 #print(rm.get_jobs_status())
 #print(rm.get_job_logs(job))
