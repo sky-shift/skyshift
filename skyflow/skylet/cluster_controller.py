@@ -14,7 +14,6 @@ import requests
 from skyflow import utils
 from skyflow.api_client import ClusterAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
-from skyflow.cluster_manager.ray_manager import RayManager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir

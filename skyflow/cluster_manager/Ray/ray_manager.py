@@ -143,7 +143,8 @@ class RayManager(Manager):
 
     def _copy_required_files(self):
         """Copy the required files to the remote system."""
-        local_directory = '.'
+        local_directory = os.path.dirname(os.path.realpath(__file__))
+        self.logger.info(f"Copying files from {local_directory} to the remote system.")
         archive_name = 'ray_manager_files.tar.gz'
         #TODO: let the user customize this
         remote_archive_path = f'/home/alex/ray_manager_files.tar.gz'
@@ -401,15 +402,19 @@ class RayManager(Manager):
         # Generate a unique identifier for the job
         job_id = f"{job.get_namespace()}-{job.get_name()}-{uuid4().hex[:10]}"
 
+        submission_details = {
+            "manager_job_id": job_id,
+        }
+
         # Check if the job has already been submitted
         if job.get_name() in self.job_registry:
-            return self.job_registry[job.get_name()]
+            return submission_details
 
         # Serialize the job object to JSON
         job_json = json.dumps(job.model_dump())
 
         # Prepare the entrypoint for the job
-        entrypoint = f"python /job_launcher.py '{job_json}'"
+        entrypoint = f"python /home/alex/job_launcher.py '{job_json}'"
 
         # Submit the job to the Ray cluster
         self.client.submit_job(
@@ -426,9 +431,6 @@ class RayManager(Manager):
         )
 
         # Store additional information about the job submission
-        submission_details = {
-            "manager_job_id": job_id,
-        }
         self.job_registry[job.get_name()] = job_id
 
         return submission_details
@@ -530,21 +532,21 @@ class RayManager(Manager):
 #rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
 #print(rm.cluster_resources)
 #print(rm.allocatable_resources)
-rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
-print(rm.get_cluster_status())
+#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
+#print(rm.get_cluster_status())
 
 # Create a Job instance
-job = Job()
-job.spec.image = "anakli/cca:parsec_blackscholes"
-job.spec.resources = {
-    ResourceEnum.CPU.value: 1,
-    ResourceEnum.MEMORY.value: 512  # In MB
-}
-job.spec.run = "ls -la && taskset -c 1 ./run -a run -S parsec -p blackscholes -i native -n 1"
-job.spec.envs = {"ENV_VAR": "value"}
-job.spec.ports = [8080]
-job.spec.replicas = 1
-job.spec.restart_policy = RestartPolicyEnum.NEVER.value
+#job = Job()
+#job.spec.image = "anakli/cca:parsec_blackscholes"
+#job.spec.resources = {
+#    ResourceEnum.CPU.value: 1,
+#    ResourceEnum.MEMORY.value: 512  # In MB
+#}
+#job.spec.run = "ls -la && taskset -c 1 ./run -a run -S parsec -p blackscholes -i native -n 1"
+#job.spec.envs = {"ENV_VAR": "value"}
+#job.spec.ports = [8080]
+#job.spec.replicas = 1
+#job.spec.restart_policy = RestartPolicyEnum.NEVER.value
 #
 ## Submit the Job
 #rm.submit_job(job)
