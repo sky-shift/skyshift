@@ -26,7 +26,7 @@ def halo_spinner(text):
         params = sig.parameters
 
         def wrapper(*args, **kwargs):
-            spinner = Halo(text=text, spinner='dots', color='cyan')
+            spinner = Halo(text=f'{text}\n', spinner='dots', color='cyan')
             spinner.start()
             try:
                 if 'spinner' in params:
@@ -35,8 +35,8 @@ def halo_spinner(text):
                     result = func(*args, **kwargs)
                 spinner.succeed(f"{text} completed successfully.")
                 return result
-            except Exception as error:  # pylint: disable=broad-except
-                spinner.fail(f"{text} failed: {str(error)}")
+            except Exception:  # pylint: disable=broad-except
+                spinner.fail(f"{text} failed.")
                 raise
 
         return wrapper
@@ -80,11 +80,18 @@ def logs():
     return
 
 
+@click.group(cls=ClickAliasedGroup)
+def config():
+    """Fetch logs for a job."""
+    return
+
+
 cli.add_command(create)
 cli.add_command(get)
 cli.add_command(delete)
 cli.add_command(apply)
 cli.add_command(logs)
+cli.add_command(config)
 
 
 def validate_input_string(value: str) -> bool:
@@ -1491,28 +1498,23 @@ def revoke_invite(invite):  # pylint: disable=redefined-outer-name
 cli.add_command(revoke_invite)
 
 
-@click.command('switch', help='Switch the current context.')
-@click.option('--user', default='', help='The active username to use.')
-@click.option('-ns',
-              '--namespace',
-              default='',
-              help='The active namespace to use.')
+@config.command(name="use-context",
+                aliases=["use-ctx", "swap-context", "swap-ctx"],
+                help='Swap to a specified context (see .skyconf/config.yaml).')
+@click.argument('name', required=True)
 @halo_spinner("Switching context")
-def switch(user, namespace, spinner):
+def use_sky_context(name: str, spinner):
     """
     Switch local CLI active context.
     """
     from skyflow.cli.cli_utils import \
-        switch_context  # pylint: disable=import-outside-toplevel
+        use_context  # pylint: disable=import-outside-toplevel
 
-    if not user and not namespace:
+    if not name:
         spinner.warn("No new context is specified. Nothing is changed.")
         return
 
-    switch_context(user, namespace)
-
-
-cli.add_command(switch)
+    use_context(name)
 
 
 @click.command(name="status")

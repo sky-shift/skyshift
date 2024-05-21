@@ -3,7 +3,7 @@ Utils for cluster managers.
 """
 import logging
 
-from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
+from skyflow.cluster_manager.Kubernetes.kubernetes_manager import KubernetesManager
 from skyflow.cluster_manager.manager import K8_MANAGERS, RAY_MANAGERS
 from skyflow.cluster_manager.ray_manager import RayManager
 from skyflow.templates import Cluster
