@@ -125,13 +125,11 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
             self.logger.warning("Job %s not found on cluster.", job_name)
             cached_job = informer_object[job_name]
             # Ensure the job was in the RUNNING state before marking it as FAILED
-            if cached_job.status.conditions[-1][
-                    "type"] == TaskStatusEnum.RUNNING.value:
+            if TaskStatusEnum.RUNNING.value in cached_job.status.replica_status.get(self.name, {}).values():
                 self.update_job(
                     cached_job, {
                         TaskStatusEnum.FAILED.value:
-                        sum(cached_job.status.replica_status[
-                            self.name].values())
+                        sum(cached_job.status.replica_status[self.name].values())
                     }, {}, self.job_status["containers"])
 
     def update_job(self, job: Job, status: dict, tasks: dict,
