@@ -24,7 +24,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 
-from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
+from skyflow.cluster_manager.Kubernetes.kubernetes_manager import K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
