@@ -41,6 +41,12 @@ def unsanitize_cluster_name(value: Optional[str]) -> str:
 def generate_manager_config(host: str, port: int):
     """Generates the API server config file."""
     absolute_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
+
+    if host == '0.0.0.0':
+        # Fetch public IP address of the machine.
+        response = requests.get('https://api.ipify.org?format=json')
+        host = response.json()['ip']
+
     # If path exists, check if host and port are identical
     if os.path.exists(absolute_path):
         with open(absolute_path, "r") as config_file:
@@ -49,8 +55,12 @@ def generate_manager_config(host: str, port: int):
             if (config_dict["api_server"]["host"] == host
                     and config_dict["api_server"]["port"] == port
                     and "secret" in config_dict["api_server"]):
-                print("API server config already exists. Skipping generation.")
-                return
+                if ("contexts" in config_dict and "users" in config_dict
+                        and "current_context" in config_dict):
+                    print(
+                        "API server config already exists. Skipping generation."
+                    )
+                    return
 
     config_dict = {
         "api_server": {
@@ -58,11 +68,23 @@ def generate_manager_config(host: str, port: int):
             "port": port,
             "secret": os.urandom(256).hex(),
         },
+        "current_context": "",
+        "contexts": [],
         "users": [],
     }
     os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
     with open(absolute_path, "w") as config_file:
         yaml.dump(config_dict, config_file)
+
+def generate_temp_directory(directory_path):
+    """
+    Generates temporary directorys in SKYCONF for system use.
+    """
+    absolute_path = os.path.expanduser(SKYCONF_DIR + directory_path)
+    if os.path.exists(absolute_path + directory_path):
+        return
+    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
+
 
 def generate_temp_directory(directory_path):
     """
@@ -125,6 +147,7 @@ def load_manager_config():
         with open(os.path.expanduser(API_SERVER_CONFIG_PATH),
                   "r") as config_file:
             config_dict = yaml.safe_load(config_file)
+
     except FileNotFoundError as error:
         raise Exception(
             f"API server config file not found at {API_SERVER_CONFIG_PATH}."

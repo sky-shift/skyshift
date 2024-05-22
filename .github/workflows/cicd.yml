@@ -1,0 +1,23 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      containerId: ${{ steps.devcontainer.outputs.containerId }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: devcontainer
+        name: Build dev container and run tests
+        uses: devcontainers/ci@v0.3
+        with:
+          runCmd: |
+            echo "containerId=$HOSTNAME" >> "$GITHUB_OUTPUT"
+            go install sigs.k8s.io/kind@v0.22.0
+            pip install -e .[server,dev]
+            minikube delete && minikube start && kind delete clusters $(kind get clusters) && kind create cluster
+            python -m pytest skyflow/tests

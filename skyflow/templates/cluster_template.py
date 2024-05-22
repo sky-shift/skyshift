@@ -7,11 +7,11 @@ from typing import Dict, List, Optional
 
 from pydantic import Field, field_validator
 
-from skyflow import utils
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.utils import sanitize_cluster_name
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -170,7 +170,7 @@ class ClusterMeta(ObjectMeta):
     def verify_name(cls, value: str) -> str:
         """Validates the name field of a Cluster,
         ensuring it does not contain whitespaces or '/'."""
-        return utils.sanitize_cluster_name(value)
+        return sanitize_cluster_name(value)
 
 
 class ClusterSpec(ObjectSpec):

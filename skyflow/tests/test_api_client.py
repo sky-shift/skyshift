@@ -11,6 +11,7 @@ pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_
 import tempfile
 from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
+from unittest.mock import patch
 
 import pytest
 import requests
