@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import subprocess
 from typing import Optional
+import requests
 
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
@@ -46,6 +47,40 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     print(
         "[Installer] ETCD failed to install and launch. Try manually installing ETCD."
     )
+    return False
+
+
+def check_and_install_minio(data_directory: Optional[str] = None, access_key: str = 'minioadmin', 
+                            secret_key: str = 'minioadmin', server_port: str = '9000', console_port: str = '9001') -> bool:
+    """
+    Checks if MinIO is installed and running. If not, installs and launches MinIO.
+    
+    Parameters:
+    - data_directory: Optional; specifies the data storage directory for MinIO.
+    - access_key: MinIO access key, defaults to 'minioadmin'.
+    - secret_key: MinIO secret key, defaults to 'minioadmin'.
+    - server_port: Port for the MinIO server, defaults to '9000'.
+    - console_port: Port for the MinIO management console, defaults to '9001'.
+    """
+    try:
+        # Try to connect to MinIO server
+        response = requests.get(f"http://localhost:{server_port}/minio/health/live")
+        if response.status_code == 200:
+            print("[Installer] MinIO is running.")
+            return True
+    except requests.exceptions.RequestException:
+        print("[Installer] MinIO is not running, automatically installing MinIO.")
+
+    relative_dir = os.path.dirname(os.path.realpath(__file__))
+    install_command = f"{relative_dir}/install_minio.sh {data_directory} {access_key} {secret_key} {server_port} {console_port}"
+
+    with subprocess.Popen(install_command, shell=True, start_new_session=True) as install_process:
+        install_process.wait()  # Wait for the script to complete
+        install_rc = install_process.returncode
+    if install_rc == 0:
+        print("[Installer] Successfully installed and launched MinIO.")
+        return True
+    print("[Installer] MinIO failed to install and launch. Try manually installing MinIO.")
     return False
 
 
