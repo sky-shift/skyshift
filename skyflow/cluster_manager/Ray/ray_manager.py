@@ -417,7 +417,6 @@ class RayManager(Manager):
         # Submit the job to the Ray cluster
         self.client.submit_job(
             entrypoint=entrypoint,
-            runtime_env={"working_dir": "."},
             submission_id=job_id,
             entrypoint_num_cpus=job.spec.resources.get(ResourceEnum.CPU.value, 0),
             entrypoint_num_gpus=job.spec.resources.get(ResourceEnum.GPU.value, 0),
@@ -445,12 +444,9 @@ class RayManager(Manager):
             None
         """
         self.client = self._connect_to_ray_cluster()
-        job_id = self.job_registry.get(job.get_name())
         
         # Check if the job has been submitted
-        if job_id not in self.job_registry:
-            self.logger.info(f"Job {job_id} not found in job registry.")
-            return
+        job_id = job.status.job_ids[self.cluster_name]
         
         try:
             # Stop the job in the Ray cluster
@@ -509,13 +505,8 @@ class RayManager(Manager):
                 List[str]: A list of logs for the job.
             """
             self.client = self._connect_to_ray_cluster()
-            job_id = f"{job.get_namespace()}-{job.get_name()}"
-            
-            # Check if the job has been submitted
-            if job_id not in self.job_registry:
-                self.logger.info(f"Job {job_id} not found in job registry.")
-                return []
-            
+            job_id = job.status.job_ids[self.cluster_name]
+            self.logger.info(f"Fetching logs for job {job_id} on the Ray cluster.")
             logs = []
             try:
                 # Get logs for the job from the Ray cluster
