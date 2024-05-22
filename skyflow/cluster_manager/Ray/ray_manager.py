@@ -375,8 +375,6 @@ class RayManager(Manager):
 
         # Fetch the job logs
         logs = self.client.get_job_logs(job_id)
-
-        print(logs)
         # Check if the last line is a valid JSON string
         try:
             cluster_resources = json.loads(logs)
@@ -400,7 +398,7 @@ class RayManager(Manager):
         """
         self.client = self._connect_to_ray_cluster()
         # Generate a unique identifier for the job
-        job_id = f"{job.get_namespace()}-{job.get_name()}-{uuid4().hex[:10]}"
+        job_id = f"{job.get_name()}-{job.get_namespace()}-{uuid4().hex[:10]}"
 
         submission_details = {
             "manager_job_id": job_id,
@@ -476,27 +474,28 @@ class RayManager(Manager):
             Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
         """
         self.client = self._connect_to_ray_cluster()
-        jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
-            "tasks": {},
-            "containers": {}
-        }
 
-        for job_name, job_id in self.job_registry.items():
-            print(job_id, job_name)
-            try:
-                job_status = self.client.get_job_status(job_id)
-                self.logger.info(f"Status for job {job_name} (Ray ID: {job_id}): {job_status}")
+        # Generate a unique identifier for the status fetching job
+        job_id = f"fetch_status_{uuid4().hex[:10]}"
 
-                if job_name not in jobs_dict["tasks"]:
-                    jobs_dict["tasks"][job_name] = {}
-                    jobs_dict["containers"][job_name] = {}
+        # Submit the job to the Ray cluster
+        try:
+            self.client.submit_job(
+                entrypoint=f"python /home/alex/fetch_job_status.py",
+                submission_id=job_id
+            )
 
-                jobs_dict["tasks"][job_name][job_id] = job_status.value
-                # Simulate container status & assuming all tasks are in the same container
-                jobs_dict["containers"][job_name][job_id] = job_status.value
-            except Exception as error:
-                self.logger.error(f"Failed to get status for job {job_name} (Ray ID: {job_id}): {error}")
-        
+            job_info = self.client.get_job_info(job_id)
+            while job_info.status != 'SUCCEEDED':
+                job_info = self.client.get_job_info(job_id)
+
+            # Fetch the logs of the job to get the output
+            logs = self.client.get_job_logs(job_id)
+            jobs_dict = json.loads(logs)
+        except Exception as error:
+            print(f"Failed to fetch job statuses: {error}")
+            return {}
+
         return jobs_dict
 
     def get_job_logs(self, job: Job) -> List[str]:
@@ -537,6 +536,7 @@ class RayManager(Manager):
 
 # Create a Job instance
 #job = Job()
+#job.metadata.name = "testjob"
 #job.spec.image = "anakli/cca:parsec_blackscholes"
 #job.spec.resources = {
 #    ResourceEnum.CPU.value: 1,
@@ -547,8 +547,8 @@ class RayManager(Manager):
 #job.spec.ports = [8080]
 #job.spec.replicas = 1
 #job.spec.restart_policy = RestartPolicyEnum.NEVER.value
-#
-## Submit the Job
+
+# Submit the Job
 #rm.submit_job(job)
 #time.sleep(5)
 #print(rm.get_jobs_status())
