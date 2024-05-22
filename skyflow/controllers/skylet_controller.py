@@ -45,7 +45,8 @@ class SkyletController(Controller):
         self.event_queue = Queue()
         self.skylets = {}
         self.cluster_api = ClusterAPI()
-        self.cluster_informer = Informer(self.cluster_api, logger=self.logger)
+        self.cluster_informer: Informer = Informer(ClusterAPI(),
+                                                   logger=self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
@@ -86,14 +87,15 @@ class SkyletController(Controller):
         event_type = watch_event.event_type
         cluster_obj = watch_event.object
         cluster_name = cluster_obj.get_name()
+
         # Launch Skylet for clusters that are finished provisioning.
-        if event_type == WatchEventEnum.UPDATE and cluster_obj.get_status(
+        if event_type == WatchEventEnum.UPDATE.value and cluster_obj.get_status(
         ) == ClusterStatusEnum.READY:
             if cluster_name not in self.skylets:
                 self._launch_skylet(cluster_obj)
                 self.logger.info('Launched Skylet for cluster: %s.',
                                  cluster_name)
-        elif event_type == WatchEventEnum.DELETE:
+        elif event_type == WatchEventEnum.DELETE.value:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
             self.logger.info("Terminated Skylet for cluster: %s.",

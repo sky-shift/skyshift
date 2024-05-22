@@ -14,6 +14,7 @@ import pytest
 import subprocess
 import tempfile
 import time
+import yaml
 
 from click.testing import CliRunner
 
@@ -48,7 +49,6 @@ def _setup_sky_manager(num_workers: int = 1):
     time.sleep(15)  # Wait for the server to start
     return process
 
-
 def _breakdown_sky_manager():
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
@@ -81,6 +81,18 @@ def _breakdown_sky_manager():
 
     return process
 
+def _load_batch_job():
+    current_file_path = os.path.abspath(__file__)
+    current_directory = os.path.dirname(current_file_path)
+    # Load yaml file
+    relative_path_to_prod_yaml = "../../examples/batch_job.yaml"
+    yaml_file_path = os.path.abspath(
+        os.path.join(current_directory, relative_path_to_prod_yaml))
+    # Load
+    with open(yaml_file_path, 'r') as f:
+        job_dict = yaml.safe_load(f)
+    return job_dict
+    
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_shutdown():
@@ -203,24 +215,27 @@ def test_filter_with_match_label(runner):
     assert result.exit_code == 0
     assert cluster_2_name in result.output
 
-    # Deploy unschedulable workload
-    current_file_path = os.path.abspath(__file__)
-    current_directory = os.path.dirname(current_file_path)
-    relative_path_to_prod_yaml = "../../examples/batch_job_with_prod_filter_single_match_label.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_prod_yaml))
-
-    print('Deploying unschedulable cluster filtering workload')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'get cluster results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
-
-    print("Waiting for 15 seconds to allow for job to get deployed.")
-    # @TODO(dmatch01): Change sleep to code for job running with timeout
-    time.sleep(15)  # Wait for the job to start
-
+    # Deploy unschedulable workload. There are two clusters with purpose: staging, dev.
+    # The job is configured to run on clusters with purpose: prod.
+    job_dict = _load_batch_job()
+    
     batch_job_name = "my-batch-job-with-prod-filter-match-label"
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_labels': {'purpose': 'prod'}}]}
+    
+    # create temporary file
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying unschedulable cluster filtering workload')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'get cluster results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+
+    print(f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed.")
+    # @TODO(dmatch01): Change sleep to code for job running with timeout
+    time.sleep(10)  # Wait for the job to start
+
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
@@ -232,24 +247,25 @@ def test_filter_with_match_label(runner):
     # Delete unschedulable workload
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0, f'Job deletion failed: {yaml_file_path}'
-
-    # Deploy schedulable workload
-    relative_path_to_dev_yaml = "../../examples/batch_job_with_dev_filter_single_match_label.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_dev_yaml))
-
-    print('Deploying schedulable filtering workload')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'get cluster results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
-
-    print("Waiting for 15 seconds to allow for job to get deployed.")
-    # @TODO(dmatch01): Change sleep to code for job running with timeout
-    time.sleep(15)  # Wait for the server to start
+    assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
     batch_job_name = "my-batch-job-with-dev-filter-match-label"
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_labels': {'purpose': 'dev'}}]}
+    
+    # Deploy schedulable workload
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying schedulable filtering workload')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'get cluster results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+
+    print(f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed.")
+    # @TODO(dmatch01): Change sleep to code for job running with timeout
+    time.sleep(10)  # Wait for the server to start
+
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
@@ -261,14 +277,13 @@ def test_filter_with_match_label(runner):
     print('Deleting schedulable filtering workload')
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0, f'Job deletion failed: {yaml_file_path}'
+    assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
 
 def test_filter_with_match_expression(runner):
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
     cluster_2_name = "kind-test-cluster-2"
-    manager = "k8"
 
     cmd = ['get', 'clusters']
     result = runner.invoke(cli, cmd)
@@ -286,24 +301,26 @@ def test_filter_with_match_expression(runner):
     assert result.exit_code == 0
     assert cluster_2_name in result.output
 
-    # Deploy unschedulable workload
-    current_file_path = os.path.abspath(__file__)
-    current_directory = os.path.dirname(current_file_path)
-    relative_path_to_prod_yaml = "../../examples/batch_job_with_prod_filter_single_match_expression.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_prod_yaml))
 
-    print('Deploying unschedulable cluster filtering workload')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'get cluster results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
+    job_dict = _load_batch_job()
+
+    # Deploy unschedulable workload    
+    batch_job_name = "my-batch-job-with-prod-filter-match-expression"
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_expressions': [{'key': 'purpose', 'operator': 'In', 'values': ['demo', 'prod', 'exclusive']}]}]}
+
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying unschedulable cluster filtering workload')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'get cluster results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(15)  # Wait for the job to start
 
-    batch_job_name = "my-batch-job-with-prod-filter-match-expression"
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
@@ -315,24 +332,25 @@ def test_filter_with_match_expression(runner):
     # Delete unschedulable workload
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0, f'Job deletion failed: {yaml_file_path}'
+    assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
     # Deploy schedulable workload
-    relative_path_to_dev_yaml = "../../examples/batch_job_with_dev_filter_single_match_expression.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_dev_yaml))
+    batch_job_name = "my-batch-job-with-dev-filter-match-expression"
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_expressions': [{'key': 'purpose', 'operator': 'In', 'values': ['demo', 'prod', 'dev', 'exclusive']}]}]}
 
-    print('Deploying schedulable cluster filtering workload')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'get cluster results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying schedulable cluster filtering workload')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'get cluster results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(15)  # Wait for the job to start
 
-    batch_job_name = "my-batch-job-with-dev-filter-match-expression"
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
@@ -344,33 +362,33 @@ def test_filter_with_match_expression(runner):
     print('Deleting schedulable filtering workload')
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0, f'Job deletion failed: {yaml_file_path}'
+    assert result.exit_code == 0, f'Job deletion failed: {batch_job_nameh}'
 
 
 def test_preference(runner):
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
     cluster_2_name = "kind-test-cluster-2"
-    manager = "k8"
 
-    # Deploy preferred dev cluster workload
-    current_file_path = os.path.abspath(__file__)
-    current_directory = os.path.dirname(current_file_path)
-    relative_path_to_dev_yaml = "../../examples/batch_job_with_dev_preference.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_dev_yaml))
+    job_dict = _load_batch_job()
 
-    print('Deploying workload with dev preferences.')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'apply results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
+    # Launch job with priority/preference for dev cluster.
+    batch_job_name = "my-batch-job-with-dev-preference"     
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'preferences': [{'name': 'updated-preference-1', 'match_labels': {'purpose': 'dev'}, 'weight': 100}, {'name': 'updated-preference-2', 'match_labels': {'purpose': 'staging'}, 'weight': 2}]}
+    
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying workload with dev preferences.')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'apply results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(15)  # Wait for the job to start
 
-    batch_job_name = "mybatchjobwithdevpreference"
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
@@ -383,22 +401,24 @@ def test_preference(runner):
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
-    # Deploy preferred staging cluster workload
-    relative_path_to_dev_yaml = "../../examples/batch_job_with_staging_preference.yaml"
-    yaml_file_path = os.path.abspath(
-        os.path.join(current_directory, relative_path_to_dev_yaml))
 
-    print('Deploying workload with staging preferences.')
-    cmd = ['apply', '-f', yaml_file_path]
-    result = runner.invoke(cli, cmd)
-    print(f'apply job results\n{result.output}')
-    assert result.exit_code == 0, f'Job creation failed: {yaml_file_path}'
+    # Launch job with priority for dev cluster.
+    batch_job_name = "my-batch-job-with-staging-preference"     
+    job_dict['metadata']['name'] = batch_job_name
+    job_dict['spec']['placement'] =  {'preferences': [{'name': 'updated-preference-1', 'match_labels': {'purpose': 'staging'}, 'weight': 100}, {'name': 'updated-preference-2', 'match_labels': {'purpose': 'dev'}, 'weight': 2}]}
+    
+    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
+        yaml.dump(job_dict, temp_file)
+        print('Deploying workload with staging preferences.')
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'apply results\n{result.output}')
+        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(15)  # Wait for the job to start
 
-    batch_job_name = "mybatchjobwithstagingpreference"
     cmd = ['get', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     print(f'get job\n{result.output}')
