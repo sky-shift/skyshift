@@ -28,4 +28,4 @@ spec:
     filters:
     - name: "filter-1"
       match_labels:
-        "purpose": "dev"
+        "purpose": "dev" # or "prod"

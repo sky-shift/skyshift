@@ -2,8 +2,8 @@
 # stanza.
 #
 # Placement preference for this job is on clusters 
-# labeled "purpose": "dev" (weight = 100), followed by 
-# clusters labeled "purpose": "staging" (weight = 2).
+# labeled "purpose": "staging" (weight = 100), followed by 
+# clusters labeled "purpose": "dev" (weight = 2).
 # Lastly if there are other clusters not annotated with 
 # either of the two labels, the preference placement will 
 # default as the lowest weight (weight = 1) and be the 
@@ -11,10 +11,9 @@
 # since there is no placement filter criteria defined, 
 # no clusters are filtered out and all clusters defined 
 # in the system are considered for job placement.
-#
 kind: Job
 metadata: 
-  name: mybatchjobwithdevpreference
+  name: my-batch-job-with-preference
   labels:
     app: batchjob
 spec:
@@ -31,9 +30,9 @@ spec:
     preferences:
     - name: "updated-preference-1"
       match_labels:
-        "purpose": "dev"
+        "purpose": "staging" # "or dev"
       weight: 100
     - name: "updated-preference-2"
       match_labels:
-        "purpose": "staging"
+        "purpose": "dev" # or "staging"
       weight: 2
