@@ -7,11 +7,12 @@
 #    bash install_minio.sh [data_dir] [access_key] [secret_key] [server_port] [console_port]
 #
 # Options:
-#    data_dir:    Specify a custom directory for MinIO data storage. Defaults to ./data.
-#    access_key:  Specify the MinIO access key. Defaults to 'minioadmin'.
-#    secret_key:  Specify the MinIO secret key. Defaults to 'minioadmin'.
-#    server_port: Specify the port for the MinIO server. Defaults to 9000.
-#    console_port: Specify the port for the MinIO console. Defaults to 9001.
+#    data_dir:    Specify a custom directory for MinIO data storage. 
+#    access_key:  Specify the MinIO access key. 
+#    secret_key:  Specify the MinIO secret key. 
+#    server_host: Specify the address for the MinIO server.
+#    server_port: Specify the port for the MinIO server. 
+#    console_port: Specify the port for the MinIO console. 
 #
 # This script supports downloading MinIO from the official site.
 # It cleans up the downloaded binaries after installation is complete.
@@ -19,31 +20,54 @@
 
 set -e
 
-# Default configuration
-DATA_DIR=${1:-./data}
-ACCESS_KEY=${2:-minioadmin}
-SECRET_KEY=${3:-minioadmin}
-SERVER_PORT=${4:-9000}
-CONSOLE_PORT=${5:-9001}
+DATA_DIR=${1}
+ACCESS_KEY=${2}
+SECRET_KEY=${3}
+SERVER_HOST=${4}
+SERVER_PORT=${5}
+CONSOLE_PORT=${6}
 
 # Define valid platforms
 VALID_PLATFORMS=("linux" "darwin" "windows")
-UNAME=$(uname | tr "[:upper:]" "[:lower:]")
-ARCH=$(uname -m)
-
 # Automatically identify the platform and architecture (lower case)
-if [[ $ARCH == "x86_64" || $ARCH == "x64" ]]; then
-  ARCH="amd64"
-elif [[ $ARCH == "aarch64" ]]; then
-  ARCH="arm64"
-fi
-
-# Check if the platform and architecture are valid
-if [[ ! " ${VALID_PLATFORMS[@]} " =~ " ${UNAME} " ]] || [[ ! "amd64 arm64" =~ " ${ARCH} " ]]; then
-  echo "Unsupported platform or architecture: ${UNAME}-${ARCH}"
+UNAME=$(uname | tr "[:upper:]" "[:lower:]")
+# Check if the platform is valid
+if [[ ! " ${VALID_PLATFORMS[@]} " =~ " ${UNAME} " ]]; then
+  echo "Unsupported platform: ${UNAME}"
+  echo "Supported platforms: ${VALID_PLATFORMS[@]}"
   exit 1
 fi
 
+FILE_ENDING="tar.gz"
+# if linux, set to tar.gz
+if [[ $UNAME == "linux" ]]; then
+  FILE_ENDING="tar.gz"
+fi
+
+# if darwin or windows set to zip
+if [[ $UNAME == "darwin" || $UNAME == "windows" ]]; then
+  FILE_ENDING="zip"
+fi
+
+# Define valid architectures
+VALID_ARCHS=("amd64" "arm64" "ppc64le" "s390x")
+# Identify architecture [amd64, arm64, ppc64le, s390x]
+ARCH=$(uname -m)
+# if arch is in [x86, x86_64, x64], set to amd64.
+if [[ $ARCH == "x86_64" || $ARCH == "x64" || $ARCH == "x86" ]]; then
+  ARCH="amd64"
+fi
+# if arch is in [aarch64, armv8, armv8l], set to arm64.
+if [[ $ARCH == "aarch64" || $ARCH == "armv8" || $ARCH == "armv8l" ]]; then
+  ARCH="arm64"
+fi
+
+# Check if the architecture is valid
+if [[ ! " ${VALID_ARCHS[@]} " =~ " ${ARCH} " ]]; then
+  echo "Unsupported architecture: ${ARCH}"
+  echo "Supported architectures: ${VALID_ARCHS[@]}"
+  exit 1
+fi
 # MinIO binary file name based on operating system and architecture
 FILE_NAME=minio.${UNAME}-${ARCH}
 
@@ -62,10 +86,10 @@ mkdir -p ${DATA_DIR}
 
 # Run MinIO
 echo "Starting MinIO on ports ${SERVER_PORT} for server and ${CONSOLE_PORT} for console..."
-nohup ./minio server ${DATA_DIR} --address :${SERVER_PORT} --console-address :${CONSOLE_PORT} \
+nohup ./minio server ${DATA_DIR} --address ${SERVER_HOST}:${SERVER_PORT} --console-address ${SERVER_HOST}:${CONSOLE_PORT} \
     --access-key ${ACCESS_KEY} --secret-key ${SECRET_KEY} > minio.log 2>&1 &
 
 echo "MinIO is running with data directory at ${DATA_DIR}"
-echo "Access it via: http://localhost:${SERVER_PORT}"
-echo "Access Console via: http://localhost:${CONSOLE_PORT}"
+echo "Access it via: ${SERVER_HOST}:${SERVER_PORT}"
+echo "Access Console via: ${SERVER_HOST}:${CONSOLE_PORT}"
 echo "Access Key: ${ACCESS_KEY}, Secret Key: ${SECRET_KEY}"
