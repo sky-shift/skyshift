@@ -46,7 +46,8 @@ class FlowController(Controller):
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Flow Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Flow Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/flow_controller.log')
 
         self.job_informer = Informer(JobAPI(namespace=''), logger=self.logger)

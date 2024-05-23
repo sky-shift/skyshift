@@ -66,7 +66,8 @@ class NetworkController(Controller):
         self.cluster_api = ClusterAPI()
         cluster_obj = self.cluster_api.get(name)
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Network Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Network Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/network_controller.log')
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm @TODO(daron))

@@ -86,7 +86,8 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         self.manager_api = setup_cluster_manager(cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Service Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Service Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/service_controller.log')
         self.service_status = self.manager_api.get_service_status()
         self.informer = Informer(ServiceAPI(namespace=''), logger=self.logger)

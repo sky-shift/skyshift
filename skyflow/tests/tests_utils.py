@@ -20,12 +20,12 @@ def setup_skyflow(temp_data_dir: str) -> None:
     skyconf_dir = os.path.expanduser("~/.skyconf/")
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
     if os.path.exists(dest_skyconf_dir):
-        shutil.rmtree(dest_skyconf_dir) # Remove the backup directory if it exists.
-        
+        # Remove the backup directory if it exists.
+        shutil.rmtree(dest_skyconf_dir)
+
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
         print(f"Copied {skyconf_dir} to {dest_skyconf_dir}.")
-
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -87,6 +87,7 @@ def shutdown_skyflow(temporal_directory: str) -> None:
     if os.path.exists(temporal_directory):
         shutil.rmtree(temporal_directory)
         print(f"Removed temporary directory {temporal_directory}")
+
 
 def kill_process(process_name: str) -> None:
     """

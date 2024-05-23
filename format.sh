@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
+
 # YAPF Formatter, adapted from Ray and Skypilot.
-#
-# Usage:
-#    # Do work and commit your work.
-#    # Format files that differ from origin/main.
-#    bash format.sh
-#    # Format all files.
-#    bash format.sh --all
-#    # Format individual files.
-#    bash format.sh --files <filenames>
-#    # Commit changed files with message 'Run yapf and pylint'
-#
-# YAPF + Clang formatter (if installed). This script formats all changed files from the last mergebase.
-# Run this locally before pushing changes for review.
 
 USAGE="
 Usage: format.sh [OPTIONS] [FILENAMES...]

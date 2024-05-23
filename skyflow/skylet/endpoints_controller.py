@@ -47,7 +47,8 @@ class EndpointsController(Controller):
         self.worker_queue: queue.Queue = queue.Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Endpoints Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Endpoints Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/endpoints_controller.log')
         self.service_informer = Informer(ServiceAPI(namespace=''),
                                          logger=self.logger)
