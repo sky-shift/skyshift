@@ -115,7 +115,10 @@ mypy --show-traceback api_server skyflow
 # Run Pylint
 
 echo '[SkyFlow] Running pylint'
-printf "%s\n" "${FILES[@]}" | xargs -P 5 pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code
+printf "%s\n" "${FILES[@]}" | xargs -P 5 pylint \
+    --load-plugins pylint_quotes \
+    --disable invalid-string-quote,duplicate-code \
+    --max-line-length=120
 
 #==============================================================================#
 
