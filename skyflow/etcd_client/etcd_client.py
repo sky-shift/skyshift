@@ -22,11 +22,12 @@ from typing import Generator, List, Optional, Tuple
 
 from etcd3.client import Etcd3Client
 
-from skyflow.etcd_client.monkey_patch import delete_prefix
+from skyflow.etcd_client.monkey_patch import delete_prefix, watch_response
 from skyflow.templates.event_template import WatchEventEnum
 
 # Perform Monkey Patch over faulty Etcd3 Delete_Prefix method
 Etcd3Client.delete_prefix = delete_prefix
+Etcd3Client.watch_response = watch_response
 ETCD_PORT = 2379
 DEFAULT_CLIENT_NAME = "/sky_registry/"
 
