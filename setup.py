@@ -27,11 +27,12 @@ setup(
         "types-requests",
         "skypilot==0.5.0",
         "bcrypt==4.0.1",
+        "minio", 
     ],
     extras_require={
         "server": [
             "etcd3", "fastapi", "uvicorn[standard]", "pydantic[email]>=2.5.0",
-            'jsonpatch', "pyjwt",
+            'jsonpatch', "pyjwt", "minio", 
         ],
         "dev": [
             "yapf==0.32.0", "pylint==2.8.2", "pylint-quotes==0.2.3",
