@@ -84,16 +84,10 @@ def update_resource_version(etcd_value: dict, resource_version: int) -> dict:
     return etcd_value
 
 
-def watch_generator_fn(
+async def watch_generator_fn(
         watch_iter) -> Generator[Tuple[WatchEventEnum, dict], None, None]:
-    """Generator function that yields ETCD watch events.
-
-    Args:
-        watch_iter: The watch iterator object.
-    Returns:
-        A generator that yields a tuple of WatchEventEnum and the value.
-    """
-    for event in watch_iter:
+    """Async generator function that yields ETCD watch events."""
+    async for event in watch_iter:
         grpc_event = event._event  # pylint: disable=protected-access
         if grpc_event.type == 0:
             # PUT event
@@ -115,7 +109,6 @@ def watch_generator_fn(
         etcd_value = update_resource_version(etcd_value,
                                              key_value.mod_revision)
         yield (event_type, etcd_value)
-
 
 class ConflictError(Exception):
     """Exception raised when there is a conflict in the ETCD store."""
@@ -313,7 +306,7 @@ class ETCDClient:
         """
         return self.delete_prefix(self.log_name)
 
-    def watch(self, key: str):
+    async def watch(self, key: str):
         """
         Watches over a set of keys (or a single key).
         Args:
@@ -324,17 +317,16 @@ class ETCDClient:
         """
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
-        watch_iter, cancel_fn = self.etcd_client.watch_prefix(key,
-                                                              prev_kv=True)
+        watch_iter, cancel_fn = await self.etcd_client.watch_response(key, prev_kv=True)
         return watch_generator_fn(watch_iter), cancel_fn
 
 
-if __name__ == "__main__":
-    etcd_client = ETCDClient()
-    new_value = {"b": 3}
-    etcd_client.write("a", {"a": 2})
-    original_value = etcd_client.read("a")
-    etcd_client.update("a", new_value)
-    etcd_client.update("a", new_value, resource_version=1)
-    new_value = etcd_client.read("a")
-    print(new_value)
+#if __name__ == "__main__":
+#    etcd_client = ETCDClient()
+#    new_value = {"b": 3}
+#    etcd_client.write("a", {"a": 2})
+#    original_value = etcd_client.read("a")
+#    etcd_client.update("a", new_value)
+#    etcd_client.update("a", new_value, resource_version=1)
+#    new_value = etcd_client.read("a")
+#    print(new_value)

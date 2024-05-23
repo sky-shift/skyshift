@@ -4,6 +4,7 @@ Specifies the API server and its endpoints for Skyflow.
 """
 import asyncio
 import json
+import logging
 import os
 import secrets
 import signal
@@ -824,29 +825,28 @@ class APIServer:
         return obj
 
     async def _watch_key(self, key: str):
-        events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
+        logging.info(f"Setting up watch for key: {key}")
+        events_iterator, cancel_watch_fn = await self.etcd_client.watch(key)
 
         async def generate_events():
             try:
-                while True:
+                async for event in events_iterator:
+                    logging.info(f"Received event: {event}")
                     try:
-                        event = await asyncio.to_thread(
-                            next, events_iterator, None)
-                        if event is None:
-                            break
                         event_type, event_value = event
-                        event_value = load_object(event_value)
-                        # Check and validate event type.
-                        watch_event = WatchEvent(event_type=event_type.value,
-                                                 object=event_value)
-                        yield watch_event.model_dump_json() + "\n"
-                    except (StopIteration, ValueError):
-                        break
+                        event_value = await asyncio.to_thread(load_object, event_value)
+                        watch_event = WatchEvent(event_type=event_type.value, object=event_value)
+                        yield_data = watch_event.model_dump_json() + "\n"
+                        logging.info(f"Yielding data: {yield_data}")
+                        yield yield_data
+                    except ValueError as ve:
+                        logging.error(f"Error processing event: {ve}")
+                        continue  # Skip this iteration on error
             except asyncio.CancelledError:
-                # Happens when client disconnects.
-                pass
-            cancel_watch_fn()
-            yield "{}"
+                logging.info("Client disconnected, canceling watch.")
+            finally:
+                cancel_watch_fn()
+                yield "{}"  # Ensuring a final message is sent if needed
 
         return StreamingResponse(generate_events(),
                                  media_type="application/x-ndjson",
