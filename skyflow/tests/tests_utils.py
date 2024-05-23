@@ -1,3 +1,7 @@
+"""
+Common utilities shared by all tests.
+"""
+
 import os
 import shutil
 import subprocess
@@ -7,10 +11,10 @@ import time
 def setup_skyflow(temp_data_dir: str) -> None:
     """
     Sets up the Skyflow service by starting the necessary processes.
-    
+
     Args:
         temp_data_dir (str): The temporary directory to use for data storage.
-    
+
     Raises:
         RuntimeError: If the server does not start within the expected time frame.
     """
@@ -92,7 +96,7 @@ def shutdown_skyflow(temporal_directory: str) -> None:
 def kill_process(process_name: str) -> None:
     """
     Attempts to kill a process by name.
-    
+
     Args:
         process_name (str): The name of the process to terminate.
     """
@@ -108,10 +112,10 @@ def kill_process(process_name: str) -> None:
 def retrieve_current_working_dir(relative_path_to_script: str) -> str:
     """
     Retrieves the absolute path to a script, given its relative path.
-    
+
     Args:
         relative_path_to_script (str): The relative path from this script to the target.
-    
+
     Returns:
         str: The absolute path to the target script.
     """
@@ -125,10 +129,10 @@ def retrieve_current_working_dir(relative_path_to_script: str) -> str:
 def is_process_running(process_name: str) -> bool:
     """
     Checks if a process with the given name is currently running.
-    
+
     Args:
         process_name (str): The name of the process to check.
-    
+
     Returns:
         bool: True if the process is running, False otherwise.
     """
