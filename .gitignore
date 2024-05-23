@@ -13,3 +13,7 @@ slurm/log.txt
 slurm/slurm
 slurm/slurm.pub
 log.txt
+
+# MinIO Installation
+minio
+minio.log
