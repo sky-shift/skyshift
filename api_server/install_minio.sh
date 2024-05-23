@@ -4,12 +4,12 @@
 # This script downloads and installs MinIO.
 #
 # Usage:
-#    bash install_minio.sh [data_dir] [access_key] [secret_key] [server_port] [console_port]
+#    bash install_minio.sh [data_dir] [admin_username] [admin_password] [server_port] [console_port]
 #
 # Options:
 #    data_dir:    Specify a custom directory for MinIO data storage. 
-#    access_key:  Specify the MinIO access key. 
-#    secret_key:  Specify the MinIO secret key. 
+#    admin_username:  Specify the MinIO access key. 
+#    admin_password:  Specify the MinIO secret key. 
 #    server_host: Specify the address for the MinIO server.
 #    server_port: Specify the port for the MinIO server. 
 #    console_port: Specify the port for the MinIO console. 
@@ -21,8 +21,8 @@
 set -e
 
 DATA_DIR=${1}
-ACCESS_KEY=${2}
-SECRET_KEY=${3}
+ADMIN_USERNAME=${2}
+ADMIN_PASSWORD=${3}
 SERVER_HOST=${4}
 SERVER_PORT=${5}
 CONSOLE_PORT=${6}
@@ -84,12 +84,16 @@ chmod +x minio
 # Create the data directory
 mkdir -p ${DATA_DIR}
 
+# Set environment variables
+export MINIO_ROOT_USER="${ADMIN_USERNAME}"
+export MINIO_ROOT_PASSWORD="${ADMIN_PASSWORD}"
+
 # Run MinIO
 echo "Starting MinIO on ports ${SERVER_PORT} for server and ${CONSOLE_PORT} for console..."
 nohup ./minio server ${DATA_DIR} --address ${SERVER_HOST}:${SERVER_PORT} --console-address ${SERVER_HOST}:${CONSOLE_PORT} \
-    --access-key ${ACCESS_KEY} --secret-key ${SECRET_KEY} > minio.log 2>&1 &
+    > minio.log 2>&1 &
 
 echo "MinIO is running with data directory at ${DATA_DIR}"
 echo "Access it via: ${SERVER_HOST}:${SERVER_PORT}"
 echo "Access Console via: ${SERVER_HOST}:${CONSOLE_PORT}"
-echo "Access Key: ${ACCESS_KEY}, Secret Key: ${SECRET_KEY}"
+echo "Access Key: ${ADMIN_USERNAME}, Secret Key: ${ADMIN_PASSWORD}"

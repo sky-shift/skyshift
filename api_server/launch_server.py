@@ -20,8 +20,8 @@ API_SERVER_PORT = 50051
 
 MINIO_DATA_DIR = "~/.minio"
 MINIO_HOST = "127.0.0.1"
-MINIO_ACCESS_KEY = "minioadmin"
-MINIO_SECRET_KEY = "minioadmin"
+MINIO_ADMIN_USER = "minioadmin"
+MINIO_ADMIN_PASSWORD = "minioadmin"
 MINIO_SERVER_PORT = "9000"
 MINIO_CONSOLE_PORT = "9001"
 
@@ -57,13 +57,13 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     return False
 
 
-def check_and_install_minio(data_directory: str, access_key: str, secret_key: str, server_host, server_port: str, console_port: str) -> bool:
+def check_and_install_minio(data_directory: str, minio_admin_user: str, secret_key: str, server_host, server_port: str, console_port: str) -> bool:
     """
     Checks if MinIO is installed and running. If not, installs and launches MinIO.
     """
     try:
         # Try to connect to MinIO server
-        response = requests.get(f"{server_host}:{server_port}/minio/health/live")
+        response = requests.get(f"http://{server_host}:{server_port}/minio/health/live")
         if response.status_code == 200:
             print("[Installer] MinIO is running.")
             return True
@@ -71,7 +71,7 @@ def check_and_install_minio(data_directory: str, access_key: str, secret_key: st
         print("[Installer] MinIO is not running, automatically installing MinIO.")
 
     relative_dir = os.path.dirname(os.path.realpath(__file__))
-    install_command = f"{relative_dir}/install_minio.sh {data_directory} {access_key} {secret_key} {server_host} {server_port} {console_port}"
+    install_command = f"{relative_dir}/install_minio.sh {data_directory} {minio_admin_user} {secret_key} {server_host} {server_port} {console_port}"
 
     with subprocess.Popen(install_command, shell=True, start_new_session=True) as install_process:
         install_process.wait()  # Wait for the script to complete
@@ -83,14 +83,14 @@ def check_and_install_minio(data_directory: str, access_key: str, secret_key: st
     return False
 
 
-def main(host: str, port: int, workers: int, reset: bool, minio_data_directory: str, minio_access_key: str, 
-         minio_secret_key: str, minio_host: str, minio_server_port: str, minio_console_port: str, 
+def main(host: str, port: int, workers: int, reset: bool, minio_data_directory: str, minio_admin_user: str, 
+         minio_admin_password: str, minio_host: str, minio_server_port: str, minio_console_port: str, 
          data_directory: Optional[str] =None):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
         return
-    if not check_and_install_minio(minio_data_directory, minio_access_key, minio_secret_key, minio_host, 
+    if not check_and_install_minio(minio_data_directory, minio_admin_user, minio_admin_password, minio_host, 
                                    minio_server_port, minio_console_port):
         return
     generate_manager_config(host, port)
@@ -146,16 +146,16 @@ def parse_args():
         help="Optional directory for MinIO data (default: uses ~/.minio/)",
     )
     parser.add_argument(
-        "--minio-access-key",
+        "--minio-admin-user",
         type=str,
-        default=MINIO_ACCESS_KEY,
-        help="Optional access key for MinIO (default: uses minioadmin)",
+        default=MINIO_ADMIN_USER,
+        help="Optional admin username for MinIO (default: uses minioadmin)",
     )
     parser.add_argument(
-        "--minio-secret-key",
+        "--minio-admin-password",
         type=str,
-        default=MINIO_SECRET_KEY,
-        help="Optional secret key for MinIO (default: uses minioadmin)",
+        default=MINIO_ADMIN_PASSWORD,
+        help="Optional admin password for MinIO (default: uses minioadmin)",
     )
     parser.add_argument(
         "--minio-host",
@@ -186,6 +186,6 @@ if __name__ == "__main__":
     args = parse_args()
     main(host=args.host, port=args.port, workers=args.workers, 
          data_directory=args.data_directory, reset=args.reset, minio_data_directory=args.minio_data_directory, 
-         minio_access_key=args.minio_access_key, minio_secret_key=args.minio_secret_key, minio_host=args.minio_host, 
+         minio_admin_user=args.minio_admin_user, minio_admin_password=args.minio_admin_password, minio_host=args.minio_host, 
          minio_server_port=args.minio_server_port, 
          minio_console_port=args.minio_console_port)
