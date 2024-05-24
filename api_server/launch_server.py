@@ -94,7 +94,7 @@ def parse_args():
     parser.add_argument(
         "--workers",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=min(8, multiprocessing.cpu_count()),
         help=
         "Number of workers running in parallel for the API server (default: %(default)s)",
     )

@@ -76,15 +76,6 @@ def generate_manager_config(host: str, port: int):
     with open(absolute_path, "w") as config_file:
         yaml.dump(config_dict, config_file)
 
-def generate_temp_directory(directory_path):
-    """
-    Generates temporary directorys in SKYCONF for system use.
-    """
-    absolute_path = os.path.expanduser(SKYCONF_DIR + directory_path)
-    if os.path.exists(absolute_path + directory_path):
-        return
-    os.makedirs(os.path.dirname(absolute_path), exist_ok=True)
-
 
 def generate_temp_directory(directory_path):
     """

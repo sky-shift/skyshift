@@ -10,16 +10,16 @@ Prerequisites :
 Run : pytest test_scheduling.py
 """
 import os
-import pytest
 import subprocess
 import tempfile
 import time
-import yaml
 
+import pytest
+import yaml
 from click.testing import CliRunner
 
-from skyflow.cli.cli import cli
 import skyflow.tests.tests_utils as tests_utils
+from skyflow.cli.cli import cli
 
 LAUNCH_SCRIPT_REL_PATH = "../../launch_skyflow.sh"
 
@@ -34,7 +34,7 @@ def _breakdown_kind_clusters():
     tests_utils.delete_cluster("test-cluster-2")
 
 
-def _setup_sky_manager(num_workers: int = 1):
+def _setup_sky_manager(num_workers: int = 16):
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
 
@@ -48,6 +48,7 @@ def _setup_sky_manager(num_workers: int = 1):
     process = subprocess.Popen(command)
     time.sleep(15)  # Wait for the server to start
     return process
+
 
 def _breakdown_sky_manager():
     current_file_path = os.path.abspath(__file__)
@@ -81,6 +82,7 @@ def _breakdown_sky_manager():
 
     return process
 
+
 def _load_batch_job():
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
@@ -92,7 +94,7 @@ def _load_batch_job():
     with open(yaml_file_path, 'r') as f:
         job_dict = yaml.safe_load(f)
     return job_dict
-    
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_shutdown():
@@ -158,6 +160,9 @@ def test_filter_with_match_label(runner):
     assert result.exit_code == 0
     assert cluster_1_name in result.output
 
+    print("Waiting for 5 seconds before creating cluster with labels.")
+    time.sleep(5)
+
     # Define cluster 1 labels
     labels = [("sky-cluster-id", cluster_1_name), ("purpose", "dev")]
     label_args = []
@@ -173,9 +178,9 @@ def test_filter_with_match_label(runner):
     assert cluster_1_name in result.output
 
     print(
-        "Waiting for 10 seconds before getting re-added cluster with labels.")
+        "Waiting for 15 seconds before getting re-added cluster with labels.")
     # @TODO(dmatch01): Change sleep to code for cluster ready with timeout
-    time.sleep(10)  # Wait for the server to start
+    time.sleep(15)  # Wait for the server to start
 
     cmd = ['get', 'cluster', cluster_1_name]
     result = runner.invoke(cli, cmd)
@@ -218,11 +223,18 @@ def test_filter_with_match_label(runner):
     # Deploy unschedulable workload. There are two clusters with purpose: staging, dev.
     # The job is configured to run on clusters with purpose: prod.
     job_dict = _load_batch_job()
-    
+
     batch_job_name = "my-batch-job-with-prod-filter-match-label"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_labels': {'purpose': 'prod'}}]}
-    
+    job_dict['spec']['placement'] = {
+        'filters': [{
+            'name': 'filter-1',
+            'match_labels': {
+                'purpose': 'prod'
+            }
+        }]
+    }
+
     # create temporary file
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
@@ -232,7 +244,9 @@ def test_filter_with_match_label(runner):
         print(f'get cluster results\n{result.output}')
         assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
-    print(f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed.")
+    print(
+        f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed."
+    )
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(10)  # Wait for the job to start
 
@@ -251,8 +265,15 @@ def test_filter_with_match_label(runner):
 
     batch_job_name = "my-batch-job-with-dev-filter-match-label"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_labels': {'purpose': 'dev'}}]}
-    
+    job_dict['spec']['placement'] = {
+        'filters': [{
+            'name': 'filter-1',
+            'match_labels': {
+                'purpose': 'dev'
+            }
+        }]
+    }
+
     # Deploy schedulable workload
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
@@ -262,7 +283,9 @@ def test_filter_with_match_label(runner):
         print(f'get cluster results\n{result.output}')
         assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
 
-    print(f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed.")
+    print(
+        f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed."
+    )
     # @TODO(dmatch01): Change sleep to code for job running with timeout
     time.sleep(10)  # Wait for the server to start
 
@@ -301,13 +324,22 @@ def test_filter_with_match_expression(runner):
     assert result.exit_code == 0
     assert cluster_2_name in result.output
 
-
     job_dict = _load_batch_job()
 
-    # Deploy unschedulable workload    
+    # Deploy unschedulable workload
     batch_job_name = "my-batch-job-with-prod-filter-match-expression"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_expressions': [{'key': 'purpose', 'operator': 'In', 'values': ['demo', 'prod', 'exclusive']}]}]}
+    job_dict['spec']['placement'] = {
+        'filters': [{
+            'name':
+            'filter-1',
+            'match_expressions': [{
+                'key': 'purpose',
+                'operator': 'In',
+                'values': ['demo', 'prod', 'exclusive']
+            }]
+        }]
+    }
 
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
@@ -337,7 +369,19 @@ def test_filter_with_match_expression(runner):
     # Deploy schedulable workload
     batch_job_name = "my-batch-job-with-dev-filter-match-expression"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'filters': [{'name': 'filter-1', 'match_expressions': [{'key': 'purpose', 'operator': 'In', 'values': ['demo', 'prod', 'dev', 'exclusive']}]}]}
+    job_dict['spec']['placement'] = {
+        'filters': [{
+            'name':
+            'filter-1',
+            'match_expressions': [{
+                'key':
+                'purpose',
+                'operator':
+                'In',
+                'values': ['demo', 'prod', 'dev', 'exclusive']
+            }]
+        }]
+    }
 
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
@@ -373,10 +417,24 @@ def test_preference(runner):
     job_dict = _load_batch_job()
 
     # Launch job with priority/preference for dev cluster.
-    batch_job_name = "my-batch-job-with-dev-preference"     
+    batch_job_name = "my-batch-job-with-dev-preference"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'preferences': [{'name': 'updated-preference-1', 'match_labels': {'purpose': 'dev'}, 'weight': 100}, {'name': 'updated-preference-2', 'match_labels': {'purpose': 'staging'}, 'weight': 2}]}
-    
+    job_dict['spec']['placement'] = {
+        'preferences': [{
+            'name': 'updated-preference-1',
+            'match_labels': {
+                'purpose': 'dev'
+            },
+            'weight': 100
+        }, {
+            'name': 'updated-preference-2',
+            'match_labels': {
+                'purpose': 'staging'
+            },
+            'weight': 2
+        }]
+    }
+
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
         print('Deploying workload with dev preferences.')
@@ -401,12 +459,25 @@ def test_preference(runner):
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
 
-
     # Launch job with priority for dev cluster.
-    batch_job_name = "my-batch-job-with-staging-preference"     
+    batch_job_name = "my-batch-job-with-staging-preference"
     job_dict['metadata']['name'] = batch_job_name
-    job_dict['spec']['placement'] =  {'preferences': [{'name': 'updated-preference-1', 'match_labels': {'purpose': 'staging'}, 'weight': 100}, {'name': 'updated-preference-2', 'match_labels': {'purpose': 'dev'}, 'weight': 2}]}
-    
+    job_dict['spec']['placement'] = {
+        'preferences': [{
+            'name': 'updated-preference-1',
+            'match_labels': {
+                'purpose': 'staging'
+            },
+            'weight': 100
+        }, {
+            'name': 'updated-preference-2',
+            'match_labels': {
+                'purpose': 'dev'
+            },
+            'weight': 2
+        }]
+    }
+
     with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
         yaml.dump(job_dict, temp_file)
         print('Deploying workload with staging preferences.')

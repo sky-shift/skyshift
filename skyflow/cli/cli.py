@@ -272,9 +272,9 @@ cli.add_command(apply_config)
               help='True if cluster needs to be provisioned on the cloud.')
 @halo_spinner("Creating cluster")
 def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
-        name: str, labels: List[Tuple[str, str]], manager: str, cpus: str, memory: str, disk_size: int,
-        accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, provision: bool, spinner):
+        name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
+        memory: str, disk_size: int, accelerators: str, ports: List[str],
+        num_nodes: int, cloud: str, region: str, provision: bool, spinner):
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \

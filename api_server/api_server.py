@@ -14,7 +14,6 @@ from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
-from pathlib import Path
 
 import jsonpatch
 import jwt
@@ -134,9 +133,12 @@ def generate_nonce(length=32):
     """Generates a secure nonce."""
     return secrets.token_hex(length)
 
+
 CONF_FLAG_DIR = '/.tmp/'
 WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
 WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
+
+
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
     absolute_done_flag = Path(WORKER_DONE_FLAG)
@@ -174,6 +176,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
+
 
 class APIServer:
     """

@@ -4,11 +4,12 @@ Specifies the default scheduler plugin for the SchedulerController.
 from copy import deepcopy
 from typing import Dict, List, Tuple
 
+from skyflow.scheduler.plugins import plugin_utils as utils
 from skyflow.scheduler.plugins.base_plugin import (BasePlugin, PluginStatus,
                                                    StatusCode)
-from skyflow.scheduler.plugins import plugin_utils as utils
 from skyflow.templates import Cluster, Job
-from skyflow.templates.job_template import PreferenceSpec, DEFAULT_MIN_WEIGHT, DEFAULT_MAX_WEIGHT
+from skyflow.templates.job_template import (DEFAULT_MAX_WEIGHT,
+                                            DEFAULT_MIN_WEIGHT, PreferenceSpec)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 
@@ -26,10 +27,10 @@ def preference_evaluation_satisfied(cluster: Cluster,
                                     preference: PreferenceSpec) -> bool:
     """
     Checks to ensure each criteria of a preference stanza is met. This
-    is an AND operation of all criteria operations (match_labels and 
+    is an AND operation of all criteria operations (match_labels and
     match_expressions). Note: implementations of criteria operations
-    are independent of this AND operation. An example below shows 
-    cluster must have a label with "purpose": "dev" AND 
+    are independent of this AND operation. An example below shows
+    cluster must have a label with "purpose": "dev" AND
     "function": "performance-testing" AND
     "location": "us-south" OR "location": "us-south"
         preferences: [{ name: preferences-1,
@@ -39,7 +40,7 @@ def preference_evaluation_satisfied(cluster: Cluster,
             },
             match_expressions: [{
                 key: location,
-                operator: In, 
+                operator: In,
                 values: us-south, us-west
             }],
             weight: 100.0
@@ -47,32 +48,33 @@ def preference_evaluation_satisfied(cluster: Cluster,
     """
     cluster_labels = cluster.metadata.labels
     # Determine if 'match_labels' criteria met
-    is_matchLabel_satisfied = utils.match_labels_satisfied(
+    is_match_label_satisfied = utils.match_labels_satisfied(
         preference.match_labels, cluster_labels)
-    if not is_matchLabel_satisfied:
+    if not is_match_label_satisfied:
         return False
 
     # Determine if each 'match_expressions' criteria is met
     for expression in preference.match_expressions:
-        ok, _ = utils.match_expressions_satisfied(expression, cluster_labels)
-        if not ok:
+        is_ok, _ = utils.match_expressions_satisfied(expression,
+                                                     cluster_labels)
+        if not is_ok:
             return False
     return True
 
 
-def get_cluster_preference_weight(cluster: Cluster, job: Job) -> int:
+def get_cluster_preference_weight(cluster: Cluster, job: Job) -> float:
     """
     Loops through each preference of the placement stanza
-    to determine if the cluster meets the preference 
-    criteria. If the criteria is satisfied the preference 
-    weight is retreived as a local weighted preference.  
+    to determine if the cluster meets the preference
+    criteria. If the criteria is satisfied the preference
+    weight is retreived as a local weighted preference.
     If multiple preferences are satisfied then the highest
     weighted preference is selected as the final local
-    weighted preference.  If no matching preference 
+    weighted preference.  If no matching preference
     criteria is found, the cluster is assigned the
-    lowest possible weight (DEFAULT_MIN_WEIGHT).  Finally 
-    the local weighted preference is normalized against 
-    the DEFAULT_MAX_WEIGHT and returns a value between 
+    lowest possible weight (DEFAULT_MIN_WEIGHT).  Finally
+    the local weighted preference is normalized against
+    the DEFAULT_MAX_WEIGHT and returns a value between
     DEFAULT_MIN_WEIGHT - DEFAULT_MAX_WEIGHT.
     """
     # Check for job placement preferences

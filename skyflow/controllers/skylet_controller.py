@@ -6,6 +6,8 @@ the cluster's state. If a cluster is deleted, the corresponding Skylet is termin
 """
 
 import multiprocessing
+import os
+import signal
 import time
 from queue import Queue
 
@@ -29,8 +31,8 @@ def terminate_process(pid: int):
     """Terminates a process and all its children."""
     parent = psutil.Process(pid)
     for child in parent.children(recursive=True):
-        child.terminate()
-    parent.terminate()
+        os.kill(child.pid, signal.SIGKILL)
+    os.kill(parent.pid, signal.SIGKILL)
 
 
 class SkyletController(Controller):

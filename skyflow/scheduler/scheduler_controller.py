@@ -114,10 +114,10 @@ class SchedulerController(Controller):
                 if status.is_unschedulable():
                     cluster_name = cluster.get_name()
                     self.logger.info(
-                        f"Job {job.metadata.name}/{job.metadata.namespace} "
-                        f"unscheduable on cluster {cluster_name} "
-                        f"due to filter of plugin: "
-                        f"{type(plugin)}, message: {status.get_message()}")
+                        ("Job %s/%s unscheduable on cluster %s due to "
+                         "filter of plugin: %s, message: %s"),
+                        job.metadata.name, job.metadata.namespace,
+                        cluster_name, type(plugin), status.get_message())
                     remove_cluster = True
                     break
             if not remove_cluster:

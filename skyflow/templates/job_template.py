@@ -11,8 +11,8 @@ from pydantic import Field, field_validator
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
                                                ObjectException, ObjectList,
-                                               ObjectSpec, ObjectStatus,
-                                               ObjectName)
+                                               ObjectName, ObjectSpec,
+                                               ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 DEFAULT_IMAGE = "ubuntu:latest"
@@ -106,17 +106,17 @@ class RestartPolicyEnum(enum.Enum):
 
 class LabelSelectorOperatorEnum(enum.Enum):
     """
-    Represents the set of match expression operators for cluster placement 
+    Represents the set of match expression operators for cluster placement
     policy of a job.  Two operators are implemented:
         In: The key/value input checked using this operator requires
             the input key to match the expression key and the input
             value must match one of the values in the expression
             value list.  E.g. Input key/value pair "purpose": "prod"
             is found to be true in the following expression:
-                match_expressions: 
+                match_expressions:
                 - "key": "purpose"
                 "operator": "In"
-                "values": 
+                "values":
                 - "demo"
                 - "staging"
                 - "prod"
@@ -125,10 +125,10 @@ class LabelSelectorOperatorEnum(enum.Enum):
             value must not match all of the values in the expression
             value list.  E.g. Input key/value pair "purpose": "dev"
             is found to be true in the following expression:
-                match_expressions: 
+                match_expressions:
                 - "key": "purpose"
                 "operator": "NotIn"
-                "values": 
+                "values":
                 - "demo"
                 - "staging"
                 - "prod"
@@ -262,7 +262,7 @@ class FilterSpec(ObjectName):
     def validate_match_labels(cls, match_labels: Dict[str,
                                                       str]) -> Dict[str, str]:
         """
-        Ensures that the validation label keys contains only 
+        Ensures that the validation label keys contains only
         non-empty strings
         """
         for key, _ in match_labels.items():
@@ -283,7 +283,7 @@ class PreferenceSpec(FilterSpec):
         Validates the weight field of a preference.  Weight of
         value DEFAULT_MIN_WEIGHT will generate the lowest possible
         scoring.  DEFAULT_MAX_WEIGHT generates the highest
-        possible scoring. 
+        possible scoring.
         """
         if weight < DEFAULT_MIN_WEIGHT or weight > DEFAULT_MAX_WEIGHT:
             raise ValueError(f"preference `weight` must be within range "
@@ -302,19 +302,18 @@ class Placement(ObjectSpec):
     def validate_filters(cls, filters: List[FilterSpec]) -> List[FilterSpec]:
         """Validates the filters field."""
         unique_name_set = set()
-        for filter in filters:
-            if filter.name in unique_name_set:
+        for filt in filters:
+            if filt.name in unique_name_set:
                 raise ValueError(
-                    f"Duplicate filter `name`: {filter.name} found.")
-            else:
-                unique_name_set.add(filter.name)
+                    f"Duplicate filter `name`: {filt.name} found.")
+            unique_name_set.add(filt.name)
             # Ensure at least 1 match criteria is defined
-            if not filter.match_labels.items() and len(
-                    filter.match_expressions) <= 0:
+            if not filt.match_labels.items() and len(
+                    filt.match_expressions) <= 0:
                 raise ValueError(
                     f"Filter must contain at least one evaluation "
                     f"criteria (`match_labels` or `match_expressions`): "
-                    f"{filter.name} found.")
+                    f"{filt.name} found.")
         return filters
 
     @field_validator('preferences')
@@ -327,8 +326,7 @@ class Placement(ObjectSpec):
             if preference.name in unique_name_set:
                 raise ValueError(
                     f"Duplicate preference `name`: {preference.name} found.")
-            else:
-                unique_name_set.add(preference.name)
+            unique_name_set.add(preference.name)
 
             if not preference.match_labels.items() and len(
                     preference.match_expressions) <= 0:

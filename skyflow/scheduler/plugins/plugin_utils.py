@@ -2,21 +2,25 @@
 Utility functions for Plugins.
 """
 from typing import Dict, Optional, Tuple
+
 from skyflow.templates import LabelSelectorOperatorEnum, MatchExpression
 
 
 def match_labels_satisfied(labels_subset: Dict[str, str],
                            labels_superset: Dict[str, str]) -> bool:
+    """
+    Determines if labels subset is a subset of labels superset.
+    """
     return all(k in labels_superset and labels_superset[k] == v
                for k, v in labels_subset.items())
 
 
-def match_expressions_satisfied(
+def match_expressions_satisfied(  # pylint: disable=too-many-return-statements
         source_expression: MatchExpression,
         labels_superset: Dict[str, str]) -> Tuple[bool, Optional[str]]:
     """
     Determines expression criteria against labels superset.  Expression
-    criteria is based on the expression operator.  For example the 
+    criteria is based on the expression operator.  For example the
     operator can be defined as 'In' or 'NotIn'.  Determining
     if the expression is satisfied is dependent of the operator.
     """
@@ -26,11 +30,9 @@ def match_expressions_satisfied(
         # 'In' Operator
         if source_expression.operator == LabelSelectorOperatorEnum.IN.value:
             return False, f"Label key '{source_expression.key}' not found in cluster labels"
-        elif source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
+        if source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
             return True, None
-        # Unknown
-        else:
-            return False, f'Unknown operator'
+        return False, 'Unknown operator'
 
     # Check for superset value existance in expression values
     # and handle base on operator
@@ -41,14 +43,14 @@ def match_expressions_satisfied(
         if source_expression.operator == LabelSelectorOperatorEnum.IN.value:
             return True, None
         # 'NotIn' Operator"
-        elif source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
+        if source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
             return False, f"Label value '{superset_value}' found in cluster labels"
     else:
         # 'In' Operator
         if source_expression.operator == LabelSelectorOperatorEnum.IN.value:
-            return False, f'Label values not found in cluster labels'
+            return False, 'Label values not found in cluster labels'
         # 'NotIn' Operator"
-        elif source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
+        if source_expression.operator == LabelSelectorOperatorEnum.NOTIN.value:
             return True, None
     # Unknown
-    return False, f'Unknown operator'
+    return False, 'Unknown operator'

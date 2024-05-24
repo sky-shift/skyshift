@@ -47,6 +47,7 @@ spec:
   type: NodePort
 '''
 
+
 def _cleanup_clusters():
 
     def _delete_cluster(name):
@@ -74,7 +75,7 @@ def _setup_clusters():
     time.sleep(1)
 
 
-def _load_exporter_services(cluster:str):
+def _load_exporter_services(cluster: str):
     """ Loads the services in clusters to be used for connectivity tests """
     os.system(f"kubectl config use-context {cluster}")
     os.system(
@@ -84,10 +85,12 @@ def _load_exporter_services(cluster:str):
     os.system("kubectl wait --for=condition=Ready pod/http-server")
     os.system("kubectl create service nodeport http-server --tcp=8080:8080")
 
+
 def _setup_importer_service():
     """ Creates the service for replicas imported from other clusters """
     os.system(f"kubectl config use-context {CL1NAME}")
-    kubectl_process = subprocess.Popen(['kubectl', 'apply', '-f', '-'], stdin=subprocess.PIPE)
+    kubectl_process = subprocess.Popen(['kubectl', 'apply', '-f', '-'],
+                                       stdin=subprocess.PIPE)
     kubectl_process.communicate(input=bytes(HTTP_SERVICE, 'utf-8'))
 
 
