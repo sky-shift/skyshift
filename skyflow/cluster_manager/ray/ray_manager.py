@@ -1,6 +1,3 @@
-"""
-Represents the comptability layer over Ray native API.
-"""
 import json
 import logging
 import os
@@ -24,6 +21,11 @@ from skyflow.templates import (ClusterStatus,
                                TaskStatusEnum)
 from skyflow.templates.job_template import RestartPolicyEnum
 from skyflow.templates.resource_template import ContainerEnum
+
+# Import the new SSH utility functions and classes
+from skyflow.utils.ssh_utils import (
+    SSHParams, SSHStatusEnum, check_reachable, ssh_send_command, SSHConnectionError
+)
 
 RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
@@ -73,10 +75,12 @@ class RayManager(Manager):
         self.ssh_key_path = ssh_key_path
         self.username = username
         self.job_registry = {} # Maybe replace by updating status on ETCD 
-        self.accelerator_types: Dict[str, str] = {}
         self.host = host
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.ssh_params = SSHParams(
+            remote_hostname=host,
+            remote_username=username,
+            rsa_key=ssh_key_path
+        )
         self._setup_ssh_client()
         self.remote_dir = self._get_remote_home_directory()
         self.client = self._connect_to_ray_cluster()
@@ -96,15 +100,14 @@ class RayManager(Manager):
         return client
 
     def _setup_ssh_client(self):
-        """Reads the SSH key file, and setups the SSH client."""
+        """Setup the SSH client using the new utility functions."""
         try:
-            key_file_path = os.path.abspath(os.path.expanduser(self.ssh_key_path))
-            if not key_file_path:
-                raise FileNotFoundError(f"SSH key file not found: {self.ssh_key_path}")
-
-            private_key = paramiko.RSAKey.from_private_key_file(key_file_path)
-            self.ssh_client.connect(hostname=self.host, username=self.username, pkey=private_key)
-        except (IOError, paramiko.ssh_exception.SSHException) as e:
+            ssh_status = check_reachable(self.ssh_params)
+            if ssh_status.status == SSHStatusEnum.REACHABLE:
+                self.ssh_client = ssh_status.ssh_client
+            else:
+                raise SSHConnectionError("SSH connection setup failed.")
+        except Exception as e:
             self.logger.error(f"SSH connection setup failed: {e}")
             raise e
 
@@ -113,8 +116,8 @@ class RayManager(Manager):
         available_containers = []
         for container in ContainerEnum:
             command = f"command -v {container.value.lower()}"
-            _, stdout, _ = self.ssh_client.exec_command(command)
-            if stdout.read():
+            output = ssh_send_command(self.ssh_client, command)
+            if output:
                 available_containers.append(container)
                 self.logger.info(f"{container.value} is available.")
         
@@ -135,7 +138,6 @@ class RayManager(Manager):
         with tarfile.open(archive_name, "w:gz") as tar:
             tar.add(directory, arcname=os.path.basename(directory), 
                     filter=lambda x: None if x.name.endswith('ray_manager.py') else x)
-
 
     def _extract_archive_on_remote(self, remote_archive_path: str, remote_extract_path: str):
         """Extract the tar archive on the remote system."""
@@ -163,14 +165,14 @@ class RayManager(Manager):
 
     def _get_remote_system_memory(self):
         """Get the memory of the remote system in GB."""
-        _, stdout, _ = self.ssh_client.exec_command("free -g | awk '/^Mem:/ {print $2}'")
-        return int(stdout.read().strip())
+        command = "free -g | awk '/^Mem:/ {print $2}'"
+        return int(ssh_send_command(self.ssh_client, command))
 
     def _detect_shell(self):
         """Detect the shell used by the remote system."""
-        _, stdout, _ = self.ssh_client.exec_command("echo $SHELL")
-        shell = stdout.read().decode().strip().split('/')[-1]
-        return shell
+        command = "echo $SHELL"
+        shell = ssh_send_command(self.ssh_client, command)
+        return shell.strip().split('/')[-1]
 
     def _restart_ssh_connection(self):
         """Restart the SSH connection."""
@@ -179,9 +181,8 @@ class RayManager(Manager):
 
     def _get_remote_home_directory(self):
         """Fetch the home directory of the remote user."""
-        _, stdout, _ = self.ssh_client.exec_command("echo $HOME")
-        home_directory = stdout.read().strip().decode('utf-8')
-        return home_directory
+        command = "echo $HOME"
+        return ssh_send_command(self.ssh_client, command).strip()
 
     def _setup_ray(self):
         """Set up Ray using Miniconda."""
@@ -356,7 +357,6 @@ class RayManager(Manager):
         json_pattern = re.compile(RAY_JSON_PATTERN)
         match = json_pattern.search(logs)
 
-
         if match:
             try:
                 cluster_resources = json.loads(match.group(0))
@@ -406,7 +406,6 @@ class RayManager(Manager):
 
         return cluster_resources
 
-
     def submit_job(self, job: Job) -> Dict[str, Any]:
         """
         Submit a job to the Ray cluster using Docker containers. This method checks if the job has 
@@ -453,7 +452,6 @@ class RayManager(Manager):
         self.job_registry[job.get_name()] = job_id
 
         return submission_details
-
 
     def delete_job(self, job: Job) -> None:
         """
@@ -567,20 +565,3 @@ class RayManager(Manager):
 #job.spec.replicas = 1
 #job.spec.restart_policy = RestartPolicyEnum.NEVER.value
 
-# Submit the Job
-#rm.submit_job(job)
-#time.sleep(5)
-#print(rm.get_jobs_status())
-#print(rm.get_job_logs(job))
-
-#runtime_env = RuntimeEnv(
-#    container={
-#        "image": "rayproject/ray:latest-cpu"
-#    }
-#)
-#
-#client = JobSubmissionClient(os.environ.get("RAY_ADDRESS", "http://34.30.51.77:8265"))
-#job_id = client.submit_job(
-#    entrypoint="python batch_inference", runtime_env=runtime_env
-#)
-#print(job_id)

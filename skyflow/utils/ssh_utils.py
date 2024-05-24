@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import paramiko
 from paramiko.config import SSHConfig
-from scp import SCPClient
+#from scp import SCPClient
 from skyflow.globals import SKYCONF_DIR, USER_SSH_PATH
 
 # Constants
@@ -52,7 +52,7 @@ class SSHParams:
 class SCPStruct:
     """SCP Client struct for status and SCP client"""
     status: SSHStatusEnum
-    scp_client: Optional[SCPClient] = None
+    #scp_client: Optional[SCPClient] = None
 
 @dataclass
 class SSHStruct:
@@ -227,28 +227,6 @@ def ssh_send_command(ssh_client: paramiko.SSHClient, command: str) -> str:
     """Sends command to remote machine over ssh pipe"""
     _, stdout, _ = ssh_client.exec_command(command)
     return stdout.read().decode().strip()
-
-class SSHUtils:
-    def __init__(self, name: str, ssh_key_path: Optional[str], username: str, host: str, logger: Optional[logging.Logger] = None):
-        self.name = name
-        self.username = username
-        self.host = host
-        self.logger = logger if logger else logging.getLogger(f"[{name} - SSH Utils]")
-        self.ssh_client = paramiko.SSHClient()
-        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self._setup_ssh_client(ssh_key_path)
-        
-
-    def _setup_ssh_client(self, ssh_key_path: str):
-        """Reads the SSH key file, and setups the SSH client."""
-        try:
-            private_key = load_private_key(ssh_key_path)
-            self.ssh_client.connect(hostname=self.host, username=self.username, pkey=private_key)
-        except (IOError, paramiko.ssh_exception.SSHException) as e:
-            self.logger.error(f"SSH connection setup failed: {e}")
-            raise
-
-
 
 
 if __name__ == '__main__':
