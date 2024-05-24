@@ -114,7 +114,6 @@ def watch_generator_fn(
         etcd_value = convert_to_json(key_value.value)
         etcd_value = update_resource_version(etcd_value,
                                              key_value.mod_revision)
-        print(event_type, etcd_value)
         yield (event_type, etcd_value)
 
 
