@@ -322,19 +322,98 @@ class ETCDClient:
             A generator that yields a tuple of WatchEventEnum and the
             value.
         """
+        print(key)
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
+    
         watch_iter, cancel_fn = self.etcd_client.watch_prefix(key,
                                                               prev_kv=True)
         return watch_generator_fn(watch_iter), cancel_fn
 
 
+def prefix_range_end(prefix):
+    """Create a bytestring that can be used as a range_end for a prefix."""
+    s = bytearray(prefix)
+    for i in reversed(range(len(s))):
+        if s[i] < 0xff:
+            s[i] = s[i] + 1
+            break
+    return bytes(s)
+
+def to_bytes(maybe_bytestring):
+    """
+    Encode string to bytes.
+
+    Convenience function to do a simple encode('utf-8') if the input is not
+    already bytes. Returns the data unmodified if the input is bytes.
+    """
+    if isinstance(maybe_bytestring, bytes):
+        return maybe_bytestring
+    else:
+        return maybe_bytestring.encode('utf-8')
+    
+def start_watch(key: str):
+    range_end_bytes = prefix_range_end(to_bytes(key))
+    key_bytes = to_bytes(key)
+    
+    encoded_key = base64.b64encode(key_bytes).decode('utf-8')
+    encoded_range_end = base64.b64encode(range_end_bytes).decode('utf-8')
+
+    # Watch request payload
+    watch_payload = {
+        "create_request": {
+            "key": encoded_key,
+            "prev_kv": True,
+            'range_end': encoded_range_end,
+            'watch_id': 123,
+        }
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(f"http://localhost:2379/v3/watch", headers=headers, data=json.dumps(watch_payload), stream=True)
+    return response
+
+
+def cancel_watch(watch_id):
+    url = f'http://localhost:2379/v3/watch'
+    
+    headers = {
+        'Content-Type': 'application/json',
+    }
+    
+    data = {
+        "cancel_request": {
+            "watch_id": watch_id,
+        }
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(data), stream=True)
+    #print(f"Cancel Watch Response: {response.json()}")
+    for line in response.iter_lines():
+        print(json.loads(line.decode('utf-8')))
+
 if __name__ == "__main__":
-    etcd_client = ETCDClient()
-    new_value = {"b": 3}
-    etcd_client.write("a", {"a": 2})
-    original_value = etcd_client.read("a")
-    etcd_client.update("a", new_value)
-    etcd_client.update("a", new_value, resource_version=1)
-    new_value = etcd_client.read("a")
-    print(new_value)
+    key = '/sky_registry/clusters'
+    import base64
+    import json
+    import requests
+    while True:
+        print('???')
+        response = start_watch(key)
+        print("HELP")
+        for line in response.iter_lines():
+            if line:
+                watch_event = json.loads(line.decode('utf-8'))
+                watch_event = watch_event['result']
+                print(f"Watch Event: {watch_event}")
+                if "watch_id" in watch_event:
+                    print(watch_event["watch_id"])
+                    print(type(watch_event["watch_id"]))
+                    watch_id = watch_event["watch_id"]
+                    cancel_watch(watch_id)
+        # process_keys(response.json()['kvs'])
+        import time
+        time.sleep(0.5)
+    
+    
