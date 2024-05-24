@@ -2,7 +2,7 @@
 E2E tests for the scheduling.  Each individual test is not idempotent
 but the test suite is idempotent.
 
-Prerequisites : 
+Prerequisites :
     KIND (https://kind.sigs.k8s.io)
     DOCKER
     KUBECTL
@@ -20,6 +20,8 @@ from click.testing import CliRunner
 
 import skyflow.tests.tests_utils as tests_utils
 from skyflow.cli.cli import cli
+
+# pylint: disable=C0116 (missing-function-docstring)
 
 LAUNCH_SCRIPT_REL_PATH = "../../launch_skyflow.sh"
 
@@ -45,7 +47,7 @@ def _setup_sky_manager(num_workers: int = 16):
     command = ["bash", install_script_path, "--workers", workers_param_str]
     print(f"Setup up sky manager command:'{command}'.")
 
-    process = subprocess.Popen(command)
+    process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
     time.sleep(15)  # Wait for the server to start
     return process
 
@@ -58,7 +60,7 @@ def _breakdown_sky_manager():
 
     command = ["bash", install_script_path, "--kill"]
     print(f"Sky manager cleaned up ({command}).")
-    process = subprocess.Popen(command)
+    process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
     time.sleep(15)  # Wait for the server to stop
 
     # Additional cleanup for pristine env.
@@ -91,14 +93,14 @@ def _load_batch_job():
     yaml_file_path = os.path.abspath(
         os.path.join(current_directory, relative_path_to_prod_yaml))
     # Load
-    with open(yaml_file_path, 'r') as f:
-        job_dict = yaml.safe_load(f)
+    with open(yaml_file_path, 'r') as file:
+        job_dict = yaml.safe_load(file)
     return job_dict
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_shutdown():
-    with tempfile.TemporaryDirectory() as temp_data_dir:
+    with tempfile.TemporaryDirectory():
         # Kill any running sky_manager processes
         _breakdown_sky_manager()
         print("Sky manager clean up complete.")
@@ -114,7 +116,7 @@ def setup_and_shutdown():
         time.sleep(30)
 
         # Setup and run Sky Manager
-        process = _setup_sky_manager()
+        _setup_sky_manager()
 
         print(
             "Setup up sky manager and kind clusters completed.  Testing begins..."
@@ -137,11 +139,12 @@ def setup_and_shutdown():
         print("Cleaned up ETCD.")
 
 
-@pytest.fixture
-def runner():
+@pytest.fixture(name="runner")
+def fixture_runner():
     return CliRunner()
 
 
+# pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_label(runner):
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
@@ -303,6 +306,7 @@ def test_filter_with_match_label(runner):
     assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
 
+# pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_expression(runner):
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
@@ -406,7 +410,7 @@ def test_filter_with_match_expression(runner):
     print('Deleting schedulable filtering workload')
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0, f'Job deletion failed: {batch_job_nameh}'
+    assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
 
 def test_preference(runner):

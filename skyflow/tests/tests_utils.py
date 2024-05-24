@@ -156,15 +156,15 @@ def is_process_running(process_name: str) -> bool:
 
 
 def create_cluster(name: str):
-    """ 
-    Creates a KIND Cluster 
+    """
+    Creates a KIND Cluster
 
-    Prerequisites : 
+    Prerequisites :
         KIND (https://kind.sigs.k8s.io)
         DOCKER
         KUBECTL
     """
-    logging.debug(f'Creating cluster {name}')
+    logging.debug('Creating cluster %s', name)
     os.system(f"kind create cluster  --name={name}")
 
     cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
@@ -173,13 +173,13 @@ def create_cluster(name: str):
                                 shell=True,
                                 stderr=subprocess.STDOUT).decode('utf-8')
         return True
-    except subprocess.CalledProcessError as error:
+    except subprocess.CalledProcessError:
         return False
 
 
 def delete_cluster(name: str):
-    """ 
-    Deletes a KIND Cluster 
     """
-    logging.debug(f'Deleting cluster {name}')
+    Deletes a KIND Cluster
+    """
+    logging.debug('Deleting cluster %s', name)
     os.system(f"kind delete cluster --name={name}")
