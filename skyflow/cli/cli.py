@@ -113,12 +113,11 @@ def validate_value_string(value: str) -> bool:
     return bool(pattern.fullmatch(value))
 
 
-def validate_label_selector(labelselector: List[Tuple[str, str]]) -> bool:
-    """Validates label selectors."""
-    for key, value in labelselector:
+def validate_labels(labels: List[Tuple[str, str]]) -> bool:
+    """Validates list of labels."""
+    for key, value in labels:
         if not validate_input_string(key) or not validate_value_string(value):
-            click.echo(f"Error: Invalid label selector: {key}:{value}",
-                       err=True)
+            click.echo(f"Error: Invalid label: {key}:{value}", err=True)
             return False
     return True
 
@@ -211,6 +210,14 @@ cli.add_command(apply_config)
 # Cluster API as CLI
 @create.command(name="cluster", aliases=["clusters"])
 @click.argument('name', required=True)
+@click.option(
+    "--labels",
+    "-l",
+    type=(str, str),
+    multiple=True,
+    default=[],
+    help="Key-value pairs for cluster labels",
+)
 @click.option('--manager',
               default='k8',
               show_default=True,
@@ -265,9 +272,9 @@ cli.add_command(apply_config)
               help='True if cluster needs to be provisioned on the cloud.')
 @halo_spinner("Creating cluster")
 def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
-        name: str, manager: str, cpus: str, memory: str, disk_size: int,
-        accelerators: str, ports: List[str], num_nodes: int, cloud: str,
-        region: str, provision: bool, spinner):
+        name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
+        memory: str, disk_size: int, accelerators: str, ports: List[str],
+        num_nodes: int, cloud: str, region: str, provision: bool, spinner):
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
@@ -286,13 +293,19 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         spinner.fail("Error: Name format is invalid.")
         raise click.BadParameter("Name format is invalid.")
 
+    if not validate_labels(labels):
+        raise click.BadParameter("Invalid label format.")
+
     if ports:
         ports = list(ports)
+
+    labels_dict = dict(labels)
 
     cluster_dictionary = {
         "kind": "Cluster",
         "metadata": {
             "name": name,
+            "labels": labels_dict,
         },
         "spec": {
             "manager":
@@ -455,7 +468,7 @@ def create_job(
         spinner.fail("Invalid namespace format.")
         raise click.BadParameter("Invalid namespace format.")
 
-    if not validate_label_selector(labels):
+    if not validate_labels(labels):
         spinner.fail("Invalid label selector format.")
         raise click.BadParameter("Invalid label selector format.")
 
@@ -672,7 +685,7 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
         raise click.BadParameter("Name or namespace format is invalid.")
 
     # Validate label selectors
-    if not validate_label_selector(labelselector):
+    if not validate_labels(labelselector):
         spinner.fail("Label selector format is invalid.")
         raise click.BadParameter("Label selector format is invalid.")
 

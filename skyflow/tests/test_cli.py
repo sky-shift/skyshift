@@ -46,9 +46,16 @@ def fixture_runner():
 
 
 def test_create_cluster_success(runner):
+    # Define cluster labels
+    labels = [("sky-cluster-id", "valid-cluster"), ("cluster-purpose", "dev")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
+    # Construct the command with parameters
     name = "valid-cluster"
     manager = "k8"
-    cmd = ['create', 'cluster', name, '--manager', manager]
+    cmd = ['create', 'cluster', name, '--manager', manager] + label_args
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
     assert name in result.output
