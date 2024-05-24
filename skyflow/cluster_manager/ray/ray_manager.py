@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import paramiko
 import ray
+import regex as re 
 from ray.job_submission import JobSubmissionClient
 from ray.runtime_env import RuntimeEnv
 from kubernetes import client, config
@@ -27,6 +28,8 @@ from skyflow.templates.resource_template import ContainerEnum
 RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
 RAY_NODES_PORT = 6379
+
+RAY_JSON_PATTERN = "(\{(?:[^{}]|(?R))*\})"
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
@@ -72,12 +75,13 @@ class RayManager(Manager):
         self.job_registry = {} # Maybe replace by updating status on ETCD 
         self.accelerator_types: Dict[str, str] = {}
         self.host = host
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self._setup_ssh_client()
+        self.remote_dir = self._get_remote_home_directory()
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
-            self.ssh_client = paramiko.SSHClient()
-            self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self._setup_ssh_client()
             self._setup_ray()
             self.client = self._connect_to_ray_cluster()
 
@@ -146,9 +150,9 @@ class RayManager(Manager):
         local_directory = os.path.dirname(os.path.realpath(__file__))
         self.logger.info(f"Copying files from {local_directory} to the remote system.")
         archive_name = 'ray_manager_files.tar.gz'
-        #TODO: let the user customize this
-        remote_archive_path = f'/home/alex/ray_manager_files.tar.gz'
-        remote_extract_path = '/home/alex'
+
+        remote_extract_path = self.remote_dir
+        remote_archive_path = f'{remote_extract_path}/ray_manager_files.tar.gz'
 
         self._create_archive(local_directory, archive_name)
         self._copy_file_to_remote(archive_name, remote_archive_path)
@@ -172,6 +176,12 @@ class RayManager(Manager):
         """Restart the SSH connection."""
         self.ssh_client.close()
         self._setup_ssh_client()
+
+    def _get_remote_home_directory(self):
+        """Fetch the home directory of the remote user."""
+        _, stdout, _ = self.ssh_client.exec_command("echo $HOME")
+        home_directory = stdout.read().strip().decode('utf-8')
+        return home_directory
 
     def _setup_ray(self):
         """Set up Ray using Miniconda."""
@@ -207,17 +217,18 @@ class RayManager(Manager):
             self._restart_ssh_connection()
 
             # Include the explicit path to the conda binary
-            conda_path = "/home/alex/miniconda/bin/conda"
+            conda_path = f"{self.remote_dir}/miniconda/bin/conda"
             if shell == 'zsh':
-                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.zshrc"
+                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.zshrc"
             elif shell == 'ksh':
-                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.kshrc"
+                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.kshrc"
             else:
-                conda_profile_cmd = f"export PATH=/home/alex/miniconda/bin/conda:$PATH && source ~/.bashrc"
+                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.bashrc"
 
             # Create conda environment and install Ray
             self.logger.info("Setting up Ray environment...")
-            setup_cmd = f"{conda_profile_cmd} && {conda_path} create -n my_ray_env python=3.10 -y && {conda_path} run -n my_ray_env pip install ray[all]"
+            setup_cmd = f"{conda_profile_cmd} && {conda_path} create -n my_ray_env python=3.10 -y \
+                && {conda_path} run -n my_ray_env pip install ray[all]"
             _, stdout, stderr = self.ssh_client.exec_command(setup_cmd)
             stdout.channel.recv_exit_status()
             self.logger.info(stdout.read().decode())
@@ -332,7 +343,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint="python /home/alex/fetch_ray_resources.py"
+            entrypoint=f"python {self.remote_dir}/fetch_ray_resources.py"
         )
 
         # Wait for the job to finish and fetch the results
@@ -342,14 +353,19 @@ class RayManager(Manager):
 
         # Fetch the job logs
         logs = self.client.get_job_logs(job_id)
+        json_pattern = re.compile(RAY_JSON_PATTERN)
+        match = json_pattern.search(logs)
 
-        print(logs)
-        # Check if the last line is a valid JSON string
-        try:
-            cluster_resources = json.loads(logs)
-        except json.JSONDecodeError as e:
-            print("Failed to decode JSON from the logs, check the log output for errors.", e)
-            cluster_resources = None
+
+        if match:
+            try:
+                cluster_resources = json.loads(match.group(0))
+            except json.JSONDecodeError as e:
+                self.logger.exception("Failed to decode JSON from the logs, check the log output for errors.", e)
+                cluster_resources = {}
+        else:
+            self.logger.exception("No JSON object found in the logs.")
+            cluster_resources = {}
 
         return cluster_resources
 
@@ -365,7 +381,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint="python /home/alex/fetch_ray_allocatable_resources.py"
+            entrypoint=f"python {self.remote_dir}/fetch_ray_allocatable_resources.py"
         )
 
         # Wait for the job to finish and fetch the results
@@ -375,12 +391,18 @@ class RayManager(Manager):
 
         # Fetch the job logs
         logs = self.client.get_job_logs(job_id)
-        # Check if the last line is a valid JSON string
-        try:
-            cluster_resources = json.loads(logs)
-        except json.JSONDecodeError as e:
-            print("Failed to decode JSON from the logs, check the log output for errors.", e)
-            cluster_resources = None
+        json_pattern = re.compile(RAY_JSON_PATTERN)
+        match = json_pattern.search(logs)
+
+        if match:
+            try:
+                cluster_resources = json.loads(match.group(0))
+            except json.JSONDecodeError as e:
+                self.logger.exception("Failed to decode JSON from the logs, check the log output for errors.", e)
+                cluster_resources = {}
+        else:
+            self.logger.exception("No JSON object found in the logs.")
+            cluster_resources = {}
 
         return cluster_resources
 
@@ -412,7 +434,7 @@ class RayManager(Manager):
         job_json = json.dumps(job.model_dump())
 
         # Prepare the entrypoint for the job
-        entrypoint = f"python /home/alex/job_launcher.py '{job_json}'"
+        entrypoint = f"python {self.remote_dir}/job_launcher.py '{job_json}'"
 
         # Submit the job to the Ray cluster
         self.client.submit_job(
@@ -475,22 +497,28 @@ class RayManager(Manager):
         job_id = f"fetch_status_{uuid4().hex[:10]}"
 
         # Submit the job to the Ray cluster
-        try:
-            self.client.submit_job(
-                entrypoint=f"python /home/alex/fetch_job_status.py",
-                submission_id=job_id
-            )
+        self.client.submit_job(
+            entrypoint=f"python {self.remote_dir}/fetch_job_status.py",
+            submission_id=job_id
+        )
 
+        job_info = self.client.get_job_info(job_id)
+        while job_info.status != 'SUCCEEDED':
             job_info = self.client.get_job_info(job_id)
-            while job_info.status != 'SUCCEEDED':
-                job_info = self.client.get_job_info(job_id)
+        # Fetch the logs of the job to get the output
 
-            # Fetch the logs of the job to get the output
-            logs = self.client.get_job_logs(job_id)
-            jobs_dict = json.loads(logs)
-        except Exception as error:
-            print(f"Failed to fetch job statuses: {error}")
-            return {}
+        logs = self.client.get_job_logs(job_id)
+        json_pattern = re.compile(RAY_JSON_PATTERN)
+        match = json_pattern.search(logs)
+        if match:
+            try:
+                jobs_dict = json.loads(match.group(0))
+            except json.JSONDecodeError as e:
+                logging.error("Failed to decode JSON from the logs, check the log output for errors.", e)
+                jobs_dict = {}
+        else:
+            logging.error("No JSON object found in the logs.")
+            jobs_dict = {}
 
         return jobs_dict
 
@@ -519,10 +547,10 @@ class RayManager(Manager):
             return logs
     
 #print("Ray Manager")
-#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
+#rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
 #print(rm.cluster_resources)
 #print(rm.allocatable_resources)
-#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
+#rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
 #print(rm.get_cluster_status())
 
 # Create a Job instance
