@@ -1,101 +1,84 @@
-import paramiko 
 import os
 import logging
 import enum
-from skyflow.globals import SKYCONF_DIR
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Dict, Any
-from scp import SCPClient
-import time
-import threading
+from typing import List, Dict, Any, Optional
+import paramiko
 from paramiko.config import SSHConfig
-DEFAULT_SSH_CONFIG_PATH = '~/.ssh/config'
-PARAMIKO_LOG_PATH = '~/.skyconf/paramiko.log'
-paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
+from scp import SCPClient
+from skyflow.globals import SKYCONF_DIR, USER_SSH_PATH
 
+# Constants
+DEFAULT_SSH_CONFIG_PATH = os.path.join(USER_SSH_PATH, "config")
+PARAMIKO_LOG_PATH = os.path.join(SKYCONF_DIR, "paramiko.log")
+SSH_LOG_DIR = os.path.join(SKYCONF_DIR, '.ssh')
+SSH_LOG = os.path.join(SSH_LOG_DIR, 'skyflow_ssh_config.log')
+
+# Logging setup
+paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
 logging.basicConfig(
     level=logging.INFO,
-    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
-class SSHConfigNotDefinedError(Exception):
-    """ Raised when there is an error in slurm config yaml. """
-    def __init__(self, variable_name):
-        self.variable_name = variable_name
-        super().__init__(f"Variable '{variable_name}' is not provided")
-class SSHConnectionError(Exception):
-    """ Raised when there is an error establishing SSH connection to slurm cluster. """
-SSH_LOG_DIR = SKYCONF_DIR + '/.ssh/'
-SSH_LOG = SSH_LOG_DIR + 'skyflow_ssh_config.log'
+    format="%(name)s - %(asctime)s - %(levelname)s - %(message)s"
+)
 
-    
-@dataclass
-class SSHParams():
-    remote_hostname: str
-    remote_username: str
-    rsa_key: str
-    passkey: str
-    uses_passkey: bool = False
-    port: int = 22
-    def __init__(self, remote_hostname=None, remote_username=None,
-        rsa_key=None, passkey = None, uses_passkey=False, port=22):
-        self.remote_hostname = remote_hostname
-        self.remote_username = remote_username
-        self.rsa_key = rsa_key
-        self.passkey = passkey
-        self.uses_passkey = uses_passkey
-        self.port = port
+# Custom Exceptions
+class SSHConfigNotDefinedError(Exception):
+    """Raised when there is an error in SSH config."""
+    def __init__(self, variable_name):
+        super().__init__(f"Variable '{variable_name}' is not provided")
+        self.variable_name = variable_name
+
+class SSHConnectionError(Exception):
+    """Raised when there is an error establishing SSH connection."""
+
+# Enum for SSH status
 class SSHStatusEnum(enum.Enum):
     """Remote SSH host reachability enum"""
     REACHABLE = True
     NOT_REACHABLE = False
-@dataclass 
-class SCPStruct():
-    """SCP Client struct for status and scp client"""
-    status: SSHStatusEnum
-    scp_client: SCPClient
-    def __init__(self, status=SSHStatusEnum.NOT_REACHABLE, scp_client=None):
-        self.status = status
-        self.scp_client = scp_client
-@dataclass
-class SSHStruct():
-    """SSH Client struct for status and ssh client"""
-    status: SSHStatusEnum
-    ssh_client: paramiko.SSHClient
-    def __init__(self, status=SSHStatusEnum.NOT_REACHABLE, ssh_client=None):
-        self.status = status
-        self.ssh_client = ssh_client
 
-def log_ssh_status(msg):
-    """ 
-        Logging Utility
-        Arg:
-            msg: String to be logged.
-    """
-    if not os.path.exists(SSH_LOG_DIR):
-        logging.info(f"Creating directory '{SSH_LOG_DIR}'")
-        os.makedirs(Path(SSH_LOG_DIR))
-    if not os.path.exists(SSH_LOG):
-        try:
-            logging.info(f"Creating log file '{SSH_LOG}'")
-            with open(SSH_LOG, 'w'):  
-                pass  
-        except OSError as e:
-            logging.info(f"Error creating file '{SSH_LOG}'")
+# Data classes
+@dataclass
+class SSHParams:
+    remote_hostname: str
+    remote_username: str
+    rsa_key: Optional[str] = None
+    passkey: Optional[str] = None
+    uses_passkey: bool = False
+    port: int = 22
+
+@dataclass
+class SCPStruct:
+    """SCP Client struct for status and SCP client"""
+    status: SSHStatusEnum
+    scp_client: Optional[SCPClient] = None
+
+@dataclass
+class SSHStruct:
+    """SSH Client struct for status and SSH client"""
+    status: SSHStatusEnum
+    ssh_client: Optional[paramiko.SSHClient] = None
+
+# Utility functions
+def log_ssh_status(msg: str):
+    """Logging utility"""
+    os.makedirs(SSH_LOG_DIR, exist_ok=True)
     try:
         with open(SSH_LOG, 'a') as file:
             file.write(msg + '\n')  # Append content to the file
     except OSError as e:
-        logging.info(f"Error appending to file '{SSH_LOG}'")
+        logging.error(f"Error appending to file '{SSH_LOG}': {e}")
 
-def read_ssh_config(host_entry, config_path=DEFAULT_SSH_CONFIG_PATH):
+def read_ssh_config(host_entry: str, config_path: str = DEFAULT_SSH_CONFIG_PATH) -> Dict[str, Any]:
     """
-        Read SSH config from ssh_config file. 
-        This assumes pubkey is copied to the remote host, and the pubkey is in the ~/.ssh directory
+    Read SSH config from ssh_config file.
+    This assumes pubkey is copied to the remote host, and the pubkey is in the ~/.ssh directory.
     """
     absolute_path = os.path.abspath(os.path.expanduser(config_path))
     config = SSHConfig.from_path(absolute_path)
     host_config = config.lookup(host_entry)
-    print(host_config)
+    logging.debug(f"Host config for '{host_entry}': {host_config}")
     return host_config
 
 def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG_PATH):
@@ -103,198 +86,170 @@ def read_and_connect_from_config(host_entry: str, config_path=DEFAULT_SSH_CONFIG
         Uses ssh config file to read entries and connect clients
     """
     ssh_client = paramiko.SSHClient() 
-    host_config = paramiko.SSHConfigDict = read_ssh_config(host_entry, config_path)
-    ssh_client.load_system_host_keys() 
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy()) 
+    host_config = read_ssh_config(host_entry, config_path)
+    ssh_client.load_system_host_keys()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
     try:
-        ssh_client.connect( 
-            hostname=host_config['hostname'], 
-            port=int(host_config.get('port', 22)), 
-            username=host_config['user'], 
-            key_filename=host_config.get('identityfile', None), 
-            look_for_keys=host_config.get('identitiesonly', 'yes').lower() in [ 
-                'yes', 'true'] 
+        ssh_client.connect(
+            hostname=host_config['hostname'],
+            port=int(host_config.get('port', 22)),
+            username=host_config['user'],
+            key_filename=host_config.get('identityfile', None),
+            look_for_keys=host_config.get('identitiesonly', 'yes').lower() in ['yes', 'true']
         )
     except paramiko.ssh_exception.SSHException as error:
         logging.error(f"SSH connection setup failed: {error}")
-        raise error
+        raise SSHConnectionError(f"SSH connection setup failed: {error}")
+    
     return ssh_client
 
-def load_private_key(key_path:str):
+def read_and_connect_list_from_config(host_entries: List[str], config_file: str = DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
     """
-        Loads private key from file.
-    """
-    try:
-        with open(os.path.abspath(os.path.expanduser(key_path)), "r") as key_file:
-            private_key = paramiko.RSAKey.from_private_key(key_file)
-    except paramiko.ssh_exception.PasswordRequiredException as error:
-        logging.error(f"Private key password required: {error}")
-        raise error
-    except paramiko.ssh_exception.SSHException as error:
-        logging.error(f"Private key error: {error}")
-        raise error
-    return private_key
-
-def connect_from_args(hostname: str, private_key_file: str, username: str, port=22):
-    """
-        Connects to remote host using provided arguments.
-    """
-    ssh_client = paramiko.SSHClient()
-    ssh_client.load_system_host_keys()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        ssh_client.connect(
-             hostname=hostname,
-             port=port,
-             username=username,
-             pkey=load_private_key(private_key_file)
-         )
-    except paramiko.ssh_exception.SSHException as error:
-        logging.error(f"SSH connection setup failed: {error}")
-        raise error
-    return ssh_client
-
-def read_and_connect_list_from_config(host_entries: List[str], config_file=DEFAULT_SSH_CONFIG_PATH) -> Dict[str, paramiko.SSHClient]:
-    """
-        Uses ssh config file to read entries and connect all clients.
-        Args:
-            host_entries: List of hostnames in ssh configuration file.
-        Returns:
-            Dict of all hostnamnes and clients.
+    Uses ssh config file to read entries and connect all clients.
+    Args:
+        host_entries: List of hostnames in ssh configuration file.
+    Returns:
+        Dict of all hostnames and clients.
     """
     ssh_clients = {}
     for host in host_entries:
-        ssh_client = read_and_connect_from_config(host, config_file)
-        ssh_clients[host] = ssh_client
+        ssh_clients[host] = read_and_connect_from_config(host, config_file)
+    return ssh_clients
     
-def get_host_entries(config_path=DEFAULT_SSH_CONFIG_PATH)-> List[str]:
+def get_host_entries(config_path: str = DEFAULT_SSH_CONFIG_PATH) -> List[str]:
     """
-        Returns all hosts configured in SSH config file
-        Return:
-            List of host entries in ssh configuration file.
+    Returns all hosts configured in SSH config file.
+    Return:
+        List of host entries in ssh configuration file.
     """
     absolute_path = os.path.abspath(os.path.expanduser(config_path)) 
     # Load SSH config file
     config = SSHConfig()
     with open(absolute_path) as f:
         config.parse(f)
-    return(config.get_hostnames())
-def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH):
+    return config.get_hostnames()
+
+def create_all_ssh_clients(config_path: str = DEFAULT_SSH_CONFIG_PATH) -> List[paramiko.SSHClient]:
     """
-        Creates list of SSHClient objects from ssh config file.
-        Arg:
-            config_path:
-                ssh configuration file path.
-        Returns:    
-            List containing all open ssh_clients.
-    """
-    hosts = get_host_entries(config_path)
-    ssh_params = []
-    ssh_clients = []
-    for host in hosts:
-        ssh_params.append(read_ssh_config(host))
-    for ssh_param in ssh_params:
-        ssh_clients.append(connect_ssh_client(ssh_param))
-def close_ssh_clients(ssh_clients: List[paramiko.SSHClient]):
-    for client in ssh_clients:
-        client.close()
-def close_ssh_clients(ssh_client:paramiko.SSHClient):
-    ssh_client.close()
-def create_all_ssh_clients(config_path=DEFAULT_SSH_CONFIG_PATH) -> List[paramiko.SSHClient]:
-    """
-        Creates list of SSHClient objects from ssh config file.
-        Arg:
-            config_path:
-                ssh configuration file path.
-        Returns:    
-            List containing all open ssh_clients.
+    Creates list of SSHClient objects from ssh config file.
+    Arg:
+        config_path: ssh configuration file path.
+    Returns:
+        List containing all open ssh_clients.
     """
     hosts = get_host_entries(config_path)
-    ssh_params = []
     ssh_clients = []
     for host in hosts:
-        ssh_params.append(read_ssh_config(host))
-    for ssh_param in ssh_params:
-        ssh_clients.append(connect_ssh_client(ssh_param))
+        ssh_clients.append(read_and_connect_from_config(host, config_path))
     return ssh_clients
-def check_reachable(ssh_params: SSHParams):
-    """ Sanity check to make sure login node is reachable via SSH.
-        Args:
-            ssh_params: dataclass which includes necessary information to establish SSH connection.
-        
-        Returns: 
-            Whether remote host is reachable or not.
+
+def check_reachable(ssh_params: SSHParams) -> SSHStruct:
     """
-    ssh_struct = connect_ssh_client(ssh_params)
-    return ssh_struct      
+    Sanity check to make sure login node is reachable via SSH.
+    Args:
+        ssh_params: dataclass which includes necessary information to establish SSH connection.
+    Returns:
+        Whether remote host is reachable or not.
+    """
+    return connect_ssh_client(ssh_params)
+
+def load_private_key(ssh_key_path: str) -> paramiko.RSAKey:
+    key_file_path = os.path.abspath(os.path.expanduser(ssh_key_path))
+    if not os.path.exists(key_file_path):
+        raise FileNotFoundError(f"SSH key file not found: {ssh_key_path}")
+    return paramiko.RSAKey.from_private_key_file(key_file_path)
 
 def connect_ssh_client(ssh_params: SSHParams) -> SSHStruct:
     """
-        Connects the client and returns a struct containing the status and ssh client.
-        Args:
-            ssh_params: Parameters required for connecting to remote host.
-        Returns:
-            SSHStruct
+    Connects the client and returns a struct containing the status and ssh client.
+    Args:
+        ssh_params: Parameters required for connecting to remote host.
+    Returns:
+        SSHStruct
     """
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # Connect to the SSH server
     reachability_flag = True
+    
     try:
-        if ssh_params.uses_passkey: #Connect with passkey
-            ssh_client.connect(hostname = ssh_params.remote_hostname,
-                username = ssh_params.remote_username, password=ssh_params.passkey)
-            logging.info('Host: ' + ssh_params.remote_hostname + '@' + ssh_params.remote_username + ' Reachable')
+        if ssh_params.uses_passkey:
+            ssh_client.connect(
+                hostname=ssh_params.remote_hostname,
+                username=ssh_params.remote_username,
+                password=ssh_params.passkey
+            )
         else:
-            if ssh_params.rsa_key == None: #Connect with autogen private key
-                ssh_client.connect(hostname = ssh_params.remote_hostname,
-                    username = ssh_params.remote_username)
-            else: #Connect with specific private key file
-                ssh_client.connect(hostname = ssh_params.remote_hostname, 
-                    username = ssh_params.remote_username, pkey = ssh_params.rsa_key)
-            logging.info('Host: ' + ssh_params.remote_hostname + '@' + ssh_params.remote_username + ' Reachable')
+            ssh_client.connect(
+                hostname=ssh_params.remote_hostname,
+                username=ssh_params.remote_username,
+                pkey=load_private_key(ssh_params.rsa_key) if ssh_params.rsa_key else None
+            )
+        logging.info(f"Host: {ssh_params.remote_hostname}@{ssh_params.remote_username} reachable")
     except paramiko.AuthenticationException:
-        logging.info('Unable to authenticate user, please check configuration')
+        logging.error('Unable to authenticate user, please check configuration')
         reachability_flag = False
     except paramiko.SSHException:
-        logging.info('SSH protocol negotiation failed, \
-        please check if remote server is reachable')
-        reachability_flag = False 
-    except Exception:
-        logging.info("Unexpected exception") 
+        logging.error('SSH protocol negotiation failed, please check if remote server is reachable')
         reachability_flag = False
-    if not reachability_flag:
-        return SSHStruct(SSHStatusEnum.NOT_REACHABLE, ssh_client)
-    return SSHStruct(SSHStatusEnum.REACHABLE, ssh_client)
-def create_ssh_client(ssh_params: SSHParams):
-    """Connects and returns SSH client object.
-        This is assuming you are certain the remote host is reachable.
+    except Exception as e:
+        logging.error(f"Unexpected exception: {e}")
+        reachability_flag = False
+    
+    return SSHStruct(status=SSHStatusEnum.REACHABLE if reachability_flag else SSHStatusEnum.NOT_REACHABLE, ssh_client=ssh_client)
 
-        Args: 
-         ssh_params: dataclass which includes necessary information to establish SSH connection.
-        Returns:
-            Paramiko SSH client object
+def create_ssh_client(ssh_params: SSHParams) -> paramiko.SSHClient:
+    """
+    Connects and returns SSH client object.
+    This is assuming you are certain the remote host is reachable.
+    Args:
+        ssh_params: dataclass which includes necessary information to establish SSH connection.
+    Returns:
+        Paramiko SSH client object
     """
     return connect_ssh_client(ssh_params).ssh_client
-        
-def verify_ssh_client(ssh_params: SSHParams):
-    """ Sanity check to make sure remote host is reachable, and returns the connected SSHClient object.
-        Closes the connection afterwards.
-        Args:
-            ssh_params: struct of information needed to establish an SSH connection.
-        Returns:
-            List[SSH connection success, paramiko SSHClient object]
+
+def verify_ssh_client(ssh_params: SSHParams) -> SSHStatusEnum:
+    """
+    Sanity check to make sure remote host is reachable, and returns the connected SSHClient object.
+    Closes the connection afterwards.
+    Args:
+        ssh_params: struct of information needed to establish an SSH connection.
+    Returns:
+        SSH connection success status
     """
     ssh_struct = connect_ssh_client(ssh_params)
-    if ssh_struct.status:
+    if ssh_struct.status == SSHStatusEnum.REACHABLE:
         ssh_struct.ssh_client.close()
-        return ssh_struct.status
-    else:
-        return ssh_struct.status
-def ssh_send_command(ssh_client, command) -> Any:
+    return ssh_struct.status
+
+def ssh_send_command(ssh_client: paramiko.SSHClient, command: str) -> str:
     """Sends command to remote machine over ssh pipe"""
     _, stdout, _ = ssh_client.exec_command(command)
     return stdout.read().decode().strip()
+
+class SSHUtils:
+    def __init__(self, name: str, ssh_key_path: Optional[str], username: str, host: str, logger: Optional[logging.Logger] = None):
+        self.name = name
+        self.username = username
+        self.host = host
+        self.logger = logger if logger else logging.getLogger(f"[{name} - SSH Utils]")
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self._setup_ssh_client(ssh_key_path)
+        
+
+    def _setup_ssh_client(self, ssh_key_path: str):
+        """Reads the SSH key file, and setups the SSH client."""
+        try:
+            private_key = load_private_key(ssh_key_path)
+            self.ssh_client.connect(hostname=self.host, username=self.username, pkey=private_key)
+        except (IOError, paramiko.ssh_exception.SSHException) as e:
+            self.logger.error(f"SSH connection setup failed: {e}")
+            raise
+
+
+
 
 if __name__ == '__main__':
     print(read_ssh_config('mac'))
