@@ -1,1 +1,4 @@
-from api_server.api_server import remove_flag_file, CONF_FLAG_DIR
+"""
+Imports for the API server
+"""
+from api_server.api_server import CONF_FLAG_DIR, remove_flag_file

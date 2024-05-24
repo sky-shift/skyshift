@@ -48,7 +48,8 @@ class ProxyController(Controller):
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Proxy Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Proxy Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/proxy_controller.log')
 
         self.service_informer = Informer(ServiceAPI(namespace=''),
@@ -107,7 +108,6 @@ class ProxyController(Controller):
         if event_key == WatchEventEnum.DELETE:
             if self.name == primary_cluster:
                 # Delete the K8 endpoints object and delete import of service.
-                self.manager_api.delete_endpoint_slice(event_object)
                 self._delete_import_service(event_object)
             else:
                 # Delete clusterlink export of service (but do not delete link).
@@ -145,10 +145,8 @@ class ProxyController(Controller):
                     self.logger.info(
                         "%s is now exported by cluster, and ready to be imported",
                         name)
-                    if import_service(f'{name}', self.manager_api,
-                                      cluster_name, ports):
-                        self.manager_api.create_endpoint_slice(
-                            name, cluster_name, endpoint_obj)
+                    import_service(f'{name}', self.manager_api, cluster_name,
+                                   ports)
 
     def _delete_import_service(self, endpoints: Endpoints):
         name = endpoints.get_name()

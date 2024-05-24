@@ -21,7 +21,7 @@ from skyflow.structs import Informer
 from skyflow.templates.job_template import Job, TaskStatusEnum
 
 DEFAULT_HEARTBEAT_TIME = 3  # seconds
-DEFAULT_RETRY_LIMIT = 3  # seconds
+DEFAULT_RETRY_LIMIT = 5
 
 
 @contextmanager
@@ -122,12 +122,17 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
 
         # For jobs that are no longer present on the cluster due to expiration or deletion.
         for job_name in filtered_jobs:
+            self.logger.warning("Job %s not found on cluster.", job_name)
             cached_job = informer_object[job_name]
-            self.update_job(
-                cached_job, {
-                    TaskStatusEnum.FAILED.value:
-                    sum(cached_job.status.replica_status[self.name].values())
-                }, {}, self.job_status["containers"])
+            # Ensure the job was in the RUNNING state before marking it as FAILED
+            if TaskStatusEnum.RUNNING.value in cached_job.status.replica_status.get(
+                    self.name, {}).values():
+                self.update_job(
+                    cached_job, {
+                        TaskStatusEnum.FAILED.value:
+                        sum(cached_job.status.replica_status[
+                            self.name].values())
+                    }, {}, self.job_status["containers"])
 
     def update_job(self, job: Job, status: dict, tasks: dict,
                    containers: dict):

@@ -24,6 +24,9 @@ SLURM_SUPPORTED_INTERFACES = ('rest', 'cli')
 
 CLUSTER_TIMEOUT = 10  # seconds
 
+APP_NAME = "Skyflow"
+
+
 def cluster_dir(cluster_name: str):
     """Returns the path to the cluster directory."""
     return os.path.join(SKYCONF_DIR, "cluster", cluster_name)

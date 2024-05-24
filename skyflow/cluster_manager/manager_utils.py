@@ -8,17 +8,16 @@ from typing import Union
 
 import yaml
 
-from skyflow.cluster_manager.kubernetes_manager import KubernetesManager
+from skyflow.cluster_manager.Kubernetes.kubernetes_manager import \
+    KubernetesManager
 from skyflow.cluster_manager.slurm_manager_cli import SlurmManagerCLI
 from skyflow.cluster_manager.slurm_manager_rest import SlurmManagerREST
-from skyflow.templates.cluster_template import Cluster
+from skyflow.templates import Cluster
 from skyflow.utils import *
 from skyflow.utils.slurm_utils import (VerifySlurmConfig, SlurmInterfaceEnum)
 from skyflow.globals import KUBERNETES_ALIASES
 from skyflow.globals import SLURM_ALIASES
 from skyflow.globals import SUPPORTED_MANAGERS
-from skyflow.api_client import ClusterAPI
-
 
 logging.basicConfig(
     level=logging.INFO,

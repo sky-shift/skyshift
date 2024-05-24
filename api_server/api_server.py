@@ -11,9 +11,9 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 from functools import partial
+from pathlib import Path
 from typing import Dict, List, Optional, cast
 from urllib.parse import unquote
-from pathlib import Path
 
 import jsonpatch
 import jwt
@@ -24,11 +24,13 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 
-from skyflow.cluster_manager.kubernetes_manager import K8ConnectionError
+from skyflow.cluster_manager.Kubernetes.kubernetes_manager import \
+    K8ConnectionError
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
                                              ETCDClient, KeyNotFoundError)
-from skyflow.globals import API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE, SKYCONF_DIR
+from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE,
+                             SKYCONF_DIR)
 from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
                                     NON_NAMESPACED_OBJECTS)
 from skyflow.templates import Namespace, NamespaceMeta, ObjectException
@@ -44,6 +46,9 @@ from skyflow.utils import load_object, sanitize_cluster_name
 # Assumes authentication tokens are JWT tokens
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
 CACHED_SECRET_KEY = None
+CONF_FLAG_DIR = '/.tmp/'
+WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
+WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
 
 
 def create_jwt(data: dict,
@@ -128,9 +133,12 @@ def generate_nonce(length=32):
     """Generates a secure nonce."""
     return secrets.token_hex(length)
 
+
 CONF_FLAG_DIR = '/.tmp/'
 WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
 WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
+
+
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
     absolute_done_flag = Path(WORKER_DONE_FLAG)
@@ -169,6 +177,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ADMIN_USER = os.getenv("SKYFLOW_ADMIN_USR", "admin")
 ADMIN_PWD = os.getenv("SKYFLOW_ADMIN_PASS", "admin")
 
+
 class APIServer:
     """
     Defines the API server for the Skyflow.
@@ -203,6 +212,17 @@ class APIServer:
         self.etcd_client.write(
             "roles/admin-role",
             admin_role.dict(),
+        )
+
+        # Create reader role (can only read objects).
+        reader_role = Role(
+            metadata=RoleMeta(name="reader-role", namespaces=["*"]),
+            rules=[Rule(resources=["*"], actions=["get", "list"])],
+            users=[ADMIN_USER])
+
+        self.etcd_client.write(
+            "roles/reader-role",
+            reader_role.dict(),
         )
 
         # Create inviter role.
@@ -247,6 +267,14 @@ class APIServer:
         except HTTPException:  # pylint: disable=broad-except
             pass
         self._login_user(ADMIN_USER, ADMIN_PWD)
+
+        # Create current context if it not populated yet.
+        admin_config = load_manager_config()
+        current_context = admin_config.get('current_context', None)
+        if not current_context:
+            admin_config[
+                "current_context"] = f'{ADMIN_USER}-{DEFAULT_NAMESPACE}'
+            update_manager_config(admin_config)
 
     def _authenticate_action(self, action: str, user: str, object_type: str,
                              namespace: str) -> bool:
@@ -383,7 +411,7 @@ class APIServer:
             )
         return obj_dict
 
-    def _login_user(self, username: str, password: str):
+    def _login_user(self, username: str, password: str):  # pylint: disable=too-many-locals, too-many-branches
         """Helper method that logs in a user."""
         try:
             user_dict = self._fetch_etcd_object(f"users/{username}")
@@ -416,6 +444,39 @@ class APIServer:
                 break
         if not found_user:
             admin_config['users'].append(access_dict)
+
+        if 'contexts' not in admin_config:
+            admin_config['contexts'] = []
+
+        all_namespaces = self.etcd_client.read_prefix("namespaces")
+        # Fetch all namespaces that a user is in.
+        user_roles = self._get_all_roles(username)
+        allowed_namespaces = set()
+        for role in user_roles:
+            role_namespaces = role['metadata']['namespaces']
+            if '*' in role_namespaces:
+                allowed_namespaces = {
+                    n['metadata']['name']
+                    for n in all_namespaces
+                }
+                break
+            allowed_namespaces.update(role_namespaces)
+
+        # Populate config contexts with new (username, namespace) tuples
+        for namespace in allowed_namespaces:
+            found = False
+            for context in admin_config['contexts']:
+                if context['user'] == username and context[
+                        'namespace'] == namespace:
+                    found = True
+                    break
+            if not found:
+                context_dict = {
+                    'namespace': namespace,
+                    'user': username,
+                    'name': f'{username}-{namespace}'
+                }
+                admin_config['contexts'].append(context_dict)
         update_manager_config(admin_config)
         return access_dict
 
@@ -720,8 +781,9 @@ class APIServer:
 
         if watch:
             try:
-                return asyncio.get_event_loop().run_until_complete(self._watch_key(link_header))
-            except:
+                return asyncio.get_event_loop().run_until_complete(
+                    self._watch_key(link_header))
+            except Exception:  # pylint: disable=broad-except
                 return asyncio.run(self._watch_key(link_header))
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
@@ -757,9 +819,11 @@ class APIServer:
             object_name = sanitize_cluster_name(object_name)
         if watch:
             try:
-                return asyncio.get_event_loop().run_until_complete(self._watch_key(f"{link_header}/{object_name}"))
-            except:
-                return asyncio.run(self._watch_key(f"{link_header}/{object_name}"))
+                return asyncio.get_event_loop().run_until_complete(
+                    self._watch_key(f"{link_header}/{object_name}"))
+            except Exception:  # pylint: disable=broad-except
+                return asyncio.run(
+                    self._watch_key(f"{link_header}/{object_name}"))
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
