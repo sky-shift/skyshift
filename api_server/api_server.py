@@ -134,6 +134,11 @@ def generate_nonce(length=32):
     return secrets.token_hex(length)
 
 
+CONF_FLAG_DIR = '/.tmp/'
+WORKER_LOCK_FILE = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init.lock'
+WORKER_DONE_FLAG = SKYCONF_DIR + CONF_FLAG_DIR + 'api_server_init_done.flag'
+
+
 def check_or_wait_initialization():
     """Creates the necessary configuration files"""
     absolute_done_flag = Path(WORKER_DONE_FLAG)

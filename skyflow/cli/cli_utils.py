@@ -232,8 +232,8 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
     else:
         cluster_lists = [cluster_list]
     field_names = [
-        FieldEnum.NAME.value, "MANAGER", "RESOURCES", FieldEnum.STATUS.value,
-        FieldEnum.AGE.value
+        FieldEnum.NAME.value, "MANAGER", "LABELS", "RESOURCES",
+        FieldEnum.STATUS.value, FieldEnum.AGE.value
     ]
     table_data = []
 
@@ -255,6 +255,9 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
 
         cluster_resources = entry.status.capacity
         cluster_allocatable_resources = entry.status.allocatable_capacity
+        labels_dict = entry.metadata.labels
+        labels_str = "\n".join(
+            [f"{key}: {value}" for key, value in labels_dict.items()])
         resources = gather_resources(cluster_resources)
         allocatable_resources = gather_resources(cluster_allocatable_resources)
         age = _get_object_age(entry)
@@ -266,11 +269,15 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
                 available_resources: float = 0
             else:
                 available_resources = allocatable_resources[key]
+            # Get the first two decimals
+            available_resources = round(available_resources, 2)
+            resources[key] = round(resources[key], 2)
             resources_str += f"{key}: {available_resources}/{resources[key]}\n"
         if not resources_str:
             resources_str = "{}"
         status = colorize_status(entry.get_status())
-        table_data.append([name, manager_type, resources_str, status, age])
+        table_data.append(
+            [name, manager_type, labels_str, resources_str, status, age])
     table = None
     if not table_data:
         click.echo("\nNo clusters found.")

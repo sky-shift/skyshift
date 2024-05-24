@@ -11,7 +11,8 @@ from pydantic import Field, field_validator
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
                                                ObjectException, ObjectList,
-                                               ObjectSpec, ObjectStatus)
+                                               ObjectName, ObjectSpec,
+                                               ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 DEFAULT_IMAGE = "ubuntu:latest"
@@ -20,6 +21,8 @@ DEFAULT_JOB_RESOURCES = {
     ResourceEnum.MEMORY.value: 0,
 }
 DEFAULT_NAMESPACE = "default"
+DEFAULT_MIN_WEIGHT = 1
+DEFAULT_MAX_WEIGHT = 100
 
 
 class JobStatusEnum(enum.Enum):
@@ -87,6 +90,60 @@ class RestartPolicyEnum(enum.Enum):
     ALWAYS = "Always"
     # Only restart job if it fails (RC!=0).
     ON_FAILURE = "OnFailure"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
+    @classmethod
+    def has_value(cls, value):
+        """
+        Checks if the specified value is present among the enum values.
+        """
+        return any(value == item.value for item in cls)
+
+
+class LabelSelectorOperatorEnum(enum.Enum):
+    """
+    Represents the set of match expression operators for cluster placement
+    policy of a job.  Two operators are implemented:
+        In: The key/value input checked using this operator requires
+            the input key to match the expression key and the input
+            value must match one of the values in the expression
+            value list.  E.g. Input key/value pair "purpose": "prod"
+            is found to be true in the following expression:
+                match_expressions:
+                - "key": "purpose"
+                "operator": "In"
+                "values":
+                - "demo"
+                - "staging"
+                - "prod"
+        NotIn: The key/value input checked using this operator requires
+            the input key to not match the expression key or the input
+            value must not match all of the values in the expression
+            value list.  E.g. Input key/value pair "purpose": "dev"
+            is found to be true in the following expression:
+                match_expressions:
+                - "key": "purpose"
+                "operator": "NotIn"
+                "values":
+                - "demo"
+                - "staging"
+                - "prod"
+    """
+
+    # Value of key must be in value list.
+    IN = "In"
+    # Value of key must not be in value list.
+    NOTIN = "NotIn"
+
+    # @TODO(dmatch01): Implement new operators
+    # Label key exists.
+    #EXISTS = "Exists"
+    # Label key exists.
+    #DOESNOTEXIST = "DoesNotExist"
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -169,6 +226,118 @@ class JobMeta(NamespacedObjectMeta):
     """Metadata of a job."""
 
 
+class MatchExpression(ObjectSpec):
+    """Match expression for label selection."""
+    key: str = Field(default="", validate_default=True)
+    operator: str = Field(default="", validate_default=True)
+    values: List[str] = Field(default=[], validate_default=True)
+
+    @field_validator('key')
+    @classmethod
+    def validate_name(cls, key: str) -> str:
+        """Validates the name field of a filter."""
+        if not key.strip():
+            raise ValueError(
+                "Match expression requires `key` field to be filled in.")
+        return key
+
+    @field_validator("operator")
+    @classmethod
+    def verify_operator(cls, operator: str) -> str:
+        """Validates the operator field of a match expression."""
+        if not LabelSelectorOperatorEnum.has_value(operator):
+            raise ValueError(
+                f"Invalid match expression `operator`: {operator}.")
+        return operator
+
+
+class FilterSpec(ObjectName):
+    """Placement cluster filters spec for job."""
+    match_labels: Dict[str, str] = Field(default={}, validate_default=True)
+    match_expressions: List[MatchExpression] = Field(default=[],
+                                                     validate_default=True)
+
+    @field_validator('match_labels')
+    @classmethod
+    def validate_match_labels(cls, match_labels: Dict[str,
+                                                      str]) -> Dict[str, str]:
+        """
+        Ensures that the validation label keys contains only
+        non-empty strings
+        """
+        for key, _ in match_labels.items():
+            if not key.strip():
+                raise ValueError("Labels' keys can not be empty strings.")
+
+        return match_labels
+
+
+class PreferenceSpec(FilterSpec):
+    """Placement cluster preferences spec for job."""
+    weight: int = Field(default=1, validate_default=True)
+
+    @field_validator('weight')
+    @classmethod
+    def validate_weight(cls, weight: int) -> int:
+        """
+        Validates the weight field of a preference.  Weight of
+        value DEFAULT_MIN_WEIGHT will generate the lowest possible
+        scoring.  DEFAULT_MAX_WEIGHT generates the highest
+        possible scoring.
+        """
+        if weight < DEFAULT_MIN_WEIGHT or weight > DEFAULT_MAX_WEIGHT:
+            raise ValueError(f"preference `weight` must be within range "
+                             f"{DEFAULT_MIN_WEIGHT} - {DEFAULT_MAX_WEIGHT}.")
+        return weight
+
+
+class Placement(ObjectSpec):
+    """Placement spec for job."""
+    filters: List[FilterSpec] = Field(default=[], validate_default=True)
+    preferences: List[PreferenceSpec] = Field(default=[],
+                                              validate_default=True)
+
+    @field_validator('filters')
+    @classmethod
+    def validate_filters(cls, filters: List[FilterSpec]) -> List[FilterSpec]:
+        """Validates the filters field."""
+        unique_name_set = set()
+        for filt in filters:
+            if filt.name in unique_name_set:
+                raise ValueError(
+                    f"Duplicate filter `name`: {filt.name} found.")
+            unique_name_set.add(filt.name)
+            # Ensure at least 1 match criteria is defined
+            if not filt.match_labels.items() and len(
+                    filt.match_expressions) <= 0:
+                raise ValueError(
+                    f"Filter must contain at least one evaluation "
+                    f"criteria (`match_labels` or `match_expressions`): "
+                    f"{filt.name} found.")
+        return filters
+
+    @field_validator('preferences')
+    @classmethod
+    def validate_preferences(
+            cls, preferences: List[PreferenceSpec]) -> List[PreferenceSpec]:
+        """Validates the preferences field."""
+        unique_name_set = set()
+        for preference in preferences:
+            if preference.name in unique_name_set:
+                raise ValueError(
+                    f"Duplicate preference `name`: {preference.name} found.")
+            unique_name_set.add(preference.name)
+
+            if not preference.match_labels.items() and len(
+                    preference.match_expressions) <= 0:
+                raise ValueError(
+                    f"Preference must contain at least one evaluation "
+                    f"criteria (`match_labels` or `match_expressions`): "
+                    f"{preference.name} found.")
+
+        return preferences
+
+
 class JobSpec(ObjectSpec):
     """Spec of a job."""
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
@@ -180,6 +349,7 @@ class JobSpec(ObjectSpec):
     replicas: int = Field(default=1, validate_default=True)
     restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value,
                                 validate_default=True)
+    placement: Placement = Field(default=Placement(), validate_default=True)
 
     @field_validator('image')
     @classmethod

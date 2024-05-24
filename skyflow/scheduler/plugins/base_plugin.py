@@ -38,6 +38,14 @@ class PluginStatus:
         """Returns True if the status is an error."""
         return self.code == StatusCode.ERROR
 
+    def get_message(self) -> str:
+        """ Returns message string"""
+        if isinstance(self.message, str):
+            return self.message
+
+        msg_str = ' '.join(self.message)
+        return msg_str
+
 
 # Inspired from Kubernetes Scheduler Plugin.
 class BasePlugin:

@@ -48,7 +48,8 @@ class ProxyController(Controller):
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Proxy Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Proxy Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/proxy_controller.log')
 
         self.service_informer = Informer(ServiceAPI(namespace=''),
@@ -144,7 +145,8 @@ class ProxyController(Controller):
                     self.logger.info(
                         "%s is now exported by cluster, and ready to be imported",
                         name)
-                    import_service(f'{name}', self.manager_api, cluster_name, ports)
+                    import_service(f'{name}', self.manager_api, cluster_name,
+                                   ports)
 
     def _delete_import_service(self, endpoints: Endpoints):
         name = endpoints.get_name()

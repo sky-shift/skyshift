@@ -325,7 +325,6 @@ class ETCDClient:
         etcd_client = Etcd3Client(port=self.port)
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
-    
-        watch_iter, cancel_fn = etcd_client.watch_prefix(key,
-                                                              prev_kv=True)
+
+        watch_iter, cancel_fn = etcd_client.watch_prefix(key, prev_kv=True)
         return watch_generator_fn(watch_iter), cancel_fn
