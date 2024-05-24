@@ -32,6 +32,7 @@ setup(
         "websockets",
         "halo",
         "tqdm",
+        "regex",
         "paramiko",
         "ray",
     ],
