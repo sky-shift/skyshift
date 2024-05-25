@@ -3,7 +3,7 @@ Utils for cluster managers.
 """
 import logging
 
-from skyflow.cluster_manager.Kubernetes.kubernetes_manager import \
+from skyflow.cluster_manager.kubernetes.kubernetes_manager import \
     KubernetesManager
 from skyflow.cluster_manager.manager import K8_MANAGERS, RAY_MANAGERS
 from skyflow.cluster_manager.ray.ray_manager import RayManager
@@ -39,7 +39,6 @@ def setup_cluster_manager(cluster_obj: Cluster):
     # Get the parameter names of the constructor
     class_params = constructor.__code__.co_varnames[1:constructor.__code__.
                                                     co_argcount]
-    print(class_params)
     # Filter the dictionary keys based on parameter names
     args.update({
         k: v
@@ -49,7 +48,5 @@ def setup_cluster_manager(cluster_obj: Cluster):
     logger = logging.getLogger(
         f"[{cluster_obj.metadata.name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
-    print(args)
     manager = cluster_manager_cls(logger=logger, **args)
-    print(manager)
     return manager

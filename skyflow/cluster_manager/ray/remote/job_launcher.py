@@ -1,17 +1,12 @@
+import argparse
 import json
 import subprocess
 import sys
 from typing import Dict
 
-def load_job_from_json(job_json: str) -> Dict:
-    """
-    Load the job object from its JSON representation.
-    """
-    return json.loads(job_json)
-
 def run_docker_container(job: Dict):
     """
-    Run the specified Docker container with the required parameters.
+    Run the specified Docker container with the required parameters and output the logs.
     """
     image = job['spec']['image']
     envs = job['spec']['envs']
@@ -21,21 +16,44 @@ def run_docker_container(job: Dict):
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
 
-    command = f"docker run {env_vars} {port_mappings} {image} {run_command}"
+    command = f"docker run -it {env_vars} {port_mappings} {image} {run_command}"
     print(f"Running command: {command}")
-    process = subprocess.Popen(command, shell=True)
-    return process.wait()
 
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-def main(job_json: str):
-    job = load_job_from_json(job_json)
-    exit_code = run_docker_container(job)
-    sys.exit(exit_code)
+    # Print the output in real-time
+    while True:
+        output = process.stdout.readline()
+        if output == "" and process.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+    
+    # Wait for the process to finish and get the exit code
+    return_code = process.wait()
+
+    # Print any remaining stderr output
+    stderr_output = process.stderr.read().strip()
+    if stderr_output:
+        print(stderr_output)
+
+    # Exit the script with the same code as the Docker container
+    if return_code != 0:
+        print(f"Container exited with error code: {return_code}")
+    return return_code
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python run_docker_job.py '<job_json>'")
+    parser = argparse.ArgumentParser(description='Run a Docker job from a JSON specification.')
+    parser.add_argument('job_json', type=str, help='The JSON string of the job specification.')
+
+    args = parser.parse_args()
+
+    try:
+        job = json.loads(args.job_json)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON format: {e}")
         sys.exit(1)
 
-    job_json = sys.argv[1]
-    main(job_json)
+    exit_code = run_docker_container(job)
+    sys.exit(exit_code)

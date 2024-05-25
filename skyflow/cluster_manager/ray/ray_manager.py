@@ -1,3 +1,10 @@
+"""
+Ray compatibility layer for Skyflow. 
+This module provides a compatibility layer for Ray cluster manager using as backbone
+the Ray Job Submission Server.
+https://docs.ray.io/en/latest/cluster/running-applications/job-submission/sdk.html
+"""
+
 import json
 import logging
 import os
@@ -15,6 +22,7 @@ from kubernetes import client, config
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
+from skyflow.cluster_manager.ray.ray_utils import copy_required_files, find_available_container_managers, get_remote_home_directory
 from skyflow.globals import APP_NAME
 from skyflow.templates import (ClusterStatus,
                                ClusterStatusEnum,
@@ -61,7 +69,7 @@ class RayManager(Manager):
             rsa_key=ssh_key_path
         )
         self.ssh_client = connect_ssh_client(self.ssh_params).ssh_client
-        self.remote_dir = os.path.join(self._get_remote_home_directory(), f".{APP_NAME}")
+        self.remote_dir = os.path.join(get_remote_home_directory(), f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
@@ -71,10 +79,10 @@ class RayManager(Manager):
         """
         Checks for available container managers and sets up the Ray cluster.
         """
-        container_managers = self._find_available_container_managers()
+        container_managers = find_available_container_managers()
         if not container_managers:
             self.logger.error("No supported container managers found.")
-            raise EnvironmentError("No supported container managers found.")
+            raise ValueError("No supported container managers found.")
         self._install_ray()
         self.client = self._connect_to_ray_cluster()
 
@@ -86,72 +94,10 @@ class RayManager(Manager):
         except ConnectionError as error:
             self.logger.error(f"Failed to connect to the Job Submission Server: {error}")
 
-
-    def _find_available_container_managers(self) -> list:
-        """Check which container managers are installed and return a list of available managers."""
-        available_containers = []
-        for container in ContainerEnum:
-            try:
-                command = f"command -v {container.value.lower()}"
-                output = ssh_send_command(self.ssh_client, command)
-                if output:
-                    available_containers.append(container)
-                    self.logger.info(f"{container.value} is available.")
-            except Exception as error:
-                self.logger.error(f"Error checking for {container.value}: {error}")
-        return available_containers
-
-    def _copy_file_to_remote(self, local_path: str, remote_path: str):
-        """Copy a file from the local system to the remote system."""
-        #Check if folder exists
-        command = f"mkdir -p {os.path.dirname(remote_path)}"
-        ssh_send_command(self.ssh_client, command)
-        with self.ssh_client.open_sftp() as sftp:
-            sftp.put(local_path, remote_path)
-            self.logger.info(f"Copied {local_path} to {remote_path} on the remote system.")
-
-    def _create_archive(self, directory: str, archive_name: str):
-        """Create a tar archive of the directory excluding ray_manager.py."""
-        with tarfile.open(archive_name, "w:gz") as tar:
-            for root, _, files in os.walk(directory):
-                for file in files:
-                    full_path = os.path.join(root, file)
-                    tar.add(full_path, arcname=file)
-
-    def _extract_archive_on_remote(self, remote_archive_path: str):
-        """Extract the tar archive on the remote system."""
-        self.logger.info(f"Extracting {remote_archive_path} on the remote system.")
-        command = f"tar xzfv {remote_archive_path} -C {self.remote_dir}"
-        stdout = ssh_send_command(self.ssh_client, command)
-        self.logger.info(stdout)
-        ssh_send_command(self.ssh_client, f"rm {remote_archive_path}")
-
-    def _copy_required_files(self):
-        """Copy the required files to the remote system."""
-        local_directory = os.path.dirname(os.path.realpath(__file__))
-        self.logger.info(f"Copying files from {local_directory} to the remote system.")
-        archive_name = './ray_manager_files.tar.gz'
-
-        remote_extract_path = self.remote_dir
-        remote_archive_path = f'{remote_extract_path}/ray_manager_files.tar.gz'
-        self.logger.info(f"Copying files to {remote_extract_path} on the remote system.")
-
-        self._create_archive(os.path.join(local_directory, "remote"), archive_name)
-        self._copy_file_to_remote(archive_name, remote_archive_path)
-        self._extract_archive_on_remote(remote_archive_path)
-
-        # Clean up local archive
-        os.remove(archive_name)
-
-    def _get_remote_home_directory(self):
-        """Fetch the home directory of the remote user."""
-        command = "echo $HOME"
-        return ssh_send_command(self.ssh_client, command).strip()
-
     def _install_ray(self):
         """Set up Ray using Miniconda."""
         try:
-            self._copy_required_files()
+            copy_required_files()
             self.logger.info("Copied required files to the remote system.")
 
             self.logger.info("Installing Miniconda & Ray...")

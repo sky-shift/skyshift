@@ -1,5 +1,5 @@
 """
-Represents the comptability layer over Kubernetes native API.
+Represents the compatibility layer over Kubernetes native API.
 """
 import asyncio
 import logging
