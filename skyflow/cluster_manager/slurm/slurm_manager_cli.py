@@ -17,7 +17,7 @@ from skyflow.templates import (AcceleratorEnum, ContainerEnum, EndpointObject,
                                Job, ResourceEnum, Service, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
-from skyflow.globals import SLURM_CONFIG_PATH
+from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
 SUPPORTED_CONTAINER_SOLUTIONS = [
     "containerd", "singularity", "docker", "podman", "podman-hpc"
@@ -58,7 +58,7 @@ class SlurmManagerCLI(Manager):
         super().__init__(self.cluster_name)
         print(self.cluster_name)
         self.is_local = False
-        config_absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
+        config_absolute_path = os.path.expanduser(SLURM_CONFIG_DEFAULT_PATH)
         with open(config_absolute_path, 'r') as config_file:
             config_dict = yaml.safe_load(config_file)
             #Configure tools
@@ -81,7 +81,7 @@ class SlurmManagerCLI(Manager):
                 if not os.path.exists(self.rsa_key_path):
                     raise ValueError(
                     f'RSA private key file does not exist! {self.rsa_key_path} in \
-                    {SLURM_CONFIG_PATH}.')
+                    {SLURM_CONFIG_DEFAULT_PATH}.')
                 self.remote_hostname = _get_config(config_dict, ['slurmcli', 'remote_hostname'])
                 self.remote_username = _get_config(config_dict, ['slurmcli', 'remote_username'])
                 

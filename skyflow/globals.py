@@ -17,7 +17,7 @@ K8_MANAGERS = ('kubernetes', 'k8', 'k8s')
 KUBE_CONFIG_DEFAULT_PATH = "~/.kube/config"
 
 SLURM_MANAGERS = ('slurm', 'slurmctl')
-SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
 
 SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS
 

@@ -8,7 +8,7 @@ from kubernetes import config
 
 from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
-from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
+from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH, K8_MANAGERS
 
 
 def _fetch_absolute_path(path: str) -> str:
@@ -59,6 +59,8 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
 
     # Process each cluster's specified config
     for cluster in cluster_api.list().objects:
+        if cluster.spec.manager not in K8_MANAGERS:
+            continue
         path = cluster.spec.config_path if cluster.spec.config_path else '~/.kube/config'
         path = _fetch_absolute_path(path)
 

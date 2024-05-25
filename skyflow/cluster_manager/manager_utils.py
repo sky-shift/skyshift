@@ -5,16 +5,11 @@ Utils for cluster managers.
 import logging
 from typing import Union
 
-from skyflow.cluster_manager.Kubernetes.kubernetes_manager import \
-    KubernetesManager
-from skyflow.cluster_manager.slurm.slurm_manager_cli import SlurmManagerCLI
-from skyflow.cluster_manager.slurm.slurm_manager_rest import SlurmManagerREST
-from skyflow.templates import Cluster
-from skyflow.utils import *
+from skyflow.cluster_manager.Kubernetes import KubernetesManager
+from skyflow.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
 from skyflow.cluster_manager.slurm.slurm_utils import SlurmConfig, SlurmInterfaceEnum
-from skyflow.globals import K8_MANAGERS
-from skyflow.globals import SLURM_MANAGERS
-from skyflow.globals import SUPPORTED_MANAGERS
+from skyflow.globals import K8_MANAGERS, SLURM_MANAGERS, SUPPORTED_MANAGERS
+from skyflow.templates import Cluster
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +29,7 @@ def setup_cluster_manager(
 
     """
     cluster_type = cluster_obj.spec.manager.lower()
+    cluster_name = cluster_obj.get_name()
     if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
     
@@ -43,12 +39,8 @@ def setup_cluster_manager(
         args["config_path"] = cluster_obj.spec.config_path
     elif cluster_type in SLURM_MANAGERS:
         args["config_path"] = cluster_obj.spec.config_path
-        interface_type = SlurmConfig(args["config_path"])
-        #Get the cluster name to correspond it to nested yaml keys
-        cluster_name = str(cluster_obj.metadata.name)
-        #Get the manager interface type
-        interface_type = SlurmConfig().get_interface(cluster_name)
-        
+        slurm_config =  SlurmConfig(config_path=args["config_path"])
+        interface_type = slurm_config.get_interface(cluster_name)
         if interface_type == SlurmInterfaceEnum.REST.value:
             cluster_manager_cls = SlurmManagerREST
         elif interface_type == SlurmInterfaceEnum.CLI.value:
@@ -69,6 +61,6 @@ def setup_cluster_manager(
     })
 
     logger = logging.getLogger(
-        f"[{cluster_obj.metadata.name} - {cluster_type} Manager]")
+        f"[{cluster_name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
     return cluster_manager_cls(logger=logger, **args)

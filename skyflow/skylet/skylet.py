@@ -15,6 +15,7 @@ from skyflow.globals import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)
+from skyflow.templates import Cluster
 
 BASE_CONTROLLERS = [
     ClusterController,
@@ -28,7 +29,7 @@ SERVICE_CONTROLLERS = [
     ServiceController,
 ]
 
-def launch_skylet(cluster_obj):
+def launch_skylet(cluster_obj: Cluster):
     """
     Launches a Skylet for a given cluster.
     """
@@ -53,22 +54,3 @@ def launch_skylet(cluster_obj):
     for cont in controllers:
         cont.join()
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Launch a Skylet for a cluster.")
-    parser.add_argument("--config",
-                        type=str,
-                        required=True,
-                        help="Path to the Cluster YAML file.")
-
-    args = parser.parse_args()
-    yaml_file_path = args.config
-
-    yaml_file_path = os.path.abspath(yaml_file_path)
-    if not os.path.exists(yaml_file_path):
-        raise FileNotFoundError(
-            f"Cluster config file not found at {yaml_file_path}")
-    with open(yaml_file_path, "r") as f:
-        data = yaml.safe_load(f)
-    launch_skylet(data)

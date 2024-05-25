@@ -5,7 +5,7 @@ import yaml
 
 import paramiko 
 
-from skyflow.globals import SLURM_CONFIG_PATH
+from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
 class SlurmInterfaceEnum(enum.Enum):
     # Slurm supports CLI and (optional) REST API interfaces.
@@ -30,16 +30,13 @@ def create_ssh_client(hostname: str, user: str, ssh_key: Optional[str] = None, p
         raise e
     return ssh_client
 
-
 class SlurmConfig:
     """Represents the Slurm config class. See Slurm config in `examples/slurm-config`."""
-    def __init__(self, config_path: str = SLURM_CONFIG_PATH):
+    def __init__(self, config_path: str = SLURM_CONFIG_DEFAULT_PATH):
         config_path = os.path.abspath(os.path.expanduser(config_path))
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"File '{config_path}' not found.")
         self.config_path = config_path
-        with open(self.config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
         self._verify_config()
     
     @property
@@ -62,6 +59,8 @@ class SlurmConfig:
     
     def _verify_config(self):
         """Verifies the Slurm configuration YAML and checks for required keys."""
+        with open(self.config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
         for cluster_name in self.clusters:
             cluster_dict = self.config[cluster_name]
             interface_type = cluster_dict.get('interface', None)

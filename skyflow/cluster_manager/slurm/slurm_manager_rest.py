@@ -9,17 +9,16 @@ import uuid
 from typing import Dict, Tuple
 
 import requests
-import requests_unixsocket
 import yaml
 
 from skyflow.cluster_manager import Manager
-from skyflow.cluster_manager.slurm_compatibility_layer import \
+from skyflow.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
 from skyflow.templates import (AcceleratorEnum, ContainerEnum, Job,
                                JobStatusEnum, ResourceEnum, Service)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
-SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurmconf.yaml'
 SUPPORTED_CONTAINER_SOLUTIONS = [
     "containerd", "singularity", "docker", "podman", "podmanhpc"
 ]
@@ -56,27 +55,27 @@ class SlurmManagerREST(Manager):
         """
         super().__init__("slurm")
         is_unix_socket = False
-        absolute_path = os.path.expanduser(SLURM_CONFIG_PATH)
+        absolute_path = os.path.expanduser(SLURM_CONFIG_DEFAULT_PATH)
         with open(absolute_path, 'r') as config_file:
             try:
                 config_dict = yaml.safe_load(config_file)
             except ValueError as exception:
                 raise Exception(
-                    f'Unable to load {SLURM_CONFIG_PATH}, check if file exists.'
+                    f'Unable to load {SLURM_CONFIG_DEFAULT_PATH}, check if file exists.'
                 ) from exception
             #Get openapi verision, and socket/hostname slurmrestd is listening on
             try:
                 self.openapi = config_dict['slurmrestd']['openapi_ver']
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
-                    f'Define openapi in {SLURM_CONFIG_PATH}.'
+                    f'Define openapi in {SLURM_CONFIG_DEFAULT_PATH}.'
                 ) from exception
             #Configure slurmrestd port
             try:
                 self.port = config_dict['slurmrestd']['port']
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
-                    f'Define port slurmrestd is listening on in {SLURM_CONFIG_PATH}.'
+                    f'Define port slurmrestd is listening on in {SLURM_CONFIG_DEFAULT_PATH}.'
                 ) from exception
 
             try:
@@ -84,11 +83,11 @@ class SlurmManagerREST(Manager):
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
                     f'Missing container manager {self.container_manager} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+                    {SLURM_CONFIG_DEFAULT_PATH}.') from exception
             if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
                 raise ValueError(
                     f'Unsupported container manager {self.container_manager} in \
-                        {SLURM_CONFIG_PATH}.') from exception
+                        {SLURM_CONFIG_DEFAULT_PATH}.') from exception
             self.runtime_dir = ''
             if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
                 try:
@@ -96,11 +95,11 @@ class SlurmManagerREST(Manager):
                 except ConfigUndefinedError as exception:
                     raise ConfigUndefinedError(
                         f'Missing runtime_dir for {self.container_manager} in \
-                            {SLURM_CONFIG_PATH}.') from exception
+                            {SLURM_CONFIG_DEFAULT_PATH}.') from exception
             if self.container_manager.lower() not in SUPPORTED_CONTAINER_SOLUTIONS:
                 raise ValueError(
                     f'Unsupported container manager {self.container_manager} in \
-                        {SLURM_CONFIG_PATH}.') from exception
+                        {SLURM_CONFIG_DEFAULT_PATH}.') from exception
             try:
                     #Get slurm user account
                 self.slurm_account = config_dict['properties']['account']
@@ -108,20 +107,21 @@ class SlurmManagerREST(Manager):
                 raise ConfigUndefinedError(
                     f'Missing slurm_account username needed \
                     for job submission{self.slurm_account} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+                    {SLURM_CONFIG_DEFAULT_PATH}.') from exception
             try:
                     #Get slurm time limit
                 self.slurm_time_limit = config_dict['properties']['time_limit']
             except ConfigUndefinedError as exception:
                 raise ConfigUndefinedError(
                     f'Slurm time limit{self.slurm_account} in \
-                    {SLURM_CONFIG_PATH}.') from exception
+                    {SLURM_CONFIG_DEFAULT_PATH}.') from exception
         self.runtime_dir = ''
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager.lower(),
             self.runtime_dir, self.slurm_time_limit, self.slurm_account)
         if 'sock' in self.port.lower():
             is_unix_socket = True
         if is_unix_socket:
+            import requests_unixsocket
             self.session = requests_unixsocket.Session()
             self.port = 'http+unix://' + self.port.replace('/', '%2F')
         else:
