@@ -12,6 +12,7 @@ from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.utils import sanitize_cluster_name
+from skyflow.globals import K8_MANAGERS, SLURM_MANAGERS, KUBE_CONFIG_DEFAULT_PATH, SLURM_CONFIG_DEFAULT_PATH
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -185,7 +186,7 @@ class ClusterSpec(ObjectSpec):
     ports: List[str] = Field(default=[], validate_default=True)
     num_nodes: int = Field(default=1, validate_default=True)
     provision: bool = Field(default=False, validate_default=True)
-    config_path: str = Field(default="~/.kube/config", validate_default=True)
+    config_path: str = Field(default=None, validate_default=True)
 
     @field_validator('accelerators')
     @classmethod
@@ -200,6 +201,18 @@ class ClusterSpec(ObjectSpec):
         if not num.isdigit():
             raise ValueError(f'Invalid accelerator number: {num}.')
         return accelerators
+
+    @field_validator('config_path')
+    @classmethod
+    def verify_config_path(cls, config_path: str) -> str:
+        """Validates the accelerators field of a ClusterResources."""
+        if not config_path:
+            manager_type = cls.manager
+            if manager_type in K8_MANAGERS:
+                return KUBE_CONFIG_DEFAULT_PATH
+            elif manager_type in SLURM_MANAGERS:
+                return SLURM_CONFIG_DEFAULT_PATH
+        return config_path
 
     @field_validator('cpus')
     @classmethod

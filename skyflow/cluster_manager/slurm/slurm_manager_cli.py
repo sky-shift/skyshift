@@ -40,6 +40,9 @@ SLURM_COMPLETE = {'COMPLETED'}
 #Identifying Headers for job submission name
 MANAGER_NAME = "skyflow8slurm"
 
+class SlurmConnectionError():
+    """Raised when there is an error connecting to the Slurm control plane."""
+
 
 def _send_cli_command(ssh_client: paramiko.SSHClient, command: str):
     """Seconds command locally, or through ssh to a remote cluster
@@ -174,7 +177,6 @@ class SlurmManagerCLI(Manager):
             self.slurm_node_dict = _convert_slurm_output_to_dict(stdout, key_name='NodeName')
 
         avail_resources = {}
-        has_gres_used = True
         for name, node_info in self.slurm_node_dict.items():
             node_state = node_info.get('State', None)
             if node_state not in SLURM_NODE_AVAILABLE_STATES:
@@ -194,50 +196,12 @@ class SlurmManagerCLI(Manager):
             _, gpu_type, gpu_count = gpu_str.split(':')
             gpu_alloc_str = node_info.get('GresUsed', None)
             if not gpu_alloc_str:
-                has_gres_used = False
                 gpu_alloc_count = 0
             else:
                 _, _, gpu_alloc_count = gpu_alloc_str.split(':')
             avail_resources[name][gpu_type] = float(gpu_count) - float(gpu_alloc_count)
-            print(float(gpu_count) - float(gpu_alloc_count))
-        print(avail_resources)
         avail_resources = utils.fuzzy_map_gpu(avail_resources)
-        
-        # If GresUsed is not found, must calculate GPUs occupied by all running jobs.
-        if has_gres_used:
-            return avail_resources
         return avail_resources
-    
-
-        # #Process gpus
-        # command = "scontrol show jobs"
-        # #command_output = subprocess.check_output(command, shell=True, text=True)
-        # stdout = _send_cli_command(self.ssh_client, command)
-        # slurm_jobs_dict = 
-        # node_sections = stdout.split('\n\n')
-        # for node_info in node_sections:
-        #     node_list: List[str] = []
-        #     node_list_match = re.search(r' NodeList=(.*?)\n', node_info)
-        #     if node_list_match:
-        #         values = node_list_match.group(1).split(',')
-        #         for item in values:
-        #             node_list.append(str(item))
-        #     job_state_match = re.search(r'JobState=([^\s]+)', node_info)
-        #     job_state = "PENDING"
-        #     if job_state_match:
-        #         job_state = str(job_state_match.group(1))
-        #     if job_state in ('ALLOCATED', 'RUNNING'):
-        #         #Get total Gpus utilized by running job
-        #         gres_match = re.search(r'Gres=gpu:(\d+)', node_info)
-        #         if gres_match:      
-        #             gres_used = float(gres_match.group(1))
-        #             for node in node_list:
-        #                 if available_resources[node][ResourceEnum.GPU.value] - gres_used < 0:
-        #                     available_resources[node][ResourceEnum.GPU.value] = 0
-        #                 else:
-        #                     available_resources[node][ResourceEnum.GPU.value] \
-        #                     = available_resources[node][ResourceEnum.GPU.value] - gres_used
-        # return self._process_gpu_resources(available_resources)
 
 
     def get_cluster_status(self) -> ClusterStatus:
@@ -245,15 +209,14 @@ class SlurmManagerCLI(Manager):
             Returns:
                 Cluster Status struct with total and allocatable resources.
         """
-        stdout, stderr = _send_cli_command(self.ssh_client, 'scontrol show partitions')
-        cluster_info = stdout
-
-        if 'State=UP' in cluster_info:
+        self.slurm_node_dict = {}
+        _, stderr = _send_cli_command(self.ssh_client, 'scontrol show partitions')
+        if not stderr: 
             return ClusterStatus(
                 status=ClusterStatusEnum.READY.value,
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
-        )
+            )
         return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
                 capacity=self.cluster_resources,
@@ -396,9 +359,8 @@ class SlurmManagerCLI(Manager):
 
 if __name__ == '__main__':
     api = SlurmManagerCLI(name='my-slurm-cluster')
-    status = api.cluster_resources
+    status = api.get_cluster_status()
     print(status)
-    print(api.allocatable_resources)
     # print(api.cluster_resources)
     # print("************")
     # print(api.allocatable_resources)
