@@ -25,7 +25,7 @@ from skyflow.templates.resource_template import ContainerEnum
 
 # Import the new SSH utility functions and classes
 from skyflow.utils.ssh_utils import (
-    SSHParams, SSHStatusEnum, check_reachable, connect_ssh_client, ssh_send_command, SSHConnectionError
+    SSHParams, connect_ssh_client, ssh_send_command
 )
 from skyflow.utils.utils import fuzzy_map_gpu
 
@@ -161,33 +161,6 @@ class RayManager(Manager):
         except paramiko.SSHException as error:
             self.logger.error(f"Error setting up Ray: {error}")
 
-    def close(self):
-        """Closes the SSH connection."""
-        self.ssh_client.close()
-
-    def get_accelerator_types(self) -> Dict[str, str]:
-        """
-        Fetches accelerator types for each node in the Ray cluster.
-
-        Returns:
-            Dict[str, str]: A dictionary mapping node names to their accelerator types.
-        """
-        accelerator_types = {}
-        self.logger.info("Fetching accelerator types for nodes.")
-        try:
-            available_resources = ray.available_resources()
-            self.logger.info(available_resources)
-            for resource, quantity in available_resources.items():
-                if resource.startswith("GPU"):
-                    node_name = resource.split(":")[0]  # Extract node name
-                    accelerator_types[node_name] = f"{quantity} GPUs"
-
-            self.logger.info("Fetched accelerator types for nodes.")
-        except Exception as error:
-            self.logger.error(f"Failed to fetch accelerator types: {error}")
-
-        return accelerator_types
-
     def get_cluster_status(self):
         """
         Returns the current status of a Ray cluster with a timeout on the list_node call.
@@ -215,21 +188,6 @@ class RayManager(Manager):
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-
-    def _process_gpu_resources(
-            self, resources: Dict[str,
-                                  Dict[str,
-                                       float]]) -> Dict[str, Dict[str, float]]:
-        # Refetch node accelerator types if the nodes have changed
-        # (such as in cluster autoscaling or admin adds/removes nodes).
-        if not self.accelerator_types or not set(
-                self.accelerator_types).issubset(set(resources.keys())):
-            self.accelerator_types = self.get_accelerator_types()
-
-        for node_name, accelerator_type in self.accelerator_types.items():
-            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
-            resources[node_name][accelerator_type] = gpu_value
-        return resources
 
     def _submit_and_fetch_logs(self, script_name, script_args="") -> Dict:
         self.client = self._connect_to_ray_cluster()
@@ -263,6 +221,7 @@ class RayManager(Manager):
         Gets total cluster resources for each node using Ray, excluding the internal head node.
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py")
+        logging.debug("Cluster resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
     @property
@@ -271,6 +230,7 @@ class RayManager(Manager):
         Gets total allocatable resources for each node using Ray, excluding the internal head node.
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py", "--available")
+        logging.debug("Cluster allocatable resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
@@ -382,8 +342,8 @@ class RayManager(Manager):
 
     
 #print("Ray Manager")
-rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.31.239.216")
-print(rm.cluster_resources)
+#rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.31.239.216")
+#print(rm.cluster_resources)
 #print(rm.allocatable_resources)
 #rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
 #print(rm.get_cluster_status())

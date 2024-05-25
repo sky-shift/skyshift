@@ -22,6 +22,8 @@ logging.basicConfig(
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s"
 )
 
+logging.getLogger("paramiko").setLevel(logging.INFO)
+
 # Custom Exceptions
 class SSHConfigNotDefinedError(Exception):
     """Raised when there is an error in SSH config."""
