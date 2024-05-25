@@ -1,6 +1,7 @@
 """
 Utility functions for Skyflow.
 """
+import difflib
 import importlib
 import json
 import os
@@ -11,6 +12,7 @@ from typing import Dict, List, Optional, Union
 import requests
 import yaml
 
+from skyflow.templates.resource_template import AcceleratorEnum
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
@@ -186,3 +188,17 @@ def update_manager_config(config: dict):
     """Updates the API server config file."""
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
+
+def fuzzy_map_gpu(resources_dict: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+    """
+    Maps GPUs to the closest match in the enum class.
+    """
+    enum_values = [e.value for e in AcceleratorEnum]
+    for _, resources in resources_dict.items():
+        for key in list(resources.keys()):
+            if key in AcceleratorEnum.__members__:
+                # Find the closest match
+                closest_match = difflib.get_close_matches(key, enum_values, n=1)
+                if closest_match:
+                    resources[closest_match[0]] = resources.pop(key)
+    return resources_dict
