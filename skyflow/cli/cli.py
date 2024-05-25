@@ -320,17 +320,9 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
     if not validate_input_string(name):
         spinner.fail("Error: Name format is invalid.")
         raise click.BadParameter("Name format is invalid.")
-    
-    if manager in RAY_MANAGERS and (not host or not username):
-        click.echo("Error: Host and username must be provided for Ray clusters.")
-        raise click.BadParameter("Host and username must be provided for Ray clusters.")
 
     if not validate_labels(labels):
         raise click.BadParameter("Invalid label format.")
-
-    if not validate_labels(labels):
-        raise click.BadParameter("Invalid label format.")
-
     if ports:
         ports = list(ports)
 
