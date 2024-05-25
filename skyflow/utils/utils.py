@@ -13,7 +13,7 @@ import yaml
 from rapidfuzz import process
 
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
-from skyflow.templates.resource_template import AcceleratorEnum
+from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
@@ -197,10 +197,11 @@ def fuzzy_map_gpu(
     Maps GPUs to the closest match in the enum class using rapidfuzz.
     """
     enum_values = [e.value for e in AcceleratorEnum]
+    non_gpu_keys = {e.value for e in ResourceEnum}
+
     for _, resources in resources_dict.items():
         for key in list(resources.keys()):
-            if key not in AcceleratorEnum.__members__:
-                # Find the closest match
+            if key not in non_gpu_keys:
                 closest_match = process.extractOne(key, enum_values)
                 if closest_match:
                     resources[closest_match[0]] = resources.pop(key)
