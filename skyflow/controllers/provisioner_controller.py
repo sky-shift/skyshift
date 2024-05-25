@@ -58,7 +58,7 @@ class ProvisionerController(Controller):
         # Python thread safe queue for Informers to append events to.
         self.event_queue = Queue()
         self.cluster_api = ClusterAPI()
-        self.cluster_informer = Informer(self.cluster_api)
+        self.cluster_informer = Informer(self.cluster_api, self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""

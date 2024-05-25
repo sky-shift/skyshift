@@ -1,0 +1,42 @@
+# Placement filter example using expression
+# evaluation stanza.
+#
+# This job will run on any clusters with 
+# label key: "purpose" and label value: 
+# "demo", "prod", "dev" or "exclusive".
+# If there are no clusters annotated with 
+# one of the defined label key/value
+# combinations the job will queue until 
+# a cluster annotated with one of the 
+# defined key/values labels is enabled in
+# the system.  The intent for this job is
+# to only run on any demonstration, 
+# production, development or exclusive 
+# use clusters.
+#
+kind: Job
+metadata: 
+  name: my-batch-job-with-dev-filter-match-expression
+  labels:
+    app: batchjob
+spec:
+  replicas: 1
+  image: ubuntu:latest
+  resources:
+    cpus: 1
+    memory: 128
+  env:
+    - HELLO_SKY: "hello_sky"
+  run: 'echo $HELLO_SKY; sleep 300'
+  restart_policy: Never
+  placement:
+    filters:
+    - name: "filter-1"
+      match_expressions: 
+        - "key": "purpose"
+          "operator": "In"
+          "values": 
+          - "demo"
+          - "prod"
+          - "dev"
+          - "exclusive"

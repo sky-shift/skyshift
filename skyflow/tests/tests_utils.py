@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import subprocess
@@ -20,12 +21,12 @@ def setup_skyflow(temp_data_dir: str) -> None:
     skyconf_dir = os.path.expanduser("~/.skyconf/")
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
     if os.path.exists(dest_skyconf_dir):
-        shutil.rmtree(dest_skyconf_dir) # Remove the backup directory if it exists.
-        
+        shutil.rmtree(
+            dest_skyconf_dir)  # Remove the backup directory if it exists.
+
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
         print(f"Copied {skyconf_dir} to {dest_skyconf_dir}.")
-
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -88,6 +89,7 @@ def shutdown_skyflow(temporal_directory: str) -> None:
         shutil.rmtree(temporal_directory)
         print(f"Removed temporary directory {temporal_directory}")
 
+
 def kill_process(process_name: str) -> None:
     """
     Attempts to kill a process by name.
@@ -147,3 +149,33 @@ def is_process_running(process_name: str) -> bool:
     except subprocess.CalledProcessError:
         # If an error occurs (e.g., the process is not found), returns False.
         return False
+
+
+def create_cluster(name: str):
+    """ 
+    Creates a KIND Cluster 
+
+    Prerequisites : 
+        KIND (https://kind.sigs.k8s.io)
+        DOCKER
+        KUBECTL
+    """
+    logging.debug(f'Creating cluster {name}')
+    os.system(f"kind create cluster  --name={name}")
+
+    cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
+    try:
+        subprocess.check_output(cluster_info_cmd,
+                                shell=True,
+                                stderr=subprocess.STDOUT).decode('utf-8')
+        return True
+    except subprocess.CalledProcessError as error:
+        return False
+
+
+def delete_cluster(name: str):
+    """ 
+    Deletes a KIND Cluster 
+    """
+    logging.debug(f'Deleting cluster {name}')
+    os.system(f"kind delete cluster --name={name}")
