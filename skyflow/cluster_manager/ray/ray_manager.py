@@ -134,6 +134,13 @@ class RayManager(Manager):
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
+        except Exception as error: # pylint: disable=broad-except
+            logging.error(f"Unexpected error: {error}")
+            return ClusterStatus(
+                status=ClusterStatusEnum.ERROR.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
 
     def _submit_and_fetch_logs(self, script_name, script_args="") -> Dict:
         self.client = self._connect_to_ray_cluster()
