@@ -11,12 +11,11 @@ import paramiko
 import yaml
 
 from skyflow.cluster_manager import Manager
-from skyflow.cluster_manager.slurm_compatibility_layer import \
+from skyflow.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
 from skyflow.templates import (AcceleratorEnum, ContainerEnum, EndpointObject,
                                Job, ResourceEnum, Service, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
-from skyflow.utils.slurm_utils import log_job
 
 from skyflow.globals import SLURM_CONFIG_PATH
 
@@ -48,6 +47,7 @@ class ConfigUndefinedError(Exception):
 class SlurmManagerCLI(Manager):
     """ Slurm compatability set for Skyflow."""
     cluster_name = "slurmcluster1"
+    
     def __init__(self):
         """ Constructor which sets up request session, and checks if slurmrestd is reachable.
 
@@ -108,11 +108,13 @@ class SlurmManagerCLI(Manager):
         self.get_accelerator_types()
         self.total_resources = None
         self.curr_allocatable = None
+    
     def __del__(self):
         """ Deconstructor
         """
         if not self.is_local:
             self.ssh_client.close()
+    
     def _send_command(self, command):
         """Seconds command locally, or through ssh to a remote cluster
             
@@ -122,7 +124,6 @@ class SlurmManagerCLI(Manager):
             Returns:
                 stdout
         """
-        log_job(command)
         if self.is_local:
             result = subprocess.run(
                 ['bash', '-c', command], 

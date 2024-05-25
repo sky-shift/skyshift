@@ -10,17 +10,16 @@ USER_SSH_PATH = os.path.expanduser("~/.ssh")
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
-SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
+
 DEFAULT_NAMESPACE = "default"
+
+K8_MANAGERS = ('kubernetes', 'k8', 'k8s')
 KUBE_CONFIG_DEFAULT_PATH = "~/.kube/config"
 
-KUBERNETES_ALIASES = ('kubernetes', 'k8', 'k8s')
-KUBE_CONFIG_DEFAULT_PATH = '~/.kube/config'
+SLURM_MANAGERS = ('slurm', 'slurmctl')
+SLURM_CONFIG_PATH = '~/.skyconf/slurmconf.yaml'
 
-SLURM_ALIASES = ('slurm', 'slurmctl')
-SUPPORTED_MANAGERS = KUBERNETES_ALIASES + SLURM_ALIASES
-SLURM_SUPPORTED_INTERFACES = ('rest', 'cli')
-
+SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS
 
 CLUSTER_TIMEOUT = 10  # seconds
 

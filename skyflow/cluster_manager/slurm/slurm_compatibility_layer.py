@@ -181,6 +181,7 @@ class SlurmCompatiblityLayer():
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
             job.spec.envs["XDG_RUNTIME_DIR"] = self.runtime_dir
         return self.create_job_dict(submission_script, job)
+    
     def compat_podman_hpc(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates PodmanHPC cli commands.
 
@@ -222,6 +223,7 @@ class SlurmCompatiblityLayer():
         }
         submission_script = _create_submission_script(script_dict)
         return self.create_job_dict(submission_script, job)
+    
     def compat_shifter(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Shifter cli commands.
 
@@ -233,6 +235,7 @@ class SlurmCompatiblityLayer():
         """
         #shifterimg -v pull docker:image_name:latest
         raise NotImplementedError
+    
     def compat_nocontainer(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates no container cli commands.
 
@@ -271,6 +274,7 @@ class SlurmCompatiblityLayer():
             self.time_limit
         }
         return job_dict
+    
     def create_job_dict(self, submission_script: str, job: Job) -> Dict[str, Union[str, int]]:
         resources = job.spec.resources
         job_dict = {

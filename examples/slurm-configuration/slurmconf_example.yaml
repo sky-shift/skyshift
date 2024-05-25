@@ -1,5 +1,7 @@
+# Example of Slurm cluster accessed through Rest API.
 slurmcluster1: 
-  slurmrestd:
+  interface: rest
+  access_config:
     openapi_ver: v0.0.38
     port: /var/lib/slurm-llnl/slurmrestd.socket
     auth: jwt
@@ -9,25 +11,18 @@ slurmcluster1:
   properties:
     time_limit: 9000
     account: mluo
-  slurmcli:
-    rsa_key_path: ~/berkrsa
-    remote_hostname: watson.millennium.berkeley.edu
-    remote_username: mluo
-  slurm_interface: cli
 
+# Example of Slurm cluster accessed through CLI.
 slurmcluster2: 
-  slurmrestd:
-    openapi_ver: v0.0.38
-    port: /var/lib/slurm-llnl/slurmrestd.socket
-    auth: jwt
+  interface: cli
+  access_config:
+    hostname: watson.millennium.berkeley.edu
+    user: mluo
+    ssh_key: ~/berkrsa2
+    # password: whatever
   tools:
     container: docker
     runtime_dir: /home/my_runtime_dir
   properties:
     time_limit: 20000
     account: mluo
-  slurmcli:
-    rsa_key_path: ~/berkrsa2
-    remote_hostname: watson.millennium.berkeley.edu
-    remote_username: mluo
-  slurm_interface: cli

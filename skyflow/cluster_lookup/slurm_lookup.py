@@ -5,7 +5,7 @@ from typing import Any, List
 from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import SLURM_CONFIG_PATH
-from skyflow.utils.slurm_utils import *
+from skyflow.cluster_manager.slurm.slurm_utils import *
 
 def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
     """
@@ -15,7 +15,7 @@ def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
         Returns:
             List of sanitized Slurm cluster names.
     """
-    slurm_config = VerifySlurmConfig()
+    slurm_config = SlurmConfig()
     cluster_contexts = []
     for cluster in cluster_api.list().objects:
         if slurm_config.verify_configuration(cluster.metadata.name):

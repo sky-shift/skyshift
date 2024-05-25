@@ -10,49 +10,43 @@ import os
 import traceback
 
 import yaml
-
+ 
+from skyflow.globals import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)
 
-CONTROLLERS = [
+BASE_CONTROLLERS = [
     ClusterController,
     FlowController,
     JobController,
+]
+SERVICE_CONTROLLERS = [
     NetworkController,
     ProxyController,
     EndpointsController,
     ServiceController,
 ]
-SLURM_SUPPORTED = [
-    ClusterController,
-    FlowController,
-    JobController,
-]
 
 def launch_skylet(cluster_obj):
-    cluster_id = cluster_obj.metadata.name
-    cluster_type = cluster_obj.spec.manager
     """
     Launches a Skylet for a given cluster.
     """
+    cluster_id = cluster_obj.metadata.name
+    cluster_type = cluster_obj.spec.manager
     controllers = []
-    if 'slurm' in cluster_type:
-        for cont in SLURM_SUPPORTED:
-            try:
-                controllers.append(cont(cluster_id))
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                print(f"Failed to initialize Skylet controller {cont}, "
-                  f"check if cluster {cluster_id} is valid.")
-    else:
-        for cont in CONTROLLERS:
-            try:
-                controllers.append(cont(cluster_id))
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                print(f"Failed to initialize Skylet controller {cont}, "
-                    f"check if cluster {cluster_id} is valid.")
+    
+    controller_types = BASE_CONTROLLERS
+    if cluster_type in K8_MANAGERS:
+        controller_types.extend(SERVICE_CONTROLLERS)
+        
+    for cont in controller_types:
+        try:
+            controllers.append(cont(cluster_id))
+        except Exception:  # pylint: disable=broad-except
+            print(traceback.format_exc())
+            print(f"Failed to initialize Skylet controller {cont}, "
+                f"check if cluster {cluster_id} is valid.")
 
     for cont in controllers:
         cont.start()
