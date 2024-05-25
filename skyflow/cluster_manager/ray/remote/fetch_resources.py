@@ -39,6 +39,9 @@ def fetch_allocatable_resources(use_available_resources):
                 allocatable_resources[node][ResourceEnum.CPU.value] = quantity
             elif "memory" in resource_name.lower():
                 allocatable_resources[node][ResourceEnum.MEMORY.value] = quantity / (1024 ** 2)  # MB
+            elif "accelerator_type" in resource_name:
+                gpu_type = resource_name.split(":")[1]
+                allocatable_resources[node][gpu_type] = quantity
             elif "GPU" in resource_name.upper():
                 allocatable_resources[node][ResourceEnum.GPU.value] = quantity
 
@@ -50,4 +53,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     resources = fetch_allocatable_resources(args.available)
-    print(json.dumps(resources))
+    print(json.dumps(resources, indent=4))

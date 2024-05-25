@@ -27,6 +27,7 @@ from skyflow.templates.resource_template import ContainerEnum
 from skyflow.utils.ssh_utils import (
     SSHParams, SSHStatusEnum, check_reachable, connect_ssh_client, ssh_send_command, SSHConnectionError
 )
+from skyflow.utils.utils import fuzzy_map_gpu
 
 RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
@@ -230,79 +231,79 @@ class RayManager(Manager):
             resources[node_name][accelerator_type] = gpu_value
         return resources
 
-    @property
-    def cluster_resources(self):
-        """
-        Gets total cluster resources for each node using Ray,
-        excluding the internal head node.
-        """
-
-        # Connect to the Ray cluster
+    def _submit_and_fetch_logs(self, script_name, script_args="") -> Dict:
         self.client = self._connect_to_ray_cluster()
+        job_id = f"job_{uuid4().hex[:10]}"
+        entrypoint = f"python {self.remote_dir}/{script_name} {script_args}"
+        
+        self.client.submit_job(entrypoint=entrypoint, submission_id=job_id)
 
-        # Submit a job to fetch the cluster resources
-        job_id = self.client.submit_job(
-            entrypoint=f"python {self.remote_dir}/fetch_resources.py"
-        )
-
-        # Wait for the job to finish and fetch the results
+        # Wait for the job to complete
         job_info = self.client.get_job_info(job_id)
         while job_info.status != 'SUCCEEDED':
             job_info = self.client.get_job_info(job_id)
 
-        # Fetch the job logs
         logs = self.client.get_job_logs(job_id)
         json_pattern = re.compile(RAY_JSON_PATTERN)
         match = json_pattern.search(logs)
-
+        
         if match:
             try:
-                cluster_resources = json.loads(match.group(0))
+                return json.loads(match.group(0))
             except json.JSONDecodeError as e:
-                self.logger.exception("Failed to decode JSON from the logs, check the log output for errors.", e)
-                cluster_resources = {}
+                self.logger.error("Failed to decode JSON from the logs, check the log output for errors.", exc_info=e)
         else:
-            self.logger.exception("No JSON object found in the logs.")
-            cluster_resources = {}
+            self.logger.error("No JSON object found in the logs.")
+        
+        return {}
 
-        return cluster_resources
+    @property
+    def cluster_resources(self):
+        """
+        Gets total cluster resources for each node using Ray, excluding the internal head node.
+        """
+        resources = self._submit_and_fetch_logs("fetch_resources.py")
+        return fuzzy_map_gpu(resources)
 
     @property
     def allocatable_resources(self):
         """
-        Gets total cluster resources for each node using Ray,
-        excluding the internal head node.
+        Gets total allocatable resources for each node using Ray, excluding the internal head node.
         """
+        resources = self._submit_and_fetch_logs("fetch_resources.py", "--available")
+        return fuzzy_map_gpu(resources)
 
-        # Connect to the Ray cluster
+    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
+        """
+        Gets the jobs tasks status. (Map from job name to task mapped to status)
+        
+        Returns:
+            Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
+        """
+        return self._submit_and_fetch_logs("fetch_job_status.py")
+
+    def get_job_logs(self, job) -> List[str]:
+        """
+        Gets logs for a given job.
+        
+        Args:
+            job: Job object containing job specifications.
+
+        Returns:
+            List[str]: A list of logs for the job.
+        """
         self.client = self._connect_to_ray_cluster()
-
-        # Submit a job to fetch the cluster resources
-        job_id = self.client.submit_job(
-            entrypoint=f"python {self.remote_dir}/fetch_resources.py --available"
-        )
-
-        # Wait for the job to finish and fetch the results
-        job_info = self.client.get_job_info(job_id)
-        while job_info.status != 'SUCCEEDED':
-            job_info = self.client.get_job_info(job_id)
-
-        # Fetch the job logs
-        logs = self.client.get_job_logs(job_id)
-        json_pattern = re.compile(RAY_JSON_PATTERN)
-        match = json_pattern.search(logs)
-
-        if match:
-            try:
-                cluster_resources = json.loads(match.group(0))
-            except json.JSONDecodeError as e:
-                self.logger.error("Failed to decode JSON from the logs, check the log output for errors.", e)
-                cluster_resources = {}
-        else:
-            self.logger.error("No JSON object found in the logs.")
-            cluster_resources = {}
-
-        return cluster_resources
+        job_id = job.status.job_ids[self.cluster_name]
+        self.logger.info(f"Fetching logs for job {job_id} on the Ray cluster.")
+        logs = []
+        try:
+            log = self.client.get_job_logs(job_id)
+            logs.append(log)
+            self.logger.info(f"Fetched logs for job {job_id} on the Ray cluster.")
+        except Exception as e:
+            self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
+        
+        return logs
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
         """
@@ -378,69 +379,7 @@ class RayManager(Manager):
         # Remove the job from the registry
         del self.job_registry[job.get_name()]
         self.logger.info(f"Removed job {job.get_name()} from job registry.")
-        
 
-    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
-        """
-        Gets the jobs tasks status. (Map from job name to task mapped to status)
-        
-        Returns:
-            Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
-        """
-        self.client = self._connect_to_ray_cluster()
-
-        # Generate a unique identifier for the status fetching job
-        job_id = f"fetch_status_{uuid4().hex[:10]}"
-
-        # Submit the job to the Ray cluster
-        self.client.submit_job(
-            entrypoint=f"python {self.remote_dir}/fetch_job_status.py",
-            submission_id=job_id
-        )
-
-        job_info = self.client.get_job_info(job_id)
-        while job_info.status != 'SUCCEEDED':
-            job_info = self.client.get_job_info(job_id)
-        # Fetch the logs of the job to get the output
-
-        logs = self.client.get_job_logs(job_id)
-        json_pattern = re.compile(RAY_JSON_PATTERN)
-        match = json_pattern.search(logs)
-        if match:
-            try:
-                jobs_dict = json.loads(match.group(0))
-            except json.JSONDecodeError as e:
-                logging.error("Failed to decode JSON from the logs, check the log output for errors.", e)
-                jobs_dict = {}
-        else:
-            logging.error("No JSON object found in the logs.")
-            jobs_dict = {}
-
-        return jobs_dict
-
-    def get_job_logs(self, job: Job) -> List[str]:
-            """
-            Gets logs for a given job.
-            
-            Args:
-                job: Job object containing job specifications.
-
-            Returns:
-                List[str]: A list of logs for the job.
-            """
-            self.client = self._connect_to_ray_cluster()
-            job_id = job.status.job_ids[self.cluster_name]
-            self.logger.info(f"Fetching logs for job {job_id} on the Ray cluster.")
-            logs = []
-            try:
-                # Get logs for the job from the Ray cluster
-                log = self.client.get_job_logs(job_id)
-                logs.append(log)
-                self.logger.info(f"Fetched logs for job {job_id} on the Ray cluster.")
-            except Exception as e:
-                self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
-            
-            return logs
     
 #print("Ray Manager")
 rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.31.239.216")
