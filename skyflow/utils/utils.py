@@ -1,7 +1,6 @@
 """
 Utility functions for Skyflow.
 """
-import difflib
 import importlib
 import json
 import os
