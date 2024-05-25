@@ -14,7 +14,7 @@ import yaml
 from skyflow.cluster_manager import Manager
 from skyflow.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
-from skyflow.templates import (AcceleratorEnum, ContainerEnum, Job,
+from skyflow.templates import (AcceleratorEnum, CRIEnum, Job,
                                JobStatusEnum, ResourceEnum, Service)
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 

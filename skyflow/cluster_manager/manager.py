@@ -29,6 +29,7 @@ class Manager:
 
     def __init__(self, name: str):
         self.cluster_name = name
+        self.name = name
 
     @property
     def cluster_resources(self):

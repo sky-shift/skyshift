@@ -75,15 +75,6 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         cluster_obj = self.cluster_api.get(name)
         # The Compataibility layer that interfaces with the underlying cluster manager.
         self.manager_api = setup_cluster_manager(cluster_obj)
-        # Fetch the accelerator types on the cluster.
-        # This is used to determine node affinity for jobs that
-        # request specific accelerators such as T4 GPU.
-        # @TODO(acuadron): Add specific exception
-        try:
-            self.accelerator_types = self.manager_api.get_accelerator_types()
-        except Exception:  # pylint: disable=broad-except
-            self.logger.error("Failed to fetch accelerator types.")
-            self.update_unhealthy_cluster()
 
     def run(self):
         self.logger.info(

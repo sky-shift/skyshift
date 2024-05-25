@@ -274,7 +274,7 @@ class SlurmCompatiblityLayer():
             self.time_limit
         }
         return job_dict
-    
+
     def create_job_dict(self, submission_script: str, job: Job) -> Dict[str, Union[str, int]]:
         resources = job.spec.resources
         job_dict = {

@@ -48,6 +48,10 @@ class SlurmConfig:
         """Fetches the interface type for a given cluster."""
         return self.config[cluster_name]['interface']
     
+    def get_auth_config(self, cluster_name: str) -> dict:
+        """Fetches the authentication configuration for a given cluster."""
+        return self.config[cluster_name]['access_config']
+    
     def get_ssh_client(self, cluster_name: str) -> paramiko.SSHClient:
         """Returns SSH client for a given cluster."""
         access_config = self.config[cluster_name]['access_config']
