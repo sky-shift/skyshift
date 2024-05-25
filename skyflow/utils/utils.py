@@ -6,14 +6,12 @@ import json
 import os
 import shutil
 from datetime import datetime, timezone
-from rapidfuzz import process
 from typing import Dict, List, Optional, Union
 
-from rapidfuzz import process
 import requests
 import yaml
+from rapidfuzz import process
 
-from skyflow.templates.resource_template import AcceleratorEnum
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
 from skyflow.templates.resource_template import AcceleratorEnum
 
@@ -191,9 +189,10 @@ def update_manager_config(config: dict):
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
 
+
 def fuzzy_map_gpu(
-    resources_dict: Dict[str, Dict[str, float]]
-) -> Dict[str, Dict[str, float]]:
+    resources_dict: Dict[str, Dict[str,
+                                   float]]) -> Dict[str, Dict[str, float]]:
     """
     Maps GPUs to the closest match in the enum class using rapidfuzz.
     """
