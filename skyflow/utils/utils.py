@@ -8,12 +8,14 @@ import shutil
 from datetime import datetime, timezone
 from rapidfuzz import process
 from typing import Dict, List, Optional, Union
+from rapidfuzz import process
 
 import requests
 import yaml
 
 from skyflow.templates.resource_template import AcceleratorEnum
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
+from skyflow.templates.resource_template import AcceleratorEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
@@ -198,7 +200,7 @@ def fuzzy_map_gpu(
     enum_values = [e.value for e in AcceleratorEnum]
     for _, resources in resources_dict.items():
         for key in list(resources.keys()):
-            if key in AcceleratorEnum.__members__:
+            if not key in AcceleratorEnum.__members__:
                 # Find the closest match
                 closest_match = process.extractOne(key, enum_values)
                 if closest_match:
