@@ -299,6 +299,7 @@ class SlurmCompatiblityLayer():
             'time_limit':
             self.time_limit
         }
+        return job_dict
 
 def _create_submission_script(script_dict, newline=True):
     """ Creates shell compatability run script based off dictionary of values.

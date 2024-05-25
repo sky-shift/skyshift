@@ -22,17 +22,23 @@ from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
+
+# Defines Slurm node states.
+SLURM_NODE_AVAILABLE_STATES = {
+    'IDLE',
+    'ALLOCATED',
+    'COMPLETING',
+} 
+
 #Defines for job status
 SLURM_ACTIVE = {'RUNNING,'
                 'COMPLETING'}
 SLURM_INIT = {'CONFIGURING', 'PENDING'}
 SLURM_FAILED = {'FAILED', 'STOPPED', 'TIMEOUT', 'SUSPENDED', 'PREMPTED'}
 SLURM_COMPLETE = {'COMPLETED'}
+
 #Identifying Headers for job submission name
 MANAGER_NAME = "skyflow8slurm"
-#Slurm head node number
-
-HEAD_NODE = 0
 
 
 def _send_cli_command(ssh_client: paramiko.SSHClient, command: str):
@@ -46,6 +52,28 @@ def _send_cli_command(ssh_client: paramiko.SSHClient, command: str):
     """
     _, stdout, stderr = ssh_client.exec_command(command)
     return stdout.read().decode().strip(), stderr.read().decode().strip()
+
+def _convert_slurm_output_to_dict(output: str, key_name: str) -> Dict[str, Dict[str, str]]:
+    """Converts Slurm list outputs into a dictionary of dictionaries."""
+    final_dict = {}
+    node_blocks = output.split('\n\n')
+    for block in node_blocks:
+        node_info = {}
+        final_key = None
+        lines = block.split('\n')
+        for line in lines:
+            # Split line by spaces, but keep key-value pairs together
+            parts = re.split(r'\s+(?=\S+=)', line.strip())
+            for part in parts:
+                if '=' in part:
+                    key, value = part.split('=', 1)
+                    if key == key_name:
+                        final_key = value
+                    node_info[key] = value
+        final_dict[final_key] = node_info
+    return final_dict
+    
+    
 
 
 class SlurmManagerCLI(Manager):
@@ -83,16 +111,12 @@ class SlurmManagerCLI(Manager):
         
         # Maps node name to `sinfo get nodes` outputs.
         # This serves as a cache to fetch information.
-        self.node_list = {}
+        self.slurm_node_dict = {}
         
         self.accelerator_types = None
         # self.get_accelerator_types()
         self.total_resources = None
         self.curr_allocatable = None
-    
-    def __del__(self):
-        """When deleting SlurmManager, close the SSH connection."""
-        self.ssh_client.close()
 
     def _get_container_manager_type(self):
         """Finds and reports first available container manager.
@@ -103,29 +127,10 @@ class SlurmManagerCLI(Manager):
         supported_containers = [e.value for e in CRIEnum]
         for manager_name in supported_containers:
             command = 'if command -v ' + manager_name + ' &> /dev/null;then echo ' + manager_name + ' ;fi'
-            stdout = _send_cli_command(self.ssh_client, command)
+            stdout, _ = _send_cli_command(self.ssh_client, command)
             if manager_name in stdout:
                 return manager_name
         return None
-
-    def _process_gpu_resources(
-            self, resources: Dict[str,
-                                  Dict[str,
-                                       float]]) -> Dict[str, Dict[str, float]]:
-        """Processes generic GPU resources to accelerator specific resources.
-            Args:
-                resources: Unprocessed resources of available nodes. 
-            Returns:
-                Resource dict with mapping of GPU types (e.g. A100) to count.
-        """
-        if not self.accelerator_types or not set(
-                self.accelerator_types).issubset(set(resources.keys())):
-            self.accelerator_types = self.get_accelerator_types()
-
-        for node_name, accelerator_type in self.accelerator_types.items():
-            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
-            resources[node_name][accelerator_type] = gpu_value
-        return resources
 
     @property
     def cluster_resources(self) -> Dict[str, Dict[str, float]]:
@@ -133,50 +138,29 @@ class SlurmManagerCLI(Manager):
             Returns:
                 Dict of each node name and its total resources.
         """
-        stdout = _send_cli_command(self.ssh_client, 'scontrol show nodes')
-        import pdb; pdb.set_trace()
-        
-        
-        node_sections = stdout.strip().split('\n\n')
+        if not self.slurm_node_dict:
+            stdout, _ = _send_cli_command(self.ssh_client, 'scontrol show nodes')
+            self.slurm_node_dict = _convert_slurm_output_to_dict(stdout, key_name='NodeName')
 
         cluster_resources = {}
-        for node_info in node_sections:
-            cpu_total = 0.0
-            mem_total = 0.0
-            gres_count = 0.0
-            node_name = ''
-            
-            
-            
+        for name, node_info in self.slurm_node_dict.items():
+            node_state = node_info.get('State', None)
+            if node_state not in SLURM_NODE_AVAILABLE_STATES:
+                continue
+            cpu_total = float(node_info.get('CPUTot', 0))
+            mem_total = float(node_info.get('RealMemory', 0))
 
-            #Get total CPUs iån node
-            node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
-            if node_name_match:
-                node_name = node_name_match.group(1)
-            status_match = re.search(r'State=(\w+)\*?', node_info)
-            if status_match:
-                node_status = status_match.group(1)
-                if node_status.upper() in ('DOWN*', 'DOWN'):
-                    continue
-            cpu_total_match = re.search(r'CPUTot=(\d+)', node_info)
-            if cpu_total_match:
-                cpu_total = float(cpu_total_match.group(1))
-            #Get total memory in node
-            mem_total_match = re.search(r'RealMemory=(\d+)', node_info)
-            if mem_total_match:
-                mem_total = float(mem_total_match.group(1))
-            #Get total GPUs in node
-            gres_match = re.search(r'Gres=gpu:\w+:(\d+)', node_info)
-            if gres_match:
-                gres_count = float(gres_match.group(1))
-            cluster_resources[node_name] = {
-                ResourceEnum.CPU.value: float(cpu_total),
-                ResourceEnum.MEMORY.value: float(mem_total),
-                ResourceEnum.GPU.value: float(gres_count)
+            cluster_resources[name] = {
+                ResourceEnum.CPU.value: cpu_total,
+                ResourceEnum.MEMORY.value: mem_total,
             }
-        self.total_resources = self._process_gpu_resources(cluster_resources)
-        #Update cluster properties, since this only needs to be called once
-        return self.total_resources
+            gpu_str = node_info.get('Gres', None)
+            if not gpu_str:
+                continue
+            _, gpu_type, gpu_count = gpu_str.split(':')
+            cluster_resources[name][gpu_type] = float(gpu_count)
+        cluster_resources = utils.fuzzy_map_gpu(cluster_resources)
+        return cluster_resources
     
     @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
@@ -185,122 +169,83 @@ class SlurmManagerCLI(Manager):
             Returns:
                 Dict of node name and resource property struct.
         """
-        command = "scontrol show nodes"
-        #command_output = subprocess.check_output(command, shell=True, text=True)
-        stdout = self._send_command(command)
-        node_sections = stdout.split('\n\n')
-        available_resources = {}
-        for node_info in node_sections:
-            cpu_total = 0.0
-            mem_total = 0.0
-            gres_count = 0.0
-            node_name = ''
-            status_match = re.search(r'State=(\w+)\*?', node_info)
-            if status_match:
-                node_status = status_match.group(1)
-                if node_status.upper() in ('DOWN*', 'DOWN'):
-                    continue
-            #Get total CPUs in node
-            node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
-            if node_name_match:
-                node_name = node_name_match.group(1)
-            cpu_total_match = re.search(r'CPUAlloc=(\d+)', node_info)
-            if cpu_total_match:
-                cpu_total = float(self.total_resources[node_name][ResourceEnum.CPU.value]) - float(cpu_total_match.group(1))
-            #Get total memory in node
-            mem_total_match = re.search(r'FreeMem=(\d+)', node_info)
-            if mem_total_match:
-                mem_total = float(mem_total_match.group(1))
-            accelerator_type = AcceleratorEnum.UNKGPU
-            has_gpus = False
-            for key in self.total_resources[node_name]:
-                if type(key) == AcceleratorEnum:
-                    accelerator_type = key
-                    has_gpus = True
-            if has_gpus:
-                available_resources[node_name] = {
-                    ResourceEnum.CPU.value: float(cpu_total),
-                    ResourceEnum.MEMORY.value: float(mem_total),
-                    ResourceEnum.GPU.value: self.total_resources[node_name][accelerator_type]
-                }
-            else:
-                available_resources[node_name] = {
-                ResourceEnum.CPU.value: float(cpu_total),
-                ResourceEnum.MEMORY.value: float(mem_total),
-                ResourceEnum.GPU.value: 0.0
-            }
+        if not self.slurm_node_dict:
+            stdout, _ = _send_cli_command(self.ssh_client, 'scontrol show nodes')
+            self.slurm_node_dict = _convert_slurm_output_to_dict(stdout, key_name='NodeName')
 
-        #Process gpus
-        command = "scontrol show jobs"
-        #command_output = subprocess.check_output(command, shell=True, text=True)
-        stdout = self._send_command(command)
-        node_sections = stdout.split('\n\n')
-        for node_info in node_sections:
-            node_list: List[str] = []
-            node_list_match = re.search(r' NodeList=(.*?)\n', node_info)
-            if node_list_match:
-                values = node_list_match.group(1).split(',')
-                for item in values:
-                    node_list.append(str(item))
-            job_state_match = re.search(r'JobState=([^\s]+)', node_info)
-            job_state = "PENDING"
-            if job_state_match:
-                job_state = str(job_state_match.group(1))
-            if job_state in ('ALLOCATED', 'RUNNING'):
-                #Get total Gpus utilized by running job
-                gres_match = re.search(r'Gres=gpu:(\d+)', node_info)
-                if gres_match:      
-                    gres_used = float(gres_match.group(1))
-                    for node in node_list:
-                        if available_resources[node][ResourceEnum.GPU.value] - gres_used < 0:
-                            available_resources[node][ResourceEnum.GPU.value] = 0
-                        else:
-                            available_resources[node][ResourceEnum.GPU.value] \
-                            = available_resources[node][ResourceEnum.GPU.value] - gres_used
-        return self._process_gpu_resources(available_resources)
-    
-    def get_accelerator_types(self) -> Dict[str, AcceleratorEnum]:
-        """ Gets accelerator type available on each node.
-            Returns:
-                Dict of node name and respective accelerator type.
-        """
-        if self.accelerator_types is not None:
-            return self.accelerator_types
-        command = "scontrol show nodes"
-        #command_output = subprocess.check_output(command, shell=True, text=True)
-        stdout = _send_cli_command(self.ssh_client, command)
-        node_sections = stdout.split('\n\n')
+        avail_resources = {}
+        has_gres_used = True
+        for name, node_info in self.slurm_node_dict.items():
+            node_state = node_info.get('State', None)
+            if node_state not in SLURM_NODE_AVAILABLE_STATES:
+                continue
+            cpu_total = float(node_info.get('CPUTot', 0))
+            cpu_alloc = float(node_info.get('CPUAlloc', 0))
+            mem_total = float(node_info.get('RealMemory', 0))
+            mem_alloc = float(node_info.get('AllocMem', 0))
+
+            avail_resources[name] = {
+                ResourceEnum.CPU.value: cpu_total - cpu_alloc,
+                ResourceEnum.MEMORY.value: mem_total - mem_alloc,
+            }
+            gpu_str = node_info.get('Gres', None)
+            if not gpu_str:
+                continue
+            _, gpu_type, gpu_count = gpu_str.split(':')
+            gpu_alloc_str = node_info.get('GresUsed', None)
+            if not gpu_alloc_str:
+                has_gres_used = False
+                gpu_alloc_count = 0
+            else:
+                _, _, gpu_alloc_count = gpu_alloc_str.split(':')
+            avail_resources[name][gpu_type] = float(gpu_count) - float(gpu_alloc_count)
+            print(float(gpu_count) - float(gpu_alloc_count))
+        print(avail_resources)
+        avail_resources = utils.fuzzy_map_gpu(avail_resources)
         
-        node_gpus = {}
-        for node_info in node_sections:
-            status_match = re.search(r'State=(\w+)\*?', node_info)
-            if status_match:
-                node_status = status_match.group(1)
-                if node_status.upper() in ('DOWN*', 'DOWN'):
-                    continue
-            node_name = ''
-            gpu_enum = AcceleratorEnum.UNKGPU
-            node_name_match = re.search(r'NodeName=(\w+)\s', node_info)
-            if node_name_match:
-                node_name = node_name_match.group(1)
-            gpu_model_match = re.search(r'Gres=gpu:([^:]+)', node_info)
-            if gpu_model_match:
-                gpu_model = str(gpu_model_match.group(1)).lower()
-                for member in AcceleratorEnum:
-                    if member.value.lower() in gpu_model:
-                        gpu_enum = member
-                node_gpus[node_name] = gpu_enum
-        self.accelerator_types = node_gpus
-        return node_gpus
+        # If GresUsed is not found, must calculate GPUs occupied by all running jobs.
+        if has_gres_used:
+            return avail_resources
+        return avail_resources
+    
+
+        # #Process gpus
+        # command = "scontrol show jobs"
+        # #command_output = subprocess.check_output(command, shell=True, text=True)
+        # stdout = _send_cli_command(self.ssh_client, command)
+        # slurm_jobs_dict = 
+        # node_sections = stdout.split('\n\n')
+        # for node_info in node_sections:
+        #     node_list: List[str] = []
+        #     node_list_match = re.search(r' NodeList=(.*?)\n', node_info)
+        #     if node_list_match:
+        #         values = node_list_match.group(1).split(',')
+        #         for item in values:
+        #             node_list.append(str(item))
+        #     job_state_match = re.search(r'JobState=([^\s]+)', node_info)
+        #     job_state = "PENDING"
+        #     if job_state_match:
+        #         job_state = str(job_state_match.group(1))
+        #     if job_state in ('ALLOCATED', 'RUNNING'):
+        #         #Get total Gpus utilized by running job
+        #         gres_match = re.search(r'Gres=gpu:(\d+)', node_info)
+        #         if gres_match:      
+        #             gres_used = float(gres_match.group(1))
+        #             for node in node_list:
+        #                 if available_resources[node][ResourceEnum.GPU.value] - gres_used < 0:
+        #                     available_resources[node][ResourceEnum.GPU.value] = 0
+        #                 else:
+        #                     available_resources[node][ResourceEnum.GPU.value] \
+        #                     = available_resources[node][ResourceEnum.GPU.value] - gres_used
+        # return self._process_gpu_resources(available_resources)
+
 
     def get_cluster_status(self) -> ClusterStatus:
         """ Gets status of the cluster, at least one node must be up.
             Returns:
                 Cluster Status struct with total and allocatable resources.
         """
-        command = 'scontrol show partitions'
-
-        stdout = _send_cli_command(self.ssh_client, command)
+        stdout, stderr = _send_cli_command(self.ssh_client, 'scontrol show partitions')
         cluster_info = stdout
 
         if 'State=UP' in cluster_info:
@@ -350,6 +295,7 @@ class SlurmManagerCLI(Manager):
                     elif status == 'F':
                         jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.FAILED
         return jobs_dict
+    
     def _get_matching_job_names(self, match_name: str):
         """ Gets a list of jobs with matching names.
 
@@ -373,6 +319,7 @@ class SlurmManagerCLI(Manager):
                 if slurm_job_name == match_name:
                     matching_job_names.append(slurm_job_name)
         return matching_job_names
+    
     def submit_job(self, job: Job) -> Dict[str, Any]:
         """
         Submit a job to the cluster, represented as a group of pods.
@@ -443,10 +390,15 @@ class SlurmManagerCLI(Manager):
         api_responses.append(del_response)
         return api_responses
 
+    def __del__(self):
+        """When deleting SlurmManager, close the SSH connection."""
+        self.ssh_client.close()
+
 if __name__ == '__main__':
     api = SlurmManagerCLI(name='my-slurm-cluster')
     status = api.cluster_resources
-    print(status.status)
+    print(status)
+    print(api.allocatable_resources)
     # print(api.cluster_resources)
     # print("************")
     # print(api.allocatable_resources)

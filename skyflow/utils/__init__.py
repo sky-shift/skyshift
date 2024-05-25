@@ -1,7 +1,7 @@
 """
 Utils module - Generic Skyflow utils.
 """
-from skyflow.utils.utils import (load_object, match_labels,
+from skyflow.utils.utils import (fuzzy_map_gpu, load_object, match_labels,
                                  sanitize_cluster_name,
                                  unsanitize_cluster_name, watch_events)
 
@@ -11,4 +11,5 @@ __all__ = [
     "match_labels",
     "load_object",
     "watch_events",
+    'fuzzy_match_gpu',
 ]
