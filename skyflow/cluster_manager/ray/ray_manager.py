@@ -15,6 +15,7 @@ from kubernetes import client, config
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
+from skyflow.globals import APP_NAME
 from skyflow.templates import (ClusterStatus,
                                ClusterStatusEnum,
                                Job, ResourceEnum,
@@ -82,7 +83,7 @@ class RayManager(Manager):
             rsa_key=ssh_key_path
         )
         self._setup_ssh_client()
-        self.remote_dir = self._get_remote_home_directory()
+        self.remote_dir = os.path.join(self._get_remote_home_directory(), f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
@@ -129,36 +130,42 @@ class RayManager(Manager):
 
     def _copy_file_to_remote(self, local_path: str, remote_path: str):
         """Copy a file from the local system to the remote system."""
-        sftp = self.ssh_client.open_sftp()
-        sftp.put(local_path, remote_path)
-        sftp.close()
+        #Check if folder exists
+        command = f"mkdir -p {os.path.dirname(remote_path)}"
+        ssh_send_command(self.ssh_client, command)
+        with self.ssh_client.open_sftp() as sftp:
+            sftp.put(local_path, remote_path)
+            self.logger.info(f"Copied {local_path} to {remote_path} on the remote system.")
 
     def _create_archive(self, directory: str, archive_name: str):
         """Create a tar archive of the directory excluding ray_manager.py."""
         with tarfile.open(archive_name, "w:gz") as tar:
-            tar.add(directory, arcname=os.path.basename(directory), 
-                    filter=lambda x: None if x.name.endswith('ray_manager.py') else x)
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    full_path = os.path.join(root, file)
+                    tar.add(full_path, arcname=file)
 
-    def _extract_archive_on_remote(self, remote_archive_path: str, remote_extract_path: str):
+    def _extract_archive_on_remote(self, remote_archive_path: str):
         """Extract the tar archive on the remote system."""
-        command = f"tar -xzf {remote_archive_path} -C {remote_extract_path}"
-        _, stdout, stderr = self.ssh_client.exec_command(command)
-        stdout.channel.recv_exit_status()
-        self.logger.info(stdout.read().decode())
-        self.logger.error(stderr.read().decode())
+        self.logger.info(f"Extracting {remote_archive_path} on the remote system.")
+        command = f"tar xzfv {remote_archive_path} -C {self.remote_dir}"
+        stdout = ssh_send_command(self.ssh_client, command)
+        self.logger.info(stdout)
+        #ssh_send_command(self.ssh_client, f"rm {remote_archive_path}")
 
     def _copy_required_files(self):
         """Copy the required files to the remote system."""
         local_directory = os.path.dirname(os.path.realpath(__file__))
         self.logger.info(f"Copying files from {local_directory} to the remote system.")
-        archive_name = 'ray_manager_files.tar.gz'
+        archive_name = './ray_manager_files.tar.gz'
 
         remote_extract_path = self.remote_dir
         remote_archive_path = f'{remote_extract_path}/ray_manager_files.tar.gz'
+        self.logger.info(f"Copying files to {remote_extract_path} on the remote system.")
 
-        self._create_archive(local_directory, archive_name)
+        self._create_archive(os.path.join(local_directory, "remote"), archive_name)
         self._copy_file_to_remote(archive_name, remote_archive_path)
-        self._extract_archive_on_remote(remote_archive_path, remote_extract_path)
+        self._extract_archive_on_remote(remote_archive_path)
 
         # Clean up local archive
         os.remove(archive_name)
@@ -187,67 +194,16 @@ class RayManager(Manager):
     def _setup_ray(self):
         """Set up Ray using Miniconda."""
 
-        if self.is_initialized:
-            self.logger.info("Ray is already initialized.")
-            return
-        self.is_initialized = True
-
         try:
             self._copy_required_files()
             self.logger.info("Copied required files to the remote system.")
 
-            # Detect the shell and source the appropriate profile
-            shell = self._detect_shell()
-            if shell == 'zsh':
-                profile_cmd = "source ~/.zshrc"
-            elif shell == 'ksh':
-                profile_cmd = "source ~/.kshrc"
-            else:
-                profile_cmd = "source ~/.bashrc"  # Default to bashrc if unknown
-
             # Install Miniconda
-            self.logger.info("Installing Miniconda...")
-            install_conda_cmd = f"bash ~/miniconda_install.sh && {profile_cmd}"
-            _, stdout, stderr = self.ssh_client.exec_command(install_conda_cmd)
-            stdout.channel.recv_exit_status()
-            self.logger.info(stdout.read().decode())
-            self.logger.error(stderr.read().decode())
-
-            # Restart SSH connection
-            self.logger.info("Restarting SSH connection...")
-            self._restart_ssh_connection()
-
-            # Include the explicit path to the conda binary
-            conda_path = f"{self.remote_dir}/miniconda/bin/conda"
-            if shell == 'zsh':
-                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.zshrc"
-            elif shell == 'ksh':
-                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.kshrc"
-            else:
-                conda_profile_cmd = f"export PATH={self.remote_dir}/miniconda/bin/conda:$PATH && source ~/.bashrc"
-
-            # Create conda environment and install Ray
-            self.logger.info("Setting up Ray environment...")
-            setup_cmd = f"{conda_profile_cmd} && {conda_path} create -n my_ray_env python=3.10 -y \
-                && {conda_path} run -n my_ray_env pip install ray[all]"
-            _, stdout, stderr = self.ssh_client.exec_command(setup_cmd)
-            stdout.channel.recv_exit_status()
-            self.logger.info(stdout.read().decode())
-            self.logger.error(stderr.read().decode())
-
-            remote_memory_gb = self._get_remote_system_memory()  # Get remote memory in GB
-            recommended_shm_size = int(remote_memory_gb * 0.3 * 1024 * 1024 * 1024)  # in bytes
-
-            # Start Ray in the new conda environment
-            start_ray_cmd = f"""
-                {conda_profile_cmd} && \
-                {conda_path} run -n my_ray_env ray start --head --port={RAY_NODES_PORT} --dashboard-host=0.0.0.0 --object-store-memory={recommended_shm_size}
-            """
-            _, stdout, stderr = self.ssh_client.exec_command(start_ray_cmd)
-            stdout.channel.recv_exit_status()
-            self.logger.info(stdout.read().decode())
-            self.logger.error(stderr.read().decode())
-
+            self.logger.info("Installing Miniconda & Ray...")
+            install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
+            self.logger.info(f"Running command: {install_conda_cmd}")
+            stdout = ssh_send_command(self.ssh_client, install_conda_cmd)
+            self.logger.info(stdout)
             self.logger.info("Ray successfully started.")
         except Exception as error:  # pylint: disable=broad-except
             self.logger.error(f"Error setting up Ray: {error}")
@@ -545,7 +501,7 @@ class RayManager(Manager):
             return logs
     
 #print("Ray Manager")
-#rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "34.30.51.77")
+rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.232.174.39")
 #print(rm.cluster_resources)
 #print(rm.allocatable_resources)
 #rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
