@@ -25,7 +25,7 @@ from skyflow.templates.resource_template import ContainerEnum
 
 # Import the new SSH utility functions and classes
 from skyflow.utils.ssh_utils import (
-    SSHParams, SSHStatusEnum, check_reachable, ssh_send_command, SSHConnectionError
+    SSHParams, SSHStatusEnum, check_reachable, connect_ssh_client, ssh_send_command, SSHConnectionError
 )
 
 RAY_CLIENT_PORT = 10001
@@ -34,33 +34,10 @@ RAY_NODES_PORT = 6379
 
 RAY_JSON_PATTERN = "(\{(?:[^{}]|(?R))*\})"
 
-client.rest.logger.setLevel(logging.WARNING)
+# Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
-
-
-def process_pod_status(pod: client.V1Pod) -> str:
-    """Processes pod status."""
-    pod_status = pod.status.phase
-    if pod_status == "Pending":
-        if pod.spec.node_name is None:
-            status = TaskStatusEnum.INIT.value
-        else:
-            status = TaskStatusEnum.PENDING.value
-    elif pod_status == "Running":
-        status = TaskStatusEnum.RUNNING.value
-    elif pod_status == "Succeeded":
-        status = TaskStatusEnum.COMPLETED.value
-    elif pod_status in ["Failed", "Unknown"]:
-        status = TaskStatusEnum.FAILED.value
-    else:
-        raise ValueError(f"Unknown pod status {pod_status}")
-    return status
-
-class RayConnectionError(config.config_exception.ConfigException):
-    """Raised when there is an error connecting to the Kubernetes cluster."""
-
 
 class RayManager(Manager):
     """ Compatibility layer for Ray cluster manager. """
@@ -82,51 +59,46 @@ class RayManager(Manager):
             remote_username=username,
             rsa_key=ssh_key_path
         )
-        self._setup_ssh_client()
+        self.ssh_client = connect_ssh_client(self.ssh_params).ssh_client
         self.remote_dir = os.path.join(self._get_remote_home_directory(), f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
-            self._setup_ray()
-            self.client = self._connect_to_ray_cluster()
+            self._setup()
 
-    def _connect_to_ray_cluster(self):
-        """Connect to the Ray cluster using the Ray client."""
-        client = None
-        try:
-            #TODO: change to https
-            client = JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
-        except Exception as error:
-            self.logger.error(f"Failed to connect to the Job Submission Server: {error}")
-        return client
-
-    def _setup_ssh_client(self):
-        """Setup the SSH client using the new utility functions."""
-        try:
-            ssh_status = check_reachable(self.ssh_params)
-            if ssh_status.status == SSHStatusEnum.REACHABLE:
-                self.ssh_client = ssh_status.ssh_client
-            else:
-                raise SSHConnectionError("SSH connection setup failed.")
-        except Exception as e:
-            self.logger.error(f"SSH connection setup failed: {e}")
-            raise e
-
-    def _find_available_container_manager(self):
-        """Check which container managers are installed and return the first available."""
-        available_containers = []
-        for container in ContainerEnum:
-            command = f"command -v {container.value.lower()}"
-            output = ssh_send_command(self.ssh_client, command)
-            if output:
-                available_containers.append(container)
-                self.logger.info(f"{container.value} is available.")
-        
-        if not available_containers:
+    def _setup(self):
+        """
+        Checks for available container managers and sets up the Ray cluster.
+        """
+        container_managers = self._find_available_container_managers()
+        if not container_managers:
             self.logger.error("No supported container managers found.")
             raise EnvironmentError("No supported container managers found.")
-        
-        return available_containers  # Return the first available container manager
+        self._install_ray()
+        self.client = self._connect_to_ray_cluster()
+
+    def _connect_to_ray_cluster(self) -> JobSubmissionClient:
+        """Connect to the Ray cluster using the Ray client."""
+        try:
+            #TODO: change to https
+            return JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
+        except ConnectionError as error:
+            self.logger.error(f"Failed to connect to the Job Submission Server: {error}")
+
+
+    def _find_available_container_managers(self) -> list:
+        """Check which container managers are installed and return a list of available managers."""
+        available_containers = []
+        for container in ContainerEnum:
+            try:
+                command = f"command -v {container.value.lower()}"
+                output = ssh_send_command(self.ssh_client, command)
+                if output:
+                    available_containers.append(container)
+                    self.logger.info(f"{container.value} is available.")
+            except Exception as error:
+                self.logger.error(f"Error checking for {container.value}: {error}")
+        return available_containers
 
     def _copy_file_to_remote(self, local_path: str, remote_path: str):
         """Copy a file from the local system to the remote system."""
@@ -151,7 +123,7 @@ class RayManager(Manager):
         command = f"tar xzfv {remote_archive_path} -C {self.remote_dir}"
         stdout = ssh_send_command(self.ssh_client, command)
         self.logger.info(stdout)
-        #ssh_send_command(self.ssh_client, f"rm {remote_archive_path}")
+        ssh_send_command(self.ssh_client, f"rm {remote_archive_path}")
 
     def _copy_required_files(self):
         """Copy the required files to the remote system."""
@@ -170,53 +142,23 @@ class RayManager(Manager):
         # Clean up local archive
         os.remove(archive_name)
 
-    def _get_remote_system_memory(self):
-        """Get the memory of the remote system in GB."""
-        command = "free -g | awk '/^Mem:/ {print $2}'"
-        return int(ssh_send_command(self.ssh_client, command))
-
-    def _detect_shell(self):
-        """Detect the shell used by the remote system."""
-        command = "echo $SHELL"
-        shell = ssh_send_command(self.ssh_client, command)
-        return shell.strip().split('/')[-1]
-
-    def _restart_ssh_connection(self):
-        """Restart the SSH connection."""
-        self.ssh_client.close()
-        self._setup_ssh_client()
-
     def _get_remote_home_directory(self):
         """Fetch the home directory of the remote user."""
         command = "echo $HOME"
         return ssh_send_command(self.ssh_client, command).strip()
 
-    def _setup_ray(self):
+    def _install_ray(self):
         """Set up Ray using Miniconda."""
-
         try:
             self._copy_required_files()
             self.logger.info("Copied required files to the remote system.")
 
-            # Install Miniconda
             self.logger.info("Installing Miniconda & Ray...")
             install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
-            self.logger.info(f"Running command: {install_conda_cmd}")
-            stdout = ssh_send_command(self.ssh_client, install_conda_cmd)
-            self.logger.info(stdout)
+            ssh_send_command(self.ssh_client, install_conda_cmd)
             self.logger.info("Ray successfully started.")
-        except Exception as error:  # pylint: disable=broad-except
+        except paramiko.SSHException as error:
             self.logger.error(f"Error setting up Ray: {error}")
-
-    def _check_ray_connection(self):
-        """Attempt to initialize the Ray client, to check if it is reachable"""
-        try:
-            # Attempt to connect to the Ray cluster at the given host
-            if ray.is_initialized():
-                return True
-        except Exception as error:
-            self.logger.error(f"Failed to connect to Ray at {self.host}: {error}")
-        return False
 
     def close(self):
         """Closes the SSH connection."""
@@ -264,7 +206,7 @@ class RayManager(Manager):
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        except Exception as error:  # pylint: disable=broad-except
+        except RuntimeError as error:
             # Catch-all for any other exception, which likely indicates an ERROR state
             logging.error(f"Unexpected error: {error}")
             return ClusterStatus(
