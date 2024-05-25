@@ -727,7 +727,3 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                     pass
                 else:
                     raise error
-
-    @staticmethod
-    def convert_yaml(job: Job):
-        raise NotImplementedError

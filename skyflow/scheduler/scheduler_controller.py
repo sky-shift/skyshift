@@ -165,7 +165,6 @@ class SchedulerController(Controller):
             return
 
         # Main Scheduling loop.
-        
         cached_clusters = deepcopy(self.cluster_informer.get_cache())
         # Convert to list of clusters
         self.logger.debug("Cached clusters: %s", cached_clusters)
@@ -177,7 +176,6 @@ class SchedulerController(Controller):
         idx_list = []
         for job_idx, job in enumerate(self.workload_queue):
             # Filter for valid clusters based on filter plugins.
-            print(clusters)
             filtered_clusters = self.apply_filter_plugins(job, clusters)
             # Rank clusters with a scoring function.
             ranked_clusters = self.apply_score_plugins(job, filtered_clusters)

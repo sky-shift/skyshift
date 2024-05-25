@@ -117,7 +117,6 @@ class DefaultPlugin(BasePlugin):
     """DefaultPlugin implements the `filter` and `score` methods."""
 
     def filter(self, cluster: Cluster, job: Job) -> PluginStatus:
-        print("in default plugin filter")
         """This filter plugin checks if the cluster has sufficient capacity."""
         job_resuources = job.spec.resources
         cluster_resources = cluster.status.allocatable_capacity
@@ -159,15 +158,12 @@ class DefaultPlugin(BasePlugin):
         job_clusters = {}
         job_resource = deepcopy(job.spec.resources)
 
-        print(job_resource)
         # Greedily assign clusters replicas.
         total_cluster_replicas = 0
-        print("***CLUSTERS***")
-        print(clusters)
+
         for cluster_obj in clusters:  # pylint: disable=too-many-nested-blocks
             cluster_replicas = 0
             alloc_capacity = deepcopy(cluster_obj.status.allocatable_capacity)
-            print(alloc_capacity)
             # Predict how many replicas can fit onto each node for each cluster.
             for _, node_resource in alloc_capacity.items():
                 while True:
@@ -186,7 +182,6 @@ class DefaultPlugin(BasePlugin):
             job_clusters[cluster_obj.get_name()] = cluster_replicas
             if total_cluster_replicas == job_replicas:
                 break
-        print("total replicas=" + str(total_cluster_replicas))
         # Can't schedule job. Returns a null dict.
         if total_cluster_replicas < job_replicas:
             return {}, PluginStatus(code=StatusCode.UNSCHEDULABLE,
