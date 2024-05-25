@@ -200,7 +200,7 @@ def fuzzy_map_gpu(
         for key in list(resources.keys()):
             if key in AcceleratorEnum.__members__:
                 # Find the closest match
-                closest_match = process.extractOne(key, enum_values, worker_count=-1)
+                closest_match = process.extractOne(key, enum_values)
                 if closest_match:
                     resources[closest_match[0]] = resources.pop(key)
     return resources_dict
