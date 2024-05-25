@@ -189,7 +189,10 @@ def update_manager_config(config: dict):
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
 
-def fuzzy_map_gpu(resources_dict: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+
+def fuzzy_map_gpu(
+    resources_dict: Dict[str, Dict[str,
+                                   float]]) -> Dict[str, Dict[str, float]]:
     """
     Maps GPUs to the closest match in the enum class.
     """
@@ -198,7 +201,9 @@ def fuzzy_map_gpu(resources_dict: Dict[str, Dict[str, float]]) -> Dict[str, Dict
         for key in list(resources.keys()):
             if key in AcceleratorEnum.__members__:
                 # Find the closest match
-                closest_match = difflib.get_close_matches(key, enum_values, n=1)
+                closest_match = difflib.get_close_matches(key,
+                                                          enum_values,
+                                                          n=1)
                 if closest_match:
                     resources[closest_match[0]] = resources.pop(key)
     return resources_dict
