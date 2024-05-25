@@ -2,6 +2,7 @@ import enum
 import json
 import logging
 import ray
+import argparse
 
 class ResourceEnum(enum.Enum):
     """
@@ -16,10 +17,14 @@ class ResourceEnum(enum.Enum):
     # Disk is also expressed in MB.
     DISK: str = 'disk'
 
-def fetch_allocatable_resources():
+def fetch_allocatable_resources(use_available_resources):
     ray.init(address='auto', logging_level=logging.ERROR)  # Connect to the Ray cluster
 
-    resources = ray.cluster_resources()
+    if use_available_resources:
+        resources = ray.available_resources()
+    else:
+        resources = ray.cluster_resources()
+
     allocatable_resources = {}
     nodes = {name.split(':', 1)[1]: {} for name in resources.keys() 
             if name.startswith('node:') and '__internal_head__' not in name}
@@ -40,5 +45,9 @@ def fetch_allocatable_resources():
     return allocatable_resources
 
 if __name__ == "__main__":
-    resources = fetch_allocatable_resources()
-    print(json.dumps(resources, indent=4))
+    parser = argparse.ArgumentParser(description='Fetch allocatable resources from a Ray cluster.')
+    parser.add_argument('--available', action='store_true', help='Fetch available resources instead of total resources.')
+    args = parser.parse_args()
+
+    resources = fetch_allocatable_resources(args.available)
+    print(json.dumps(resources))

@@ -242,7 +242,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint=f"python {self.remote_dir}/fetch_ray_resources.py"
+            entrypoint=f"python {self.remote_dir}/fetch_resources.py"
         )
 
         # Wait for the job to finish and fetch the results
@@ -279,7 +279,7 @@ class RayManager(Manager):
 
         # Submit a job to fetch the cluster resources
         job_id = self.client.submit_job(
-            entrypoint=f"python {self.remote_dir}/fetch_ray_allocatable_resources.py"
+            entrypoint=f"python {self.remote_dir}/fetch_resources.py --available"
         )
 
         # Wait for the job to finish and fetch the results
@@ -296,10 +296,10 @@ class RayManager(Manager):
             try:
                 cluster_resources = json.loads(match.group(0))
             except json.JSONDecodeError as e:
-                self.logger.exception("Failed to decode JSON from the logs, check the log output for errors.", e)
+                self.logger.error("Failed to decode JSON from the logs, check the log output for errors.", e)
                 cluster_resources = {}
         else:
-            self.logger.exception("No JSON object found in the logs.")
+            self.logger.error("No JSON object found in the logs.")
             cluster_resources = {}
 
         return cluster_resources
@@ -443,8 +443,8 @@ class RayManager(Manager):
             return logs
     
 #print("Ray Manager")
-rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "35.232.174.39")
-#print(rm.cluster_resources)
+rm = RayManager("ray", "/home/alex/Documents/skyflow/slurm/slurm", "alex", "34.31.239.216")
+print(rm.cluster_resources)
 #print(rm.allocatable_resources)
 #rm = RayManager("ray", "{self.remote_dir}/Documents/skyflow/slurm/slurm", "alex", "35.192.204.253")
 #print(rm.get_cluster_status())

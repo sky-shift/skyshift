@@ -40,10 +40,11 @@ echo "Installing Ray..."
 pip install ray[all]
 
 # Calculate recommended shared memory size
-recommended_shm_size=$(free | awk '/^Mem:/ {print $2}')
+total_memory=$(free | awk '/^Mem:/ {print $2 * 1024}')
+recommended_shm_size=$(awk -v mem=$total_memory 'BEGIN {printf "%d", mem * 0.3}')
 
 # Start Ray with the specified options
-echo "Starting Ray..."
+echo "Starting Ray with 30% of total memory for object store..."
 ray start --head --port=6379 \
     --dashboard-host=0.0.0.0 \
     --object-store-memory=$recommended_shm_size

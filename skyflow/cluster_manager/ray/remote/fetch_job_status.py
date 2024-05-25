@@ -26,8 +26,8 @@ def fetch_all_job_statuses():
     """
     Fetches the status of all jobs from the Ray cluster.
     """
-    client = JobSubmissionClient("http://localhost:8265")  # Assuming this is the Ray dashboard address
-    jobs_details = client.list_jobs()  # This fetches all jobs with their details
+    client = JobSubmissionClient("http://localhost:8265")
+    jobs_details = client.list_jobs()
     
     jobs_dict = {
         "tasks": {},
