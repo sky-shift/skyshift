@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 from datetime import datetime, timezone
+from rapidfuzz import process
 from typing import Dict, List, Optional, Union
 
 import requests
@@ -189,21 +190,18 @@ def update_manager_config(config: dict):
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
 
-
 def fuzzy_map_gpu(
-    resources_dict: Dict[str, Dict[str,
-                                   float]]) -> Dict[str, Dict[str, float]]:
+    resources_dict: Dict[str, Dict[str, float]]
+) -> Dict[str, Dict[str, float]]:
     """
-    Maps GPUs to the closest match in the enum class.
+    Maps GPUs to the closest match in the enum class using rapidfuzz.
     """
     enum_values = [e.value for e in AcceleratorEnum]
     for _, resources in resources_dict.items():
         for key in list(resources.keys()):
             if key in AcceleratorEnum.__members__:
                 # Find the closest match
-                closest_match = difflib.get_close_matches(key,
-                                                          enum_values,
-                                                          n=1)
+                closest_match = process.extractOne(key, enum_values)
                 if closest_match:
                     resources[closest_match[0]] = resources.pop(key)
     return resources_dict
