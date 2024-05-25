@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from skyflow.cluster_manager.slurm_manager_rest import *
+from skyflow.cluster_manager.slurm.slurm_manager_rest import *
 from skyflow.templates.cluster_template import ClusterStatus
 from skyflow.templates.job_template import Job
 from skyflow.templates.resource_template import ResourceEnum
@@ -12,10 +12,6 @@ manager = SlurmManagerREST()
 JSON_TEST_JOB = './slurm_testing_job.json'
 YAML_TEST_JOB = './slurm_testing_job.yaml'
 class TestSlurmManagerREST:
-
-    with open(JSON_TEST_JOB, 'r') as json_file:
-        json_data = json_file.read()
-        json_job = json.loads(json_data)
 
     with open(YAML_TEST_JOB) as yaml_file:
         yaml_dict = yaml.safe_load(yaml_file)

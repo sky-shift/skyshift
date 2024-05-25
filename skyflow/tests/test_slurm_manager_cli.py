@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from skyflow.cluster_manager.slurm_manager_cli import *
+from skyflow.cluster_manager.slurm.slurm_manager_cli import *
 from skyflow.templates.cluster_template import ClusterStatusEnum
 from skyflow.templates.job_template import Job
 from skyflow.templates.resource_template import ResourceEnum
@@ -42,12 +42,14 @@ class TestSlurmManagerCLI:
         #delete the job
         response = manager.delete_job(self.yaml_job)
         assert 'Successfully cancelled' in response
-    def pytest_exception_interact(node, call, report):
+    
+    def pytest_exception_interact(self, node, call, report):
         if report.failed:
             # Run custom code when a test fails
             print("Test failed:", report.nodeid)
             response = manager.delete_job(self.yaml_job)
             # Add your custom code here
+    
     def test_get_accelerator_types(self):
         """Test to see if we can poll for accelerator types available on each node
 

@@ -3,10 +3,7 @@
 Utils for cluster managers.
 """
 import logging
-import os
 from typing import Union
-
-import yaml
 
 from skyflow.cluster_manager.Kubernetes.kubernetes_manager import \
     KubernetesManager
