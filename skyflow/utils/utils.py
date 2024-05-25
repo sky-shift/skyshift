@@ -17,6 +17,7 @@ from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
 
+
 def sanitize_cluster_name(value: str) -> str:
     """
     Validates the name field of a Cluster, ensuring
