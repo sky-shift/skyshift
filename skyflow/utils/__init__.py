@@ -11,5 +11,5 @@ __all__ = [
     "match_labels",
     "load_object",
     "watch_events",
-    'fuzzy_match_gpu',
+    'fuzzy_map_gpu',
 ]

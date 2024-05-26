@@ -211,7 +211,7 @@ class ClusterSpec(ObjectSpec):
             manager_type = info.data.get('manager')
             if manager_type in K8_MANAGERS:
                 return KUBE_CONFIG_DEFAULT_PATH
-            elif manager_type in SLURM_MANAGERS:
+            if manager_type in SLURM_MANAGERS:
                 return SLURM_CONFIG_DEFAULT_PATH
         return config_path
 

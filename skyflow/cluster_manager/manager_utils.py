@@ -3,9 +3,10 @@
 Utils for cluster managers.
 """
 import logging
-from typing import Union
+from typing import Type
 
 from skyflow.cluster_manager.Kubernetes import KubernetesManager
+from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
 from skyflow.cluster_manager.slurm.slurm_utils import (SlurmConfig,
                                                        SlurmInterfaceEnum)
@@ -17,9 +18,7 @@ logging.basicConfig(
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
 
-def setup_cluster_manager(
-    cluster_obj: Cluster
-) -> Union[KubernetesManager, SlurmManagerREST, SlurmManagerCLI]:
+def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
     """ Assigns cluster manager depending on requested type.
 
         Args:
@@ -35,6 +34,7 @@ def setup_cluster_manager(
         raise ValueError(f"Cluster type {cluster_type} not supported.")
 
     args = {}
+    cluster_manager_cls: Type[Manager] = Manager
     if cluster_type in K8_MANAGERS:
         cluster_manager_cls = KubernetesManager
         args["config_path"] = cluster_obj.spec.config_path

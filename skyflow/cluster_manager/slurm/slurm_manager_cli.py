@@ -1,4 +1,3 @@
-# pylint: disable=E1101
 """
 Represents the compatability layer over Slurm native CLI.
 """
@@ -10,16 +9,16 @@ import tempfile
 import uuid
 from typing import Any, Dict, List, Optional
 
+from fastapi import WebSocket
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from skyflow import utils
-from skyflow.cluster_manager import Manager
+from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.slurm import slurm_utils
 from skyflow.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
 from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
-from skyflow.templates import (AcceleratorEnum, CRIEnum, Job, ResourceEnum,
-                               TaskStatusEnum)
+from skyflow.templates import CRIEnum, Job, ResourceEnum, TaskStatusEnum
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
@@ -46,7 +45,7 @@ SLURM_NODE_AVAILABLE_STATES = {
 }
 
 
-class SlurmConnectionError():
+class SlurmConnectionError(Exception):
     """Raised when there is an error connecting to the Slurm control plane."""
 
 
@@ -69,12 +68,13 @@ def _override_resources(job: Job) -> Job:
     return job
 
 
+# pylint: disable=too-many-locals,too-many-branches
 def convert_slurm_job_table_to_status(
         output: str) -> Dict[str, Dict[str, str]]:
-    # TODO(mluo): Clean up later, very nasty code.
+    """Converts a job table into a dictionary of job statuses."""
     lines = output.strip().split('\n')
     headers = lines[0].split()
-    job_dict = {}
+    job_dict: Dict[str, Dict[str, str]] = {}
 
     # Get the starting positions of each header
     header_positions = [m.start() for m in re.finditer(r'\S+', lines[0])]
@@ -96,11 +96,16 @@ def convert_slurm_job_table_to_status(
             # Remove JOB_PREPREND_STR from job name
             true_job_name = job_name[len(JOB_PREPEND_STR) + 1:]
             true_job_name = '-'.join(true_job_name.split('-')[:-1])
-            job_dict[true_job_name] = {}
+            if true_job_name is None:
+                skip = True
+            else:
+                job_dict[true_job_name] = {}
             continue
         if skip:
             continue
         _, task_index = job_id_str.split('.')
+        if not task_index or not true_job_name:
+            continue
         try:
             int(task_index)
         except ValueError:
@@ -115,11 +120,13 @@ def convert_slurm_job_table_to_status(
         elif job_state in SLURM_JOB_COMPLETE:
             job_dict[true_job_name][
                 task_index] = TaskStatusEnum.COMPLETED.value
+        else:
+            continue
     final_jobs_dict = {k: v for k, v in job_dict.items() if v}
     return final_jobs_dict
 
 
-class SlurmManagerCLI(Manager):
+class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
     """Slurm CLI Compatibility Layer."""
 
     def __init__(self,
@@ -133,7 +140,7 @@ class SlurmManagerCLI(Manager):
             self.logger = logging.getLogger(f"[{name} - K8 Manager]")
         self.config = slurm_utils.SlurmConfig(config_path=self.config_path)
         self.auth_config = self.config.get_auth_config(name)
-        self.slurm_account = self.auth_config.get('user')
+        self.user = self.auth_config.get('user', '')
         # Initalize SSH Client
         self.ssh_client = self.config.get_ssh_client(name)
         # Create directory for jobs and logs.
@@ -147,13 +154,13 @@ class SlurmManagerCLI(Manager):
         self.container_manager = self._get_container_manager_type()
         # Initialize CRI compatibility layer
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager,
-                                                   user=self.slurm_account)
+                                                   user=self.user)
         # Maps node name to `sinfo get nodes` outputs.
         # This serves as a cache to fetch information.
-        self.slurm_node_dict = {}
+        self.slurm_node_dict: Dict[str, Any] = {}
         # Job name and IDs (Jobs that still need to be kept track by Skyflow)
         # that should be tracked by the manager.
-        self.job_cache = {}
+        self.job_cache: Dict[str, str] = {}
 
     def _get_container_manager_type(self):
         """Finds and reports first available container manager.
@@ -163,7 +170,8 @@ class SlurmManagerCLI(Manager):
         command = ''
         supported_containers = [e.value for e in CRIEnum]
         for manager_name in supported_containers:
-            command = 'if command -v ' + manager_name + ' &> /dev/null;then echo ' + manager_name + ' ;fi'
+            command = 'if command -v ' + manager_name + \
+                ' &> /dev/null;then echo ' + manager_name + ' ;fi'
             stdout, _ = slurm_utils.send_cli_command(self.ssh_client, command)
             if manager_name in stdout:
                 return manager_name
@@ -203,7 +211,7 @@ class SlurmManagerCLI(Manager):
         return cluster_resources
 
     @property
-    def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
+    def allocatable_resources(self) -> Dict[str, Dict[str, float]]:  # pylint: disable=too-many-locals
         """ Gets currently allocatable resources.
 
             Returns:
@@ -267,14 +275,16 @@ class SlurmManagerCLI(Manager):
             allocatable_capacity=self.allocatable_resources,
         )
 
-    def get_jobs_status(self) -> Dict[str, Dict[str, TaskStatusEnum]]:
+    def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         """ Gets status' of all managed jobs running under skyflow slurm user account.
 
             Returns:
                 Dict of jobs with their status as the value.
 
         """
-        all_jobs_command = f'sacct -u {self.slurm_account} --format=JobID%-30,JobName%-100,State%-30,NodeList%-50,AllocTRES%-100'
+        all_jobs_command = (
+            f'sacct -u {self.user} --format=JobID%-30,'
+            'JobName%-100,State%-30,NodeList%-50,AllocTRES%-100')
         jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
             "tasks": {},
             "containers": {}
@@ -297,10 +307,9 @@ class SlurmManagerCLI(Manager):
             Returns:
                 List of all job names that match match_name.
         """
-        command = 'squeue -u ' + self.slurm_account + ' --format="%j"'
+        command = 'squeue -u ' + self.user + ' --format="%j"'
         stdout, _ = slurm_utils.send_cli_command(self.ssh_client, command)
         all_job_names = stdout.split('\n')
-        #all_job_names = subprocess.check_output(command, shell=True, text=True).split('\n')
         all_job_names = all_job_names[1:]
         matching_job_names = []
         for name in all_job_names:
@@ -311,7 +320,7 @@ class SlurmManagerCLI(Manager):
                     matching_job_names.append(slurm_job_name)
         return matching_job_names
 
-    def submit_job(self, job: Job) -> Dict[str, Any]:
+    def submit_job(self, job: Job) -> Dict[str, Any]:  # pylint: disable=too-many-locals
         """
         Submit a job to the cluster, represented as a group of pods.
         This method is supposed to be idempotent.
@@ -351,6 +360,9 @@ class SlurmManagerCLI(Manager):
         job_dict = {}
         #Set minimum resources that are allocatable by Slurm
         job = _override_resources(job)
+        if self.compat_layer is None:
+            raise ValueError(
+                "No container runtime interface found on Slurm cluster.")
         submission_script = self.compat_layer.compat_method_fn(job)
         job_resources = job.spec.resources
         job_dict = {
@@ -372,16 +384,20 @@ class SlurmManagerCLI(Manager):
         sbatch_jinja_template = jinja_env.get_template("sbatch.j2")
         sbatch_jinja = sbatch_jinja_template.render(job_dict)
         # SFTP file the over to remote server.
-        with tempfile.NamedTemporaryFile(mode='w', delete=True) as f:
-            f.write(sbatch_jinja)
-            f.flush()
-            slurm_utils.send_file_to_remote(self.ssh_client, f.name,
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as file:
+            file.write(sbatch_jinja)
+            file.flush()
+            slurm_utils.send_file_to_remote(self.ssh_client, file.name,
                                             remote_job_run_script)
 
         slurm_command = f"sbatch {remote_job_run_script}"
         sbatch_output, _ = slurm_utils.send_cli_command(
             self.ssh_client, slurm_command)
-        slurm_job_id = re.search(r'\b\d+(?:_\d+)*\b', sbatch_output).group(0)
+        slurm_job_match = re.search(r'\b\d+(?:_\d+)*\b', sbatch_output)
+        if not slurm_job_match:
+            raise ValueError(
+                f"Failed to submit job {job_name} to Slurm cluster.")
+        slurm_job_id = slurm_job_match.group(0)
         # Update cache on running job.
         self.job_cache[slurm_job_name] = slurm_job_id
         job.status.job_ids[self.name] = slurm_job_id
@@ -390,36 +406,46 @@ class SlurmManagerCLI(Manager):
             "api_responses": [sbatch_output],
         }
 
-    def delete_job(self, job: Job) -> list[str]:
+    def delete_job(self, job: Job) -> Dict[str, List[str]]:
         """Deletes a Slurm job."""
-        job_id = job.status.job_ids[self.name]
-        job_id = int(job_id)
+        job_id: str = job.status.job_ids[self.name]
+        slurm_job_id = int(job_id)
         _, stderr = slurm_utils.send_cli_command(self.ssh_client,
-                                                 f'scancel {job_id}')
+                                                 f'scancel {slurm_job_id}')
         if stderr:
             return {
                 "api_responses": [stderr],
             }
         return {
-            "api_responses": [f'Deleted job {job_id}'],
+            "api_responses": [f'Deleted job {slurm_job_id}'],
         }
+
+    async def execute_command(  # pylint: disable=too-many-arguments
+            self, websocket: WebSocket, task: str, container: str, tty: bool,
+            command: List[str]):
+        """Starts a tty session on the cluster."""
+        raise NotImplementedError
+
+    def get_job_logs(self, job: Job) -> List[str]:
+        """Gets logs for a given job."""
+        raise NotImplementedError
 
     def __del__(self):
         """Close SSH connection when SlurmCLIManager is deleted."""
         self.ssh_client.close()
 
 
-if __name__ == '__main__':
-    api = SlurmManagerCLI(name='sky-lab-cluster')  # 'my-slurm-cluster'
-    #print(api.get_cluster_status())
-    # Submit Job
-    from skyflow.templates import Job
-    asdf = Job()
-    asdf.metadata.name = 'hello'
-    asdf.spec.restart_policy = 'Never'
-    asdf.spec.image = 'ubuntu:latest'
-    asdf.spec.run = 'echo "Hello World"'
-    asdf.spec.replicas = 3
-    # print(api.submit_job(asdf))
-    # print(api.delete_job(asdf))
-    print(api.get_jobs_status())
+# if __name__ == '__main__':
+#     api = SlurmManagerCLI(name='sky-lab-cluster')  # 'my-slurm-cluster'
+#     #print(api.get_cluster_status())
+#     # Submit Job
+#     from skyflow.templates import Job
+#     asdf = Job()
+#     asdf.metadata.name = 'hello'
+#     asdf.spec.restart_policy = 'Never'
+#     asdf.spec.image = 'ubuntu:latest'
+#     asdf.spec.run = 'echo "Hello World"'
+#     asdf.spec.replicas = 3
+#     # print(api.submit_job(asdf))
+#     # print(api.delete_job(asdf))
+#     print(api.get_jobs_status())

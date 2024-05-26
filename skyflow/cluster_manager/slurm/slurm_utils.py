@@ -1,3 +1,4 @@
+"""Slurm Utility Functions."""
 import enum
 import os
 import re
@@ -10,7 +11,7 @@ from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
 
 class SlurmInterfaceEnum(enum.Enum):
-    # Slurm supports CLI and (optional) REST API interfaces.
+    """CLI and (optional) REST API interfaces."""
     REST = 'rest'
     CLI = 'cli'
 
@@ -21,8 +22,8 @@ def convert_slurm_block_to_dict(output: str,
     final_dict = {}
     node_blocks = output.split('\n\n')
     for block in node_blocks:
-        node_info = {}
-        final_key = None
+        node_info: Dict[str, str] = {}
+        final_key: str = ''
         lines = block.split('\n')
         for line in lines:
             # Split line by spaces, but keep key-value pairs together
@@ -41,7 +42,10 @@ def create_ssh_client(hostname: str,
                       user: str,
                       ssh_key: Optional[str] = None,
                       password: Optional[str] = None) -> paramiko.SSHClient:
-    """Creates SSH client and attempts to connect to server. Raises exception if unable to connect."""
+    """Creates SSH client and attempts to connect to server.
+
+    Raises exception if unable to connect.
+    """
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     pkey = None
@@ -55,10 +59,10 @@ def create_ssh_client(hostname: str,
                            pkey=pkey,
                            password=password)
     except (paramiko.AuthenticationException, paramiko.SSHException,
-            paramiko.BadHostKeyException, paramiko.ChannelException) as e:
-        raise e
-    except Exception as e:  # pylint: disable=broad-except
-        raise e
+            paramiko.BadHostKeyException, paramiko.ChannelException) as error:
+        raise error
+    except Exception as error:  # pylint: disable=broad-except
+        raise error
     return ssh_client
 
 
@@ -72,8 +76,8 @@ def send_file_to_remote(ssh_client: paramiko.SSHClient, local_path: str,
 
 def send_cli_command(ssh_client: paramiko.SSHClient, command: str):
     """Seconds command locally, or through ssh to a remote cluster
-        
-        Args: 
+
+        Args:
             command: bash command to be run.
 
         Returns:
@@ -117,8 +121,8 @@ class SlurmConfig:
 
     def _verify_config(self):
         """Verifies the Slurm configuration YAML and checks for required keys."""
-        with open(self.config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        with open(self.config_path, 'r') as file:
+            self.config = yaml.safe_load(file)
         for cluster_name in self.clusters:
             cluster_dict = self.config[cluster_name]
             interface_type = cluster_dict.get('interface', None)
@@ -133,7 +137,7 @@ class SlurmConfig:
                 raise ValueError(
                     f'Unsupported Slurm interface, {interface_type}')
 
-    def _verify_cli_config(self, cluster_dict: dict):
+    def _verify_cli_config(self, cluster_dict: dict):  # pylint: disable=no-self-use
         access_config = cluster_dict.get('access_config', {})
         if not access_config:
             raise ValueError('Access config not present in Slurm config.')
@@ -151,7 +155,7 @@ class SlurmConfig:
             raise ValueError(
                 'Authentication secret (SSH key and/or password) is not present in Slurm config.'
             )
-        elif ssh_key:
+        if ssh_key:
             ssh_key = os.path.abspath(os.path.expanduser(ssh_key))
             if not os.path.exists(ssh_key):
                 raise FileNotFoundError(f'SSH key file {ssh_key} not found.')
@@ -160,7 +164,7 @@ class SlurmConfig:
         # Close SSH connection.
         ssh_client.close()
 
-    def _verify_rest_config(self, cluster_dict: dict):
+    def _verify_rest_config(self, cluster_dict: dict):  # pylint: disable=no-self-use
         raise NotImplementedError
 
 

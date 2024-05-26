@@ -1,16 +1,10 @@
-# pylint: disable=E1101
 """
 Compatibility layer for multitiude of container management solutions.
 """
-import json
 import logging
-import math
-import os
 from typing import Dict, Union
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-from skyflow.templates import Job, ResourceEnum
+from skyflow.templates import Job
 
 
 class SlurmCompatiblityLayer():
@@ -28,17 +22,16 @@ class SlurmCompatiblityLayer():
             self.logger = logging.getLogger(
                 f"[{self.container_manager} - Compatibility Layer]")
 
-        self.compat_dict = {}
         # Get all methods defined in the class
         compat_method_name = "run_" + self.container_manager.lower()
-        self.compat_method_fn = getattr(self, compat_method_name, None)
+        self.compat_method_fn = getattr(self, compat_method_name, lambda x: '')
         if self.compat_method_fn is None:
             raise ValueError(
                 f"Container manager `{self.container_manager}` not supported.")
 
-    def run_no_container(self, job: Job) -> str:
+    def run_no_container(self, job: Job) -> str:  # pylint: disable=no-self-use
         """Generates No-Container run commands.
-        
+
         WARNING: Does not pull images and directly runs application on the
         base OS. Do not use unless you are sure the running applications
         are safe.
@@ -47,7 +40,7 @@ class SlurmCompatiblityLayer():
             return job.spec.run
         return 'true'
 
-    def run_docker(self, job: Job) -> str:
+    def run_docker(self, job: Job) -> str:  # pylint: disable=no-self-use
         """Generates Docker cli commands."""
         image = job.spec.image
         envs = job.spec.envs
@@ -56,15 +49,15 @@ class SlurmCompatiblityLayer():
         env_vars = ' '.join(
             [f"-e {key}={value}" for key, value in envs.items()])
         port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
-        docker_command = f"""docker run \
+        docker_command = f'''docker run \
                     {env_vars} \
                     {port_mappings} \
                     {image} \
                     {run_command}
-                    """
+                    '''
         return docker_command
 
-    def run_singularity(self, job: Job) -> str:
+    def run_singularity(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates Singularity cli commands.
 
             Args:
@@ -73,20 +66,23 @@ class SlurmCompatiblityLayer():
             Returns:
                 Dictionary of all the values needed for Singularity.
         """
-        image = ''
-        if "registry.hub.docker.com" in job.spec.image:
-            image = job.spec.image.split("docker.com", 1)[1]
-        elif "docker://" in job.spec.image:
-            image = job.spec.image
-        elif "shub://" in job.spec.image:
-            image = job.spec.image
-        script_dict = {
-            'shebang': '#!/bin/bash',
-            'container_manager': 'singularity run ' + image,
-        }
+        containerd_ports = ''
+        for value in job.spec.ports:
+            containerd_ports = containerd_ports + '-p ' + str(value) + ' '
+        # image = ''
+        # if "registry.hub.docker.com" in job.spec.image:
+        #     image = job.spec.image.split("docker.com", 1)[1]
+        # elif "docker://" in job.spec.image:
+        #     image = job.spec.image
+        # elif "shub://" in job.spec.image:
+        #     image = job.spec.image
+        # script_dict = {
+        #     'shebang': '#!/bin/bash',
+        #     'container_manager': 'singularity run ' + image,
+        # }
         return 'true'
 
-    def run_containerd(self, job: Job) -> str:
+    def run_containerd(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates Containerd cli commands.
 
             Args:
@@ -98,16 +94,16 @@ class SlurmCompatiblityLayer():
         containerd_ports = ''
         for value in job.spec.ports:
             containerd_ports = containerd_ports + '-p ' + str(value) + ' '
-        script_dict = {
-            'shebang': '#!/bin/bash',
-            'container_manager': 'nerdctl run ' + job.spec.image,
-            'run': job.spec.run,
-        }
+        # script_dict = {
+        #     'shebang': '#!/bin/bash',
+        #     'container_manager': 'nerdctl run ' + job.spec.image,
+        #     'run': job.spec.run,
+        # }
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
-            job.spec.envs["XDG_RUNTIME_DIR"] = self.runtime_dir
+            job.spec.envs["XDG_RUNTIME_DIR"] = 'blankshots'
         return 'true'
 
-    def run_podman_hpc(self, job: Job) -> str:
+    def run_podman_hpc(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates PodmanHPC run commands.
 
             Args:
@@ -120,37 +116,37 @@ class SlurmCompatiblityLayer():
         podman_ports = ''
         for value in job.spec.ports:
             podman_ports = podman_ports + '-p ' + str(value) + '/tcp '
-        script_dict = {
-            'shebang': '#!/bin/bash',
-            'container_manager': 'podman-hpc run ' + job.spec.image,
-            'run': job.spec.run,
-        }
+        # script_dict = {
+        #     'shebang': '#!/bin/bash',
+        #     'container_manager': 'podman-hpc run ' + job.spec.image,
+        #     'run': job.spec.run,
+        # }
         return 'true'
 
-    def run_podman(self, job: Job) -> str:
+    def run_podman(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates Podman run commands."""
         #podman run --name basic_httpd -dt -p 8080:80/tcp docker.io/nginx
         podman_ports = ''
         for value in job.spec.ports:
             podman_ports = podman_ports + '-p ' + str(value) + '/tcp '
-        script_dict = {
-            'shebang': '#!/bin/bash',
-            'container_manager': 'podman run -dt ' + job.spec.image,
-            'run': job.spec.run,
-        }
+        # script_dict = {
+        #     'shebang': '#!/bin/bash',
+        #     'container_manager': 'podman run -dt ' + job.spec.image,
+        #     'run': job.spec.run,
+        # }
         return 'true'
 
-    def run_shifter(self, job: Job) -> Dict[str, Union[int, str]]:
+    def run_shifter(self, job: Job) -> Dict[str, Union[int, str]]:  # pylint: disable=no-self-use
         """Generates Shifter cli commands."""
         #shifterimg -v pull docker:image_name:latest
         raise NotImplementedError
 
 
-if __name__ == '__main__':
-    job = Job()
-    job.metadata.name = 'hello'
-    job.spec.resources['gpus'] = 0
-    job.spec.envs = {'test1': 1, 'test2': 2}
-    job.spec.run = 'echo hi'
-    sl = SlurmCompatiblityLayer(None, user='mluo')
-    print(sl.create_slurm_sbatch(job))
+# if __name__ == '__main__':
+#     job = Job()
+#     job.metadata.name = 'hello'
+#     job.spec.resources['gpus'] = 0
+#     job.spec.envs = {'test1': 1, 'test2': 2}
+#     job.spec.run = 'echo hi'
+#     sl = SlurmCompatiblityLayer(None, user='mluo')
+#     print(sl.create_slurm_sbatch(job))

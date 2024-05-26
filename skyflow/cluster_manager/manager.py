@@ -1,7 +1,8 @@
 """
 Defines compatability layer for generic Managers.
 """
-from typing import Dict, List
+import logging
+from typing import Dict, List, Optional
 
 from fastapi import WebSocket
 
@@ -27,9 +28,10 @@ class Manager:
     #When the cluster name is fetched from an external source, it should be unsanitized
     #to ensure that the original name is used. This is done by the unsanitize_cluster_name function.
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, logger: Optional[logging.Logger] = None):
         self.cluster_name = name
         self.name = name
+        self.logger = logger
 
     @property
     def cluster_resources(self):

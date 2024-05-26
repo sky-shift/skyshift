@@ -31,10 +31,11 @@ class Controller:
     state to a desired state. This happens in the self.run() method.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name: str = '') -> None:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.controller_process: threading.Thread = threading.Thread(
             target=self.run)
+        self.name = name
 
     def post_init_hook(self):  # pylint: disable=no-self-use
         """Hook that is called after the controller is initialized.
