@@ -2,17 +2,15 @@
 """
 Compatibility layer for multitiude of container management solutions.
 """
+import logging
 import json
+import math
 import os
 from typing import Dict, Union
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from skyflow.templates import Job
-
-
-class ConfigUndefinedError(Exception):
-    """ Raised when there is an error in slurmrestd config yaml. """
+from skyflow.templates import Job, ResourceEnum
 
 
 class SlurmCompatiblityLayer():
@@ -20,53 +18,17 @@ class SlurmCompatiblityLayer():
         Creates run scripts depending on selected/supported container manager.
     """
 
-    def __init__(self, container_manager, runtime_dir, time_limit,
-                 slurm_account):
+    def __init__(self, container_manager: str, user: str, logger=None):
         self.container_manager = container_manager
-        self.runtime_dir = runtime_dir
-        self.time_limit = time_limit
-        self.slurm_account = slurm_account
+        if not container_manager:
+            self.container_manager = 'no_container'
+        self.user = user
         self.compat_dict = {}
         # Get all methods defined in the class
-        methods = [
-            method for method in dir(self)
-            if callable(getattr(self, method)) and method.startswith("compat_")
-        ]
-        # Filter out methods that are not meant to be commands
-        command_methods = [
-            method for method in methods if not method.startswith("_")
-        ]
-        # Add methods to the function dictionary
-        for method_name in command_methods:
-            self.compat_dict[method_name] = getattr(self, method_name)
-
-    def create_slurm_json(self, job: Job) -> str:
-        """ Creates the json file to send to slurmrestd.
-
-            Args:
-                Job: Job object containing job properties.
-
-            Returns:
-                Generated json that is understandable by slurmrestd.
-        """
-        #Load jinja template
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        jinja_env = Environment(loader=FileSystemLoader(
-            os.path.abspath(dir_path)),
-                                autoescape=select_autoescape())
-        slurm_job_template = jinja_env.get_template('slurm_job.j2')
-        #Create run script dictionary
-        compat_function = "compat_" + self.container_manager.lower()
-        job_dict = {}
-        if compat_function in self.compat_dict:
-            job_dict = self.compat_dict[compat_function](job)
-        else:
-            self.compat_dict["compat_unsupported"]()
-        #Convert ENVs to json format for RESTD
-        job_dict["envs"] = json.dumps(job_dict["envs"])
-        job_jinja = slurm_job_template.render(job_dict)
-        json_data = json.loads(job_jinja, strict=False)
-        return json_data
+        compat_method_name = "compat_" + self.container_manager.lower()
+        self.compat_method_fn = getattr(self, compat_method_name, None)
+        if self.compat_method_fn is None:
+            raise ValueError(f"Container manager `{self.container_manager}` not supported.")
 
     def create_slurm_sbatch(self, job: Job) -> str:
         """ Creates the sbatch script to send to submit with CLI.
@@ -81,11 +43,13 @@ class SlurmCompatiblityLayer():
         compat_function = "compat_" + self.container_manager.lower()
         job_dict = {}
         #Set minimum resources that are allocatable by Slurm
-        job = set_min_allocatable_resources(job)
-        if compat_function in self.compat_dict:
-            job_dict = self.compat_dict[compat_function](job)
-        else:
-            self.compat_dict["compat_unsupported"]()
+        job = _override_resources(job)
+        submission_script = self.compat_method_fn(job)
+        job_dict = self._create_job_dict(job)   
+        job_dict['submission_script'] = submission_script
+
+        import pdb; pdb.set_trace()
+
         env_string = ''
         for item in job_dict['envs']:
             env_string = env_string + 'export ' + item + '=' + job_dict[
@@ -113,6 +77,25 @@ class SlurmCompatiblityLayer():
             'submission_script'] + '\' '
         return command
 
+    def compat_no_container(self, job: Job) -> Dict[str, Union[int, str]]:
+        """Generates No-Container bash script.
+        
+        WARNING: Does not pull images and directly runs application on the
+        base OS. Do not use unless you are sure the running applications
+        are safe.
+
+            Args:
+                job: Job object containing properties of submitted job.
+
+            Returns:
+                Dictionary of all the values needed for Containerd.
+        """
+        script_dict = {
+            'shebang': '#!/bin/bash',
+        }
+        submission_script = _create_submission_script(script_dict)
+        return submission_script
+
     def compat_docker(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Docker cli commands.
 
@@ -131,10 +114,9 @@ class SlurmCompatiblityLayer():
         script_dict = {
             'shebang': '#!/bin/bash',
             'container_manager': container_run,
-            'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        return self.create_job_dict(submission_script, job)
+        return submission_script
 
     def compat_singularity(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Singularity cli commands.
@@ -155,10 +137,9 @@ class SlurmCompatiblityLayer():
         script_dict = {
             'shebang': '#!/bin/bash',
             'container_manager': 'singularity run ' + image,
-            'job_specific_script': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        return self.create_job_dict(submission_script, job)    
+        return submission_script 
 
     def compat_containerd(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Containerd cli commands.
@@ -175,12 +156,12 @@ class SlurmCompatiblityLayer():
         script_dict = {
             'shebang': '#!/bin/bash',
             'container_manager': 'nerdctl run ' + job.spec.image,
-            'job_specific_script': job.spec.run,
+            'run': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
             job.spec.envs["XDG_RUNTIME_DIR"] = self.runtime_dir
-        return self.create_job_dict(submission_script, job)
+        return submission_script
     
     def compat_podman_hpc(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates PodmanHPC cli commands.
@@ -198,10 +179,10 @@ class SlurmCompatiblityLayer():
         script_dict = {
             'shebang': '#!/bin/bash',
             'container_manager': 'podman-hpc run ' + job.spec.image,
-            'job_specific_script': job.spec.run,
+            'run': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        return self.create_job_dict(submission_script, job)
+        return submission_script
 
     def compat_podman(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Podman cli commands.
@@ -219,10 +200,10 @@ class SlurmCompatiblityLayer():
         script_dict = {
             'shebang': '#!/bin/bash',
             'container_manager': 'podman run -dt ' + job.spec.image,
-            'job_specific_script': job.spec.run,
+            'run': job.spec.run,
         }
         submission_script = _create_submission_script(script_dict)
-        return self.create_job_dict(submission_script, job)
+        return submission_script
     
     def compat_shifter(self, job: Job) -> Dict[str, Union[int, str]]:
         """ Generates Shifter cli commands.
@@ -235,69 +216,17 @@ class SlurmCompatiblityLayer():
         """
         #shifterimg -v pull docker:image_name:latest
         raise NotImplementedError
-    
-    def compat_nocontainer(self, job: Job) -> Dict[str, Union[int, str]]:
-        """ Generates no container cli commands.
 
-            Args:
-                job: Job object containing properties of submitted job.
-
-            Returns:
-                Dictionary of all the values needed for Containerd.
-        """
-        script_dict = {
-            'shebang': '#!/bin/bash',
-            'job_specific_script': job.spec.run,
-        }
-        submission_script = _create_submission_script(script_dict)
+    def _create_job_dict(self, job: Job) -> Dict[str, Union[str, int]]:
         resources = job.spec.resources
         job_dict = {
-            'submission_script':
-            submission_script,
-            'name':
-            f'{job.metadata.name}',
-            #'path':
-            #f"{job.spec.envs['PATH']}",
-            'envs':
-            job.spec.envs,
-            'account':
-            self.slurm_account,
-            'home':
-            '/home',
-            'cpus':
-            int(resources['cpus']),
-            'memory_per_cpu':
-            int(int(resources['memory']) / int(resources['cpus'])),
-            'gpus':
-            int(resources['gpus']),
-            'time_limit':
-            self.time_limit
-        }
-        return job_dict
-
-    def create_job_dict(self, submission_script: str, job: Job) -> Dict[str, Union[str, int]]:
-        resources = job.spec.resources
-        job_dict = {
-            'submission_script':
-            submission_script,
-            'name':
-            f'{job.metadata.name}',
-            #'path':
-            #f"{job.spec.envs['PATH']}",
-            'envs':
-            job.spec.envs,
-            'account':
-            self.slurm_account,
-            'home':
-            '/home',
-            'cpus':
-            int(resources['cpus']),
-            'memory_per_cpu':
-            int(int(resources['memory']) / int(resources['cpus'])),
-            'gpus':
-            int(resources['gpus']),
-            'time_limit':
-            self.time_limit
+            'name': job.metadata.name,
+            'envs': job.spec.envs,
+            'account': self.user,
+            'home': '/home',
+            'cpus': int(resources['cpus']),
+            'memory_per_cpu': int(resources['memory']),
+            'gpus': int(resources['gpus']),
         }
         return job_dict
 
@@ -320,38 +249,28 @@ def _create_submission_script(script_dict, newline=True):
         submission_script = submission_script + seperator
     return submission_script
 
-
-def compat_unsupported():
-    """ Raise an error if container manager tool is not supported by this compatibilty layer.
-
-        Raises:
-            ValueError: Provided unsupported container manager option in the config file.
+def _override_resources(job: Job) -> Job:
     """
-    raise ValueError('Unsupported Container Manager Solution')
-
-def set_min_allocatable_resources(job: Job) -> Job:
-    """
-        Sets the minimal amount allocatable resources that Slurm controller can allocate.
-        This is a compatability function over scheduling for other managers such as Kubernetes
-        where fractional CPUs can be assigned.
-
+        Overrides resources to fit minimum allocatable resources for Slurm.
         Arg:
             job: The job to be scheduled.
-        
-        Returns: Job with the minimimal allocatable resources of Slurm
+        Returns:
+            Job with the corrected resources.
     """
-    temp_job = job
-    min_resources = job.spec.resources
-    if int(min_resources['cpus']) < 1:
-        min_resources['cpus'] = 1
-    if int(min_resources['memory']) < 32:
-        min_resources['memory'] = 32
-    temp_job.spec.resources = min_resources
-    return temp_job
+    resources = job.spec.resources
+    res_cpus = float(resources[ResourceEnum.CPU.value])
+    res_memory = float(resources[ResourceEnum.MEMORY.value])
+    # CPUs cannot be fractional.
+    resources[ResourceEnum.CPU.value] = math.ceil(res_cpus)
+    # A job must occupy at least 32 MB of memory.
+    resources[ResourceEnum.MEMORY.value] = max(32, res_memory)
+    job.spec.resources = resources
+    return job
 
 if __name__ == '__main__':
     job = Job()
+    job.metadata.name = 'hello'
     job.spec.resources['gpus'] = 0
     job.spec.envs = {'test1':1, 'test2':2}
-    sl = SlurmCompatiblityLayer('docker', '/home/run/1000', 900, 'mluo')
+    sl = SlurmCompatiblityLayer(None, user='mluo')
     print(sl.create_slurm_sbatch(job))

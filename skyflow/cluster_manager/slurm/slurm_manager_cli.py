@@ -22,10 +22,12 @@ from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
+logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # Defines Slurm node states.
 SLURM_NODE_AVAILABLE_STATES = {
     'IDLE',
+    'IDLE+CLOUD',
     'ALLOCATED',
     'COMPLETING',
 } 
@@ -38,7 +40,7 @@ SLURM_FAILED = {'FAILED', 'STOPPED', 'TIMEOUT', 'SUSPENDED', 'PREMPTED'}
 SLURM_COMPLETE = {'COMPLETED'}
 
 #Identifying Headers for job submission name
-MANAGER_NAME = "skyflow8slurm"
+JOB_PREPEND_STR = "skyflow2slurm"
 
 class SlurmConnectionError():
     """Raised when there is an error connecting to the Slurm control plane."""
@@ -75,8 +77,6 @@ def _convert_slurm_output_to_dict(output: str, key_name: str) -> Dict[str, Dict[
                     node_info[key] = value
         final_dict[final_key] = node_info
     return final_dict
-    
-    
 
 
 class SlurmManagerCLI(Manager):
@@ -97,29 +97,17 @@ class SlurmManagerCLI(Manager):
         self.ssh_client = self.config.get_ssh_client(name)
         
         self.container_manager = self._get_container_manager_type()
-        self.runtime_dir = ''
         
-        # if self.container_manager.upper() == ContainerEnum.CONTAINERD.value:
-        #     self.runtime_dir = _get_config(config_dict, ['tools','runtime_dir'])
-        # #Configure Slurm properties
-        # #Get slurm user account
-        # self.slurm_account = _get_config(config_dict, ['properties', 'account'])
-        # #Get slurm time limit
-        # self.slurm_time_limit = _get_config(config_dict, ['properties', 'time_limit'])
-        #Configure SSH
-        #Configure container manager compatibility layer
-        # self.compat_layer = SlurmCompatiblityLayer(self.container_manager,
-        #     self.runtime_dir, self.slurm_time_limit, self.slurm_account)
-        #store resource values
+        # Initialize CRI compatibility layer
+        self.compat_layer = SlurmCompatiblityLayer(self.container_manager, user=self.slurm_account)
         
         # Maps node name to `sinfo get nodes` outputs.
         # This serves as a cache to fetch information.
         self.slurm_node_dict = {}
         
-        self.accelerator_types = None
-        # self.get_accelerator_types()
-        self.total_resources = None
-        self.curr_allocatable = None
+        # Job name and IDs (Jobs that still need to be kept track by Skyflow)
+        # that should be tracked by the manager.
+        self.job_cache = {}
 
     def _get_container_manager_type(self):
         """Finds and reports first available container manager.
@@ -148,7 +136,8 @@ class SlurmManagerCLI(Manager):
         cluster_resources = {}
         for name, node_info in self.slurm_node_dict.items():
             node_state = node_info.get('State', None)
-            if node_state not in SLURM_NODE_AVAILABLE_STATES:
+            node_available = any(node_state in j for j in SLURM_NODE_AVAILABLE_STATES)
+            if not node_available:
                 continue
             cpu_total = float(node_info.get('CPUTot', 0))
             mem_total = float(node_info.get('RealMemory', 0))
@@ -158,7 +147,7 @@ class SlurmManagerCLI(Manager):
                 ResourceEnum.MEMORY.value: mem_total,
             }
             gpu_str = node_info.get('Gres', None)
-            if not gpu_str:
+            if not gpu_str or 'null' in gpu_str:
                 continue
             _, gpu_type, gpu_count = gpu_str.split(':')
             cluster_resources[name][gpu_type] = float(gpu_count)
@@ -179,7 +168,8 @@ class SlurmManagerCLI(Manager):
         avail_resources = {}
         for name, node_info in self.slurm_node_dict.items():
             node_state = node_info.get('State', None)
-            if node_state not in SLURM_NODE_AVAILABLE_STATES:
+            node_available = any(node_state in j for j in SLURM_NODE_AVAILABLE_STATES)
+            if not node_available:
                 continue
             cpu_total = float(node_info.get('CPUTot', 0))
             cpu_alloc = float(node_info.get('CPUAlloc', 0))
@@ -191,11 +181,11 @@ class SlurmManagerCLI(Manager):
                 ResourceEnum.MEMORY.value: mem_total - mem_alloc,
             }
             gpu_str = node_info.get('Gres', None)
-            if not gpu_str:
+            if not gpu_str or 'null' in gpu_str:
                 continue
             _, gpu_type, gpu_count = gpu_str.split(':')
             gpu_alloc_str = node_info.get('GresUsed', None)
-            if not gpu_alloc_str:
+            if not gpu_alloc_str or 'null' in gpu_alloc_str:
                 gpu_alloc_count = 0
             else:
                 _, _, gpu_alloc_count = gpu_alloc_str.split(':')
@@ -242,12 +232,11 @@ class SlurmManagerCLI(Manager):
             job_property = job.split()
             #check if this is a managed job
             job_name = job_property[1]
-            if MANAGER_NAME in job_name:
+            if JOB_PREPEND_STR in job_name:
                 status = job_property[2]
                 #Remove UUID, and manager header
                 split_str_ids = job_name.split('-')[:3]
-                if split_str_ids[
-                    0] == MANAGER_NAME:  #Job is Managed by skyflow
+                if split_str_ids[0] == JOB_PREPEND_STR:  #Job is Managed by skyflow
                     slurm_job_name = f'{split_str_ids[1]}-{split_str_ids[2]}'
                     if status == 'R':
                         jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.RUNNING
@@ -257,6 +246,8 @@ class SlurmManagerCLI(Manager):
                         jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.INIT
                     elif status == 'F':
                         jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.FAILED
+                    else:
+                        jobs_dict["tasks"][slurm_job_name] = TaskStatusEnum.PENDING
         return jobs_dict
     
     def _get_matching_job_names(self, match_name: str):
@@ -264,13 +255,13 @@ class SlurmManagerCLI(Manager):
 
             Arg:
                 match_name: Name of job to match against.
-
+`
             Returns:
                 List of all job names that match match_name.
 
         """
         command = 'squeue -u ' + self.slurm_account + ' --format="%j"'
-        stdout = self._send_command(command)
+        stdout, _ = _send_cli_command(self.ssh_client, command)
         all_job_names = stdout.split('\n')
         #all_job_names = subprocess.check_output(command, shell=True, text=True).split('\n')
         all_job_names = all_job_names[1:]
@@ -297,8 +288,10 @@ class SlurmManagerCLI(Manager):
         """
         api_responses = []
         job_name = job.metadata.name
+
         # Check if the job has already been submitted.
         matching_jobs = self._get_matching_job_names(job_name)
+        
         if job_name in matching_jobs:
             # Job has already been submitted.
             first_object = matching_jobs[0]
@@ -309,7 +302,7 @@ class SlurmManagerCLI(Manager):
                 'api_responses': api_responses,
             }
 
-        slurm_job_name = f"{MANAGER_NAME}-{job_name}-{uuid.uuid4().hex[:8]}"
+        slurm_job_name = f"{JOB_PREPEND_STR}-{job_name}-{uuid.uuid4().hex[:8]}"
 
         command = self.compat_layer.create_slurm_sbatch(job) + ' -J ' + slurm_job_name
 
@@ -358,9 +351,19 @@ class SlurmManagerCLI(Manager):
         self.ssh_client.close()
 
 if __name__ == '__main__':
-    api = SlurmManagerCLI(name='my-slurm-cluster')
-    status = api.get_cluster_status()
-    print(status)
+    api = SlurmManagerCLI(name='sky-lab-cluster') # 'my-slurm-cluster'
+    #print(api.get_cluster_status())
+    # Submit Job
+    from skyflow.templates import Job
+    asdf = Job()
+    asdf.metadata.name = 'hello'
+    asdf.spec.restart_policy = 'Never'
+    asdf.spec.image = 'ubuntu-latest'
+    asdf.spec.run = 'echo hi; sleep 10; echo bye'
+    asdf.spec.replicas = 3
+    
+    print(api.submit_job(asdf))
+    
     # print(api.cluster_resources)
     # print("************")
     # print(api.allocatable_resources)

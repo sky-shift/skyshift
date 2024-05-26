@@ -5,7 +5,7 @@ import enum
 import time
 from typing import Dict, List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, ValidationInfo
 
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
@@ -186,7 +186,7 @@ class ClusterSpec(ObjectSpec):
     ports: List[str] = Field(default=[], validate_default=True)
     num_nodes: int = Field(default=1, validate_default=True)
     provision: bool = Field(default=False, validate_default=True)
-    config_path: str = Field(default=None, validate_default=True)
+    config_path: str = Field(default='', validate_default=True)
 
     @field_validator('accelerators')
     @classmethod
@@ -204,10 +204,10 @@ class ClusterSpec(ObjectSpec):
 
     @field_validator('config_path')
     @classmethod
-    def verify_config_path(cls, config_path: str) -> str:
+    def verify_config_path(cls, config_path: str, info: ValidationInfo) -> str:
         """Validates the accelerators field of a ClusterResources."""
         if not config_path:
-            manager_type = cls.manager
+            manager_type = info.data.get('manager')
             if manager_type in K8_MANAGERS:
                 return KUBE_CONFIG_DEFAULT_PATH
             elif manager_type in SLURM_MANAGERS:
