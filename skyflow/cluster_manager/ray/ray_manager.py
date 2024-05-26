@@ -8,8 +8,6 @@ https://docs.ray.io/en/latest/cluster/running-applications/job-submission/sdk.ht
 import json
 import logging
 import os
-import tarfile
-import time
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -17,8 +15,6 @@ import paramiko
 import ray
 import regex as re 
 from ray.job_submission import JobSubmissionClient
-from ray.runtime_env import RuntimeEnv
-from kubernetes import client, config
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
@@ -28,8 +24,6 @@ from skyflow.templates import (ClusterStatus,
                                ClusterStatusEnum,
                                Job, ResourceEnum,
                                TaskStatusEnum)
-from skyflow.templates.job_template import RestartPolicyEnum
-from skyflow.templates.resource_template import ContainerEnum
 
 # Import the new SSH utility functions and classes
 from skyflow.utils.ssh_utils import (
@@ -61,29 +55,28 @@ class RayManager(Manager):
         self.accelerator_types: Dict[str, str] = {}
         self.ssh_key_path = ssh_key_path
         self.username = username
-        self.job_registry = {} # Maybe replace by updating status on ETCD 
         self.host = host
         self.ssh_params = SSHParams(
             remote_hostname=host,
             remote_username=username,
             rsa_key=ssh_key_path
         )
-        self.ssh_client = connect_ssh_client(self.ssh_params).ssh_client
-        self.remote_dir = os.path.join(get_remote_home_directory(self.ssh_client), f".{APP_NAME}")
+        ssh_client = connect_ssh_client(self.ssh_params).ssh_client
+        self.remote_dir = os.path.join(get_remote_home_directory(ssh_client), f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
-            self._setup()
+            self._setup(ssh_client)
 
-    def _setup(self):
+    def _setup(self, ssh_client: paramiko.SSHClient):
         """
         Checks for available container managers and sets up the Ray cluster.
         """
-        container_managers = find_available_container_managers()
+        container_managers = find_available_container_managers(ssh_client, self.logger)
         if not container_managers:
             self.logger.error("No supported container managers found.")
             raise ValueError("No supported container managers found.")
-        self._install_ray()
+        self._install_ray(ssh_client)
         self.client = self._connect_to_ray_cluster()
 
     def _connect_to_ray_cluster(self) -> JobSubmissionClient:
@@ -94,15 +87,15 @@ class RayManager(Manager):
         except ConnectionError as error:
             self.logger.error(f"Failed to connect to the Job Submission Server: {error}")
 
-    def _install_ray(self):
+    def _install_ray(self, ssh_client: paramiko.SSHClient):
         """Set up Ray using Miniconda."""
         try:
-            copy_required_files()
+            copy_required_files(ssh_client, self.remote_dir, self.logger)
             self.logger.info("Copied required files to the remote system.")
 
             self.logger.info("Installing Miniconda & Ray...")
             install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
-            ssh_send_command(self.ssh_client, install_conda_cmd)
+            ssh_send_command(ssh_client, install_conda_cmd)
             self.logger.info("Ray successfully started.")
         except paramiko.SSHException as error:
             self.logger.error(f"Error setting up Ray: {error}")
@@ -165,6 +158,11 @@ class RayManager(Manager):
         else:
             self.logger.error("No JSON object found in the logs.")
         
+        try:
+            self.client.stop_job(job_id)
+            self.client.delete_job(job_id)
+        except RuntimeError as error:
+            self.logger.error(f"Failed to stop job {job_id}: {error}")
         return {}
 
     @property
@@ -192,7 +190,9 @@ class RayManager(Manager):
         Returns:
             Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
         """
-        return self._submit_and_fetch_logs("fetch_job_status.py")
+        status = self._submit_and_fetch_logs("fetch_job_status.py")
+        self.logger.info("Jobs status: %s", status)
+        return status
 
     def get_job_logs(self, job) -> List[str]:
         """
@@ -234,10 +234,6 @@ class RayManager(Manager):
             "manager_job_id": job_id,
         }
 
-        # Check if the job has already been submitted
-        if job.get_name() in self.job_registry:
-            return submission_details
-
         # Serialize the job object to JSON
         job_json = json.dumps(job.model_dump())
 
@@ -256,9 +252,6 @@ class RayManager(Manager):
                                                ResourceEnum.GPU.value,
                                                ResourceEnum.MEMORY.value}}
         )
-
-        # Store additional information about the job submission
-        self.job_registry[job.get_name()] = job_id
 
         return submission_details
 
@@ -284,9 +277,7 @@ class RayManager(Manager):
             self.logger.info(f"Successfully deleted job {job.get_name()} from the Ray cluster.")
         except Exception as e:
             self.logger.error(f"Failed to stop job {job_id}: {e}")
-        
-        # Remove the job from the registry
-        del self.job_registry[job.get_name()]
+
         self.logger.info(f"Removed job {job.get_name()} from job registry.")
 
     

@@ -7,6 +7,13 @@ import paramiko
 from skyflow.templates.resource_template import ContainerEnum
 from skyflow.utils.ssh_utils import ssh_send_command
 
+def create_archive(directory: str, archive_name: str):
+    """Create a tar archive of the directory excluding ray_manager.py."""
+    with tarfile.open(archive_name, "w:gz") as tar:
+        for root, _, files in os.walk(directory):
+            for file in files:
+                full_path = os.path.join(root, file)
+                tar.add(full_path, arcname=file)
 
 def copy_file_to_remote(ssh_client: SSHClient, local_path: str, remote_path: str):
     """Copy a file from the local system to the remote system."""
@@ -15,14 +22,6 @@ def copy_file_to_remote(ssh_client: SSHClient, local_path: str, remote_path: str
     ssh_send_command(ssh_client, command)
     with ssh_client.open_sftp() as sftp:
         sftp.put(local_path, remote_path)
-
-def create_archive(directory: str, archive_name: str):
-    """Create a tar archive of the directory excluding ray_manager.py."""
-    with tarfile.open(archive_name, "w:gz") as tar:
-        for root, _, files in os.walk(directory):
-            for file in files:
-                full_path = os.path.join(root, file)
-                tar.add(full_path, arcname=file)
 
 def extract_archive_on_remote(ssh_client: str, remote_dir: str, remote_archive_path: str):
     """Extract the tar archive on the remote system."""
@@ -40,7 +39,7 @@ def copy_required_files(ssh_client: paramiko.SSHClient, remote_dir: str, logger:
     remote_archive_path = f'{remote_extract_path}/ray_manager_files.tar.gz'
     logger.info(f"Copying files to {remote_extract_path} on the remote system.")
 
-    create_archive(ssh_client, os.path.join(local_directory, "remote"), archive_name)
+    create_archive(os.path.join(local_directory, "remote"), archive_name)
     copy_file_to_remote(ssh_client, archive_name, remote_archive_path)
     extract_archive_on_remote(ssh_client, remote_dir, remote_archive_path)
 

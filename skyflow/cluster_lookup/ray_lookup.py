@@ -52,7 +52,6 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their sky config details.
     """
-    existing_configs = [RAY_CLUSTERS_CONFIG_PATH]
     processed_configs = []
 
     # Process default sky config path first
@@ -61,22 +60,13 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
         processed_configs.append(config)
 
     # Process each cluster's specified config
-    for cluster in cluster_api.list().objects:
-        path = cluster.spec.config_path or RAY_CLUSTERS_CONFIG_PATH
-        path = fetch_absolute_path(path)
-
-        if path and path not in existing_configs:
-            config = _load_sky_config(path)
-            if config:
-                processed_configs.append(config)
-                existing_configs.append(path)
-            else:
-                cluster_api.delete(cluster.metadata.name)
-
+    existing_clusters = [cluster.metadata.name for cluster in cluster_api.list().objects]
     cluster_dictionaries = []
     for config in processed_configs:
         clusters_info = config.get('clusters', {})
         for cluster_name, access_info in clusters_info.items():
+            if cluster_name in existing_clusters:
+                continue
             cluster_dict = {
                 "kind": "Cluster",
                 "metadata": {

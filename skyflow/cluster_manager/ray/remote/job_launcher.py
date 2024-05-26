@@ -16,7 +16,7 @@ def run_docker_container(job: Dict):
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
 
-    command = f"docker run -it {env_vars} {port_mappings} {image} {run_command}"
+    command = f"docker run {env_vars} {port_mappings} {image} {run_command}"
     print(f"Running command: {command}")
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -42,9 +42,8 @@ def run_docker_container(job: Dict):
         print(f"Container exited with error code: {return_code}")
     return return_code
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run a Docker job from a JSON specification.')
+    parser = argparse.ArgumentParser(description='Run a container job from a JSON specification.')
     parser.add_argument('job_json', type=str, help='The JSON string of the job specification.')
 
     args = parser.parse_args()
