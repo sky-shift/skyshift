@@ -41,6 +41,7 @@ SLURM_NODE_AVAILABLE_STATES = {
     'IDLE',
     'IDLE+CLOUD',
     'ALLOCATED',
+    'ALLOCATED+CLOUD',
     'COMPLETING',
 }
 
@@ -198,9 +199,7 @@ class SlurmManagerCLI(Manager):
                 continue
             _, gpu_type, gpu_count = gpu_str.split(':')
             cluster_resources[name][gpu_type] = float(gpu_count)
-        print(cluster_resources)
         cluster_resources = utils.fuzzy_map_gpu(cluster_resources)
-        print(cluster_resources)
         return cluster_resources
 
     @property
@@ -418,16 +417,9 @@ if __name__ == '__main__':
     asdf = Job()
     asdf.metadata.name = 'hello'
     asdf.spec.restart_policy = 'Never'
-    asdf.spec.image = 'ubuntu-latest'
+    asdf.spec.image = 'ubuntu:latest'
     asdf.spec.run = 'echo "Hello World"'
     asdf.spec.replicas = 3
-
     # print(api.submit_job(asdf))
     # print(api.delete_job(asdf))
     print(api.get_jobs_status())
-
-    # print(api.cluster_resources)
-    # print("************")
-    # print(api.allocatable_resources)
-    # containers = api._discover_manager()
-    # print(containers)

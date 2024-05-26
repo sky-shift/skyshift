@@ -25,6 +25,7 @@ setup(
         "skypilot==0.5.0",
         "tabulate",
         "types-passlib",
+        "types-paramiko",
         "types-psutil",
         "types-tabulate",
         "types-PyYAML",
