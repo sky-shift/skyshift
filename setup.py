@@ -23,6 +23,7 @@ setup(
         "requests>=2.31.0",
         "rich",
         "skypilot==0.5.0",
+        "paramiko",
         "tabulate",
         "types-passlib",
         "types-paramiko",
