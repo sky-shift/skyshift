@@ -45,32 +45,6 @@ def _handle_invalid_config(file_path: str, error_msg: str):
               'Ensure the kubeconfig file is valid.')
 
 
-#        existing_clusters_names = lookup_kube_config(self.cluster_api)
-#        self.logger.info("Found existing clusters: %s.", existing_clusters_names)
-#        for cluster_name in existing_clusters_names:
-#            self.logger.info("Found existing cluster: %s.", cluster_name)
-#            try:
-#                cluster_obj = ClusterAPI().get(cluster_name)
-#            except APIException:
-#                cluster_dictionary = {
-#                    "kind": "Cluster",
-#                    "metadata": {
-#                        "name": cluster_name,
-#                    },
-#                    "spec": {
-#                        "manager": "k8",
-#                    },
-#                }
-#                try:
-#                    cluster_obj = ClusterAPI().create(
-#                        config=cluster_dictionary)
-#                except APIException as error:
-#                    self.logger.error(
-#                        "Failed to create cluster: %s. Error: %s",
-#                        cluster_name, error)
-#                    continue
-
-
 def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their kube config contexts.
