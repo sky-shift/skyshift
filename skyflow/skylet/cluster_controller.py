@@ -108,6 +108,7 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         """Updates the healthy cluster status (READY)."""
+        self.cluster_obj = self.cluster_api.get(self.name)
         prev_cluster_status = self.cluster_obj.status
         prev_cluster_status.update_status(cluster_status.status)
         prev_cluster_status.update_capacity(cluster_status.capacity)
@@ -120,6 +121,7 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         # When the cluster is unhealthy, we need to update the cluster
         # status to ERROR in the API server. But not kill the skylet
         # (maybe it reestablishes connection later)
+        self.cluster_obj = self.cluster_api.get(self.name)
         cluster_status = self.cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
         self.cluster_api.update(self.cluster_obj.model_dump(mode="json"))

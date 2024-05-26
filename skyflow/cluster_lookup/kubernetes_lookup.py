@@ -11,13 +11,6 @@ from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
 
 
-def _fetch_absolute_path(path: str) -> str:
-    """
-    Fetches the absolute path of a given path.
-    """
-    return os.path.abspath(os.path.expanduser(path))
-
-
 def _load_kube_config_contexts(file_path: str) -> Tuple[List[Any], bool]:
     """
     Attempt to load kube config contexts from a specified file.
