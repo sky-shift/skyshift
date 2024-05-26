@@ -5,14 +5,15 @@ import enum
 import time
 from typing import Dict, List, Optional
 
-from pydantic import Field, field_validator, ValidationInfo
+from pydantic import Field, ValidationInfo, field_validator
 
+from skyflow.globals import (K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
+                             SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyflow.utils import sanitize_cluster_name
-from skyflow.globals import K8_MANAGERS, SLURM_MANAGERS, KUBE_CONFIG_DEFAULT_PATH, SLURM_CONFIG_DEFAULT_PATH
 
 
 class ClusterStatusEnum(enum.Enum):

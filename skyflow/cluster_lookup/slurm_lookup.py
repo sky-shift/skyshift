@@ -33,11 +33,11 @@ def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
     slurm_config = _safe_load_slurm_config(SLURM_CONFIG_DEFAULT_PATH)
     if slurm_config:
         existing_contexts.extend(slurm_config.clusters)
-    
+
     for cluster in cluster_api.list().objects:
         if cluster.spec.manager not in SLURM_MANAGERS:
             continue
-        
+
         path = cluster.spec.config_path if cluster.spec.config_path else SLURM_CONFIG_DEFAULT_PATH
         if path not in existing_configs:
             gen_config = _safe_load_slurm_config(path)
@@ -45,6 +45,7 @@ def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
                 existing_contexts.extend(gen_config.clusters)
                 existing_configs.append(path)
         else:
-            cluster_api.delete(cluster.metadata.name)        
-    return [utils.sanitize_cluster_name(context) for context in existing_contexts ]
-
+            cluster_api.delete(cluster.metadata.name)
+    return [
+        utils.sanitize_cluster_name(context) for context in existing_contexts
+    ]

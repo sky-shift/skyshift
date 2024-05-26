@@ -8,7 +8,7 @@ from kubernetes import config
 
 from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
-from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH, K8_MANAGERS
+from skyflow.globals import K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH
 
 
 def _fetch_absolute_path(path: str) -> str:

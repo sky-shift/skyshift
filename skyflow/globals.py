@@ -3,7 +3,7 @@ Globals contains variables used across the Skyflow.
 """
 import os
 
-CLUSTER_TIMEOUT = 10 # seconds
+CLUSTER_TIMEOUT = 10  # seconds
 
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 

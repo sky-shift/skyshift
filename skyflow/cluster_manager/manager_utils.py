@@ -7,7 +7,8 @@ from typing import Union
 
 from skyflow.cluster_manager.Kubernetes import KubernetesManager
 from skyflow.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
-from skyflow.cluster_manager.slurm.slurm_utils import SlurmConfig, SlurmInterfaceEnum
+from skyflow.cluster_manager.slurm.slurm_utils import (SlurmConfig,
+                                                       SlurmInterfaceEnum)
 from skyflow.globals import K8_MANAGERS, SLURM_MANAGERS, SUPPORTED_MANAGERS
 from skyflow.templates import Cluster
 
@@ -32,14 +33,14 @@ def setup_cluster_manager(
     cluster_name = cluster_obj.get_name()
     if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
-    
+
     args = {}
     if cluster_type in K8_MANAGERS:
         cluster_manager_cls = KubernetesManager
         args["config_path"] = cluster_obj.spec.config_path
     elif cluster_type in SLURM_MANAGERS:
         args["config_path"] = cluster_obj.spec.config_path
-        slurm_config =  SlurmConfig(config_path=args["config_path"])
+        slurm_config = SlurmConfig(config_path=args["config_path"])
         interface_type = slurm_config.get_interface(cluster_name)
         if interface_type == SlurmInterfaceEnum.REST.value:
             cluster_manager_cls = SlurmManagerREST
@@ -47,7 +48,7 @@ def setup_cluster_manager(
             cluster_manager_cls = SlurmManagerCLI
         else:
             raise ValueError(f"Unsupported Slurm interface: {interface_type}")
-    
+
     # Get the constructor of the class
     constructor = cluster_manager_cls.__init__
     # Get the parameter names of the constructor
@@ -60,7 +61,6 @@ def setup_cluster_manager(
         for k, v in dict(cluster_obj.metadata).items() if k in class_params
     })
 
-    logger = logging.getLogger(
-        f"[{cluster_name} - {cluster_type} Manager]")
+    logger = logging.getLogger(f"[{cluster_name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
     return cluster_manager_cls(logger=logger, **args)
