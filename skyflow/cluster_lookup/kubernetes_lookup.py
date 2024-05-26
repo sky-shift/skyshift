@@ -59,7 +59,7 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
 
     # Process each cluster's specified config
     for cluster in cluster_api.list().objects:
-        path = cluster.spec.config_path if cluster.spec.config_path else '~/.kube/config'
+        path = cluster.spec.config_path or '~/.kube/config'
         path = _fetch_absolute_path(path)
 
         if path not in existing_configs:

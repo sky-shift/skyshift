@@ -69,7 +69,7 @@ class RayManager(Manager):
             rsa_key=ssh_key_path
         )
         self.ssh_client = connect_ssh_client(self.ssh_params).ssh_client
-        self.remote_dir = os.path.join(get_remote_home_directory(), f".{APP_NAME}")
+        self.remote_dir = os.path.join(get_remote_home_directory(self.ssh_client), f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client: # If the client is still not initialized, ray might not be installed
             self.logger.info("Ray client not initialized. Attempting to install Ray.")
@@ -143,7 +143,6 @@ class RayManager(Manager):
             )
 
     def _submit_and_fetch_logs(self, script_name, script_args="") -> Dict:
-        self.client = self._connect_to_ray_cluster()
         job_id = f"job_{uuid4().hex[:10]}"
         entrypoint = f"python {self.remote_dir}/{script_name} {script_args}"
         
@@ -205,7 +204,6 @@ class RayManager(Manager):
         Returns:
             List[str]: A list of logs for the job.
         """
-        self.client = self._connect_to_ray_cluster()
         job_id = job.status.job_ids[self.cluster_name]
         self.logger.info(f"Fetching logs for job {job_id} on the Ray cluster.")
         logs = []
@@ -229,7 +227,6 @@ class RayManager(Manager):
         Returns:
             Dict[str, Any]: A dictionary containing job submission details.
         """
-        self.client = self._connect_to_ray_cluster()
         # Generate a unique identifier for the job
         job_id = f"{job.get_name()}-{job.get_namespace()}-{uuid4().hex[:10]}"
 
@@ -275,7 +272,6 @@ class RayManager(Manager):
         Returns:
             None
         """
-        self.client = self._connect_to_ray_cluster()
         
         # Check if the job has been submitted
         job_id = job.status.job_ids[self.cluster_name]

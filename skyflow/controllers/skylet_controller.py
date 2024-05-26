@@ -16,6 +16,7 @@ import psutil
 from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_lookup import lookup_kube_config
+from skyflow.cluster_lookup.ray_lookup import lookup_ray_config
 from skyflow.controllers import Controller, controller_error_handler
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
@@ -103,31 +104,21 @@ class SkyletController(Controller):
             self.logger.info("Terminated Skylet for cluster: %s.",
                              cluster_name)
 
+    #TODO(acuadron): refactor this so that it leverages inheritance
     def _load_clusters(self):
-        existing_clusters = lookup_kube_config(self.cluster_api)
+        k8_clusters = [] # lookup_kube_config(self.cluster_api)
+        slurm_clusters = [] #lookup_slurm_config(self.cluster_api)
+        ray_clusters = lookup_ray_config(self.cluster_api)
+        existing_clusters = k8_clusters + slurm_clusters + ray_clusters
         self.logger.info("Found existing clusters: %s.", existing_clusters)
-        for cluster_name in existing_clusters:
-            self.logger.info("Found existing cluster: %s.", cluster_name)
+        for cluster_dictionary in existing_clusters:
             try:
-                cluster_obj = ClusterAPI().get(cluster_name)
-            except APIException:
-                cluster_dictionary = {
-                    "kind": "Cluster",
-                    "metadata": {
-                        "name": cluster_name,
-                    },
-                    "spec": {
-                        "manager": "k8",
-                    },
-                }
-                try:
-                    cluster_obj = ClusterAPI().create(
-                        config=cluster_dictionary)
-                except APIException as error:
-                    self.logger.error(
-                        "Failed to create cluster: %s. Error: %s",
-                        cluster_name, error)
-                    continue
+                cluster_obj = ClusterAPI().create(
+                            config=cluster_dictionary)
+            except APIException as error:
+                self.logger.error(
+                    "Failed to create cluster: %s. Error: %s",
+                    cluster_dictionary['metadata']['name'], error)
             self._launch_skylet(cluster_obj)
 
     def _launch_skylet(self, cluster_obj: Cluster):

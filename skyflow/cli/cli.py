@@ -311,6 +311,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_manager.manager import \
         RAY_MANAGERS  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_lookup.ray_lookup import \
+        add_cluster_to_config  # pylint: disable=import-outside-toplevel
 
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         spinner.fail(f"Unsupported manager_type: {manager}")
@@ -367,6 +369,10 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         },
     }
     create_cli_object(cluster_dictionary)
+
+    # If manager is 'ray', add the cluster configuration to the .skyconf/ray.yaml
+    if manager.lower() in RAY_MANAGERS:
+        add_cluster_to_config(name, host, username, ssh_key_path, password=None)  # Password is set to None for now
 
 
 @get.command(name="cluster", aliases=["clusters"])
