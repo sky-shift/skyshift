@@ -4,6 +4,16 @@ import subprocess
 import sys
 from typing import Dict
 
+def check_nvidia_smi() -> bool:
+    """
+    Check if nvidia-smi is available on the system.
+    """
+    try:
+        subprocess.run(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
 def run_docker_container(job: Dict):
     """
     Run the specified Docker container with the required parameters and output the logs.
@@ -16,7 +26,12 @@ def run_docker_container(job: Dict):
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
 
-    command = f"docker run {env_vars} {port_mappings} {image} {run_command}"
+    command = f"docker run {"--gpus all" if check_nvidia_smi() else ""} \
+                {env_vars} \
+                {port_mappings} \
+                {image} \
+                {run_command}
+                "
     print(f"Running command: {command}")
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
