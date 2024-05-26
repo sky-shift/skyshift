@@ -1,12 +1,12 @@
 kind: Job
 
 metadata: 
-  name: my-batch-job
+  name: my-batch-job-1
   labels:
     app: batchjob
 
 spec:
-  replicas: 1
+  replicas: 2
   image: ubuntu:latest
   resources:
     cpus: 1
