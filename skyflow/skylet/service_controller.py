@@ -10,7 +10,7 @@ from copy import deepcopy
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, ServiceAPI
+from skyflow.api_client import ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -77,7 +77,7 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
         self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval

@@ -1,7 +1,6 @@
 """
 Lookup Kuberntes clusters under Kubeconfig.
 """
-import os
 from typing import Any, List, Tuple
 
 from kubernetes import config

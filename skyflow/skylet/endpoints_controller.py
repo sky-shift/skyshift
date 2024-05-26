@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
+from skyflow.api_client import EndpointsAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -41,7 +41,7 @@ class EndpointsController(Controller):
     """
 
     def __init__(self, cluster: Cluster) -> None:
-        super().__init__()
+        super().__init__(cluster)
         self.name = cluster.get_name()
         self.cluster_obj = cluster
         self.manager_api = setup_cluster_manager(cluster)

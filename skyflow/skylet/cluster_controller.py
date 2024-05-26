@@ -60,7 +60,7 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
         self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval

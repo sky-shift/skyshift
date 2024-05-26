@@ -11,7 +11,7 @@ from copy import deepcopy
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, JobAPI
+from skyflow.api_client import JobAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
@@ -56,7 +56,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
         self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval
