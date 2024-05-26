@@ -104,31 +104,22 @@ class SkyletController(Controller):
                              cluster_name)
 
     def _load_clusters(self):
-        existing_clusters = lookup_kube_config(self.cluster_api)
-        self.logger.info("Found existing clusters: %s.", existing_clusters)
-        for cluster_name in existing_clusters:
-            self.logger.info("Found existing cluster: %s.", cluster_name)
+        k8_clusters = lookup_kube_config(self.cluster_api)
+        self.logger.info("Found existing clusters: %s.", k8_clusters)
+
+        # Start clusters stored in .skyconf/cluster_manager.yaml
+        for cluster_dictionary in k8_clusters:
             try:
-                cluster_obj = ClusterAPI().get(cluster_name)
-            except APIException:
-                cluster_dictionary = {
-                    "kind": "Cluster",
-                    "metadata": {
-                        "name": cluster_name,
-                    },
-                    "spec": {
-                        "manager": "k8",
-                    },
-                }
-                try:
-                    cluster_obj = ClusterAPI().create(
-                        config=cluster_dictionary)
-                except APIException as error:
-                    self.logger.error(
-                        "Failed to create cluster: %s. Error: %s",
-                        cluster_name, error)
-                    continue
+                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
+            except APIException as error:
+                self.logger.error("Failed to create cluster: %s. Error: %s",
+                                  cluster_dictionary['metadata']['name'],
+                                  error)
             self._launch_skylet(cluster_obj)
+
+        #Start clusters stored in ETCD
+        for cluster in self.cluster_api.list().objects:
+            self._launch_skylet(cluster)
 
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
@@ -138,7 +129,7 @@ class SkyletController(Controller):
         # Launch a Skylet to manage the cluster state.
         self.logger.info("Launching Skylet for cluster: %s.", cluster_name)
         skylet_process = multiprocessing.Process(target=launch_skylet,
-                                                 args=(cluster_name, ))
+                                                 args=(cluster_obj, ))
         skylet_process.start()
         self.skylets[cluster_name] = skylet_process
 

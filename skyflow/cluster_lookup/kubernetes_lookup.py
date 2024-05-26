@@ -1,7 +1,6 @@
 """
 Lookup Kuberntes clusters under Kubeconfig.
 """
-import os
 from typing import Any, List, Tuple
 
 from kubernetes import config
@@ -9,13 +8,6 @@ from kubernetes import config
 from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
-
-
-def _fetch_absolute_path(path: str) -> str:
-    """
-    Fetches the absolute path of a given path.
-    """
-    return os.path.abspath(os.path.expanduser(path))
 
 
 def _load_kube_config_contexts(file_path: str) -> Tuple[List[Any], bool]:
@@ -49,7 +41,6 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their kube config contexts.
     """
-    existing_configs = [KUBE_CONFIG_DEFAULT_PATH]
     existing_contexts = []
 
     # Process default KUBE config path first
@@ -57,20 +48,29 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     if success:
         existing_contexts.extend(contexts)
 
-    # Process each cluster's specified config
-    for cluster in cluster_api.list().objects:
-        path = cluster.spec.config_path if cluster.spec.config_path else '~/.kube/config'
-        path = _fetch_absolute_path(path)
-
-        if path not in existing_configs:
-            contexts, success = _load_kube_config_contexts(path)
-            if success:
-                existing_contexts.extend(contexts)
-                existing_configs.append(path)
-            else:
-                cluster_api.delete(cluster.metadata.name)
-
-    return [
+    existing_clusters_names = [
         utils.sanitize_cluster_name(context["name"])
         for context in existing_contexts
     ]
+
+    existing_clusters_api = [
+        cluster.metadata.name for cluster in cluster_api.list().objects
+    ]
+
+    clusters = []
+
+    for cluster_name in existing_clusters_names:
+        if cluster_name in existing_clusters_api:
+            continue
+        cluster_dictionary = {
+            "kind": "Cluster",
+            "metadata": {
+                "name": cluster_name,
+            },
+            "spec": {
+                "manager": "k8",
+            },
+        }
+        clusters.append(cluster_dictionary)
+
+    return clusters
