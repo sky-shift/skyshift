@@ -26,12 +26,12 @@ def run_docker_container(job: Dict):
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
 
-    command = f"docker run {"--gpus all" if check_nvidia_smi() else ""} \
+    command = f"""docker run {'--gpus all' if check_nvidia_smi() else ''} \
                 {env_vars} \
                 {port_mappings} \
                 {image} \
                 {run_command}
-                "
+                """
     print(f"Running command: {command}")
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
