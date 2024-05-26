@@ -1,7 +1,8 @@
 """
-Utils for cluster managers.
+This module contains utility functions for the ray cluster manager.
 """
 import logging
+from typing import Union
 
 from skyflow.cluster_manager.kubernetes.kubernetes_manager import \
     KubernetesManager
@@ -22,6 +23,8 @@ def setup_cluster_manager(cluster_obj: Cluster):
     cluster_type = cluster_obj.spec.manager
 
     args = {}
+
+    cluster_manager_cls: Union[type[KubernetesManager], type[RayManager]]
 
     if cluster_type in K8_MANAGERS:
         cluster_manager_cls = KubernetesManager

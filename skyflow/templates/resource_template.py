@@ -3,6 +3,7 @@ Resource template for Skyflow.
 """
 import enum
 
+
 class ContainerEnum(enum.Enum):
     """Selector for supported container managers"""
     CONTAINERD = "CONTAINERD"
@@ -15,6 +16,7 @@ class ContainerEnum(enum.Enum):
         if isinstance(other, str):
             return self.value == other
         return super().__eq__(other)
+
 
 class ResourceEnum(enum.Enum):
     """

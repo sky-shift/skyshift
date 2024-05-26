@@ -14,7 +14,6 @@ RAY_MANAGERS = ["ray"]
 SUPPORTED_CLUSTER_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
 
-
 class ManagerException(Exception):
     """Raised when the manager is invalid."""
 

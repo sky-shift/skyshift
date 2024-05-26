@@ -273,26 +273,23 @@ cli.add_command(apply_config)
     default="",
     show_default=True,
     required=False,
-    help='SSH key to use for Ray clusters. It can be a path to a file or the key itself'
+    help=
+    'SSH key to use for Ray clusters. It can be a path to a file or the key itself'
 )
-@click.option(
-    '--host',
-    '-h',
-    '--hostname',
-    '-H',
-    default="",
-    show_default=True,
-    required=False,
-    help='Host to use for the cluster'
-)
-@click.option(
-    '--username',
-    '-u',
-    default="",
-    show_default=True,
-    required=False,
-    help='Username to use for the cluster'
-)
+@click.option('--host',
+              '-h',
+              '--hostname',
+              '-H',
+              default="",
+              show_default=True,
+              required=False,
+              help='Host to use for the cluster')
+@click.option('--username',
+              '-u',
+              default="",
+              show_default=True,
+              required=False,
+              help='Username to use for the cluster')
 @click.option('--provision',
               is_flag=True,
               help='True if cluster needs to be provisioned on the cloud.')
@@ -300,19 +297,20 @@ cli.add_command(apply_config)
 def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
         memory: str, disk_size: int, accelerators: str, ports: List[str],
-        num_nodes: int, cloud: str, region: str, provision: bool, ssh_key_path: str, host: str, username: str, spinner):
+        num_nodes: int, cloud: str, region: str, provision: bool,
+        ssh_key_path: str, host: str, username: str, spinner):
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
     from skyflow.cloud.utils import \
         cloud_cluster_dir  # pylint: disable=import-outside-toplevel
-    from skyflow.cluster_manager.manager import \
-        SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
-    from skyflow.cluster_manager.manager import \
-        RAY_MANAGERS  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_lookup.ray_lookup import \
         add_cluster_to_config  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_manager.manager import \
+        RAY_MANAGERS  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_manager.manager import \
+        SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
 
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         spinner.fail(f"Unsupported manager_type: {manager}")
@@ -372,7 +370,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
 
     # If manager is 'ray', add the cluster configuration to the .skyconf/ray.yaml
     if manager.lower() in RAY_MANAGERS:
-        add_cluster_to_config(name, host, username, ssh_key_path, password=None)  # Password is set to None for now
+        add_cluster_to_config(name, host, username, ssh_key_path,
+                              None)  # No password for now
 
 
 @get.command(name="cluster", aliases=["clusters"])

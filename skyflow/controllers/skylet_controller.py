@@ -104,35 +104,31 @@ class SkyletController(Controller):
             self.logger.info("Terminated Skylet for cluster: %s.",
                              cluster_name)
 
-    #TODO(acuadron): refactor this so that it leverages inheritance
     def _load_clusters(self):
-        k8_clusters = [] # lookup_kube_config(self.cluster_api)
-        slurm_clusters = [] #lookup_slurm_config(self.cluster_api)
+        k8_clusters = lookup_kube_config(self.cluster_api)
         ray_clusters = lookup_ray_config(self.cluster_api)
-        existing_clusters = k8_clusters + slurm_clusters + ray_clusters
+        existing_clusters = k8_clusters + ray_clusters
         self.logger.info("Found existing clusters: %s.", existing_clusters)
 
         # Start clusters stored in .skyconf/cluster_manager.yaml
         for cluster_dictionary in existing_clusters:
             try:
-                cluster_obj = ClusterAPI().create(
-                            config=cluster_dictionary)
+                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
             except APIException as error:
-                self.logger.error(
-                    "Failed to create cluster: %s. Error: %s",
-                    cluster_dictionary['metadata']['name'], error)
+                self.logger.error("Failed to create cluster: %s. Error: %s",
+                                  cluster_dictionary['metadata']['name'],
+                                  error)
             self._launch_skylet(cluster_obj)
-        
+
         #Start clusters stored in ETCD
         for cluster in self.cluster_api.list().objects:
             self._launch_skylet(cluster)
-            
 
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
         cluster_name = cluster_obj.get_name()
         if cluster_name in self.skylets:
-            self.logger.warn("Skylet already running for cluster: %s.",)
+            self.logger.warning("Skylet already running for cluster: %s.", )
             return
         # Launch a Skylet to manage the cluster state.
         self.logger.info("Launching Skylet for cluster: %s.", cluster_name)

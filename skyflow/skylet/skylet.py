@@ -17,7 +17,6 @@ from skyflow.skylet import (ClusterController, EndpointsController,
                             ProxyController, ServiceController)
 from skyflow.templates.cluster_template import Cluster
 
-
 BASE_CONTROLLERS = [
     ClusterController,
     FlowController,
@@ -50,12 +49,12 @@ def launch_skylet(cluster_obj: Cluster):
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             print(f"Failed to initialize Skylet controller {cont}, "
-                f"check if cluster {cluster_id} is valid.")
+                  f"check if cluster {cluster_id} is valid.")
 
     for cont in controllers:
-        cont.start()
+        cont.start()  # type: ignore
     for cont in controllers:
-        cont.join()
+        cont.join()  # type: ignore
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
 import enum
 import json
 import logging
+
 import ray
+
 
 class ResourceEnum(enum.Enum):
     """
@@ -16,13 +18,18 @@ class ResourceEnum(enum.Enum):
     # Disk is also expressed in MB.
     DISK: str = 'disk'
 
+
 def fetch_allocatable_resources():
-    ray.init(address='auto', logging_level=logging.ERROR)  # Connect to the Ray cluster
+    ray.init(address='auto',
+             logging_level=logging.ERROR)  # Connect to the Ray cluster
 
     resources = ray.cluster_resources()
     allocatable_resources = {}
-    nodes = {name.split(':', 1)[1]: {} for name in resources.keys() 
-            if name.startswith('node:') and '__internal_head__' not in name}
+    nodes = {
+        name.split(':', 1)[1]: {}
+        for name in resources.keys()
+        if name.startswith('node:') and '__internal_head__' not in name
+    }
 
     for node in nodes:
         if node not in allocatable_resources:
@@ -33,11 +40,13 @@ def fetch_allocatable_resources():
             elif "CPU" in resource_name.upper():
                 allocatable_resources[node][ResourceEnum.CPU.value] = quantity
             elif "memory" in resource_name.lower():
-                allocatable_resources[node][ResourceEnum.MEMORY.value] = quantity / (1024 ** 2)  # MB
+                allocatable_resources[node][
+                    ResourceEnum.MEMORY.value] = quantity / (1024**2)  # MB
             elif "GPU" in resource_name.upper():
                 allocatable_resources[node][ResourceEnum.GPU.value] = quantity
 
     return allocatable_resources
+
 
 if __name__ == "__main__":
     resources = fetch_allocatable_resources()

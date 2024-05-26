@@ -47,17 +47,20 @@ def sanitize_cluster_name(value: str) -> str:
         "/", "-dash-").replace("@", "-at-").replace("_", "-underscore-")
     return sanitized_value
 
+
 def fetch_absolute_path(path: str) -> str:
     """
     Fetches the absolute path of a given path.
     """
     return os.path.abspath(os.path.expanduser(path))
 
+
 def handle_invalid_config(func):
     """
     Decorator to handle invalid configuration files.
     """
-    def wrapper(file_path: str) -> Tuple[Union[dict, None], bool]:
+
+    def wrapper(file_path: str) -> Optional[Tuple[Union[dict, None], bool]]:
         config = None
         try:
             config = func(file_path)
@@ -66,14 +69,17 @@ def handle_invalid_config(func):
             logger = logging.getLogger(__name__)
             _handle_invalid_file(file_path, logger)
             return None
+
     return wrapper
+
 
 def _handle_invalid_file(file_path: str, logger: logging.Logger):
     """
     Prints an appropriate message based on the error encountered.
     """
     logger.error(f'Invalid file {file_path}. Skipping this. '
-          'Ensure the file is valid and accessible.')
+                 'Ensure the file is valid and accessible.')
+
 
 def unsanitize_cluster_name(value: Optional[str]) -> str:
     """

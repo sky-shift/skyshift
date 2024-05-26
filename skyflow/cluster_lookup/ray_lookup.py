@@ -3,11 +3,10 @@ Lookup Ray clusters under skyconf.
 """
 import logging
 import os
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional
 
 import yaml
 
-from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import RAY_CLUSTERS_CONFIG_PATH
 from skyflow.utils.utils import fetch_absolute_path, handle_invalid_config
@@ -15,6 +14,7 @@ from skyflow.utils.utils import fetch_absolute_path, handle_invalid_config
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
+
 
 @handle_invalid_config
 def _load_sky_config(file_path: str) -> dict:
@@ -28,7 +28,9 @@ def _load_sky_config(file_path: str) -> dict:
     with open(expanded_path, 'r') as file:
         return yaml.safe_load(file)
 
-def add_cluster_to_config(cluster_name: str, host: str, user: str, ssh_key: str, password: str):
+
+def add_cluster_to_config(cluster_name: str, host: str, user: str,
+                          ssh_key: Optional[str], password: Optional[str]):
     """
     Add a new Ray cluster configuration to the .skyconf/ray.yaml file.
     """
@@ -48,6 +50,7 @@ def add_cluster_to_config(cluster_name: str, host: str, user: str, ssh_key: str,
     with open(config_path, 'w') as file:
         yaml.safe_dump(config, file)
 
+
 def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their sky config details.
@@ -60,7 +63,9 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
         processed_configs.append(config)
 
     # Process each cluster's specified config
-    existing_clusters = [cluster.metadata.name for cluster in cluster_api.list().objects]
+    existing_clusters = [
+        cluster.metadata.name for cluster in cluster_api.list().objects
+    ]
     cluster_dictionaries = []
     for config in processed_configs:
         clusters_info = config.get('clusters', {})
@@ -73,12 +78,18 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
                     "name": cluster_name,
                 },
                 "spec": {
-                    "manager": "ray",
-                    "username": access_info.get('username', None),
-                    "host": access_info.get('host', None),
-                    "config_path": access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
-                    "ssh_key_path": access_info.get('ssh_key', None),
-                    "password": access_info.get('password', None),
+                    "manager":
+                    "ray",
+                    "username":
+                    access_info.get('username', None),
+                    "host":
+                    access_info.get('host', None),
+                    "config_path":
+                    access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
+                    "ssh_key_path":
+                    access_info.get('ssh_key', None),
+                    "password":
+                    access_info.get('password', None),
                 },
             }
             cluster_dictionaries.append(cluster_dict)

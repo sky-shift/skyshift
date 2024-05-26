@@ -1,85 +1,107 @@
-import paramiko 
-import os
-import logging
-import enum
-from skyflow.globals import SKYCONF_DIR
-from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Dict, Any
-from scp import SCPClient
-import time
-import threading
-from paramiko.config import SSHConfig
-from skyflow.utils.ssh_utils import *
-from threading import Thread
+"""
+Module for handling SCP file transfers using paramiko and scp libraries.
+"""
 
-paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
+import enum
+import logging
+import os
+import time
+from dataclasses import dataclass
+from threading import Thread
+from typing import Dict, List, Optional
+
+import paramiko
+from scp import SCPClient  # pylint: disable=import-error
+
+from skyflow.utils.ssh_utils import (SSHParams, SSHStatusEnum,
+                                     connect_ssh_client)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
+
 def create_scp_client(ssh_client: paramiko.SSHClient) -> SCPClient:
     """
-        Creates and opens scp client.
-        Args:
-            ssh_client:
-                A Paramiko opened ssh client object.
-        Returns:
-            scp client object
+    Creates and opens SCP client.
+    Args:
+        ssh_client: A Paramiko opened SSH client object.
+    Returns:
+        SCP client object
     """
-    scp = SCPClient(ssh_client.get_transport())
-    return scp
-def create_all_scp_clients(ssh_clients: List[paramiko.SSHClient]):
-    """Creates list of transport clients from list ssh_clients"""
-    scp_clients = []
-    for client in ssh_clients:
-        scp_clients.append(SCPClient(client.get_transport()))
-    return scp_clients
-def create_scp_client(ssh_client):
+    return SCPClient(ssh_client.get_transport())
+
+
+def create_all_scp_clients(
+        ssh_clients: List[paramiko.SSHClient]) -> List[SCPClient]:
     """
-        Creates connects paramiko transport client object.
-        Args:
-            ssh_client:
-                Existing connected Paramiko ssh client object.
-        Returns:
-            List[bool of connection status, Connected paramiko transport client]
+    Creates a list of SCP clients from a list of SSH clients.
+    Args:
+        ssh_clients: List of paramiko SSHClient objects.
+    Returns:
+        List of SCPClient objects.
     """
-    return SCPClient(ssh_client.get_transport(), progress=progress)
-def create_and_send_scp(file_path_dict: Dict[str, str], ssh_params: SSHParams, is_async=False):
-    """"
-        Establishes scp connection, and sends all files before closing the connection.
-        Args:
-            file_path_dict: Local file paths as keys, and destination file paths as values.
-            ssh_params: Struct of parameters required to establish a SSH connection.
-            is_async: Whether we send files asynchronously, or block and send one by one.
-        Returns:
-            Whether the connection succeeded.
+    return [SCPClient(client.get_transport()) for client in ssh_clients]
+
+
+def create_and_send_scp(file_path_dict: Dict[str, str],
+                        ssh_parameters: SSHParams) -> bool:
     """
-    ssh_struct = connect_ssh_client(ssh_params)
-    #Check if transport client failed to connect to remote host.
+    Establishes SCP connection and sends all files before closing the connection.
+    Args:
+        file_path_dict: Local file paths as keys, and destination file paths as values.
+        ssh_parameters: Struct of parameters required to establish a SSH connection.
+    Returns:
+        Whether the connection succeeded.
+    """
+    ssh_struct = connect_ssh_client(ssh_parameters)
     if ssh_struct.status == SSHStatusEnum.NOT_REACHABLE:
         return False
-    scp_client = create_scp_client(ssh_struct.ssh_client)
-    send_scp_sync(scp_client, file_path_dict)
-    scp_client.close()
+    if ssh_struct.ssh_client is None:
+        raise ValueError("SSH client is None")
+    scp_client_instance = create_scp_client(ssh_struct.ssh_client)
+    send_scp_sync(scp_client_instance, file_path_dict)
+    scp_client_instance.close()
     return True
-def send_scp_sync(scp_client: SCPClient, file_path_dict: Dict[str, str]):
+
+
+def send_scp_sync(scp_client_instance: SCPClient, file_path_dict: Dict[str,
+                                                                       str]):
     """
-        Synchronous file transfer, waits until file is present on remote before return.
-        Args: 
-            sftp: Connected paramiko STFPClient object.
-            file_path_dict: Dict of local file paths and remote file paths.
+    Synchronous file transfer, waits until file is present on remote before returning.
+    Args:
+        scp_client_instance: Connected paramiko SCPClient object.
+        file_path_dict: Dict of local file paths and remote file paths.
     """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp_client.put(files=local_file_path, remote_path=remote_file_path)
-def get_scp_sync(scp: SCPClient, file_path_dict: Dict[str, str]):
-    """Sync file transfer, sends files and does not wait.
+    for local_file_path, remote_file_path in file_path_dict.items():
+        scp_client_instance.put(files=local_file_path,
+                                remote_path=remote_file_path)
+
+
+def get_scp_sync(scp_client_instance: SCPClient, file_path_dict: Dict[str,
+                                                                      str]):
     """
-    for local_file_path in file_path_dict:
-        remote_file_path = file_path_dict[local_file_path]
-        scp.get(remote_path = remote_file_path, local_path=local_file_path)
-def wait_until_file_received(sftp, local_file, remote_file):
+    Synchronous file transfer, retrieves files from remote.
+    Args:
+        scp_client_instance: Connected paramiko SCPClient object.
+        file_path_dict: Dict of remote file paths and local file paths.
+    """
+    for local_file_path, remote_file_path in file_path_dict.items():
+        scp_client_instance.get(remote_path=remote_file_path,
+                                local_path=local_file_path)
+
+
+def wait_until_file_received(sftp: Optional[paramiko.SFTPClient],
+                             local_file: str, remote_file: str):
+    """
+    Waits until the file is received.
+    Args:
+        sftp: Optional paramiko SFTPClient object.
+        local_file: Local file path.
+        remote_file: Remote file path.
+    """
+    if not sftp:
+        raise ValueError("SFTP client is None")
     while True:
         try:
             remote_file_size = sftp.stat(remote_file).st_size
@@ -89,63 +111,112 @@ def wait_until_file_received(sftp, local_file, remote_file):
         except FileNotFoundError:
             pass
         time.sleep(2)
-def wait_until_file_sent(transport, remote_file):
+
+
+def wait_until_file_sent(transport: paramiko.Transport, remote_file: str):
+    """
+    Waits until the file is sent.
+    Args:
+        transport: Paramiko Transport object.
+        remote_file: Remote file path.
+    """
     sftp = paramiko.SFTPClient.from_transport(transport)
+    if not sftp:
+        raise ValueError("SFTP client is None")
     prev_size = 0
     while True:
         try:
             file_attr = sftp.stat(remote_file)
+            if not file_attr.st_size:
+                continue
             curr_size = file_attr.st_size
             if curr_size == prev_size:
                 break  # File transfer completed
             prev_size = curr_size
         except FileNotFoundError:
             pass
-        time.sleep(2)  
-def progress(filename, size, sent):
-    logging.info("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100) )
+        time.sleep(2)
+
+
+def progress(filename: str, size: int, sent: int):
+    """
+    Logs the progress of file transfer.
+    Args:
+        filename: Name of the file being transferred.
+        size: Total size of the file.
+        sent: Amount of data sent.
+    """
+    logging.info("%s's progress: %.2f%%   \r", filename,
+                 float(sent) / float(size) * 100)
+
+
 class FileDirEnum(enum.Enum):
-    RECEIVE =  'RECEIVE'
+    """File transfer direction."""
+    RECEIVE = 'RECEIVE'
     SEND = 'SEND'
-@dataclass 
-class FileTransferStruct():
-    def __init__(self, local_file, remote_file: str, direction: FileDirEnum=FileDirEnum.SEND):
-        self.local_file = local_file
-        self.remote_file = remote_file
-        self.direction = direction
-class SCPTransferThread(threading.Thread):
+
+
+@dataclass
+class FileTransferStruct:
+    """Dataclass for file transfer."""
+    local_file: str
+    remote_file: str
+    direction: FileDirEnum = FileDirEnum.SEND
+
+
+class SCPTransferThread(Thread):
     """
-        Spawn multiple SCP clients to multithread file transfers.
-        TODO Async thread spawn and join after done
+    Spawn multiple SCP clients to multithread file transfers.
+    TODO: Async thread spawn and join after done
     """
-    def __init__(self, scp_client: SCPClient, file_struct: FileTransferStruct):
+
+    def __init__(self, scp_client_instance: SCPClient,
+                 file_struct: FileTransferStruct):
         super().__init__()
-        self.scp_client = scp_client
+        self.scp_client_instance = scp_client_instance
         self.file_struct = file_struct
 
     def run(self):
         if self.file_struct.direction == FileDirEnum.SEND:
-            self.scp_client.put(self.local_file, self.remote_file, preserve_times=True, recursive=False)
+            self.scp_client_instance.put(self.file_struct.local_file,
+                                         self.file_struct.remote_file,
+                                         preserve_times=True,
+                                         recursive=False)
         else:
-            self.scp_client.get(self.remote_file, self.local_file, preserve_times=True, recursive=False)
-def start_SCP_threads(ssh_client, ftp_structs:List[FileTransferStruct]):
+            self.scp_client_instance.get(self.file_struct.remote_file,
+                                         self.file_struct.local_file,
+                                         preserve_times=True,
+                                         recursive=False)
+
+
+def start_scp_threads(ssh_client_instance: paramiko.SSHClient,
+                      ftp_structs: List[FileTransferStruct]):
+    """
+    Starts multiple SCP transfer threads.
+    Args:
+        ssh_client_instance: Paramiko SSHClient object.
+        ftp_structs: List of FileTransferStruct objects.
+    """
     threads = []
-    for ftp_struct in len(ftp_structs.keys()):
-        thread = Thread(target=SCPTransferThread(ssh_client, ftp_struct))
+    for ftp_struct in ftp_structs:
+        thread = SCPTransferThread(
+            SCPClient(ssh_client_instance.get_transport()), ftp_struct)
         thread.start()
         threads.append(thread)
     for thread in threads:
         thread.join()
-if __name__ == '__main__':
-    ssh_params = (read_ssh_config('mac'))
-    big_file = '/home/cdaron/projects/skyflow/skyflow/utils/archlinux-2024.05.01-x86_64.iso'
-    small_file = '/home/cdaron/projects/skyflow/skyflow/utils/20M.txt'
-    send_file_dict = {small_file:'/Users/daronchang/skytest20M.txt'}
-    rec_file_dict = {'/Users/daronchang/skytest20M.txt': small_file+'.test'}
-    ssh_client = read_and_connect_from_config('mac')
-    print(ssh_client)
-    scp_client = create_scp_client(ssh_client)
-    send_scp_sync(scp_client, send_file_dict)
-    get_scp_sync(scp_client, rec_file_dict)
-    print('done')
-    #send_scp_async(sftp_client, file_dict)
+
+
+#if __name__ == '__main__':
+#    ssh_parameters = read_ssh_config('mac')
+#    BIG_FILE = '/home/cdaron/projects/skyflow/skyflow/utils/archlinux-2024.05.01-x86_64.iso'
+#    SMALL_FILE = '/home/cdaron/projects/skyflow/skyflow/utils/20M.txt'
+#    send_file_dict = {SMALL_FILE: '/Users/daronchang/skytest20M.txt'}
+#    rec_file_dict = {'/Users/daronchang/skytest20M.txt': SMALL_FILE + '.test'}
+#    ssh_client_instance = read_and_connect_from_config('mac')
+#    print(ssh_client_instance)
+#    scp = create_scp_client(ssh_client_instance)
+#    send_scp_sync(scp, send_file_dict)
+#    get_scp_sync(scp_client_instance, rec_file_dict)
+#    print('done')
+#    # send_scp_async(sftp_client, file_dict)

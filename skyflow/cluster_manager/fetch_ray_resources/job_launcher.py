@@ -3,11 +3,13 @@ import subprocess
 import sys
 from typing import Dict
 
+
 def load_job_from_json(job_json: str) -> Dict:
     """
     Load the job object from its JSON representation.
     """
     return json.loads(job_json)
+
 
 def run_docker_container(job: Dict):
     """
@@ -31,6 +33,7 @@ def main(job_json: str):
     job = load_job_from_json(job_json)
     exit_code = run_docker_container(job)
     sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
