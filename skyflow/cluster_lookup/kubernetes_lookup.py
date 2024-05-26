@@ -45,11 +45,36 @@ def _handle_invalid_config(file_path: str, error_msg: str):
               'Ensure the kubeconfig file is valid.')
 
 
+#        existing_clusters_names = lookup_kube_config(self.cluster_api)
+#        self.logger.info("Found existing clusters: %s.", existing_clusters_names)
+#        for cluster_name in existing_clusters_names:
+#            self.logger.info("Found existing cluster: %s.", cluster_name)
+#            try:
+#                cluster_obj = ClusterAPI().get(cluster_name)
+#            except APIException:
+#                cluster_dictionary = {
+#                    "kind": "Cluster",
+#                    "metadata": {
+#                        "name": cluster_name,
+#                    },
+#                    "spec": {
+#                        "manager": "k8",
+#                    },
+#                }
+#                try:
+#                    cluster_obj = ClusterAPI().create(
+#                        config=cluster_dictionary)
+#                except APIException as error:
+#                    self.logger.error(
+#                        "Failed to create cluster: %s. Error: %s",
+#                        cluster_name, error)
+#                    continue
+
+
 def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their kube config contexts.
     """
-    existing_configs = [KUBE_CONFIG_DEFAULT_PATH]
     existing_contexts = []
 
     # Process default KUBE config path first
@@ -57,20 +82,29 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     if success:
         existing_contexts.extend(contexts)
 
-    # Process each cluster's specified config
-    for cluster in cluster_api.list().objects:
-        path = cluster.spec.config_path if cluster.spec.config_path else '~/.kube/config'
-        path = _fetch_absolute_path(path)
-
-        if path not in existing_configs:
-            contexts, success = _load_kube_config_contexts(path)
-            if success:
-                existing_contexts.extend(contexts)
-                existing_configs.append(path)
-            else:
-                cluster_api.delete(cluster.metadata.name)
-
-    return [
+    existing_clusters_names = [
         utils.sanitize_cluster_name(context["name"])
         for context in existing_contexts
     ]
+
+    existing_clusters_api = [
+        cluster.metadata.name for cluster in cluster_api.list().objects
+    ]
+
+    clusters = []
+
+    for cluster_name in existing_clusters_names:
+        if cluster_name in existing_clusters_api:
+            continue
+        cluster_dictionary = {
+            "kind": "Cluster",
+            "metadata": {
+                "name": cluster_name,
+            },
+            "spec": {
+                "manager": "k8",
+            },
+        }
+        clusters.append(cluster_dictionary)
+
+    return clusters

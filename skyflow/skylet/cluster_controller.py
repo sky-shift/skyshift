@@ -17,7 +17,8 @@ from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
-from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
+from skyflow.templates.cluster_template import (Cluster, ClusterStatus,
+                                                ClusterStatusEnum)
 
 DEFAULT_HEARTBEAT_TIME = 5  # seconds
 DEFAULT_RETRY_LIMIT = 5  # attempts
@@ -55,13 +56,13 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
 
     def __init__(
         self,
-        name,
+        cluster: Cluster,
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
         super().__init__()
 
-        self.name = name
+        self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
@@ -72,9 +73,9 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
 
         self.logger.info("Initializing Cluster Controller: %s", self.name)
         self.cluster_api = ClusterAPI()
-        cluster_obj = self.cluster_api.get(name)
+        self.cluster_obj = cluster
         # The Compataibility layer that interfaces with the underlying cluster manager.
-        self.manager_api = setup_cluster_manager(cluster_obj)
+        self.manager_api = setup_cluster_manager(self.cluster_obj)
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
         # request specific accelerators such as T4 GPU.
@@ -107,23 +108,21 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
 
     def update_healthy_cluster(self, cluster_status: ClusterStatus):
         """Updates the healthy cluster status (READY)."""
-        cluster_obj = self.cluster_api.get(self.name)
-        prev_cluster_status = cluster_obj.status
+        prev_cluster_status = self.cluster_obj.status
         prev_cluster_status.update_status(cluster_status.status)
         prev_cluster_status.update_capacity(cluster_status.capacity)
         prev_cluster_status.update_allocatable_capacity(
             cluster_status.allocatable_capacity)
-        self.cluster_api.update(cluster_obj.model_dump(mode="json"))
+        self.cluster_api.update(self.cluster_obj.model_dump(mode="json"))
 
     def update_unhealthy_cluster(self):
         """Updates the unhealthy cluster status (ERROR)."""
         # When the cluster is unhealthy, we need to update the cluster
         # status to ERROR in the API server. But not kill the skylet
         # (maybe it reestablishes connection later)
-        cluster_obj = self.cluster_api.get(self.name)
-        cluster_status = cluster_obj.status
+        cluster_status = self.cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
-        self.cluster_api.update(cluster_obj.model_dump(mode="json"))
+        self.cluster_api.update(self.cluster_obj.model_dump(mode="json"))
 
 
 # if __name__ == "__main__":

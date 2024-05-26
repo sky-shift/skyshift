@@ -16,6 +16,7 @@ from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import FilterPolicy, Job, TaskStatusEnum, WatchEventEnum
+from skyflow.templates.cluster_template import Cluster
 from skyflow.utils import match_labels
 
 
@@ -38,15 +39,16 @@ class FlowController(Controller):
     The Flow controller determines the flow of jobs in and out of the cluster.
     """
 
-    def __init__(self, name) -> None:
+    def __init__(self, cluster: Cluster) -> None:
         super().__init__()
-        self.name = name
-        cluster_obj = ClusterAPI().get(name)
-        self.manager_api = setup_cluster_manager(cluster_obj)
+        self.name = cluster.get_name()
+        self.cluster_obj = cluster
+        self.manager_api = setup_cluster_manager(self.cluster_obj)
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Flow Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Flow Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/flow_controller.log')
 
         self.job_informer = Informer(JobAPI(namespace=''), logger=self.logger)
@@ -166,18 +168,3 @@ class FlowController(Controller):
         self.manager_api.delete_job(job)
         del job_status.replica_status[self.name]
         del job_status.job_ids[self.name]
-
-
-if __name__ == "__main__":
-    cluster_api = ClusterAPI()
-    cluster_api.create({
-        "kind": "Cluster",
-        "metadata": {
-            "name": "mluo-onprem"
-        },
-        "spec": {
-            "manager": "k8",
-        },
-    })
-    jc = FlowController("mluo-onprem")
-    jc.start()

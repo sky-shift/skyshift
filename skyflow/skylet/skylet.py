@@ -14,6 +14,7 @@ import yaml
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)
+from skyflow.templates.cluster_template import Cluster
 
 CONTROLLERS = [
     ClusterController,
@@ -26,7 +27,7 @@ CONTROLLERS = [
 ]
 
 
-def launch_skylet(cluster_id):
+def launch_skylet(cluster_obj: Cluster):
     """
     Launches a Skylet for a given cluster.
     """
@@ -34,11 +35,11 @@ def launch_skylet(cluster_id):
     controllers = []
     for cont in CONTROLLERS:
         try:
-            controllers.append(cont(cluster_id))
+            controllers.append(cont(cluster_obj))
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             print(f"Failed to initialize Skylet controller {cont}, "
-                  f"check if cluster {cluster_id} is valid.")
+                  f"check if cluster {cluster_obj} is valid.")
     for cont in controllers:
         cont.start()
     for cont in controllers:
