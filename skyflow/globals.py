@@ -3,17 +3,26 @@ Globals contains variables used across the Skyflow.
 """
 import os
 
+CLUSTER_TIMEOUT = 10  # seconds
+
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
+RAY_MANAGERS = ["ray"]
 RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
 
 DEFAULT_NAMESPACE = "default"
 
-KUBE_CONFIG_DEFAULT_PATH = '~/.kube/config'
+K8_MANAGERS = ('kubernetes', 'k8', 'k8s')
+KUBE_CONFIG_DEFAULT_PATH = "~/.kube/config"
+
+SLURM_MANAGERS = ('slurm', 'slurmctl')
+SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
+
+SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS
 
 CLUSTER_TIMEOUT = 10  # seconds
 

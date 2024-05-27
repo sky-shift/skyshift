@@ -12,6 +12,7 @@ import requests
 from skyflow import utils
 from skyflow.api_client import ServiceAPI
 from skyflow.api_client.object_api import APIException
+from skyflow.cluster_manager import KubernetesManager, Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
@@ -22,6 +23,12 @@ from skyflow.templates.cluster_template import Cluster
 
 DEFAULT_HEARTBEAT_TIME = 3
 DEFAULT_RETRY_LIMIT = 3
+
+
+def _filter_manager(manager: Manager) -> KubernetesManager:
+    if isinstance(manager, KubernetesManager):
+        return manager
+    raise ValueError("Manager is not a KubernetesManager.")
 
 
 @contextmanager
@@ -83,7 +90,8 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
-        self.manager_api = setup_cluster_manager(cluster)
+        self.manager_api: KubernetesManager = _filter_manager(
+            setup_cluster_manager(cluster))
         # Fetch cluster state template (cached cluster state).
         self.logger = create_controller_logger(
             title=

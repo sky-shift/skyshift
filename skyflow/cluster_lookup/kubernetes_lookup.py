@@ -41,27 +41,32 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     """
     Process all clusters to find their kube config contexts.
     """
-    existing_contexts = []
+    existing_configs = {KUBE_CONFIG_DEFAULT_PATH}
+    cluster_list = cluster_api.list().objects
+    for cluster in cluster_list:
+        if cluster.spec.config_path:
+            existing_configs.add(cluster.spec.config_path)
 
-    # Process default KUBE config path first
-    contexts, success = _load_kube_config_contexts(KUBE_CONFIG_DEFAULT_PATH)
-    if success:
-        existing_contexts.extend(contexts)
+    context_to_config = {}
+    for cfg in existing_configs:
+        contexts, success = _load_kube_config_contexts(cfg)
+        if success:
+            for context in contexts:
+                context_to_config[context] = cfg
 
     existing_clusters_names = [
         utils.sanitize_cluster_name(context["name"])
-        for context in existing_contexts
+        for context in context_to_config
     ]
 
-    existing_clusters_api = [
-        cluster.metadata.name for cluster in cluster_api.list().objects
-    ]
+    existing_clusters_api = [cluster.metadata.name for cluster in cluster_list]
 
     clusters = []
 
     for cluster_name in existing_clusters_names:
         if cluster_name in existing_clusters_api:
             continue
+
         cluster_dictionary = {
             "kind": "Cluster",
             "metadata": {
@@ -69,6 +74,7 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
             },
             "spec": {
                 "manager": "k8",
+                "config_path": context_to_config[cluster_name],
             },
         }
         clusters.append(cluster_dictionary)

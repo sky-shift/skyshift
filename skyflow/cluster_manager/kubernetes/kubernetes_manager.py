@@ -4,7 +4,6 @@ Represents the compatibility layer over Kubernetes native API.
 import asyncio
 import logging
 import os
-import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional, TypedDict
