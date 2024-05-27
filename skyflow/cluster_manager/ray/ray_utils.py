@@ -5,7 +5,7 @@ import tarfile
 import paramiko
 from paramiko import SSHClient
 
-from skyflow.templates.resource_template import ContainerEnum
+from skyflow.templates.resource_template import CRIEnum
 from skyflow.utils.ssh_utils import ssh_send_command
 
 
@@ -61,7 +61,7 @@ def find_available_container_managers(ssh_client: paramiko.SSHClient,
                                       logger: logging.Logger) -> list:
     """Check which container managers are installed and return a list of available managers."""
     available_containers = []
-    for container in ContainerEnum:
+    for container in CRIEnum:
         try:
             command = f"command -v {container.value.lower()}"
             output, _ = ssh_send_command(ssh_client, command)

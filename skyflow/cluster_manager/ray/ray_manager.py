@@ -59,7 +59,7 @@ class RayManager(Manager):
                  logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
-        self.logger = logger if logger else logging.getLogger(
+        self.logger: logging.Logger = logger if logger else logging.getLogger(
             f"[{name} - Ray Manager]")
         self.accelerator_types: Dict[str, str] = {}
         self.ssh_key_path = ssh_key_path

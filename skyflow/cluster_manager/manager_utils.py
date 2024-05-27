@@ -5,13 +5,14 @@ This module contains utility functions for the ray cluster manager.
 import logging
 from typing import Type
 
-from skyflow.cluster_manager.Kubernetes import KubernetesManager
+from skyflow.cluster_manager.kubernetes import KubernetesManager
 from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.ray.ray_manager import RayManager
 from skyflow.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
 from skyflow.cluster_manager.slurm.slurm_utils import (SlurmConfig,
                                                        SlurmInterfaceEnum)
-from skyflow.globals import K8_MANAGERS, RAY_MANAGERS, SLURM_MANAGERS, SUPPORTED_MANAGERS
+from skyflow.globals import (K8_MANAGERS, RAY_MANAGERS, SLURM_MANAGERS,
+                             SUPPORTED_MANAGERS)
 from skyflow.templates import Cluster
 
 logging.basicConfig(
