@@ -19,6 +19,7 @@ DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
     ResourceEnum.CPU.value: 1,
     ResourceEnum.MEMORY.value: 0,
+    ResourceEnum.GPU.value: 0,
 }
 DEFAULT_NAMESPACE = "default"
 DEFAULT_MIN_WEIGHT = 1

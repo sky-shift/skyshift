@@ -76,9 +76,6 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         self.cluster_obj = cluster
         # The Compataibility layer that interfaces with the underlying cluster manager.
         self.manager_api = setup_cluster_manager(self.cluster_obj)
-        # Fetch the accelerator types on the cluster.
-        # This is used to determine node affinity for jobs that
-        # request specific accelerators such as T4 GPU.
 
     def run(self):
         self.logger.info(
@@ -119,22 +116,3 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         cluster_status = self.cluster_obj.status
         cluster_status.update_status(ClusterStatusEnum.ERROR.value)
         self.cluster_api.update(self.cluster_obj.model_dump(mode="json"))
-
-
-# if __name__ == "__main__":
-#     # For debugging purposes...
-#     cluster_api = ClusterAPI()
-#     try:
-#         cluster_api.create({
-#             "kind": "Cluster",
-#             "metadata": {
-#                 "name": "kind-cluster1"
-#             },
-#             "spec": {
-#                 "manager": "k8",
-#             },
-#         })
-#     except:
-#         pass
-#     hc = ClusterController("kind-cluster1")
-#     hc.run()

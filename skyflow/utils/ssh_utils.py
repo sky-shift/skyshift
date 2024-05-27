@@ -14,12 +14,10 @@ from skyflow.globals import SKYCONF_DIR, USER_SSH_PATH
 
 # Constants
 DEFAULT_SSH_CONFIG_PATH = os.path.join(USER_SSH_PATH, "config")
-PARAMIKO_LOG_PATH = os.path.join(SKYCONF_DIR, "paramiko.log")
 SSH_LOG_DIR = os.path.join(SKYCONF_DIR, '.ssh')
 SSH_LOG = os.path.join(SSH_LOG_DIR, 'skyflow_ssh_config.log')
 
 # Logging setup
-paramiko.util.log_to_file(os.path.expanduser(PARAMIKO_LOG_PATH))
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")

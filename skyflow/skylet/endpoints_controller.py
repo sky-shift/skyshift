@@ -11,6 +11,7 @@ import requests
 from skyflow import utils
 from skyflow.api_client import EndpointsAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
+from skyflow.cluster_manager import KubernetesManager, Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
@@ -19,6 +20,12 @@ from skyflow.structs import Informer
 from skyflow.templates import (EndpointObject, Endpoints, Job, Service,
                                WatchEventEnum)
 from skyflow.templates.cluster_template import Cluster
+
+
+def _filter_manager(manager: Manager) -> KubernetesManager:
+    if isinstance(manager, KubernetesManager):
+        return manager
+    raise ValueError("Manager is not a KubernetesManager.")
 
 
 @contextmanager
@@ -44,7 +51,7 @@ class EndpointsController(Controller):
         super().__init__(cluster)
         self.name = cluster.get_name()
         self.cluster_obj = cluster
-        self.manager_api = setup_cluster_manager(cluster)
+        self.manager_api = _filter_manager(setup_cluster_manager(cluster))
         self.worker_queue: queue.Queue = queue.Queue()
 
         self.logger = create_controller_logger(

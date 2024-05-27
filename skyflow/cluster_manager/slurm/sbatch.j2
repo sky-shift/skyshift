@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH --job-name={{ name }}
+#SBATCH --output={{ dir }}/script.out
+#SBATCH --ntasks={{ replicas }}
+#SBATCH --cpus-per-task={{ cpus }}
+#SBATCH --mem-per-cpu={{ memory }}
+
+{% if gpus != 0 %}
+#SBATCH --gres=gpu:{{ gpus }}
+{% endif %}
+{% for key, value in envs.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+
+export SKY_COMMAND='{{ submission_script }}'
+
+for (( i=0; i<{{ replicas }}; i++ )) ; do
+   srun -n 1 -N 1 --exclusive bash -c "$SKY_COMMAND" > {{ dir }}/$i.out &
+done
+
+wait

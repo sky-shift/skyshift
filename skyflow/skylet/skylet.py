@@ -4,16 +4,11 @@ Each Skylet corresponds to a cluster.
 Skylet is a daemon process that runs in the background.
 It is responsible for updating the state of the cluster and jobs submitted.
 """
-
-import argparse
-import os
 import traceback
 from typing import List, Type
 
-import yaml
-
-from skyflow.cluster_manager.manager import K8_MANAGERS
 from skyflow.controllers.controller import Controller
+from skyflow.globals import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)
@@ -36,12 +31,10 @@ def launch_skylet(cluster_obj: Cluster):
     """
     Launches a Skylet for a given cluster.
     """
-
+    manager_type = cluster_obj.spec.manager
     controller_types: List[Type[Controller]] = BASE_CONTROLLERS
-
-    if cluster_obj.spec.manager in K8_MANAGERS:
-        controller_types += SERVICE_CONTROLLERS
-
+    if manager_type in K8_MANAGERS:
+        controller_types.extend(SERVICE_CONTROLLERS)
     controllers: List[Controller] = []
     for cont in controller_types:
         try:
@@ -55,23 +48,3 @@ def launch_skylet(cluster_obj: Cluster):
         controller.start()
     for controller in controllers:
         controller.join()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Launch a Skylet for a cluster.")
-    parser.add_argument("--config",
-                        type=str,
-                        required=True,
-                        help="Path to the Cluster YAML file.")
-
-    args = parser.parse_args()
-    yaml_file_path = args.config
-
-    yaml_file_path = os.path.abspath(yaml_file_path)
-    if not os.path.exists(yaml_file_path):
-        raise FileNotFoundError(
-            f"Cluster config file not found at {yaml_file_path}")
-    with open(yaml_file_path, "r") as f:
-        data = yaml.safe_load(f)
-    launch_skylet(data)

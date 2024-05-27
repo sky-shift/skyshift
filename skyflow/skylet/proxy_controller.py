@@ -10,6 +10,7 @@ import requests
 
 from skyflow import utils
 from skyflow.api_client import EndpointsAPI, ServiceAPI
+from skyflow.cluster_manager import KubernetesManager, Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
@@ -20,6 +21,12 @@ from skyflow.network.cluster_linkv2 import (delete_export_service,
 from skyflow.structs import Informer
 from skyflow.templates import Endpoints, WatchEventEnum
 from skyflow.templates.cluster_template import Cluster
+
+
+def _filter_manager(manager: Manager) -> KubernetesManager:
+    if isinstance(manager, KubernetesManager):
+        return manager
+    raise ValueError("Manager is not a KubernetesManager.")
 
 
 @contextmanager
@@ -44,7 +51,7 @@ class ProxyController(Controller):
     def __init__(self, cluster: Cluster) -> None:
         super().__init__(cluster)
         self.name = cluster.get_name()
-        self.manager_api = setup_cluster_manager(cluster)
+        self.manager_api = _filter_manager(setup_cluster_manager(cluster))
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
