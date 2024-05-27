@@ -106,39 +106,22 @@ class SkyletController(Controller):
     def _load_clusters(self):
         k8_clusters = lookup_kube_config(self.cluster_api)
         slurm_clusters = lookup_slurm_config(self.cluster_api)
-        existing_clusters = k8_clusters + slurm_clusters
-        self.logger.info("Found existing clusters: %s.", existing_clusters)
-        for cluster_name in existing_clusters:
-            self.logger.info("Found existing cluster: %s.", cluster_name)
-            if cluster_name in k8_clusters:
-                manager_type = 'k8'
-            elif cluster_name in slurm_clusters:
-                manager_type = 'slurm'
-            else:
-                self.logger.error("Cluster manager not found for cluster: %s.",
-                                  cluster_name)
-                continue
+        new_clusters = k8_clusters + slurm_clusters
+        self.logger.info("Found existing clusters: %s.", k8_clusters)
+
+        # Start new clusters that are detected in the configuration files.
+        for cluster_dictionary in new_clusters:
             try:
-                cluster_obj = ClusterAPI().get(cluster_name)
-            except APIException:
-                cluster_dictionary = {
-                    "kind": "Cluster",
-                    "metadata": {
-                        "name": cluster_name,
-                    },
-                    "spec": {
-                        "manager": manager_type,
-                    },
-                }
-                try:
-                    cluster_obj = ClusterAPI().create(
-                        config=cluster_dictionary)
-                except APIException as error:
-                    self.logger.error(
-                        "Failed to create cluster: %s. Error: %s",
-                        cluster_name, error)
-                    continue
+                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
+            except APIException as error:
+                self.logger.error("Failed to create cluster: %s. Error: %s",
+                                  cluster_dictionary['metadata']['name'],
+                                  error)
             self._launch_skylet(cluster_obj)
+
+        # Start clusters already stored in ETCD by Skyflow.
+        for cluster in self.cluster_api.list().objects:
+            self._launch_skylet(cluster)
 
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""

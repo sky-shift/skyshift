@@ -9,7 +9,7 @@ from contextlib import contextmanager
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
+from skyflow.api_client import EndpointsAPI, ServiceAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager import KubernetesManager, Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
@@ -19,6 +19,7 @@ from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import (EndpointObject, Endpoints, Job, Service,
                                WatchEventEnum)
+from skyflow.templates.cluster_template import Cluster
 
 
 def _filter_manager(manager: Manager) -> KubernetesManager:
@@ -46,11 +47,11 @@ class EndpointsController(Controller):
     The Endpoints controller keeps track of the endpoints of services in the cluster.
     """
 
-    def __init__(self, name) -> None:
-        super().__init__()
-        self.name = name
-        cluster_obj = ClusterAPI().get(name)
-        self.manager_api = _filter_manager(setup_cluster_manager(cluster_obj))
+    def __init__(self, cluster: Cluster) -> None:
+        super().__init__(cluster)
+        self.name = cluster.get_name()
+        self.cluster_obj = cluster
+        self.manager_api = _filter_manager(setup_cluster_manager(cluster))
         self.worker_queue: queue.Queue = queue.Queue()
 
         self.logger = create_controller_logger(
@@ -180,11 +181,3 @@ class EndpointsController(Controller):
                 time.sleep(0.1)
                 if retry == 10:
                     raise error
-
-
-if __name__ == "__main__":
-    jc = EndpointsController("mluo-onprem")
-    jc1 = EndpointsController("mluo-cloud")
-
-    jc.start()
-    jc1.start()
