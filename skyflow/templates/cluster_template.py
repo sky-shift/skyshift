@@ -186,6 +186,9 @@ class ClusterSpec(ObjectSpec):
     num_nodes: int = Field(default=1, validate_default=True)
     provision: bool = Field(default=False, validate_default=True)
     config_path: str = Field(default="~/.kube/config", validate_default=True)
+    ssh_key_path: str = Field(default="~/.ssh/id_rsa", validate_default=True)
+    host: str = Field(default="", validate_default=True)
+    username: str = Field(default="", validate_default=True)
 
     @field_validator('accelerators')
     @classmethod

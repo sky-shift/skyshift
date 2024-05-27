@@ -79,12 +79,6 @@ class ClusterController(Controller):  # pylint: disable=too-many-instance-attrib
         # Fetch the accelerator types on the cluster.
         # This is used to determine node affinity for jobs that
         # request specific accelerators such as T4 GPU.
-        # @TODO(acuadron): Add specific exception
-        try:
-            self.accelerator_types = self.manager_api.get_accelerator_types()
-        except Exception:  # pylint: disable=broad-except
-            self.logger.error("Failed to fetch accelerator types.")
-            self.update_unhealthy_cluster()
 
     def run(self):
         self.logger.info(

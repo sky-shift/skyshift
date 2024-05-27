@@ -16,6 +16,7 @@ import psutil
 from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_lookup import lookup_kube_config
+from skyflow.cluster_lookup.ray_lookup import lookup_ray_config
 from skyflow.controllers import Controller, controller_error_handler
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
@@ -105,10 +106,13 @@ class SkyletController(Controller):
 
     def _load_clusters(self):
         k8_clusters = lookup_kube_config(self.cluster_api)
-        self.logger.info("Found existing clusters: %s.", k8_clusters)
+        ray_clusters = lookup_ray_config(self.cluster_api)
+        existing_clusters = k8_clusters + ray_clusters
+
+        self.logger.info("Found existing clusters: %s.", existing_clusters)
 
         # Start clusters stored in .skyconf/cluster_manager.yaml
-        for cluster_dictionary in k8_clusters:
+        for cluster_dictionary in existing_clusters:
             try:
                 cluster_obj = ClusterAPI().create(config=cluster_dictionary)
             except APIException as error:
@@ -125,6 +129,7 @@ class SkyletController(Controller):
         """Hidden method that launches Skylet in a Python thread."""
         cluster_name = cluster_obj.get_name()
         if cluster_name in self.skylets:
+            self.logger.warning("Skylet already running for cluster: %s.", )
             return
         # Launch a Skylet to manage the cluster state.
         self.logger.info("Launching Skylet for cluster: %s.", cluster_name)
