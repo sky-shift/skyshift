@@ -211,12 +211,12 @@ class ClusterSpec(ObjectSpec):
     def verify_config_path(cls, config_path: str, info: ValidationInfo) -> str:
         """Validates the accelerators field of a ClusterResources."""
         if not config_path:
-            manager_type = info.data.get('manager')
+            manager_type: str = info.data.get('manager', '')
             if manager_type in K8_MANAGERS:
                 return KUBE_CONFIG_DEFAULT_PATH
             if manager_type in SLURM_MANAGERS:
                 return SLURM_CONFIG_DEFAULT_PATH
-            elif manager_type.lower() == 'skyflow':
+            if manager_type.lower() == 'skyflow':
                 return 'Skyflow'
             raise ValueError(
                 f"Manager type '{manager_type}' is not supported.")
