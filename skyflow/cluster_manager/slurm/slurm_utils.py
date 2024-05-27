@@ -7,14 +7,14 @@ from typing import Dict, List, Optional
 import paramiko
 import yaml
 
-from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
 
+from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
+from skyflow.templates import CRIEnum
 
 class SlurmInterfaceEnum(enum.Enum):
     """CLI and (optional) REST API interfaces."""
     REST = 'rest'
     CLI = 'cli'
-
 
 def convert_slurm_block_to_dict(output: str,
                                 key_name: str) -> Dict[str, Dict[str, str]]:
@@ -62,6 +62,19 @@ def create_ssh_client(hostname: str,
         raise error
     return ssh_client
 
+def get_container_manager_type(ssh_client):
+    """Finds and reports first available container manager.
+
+        Returns: Container manager on Slurm cluster.
+    """
+    command = ''
+    supported_containers = [e.value for e in CRIEnum]
+    for manager_name in supported_containers:
+        command = f'command -v {manager_name.lower()}'
+        stdout, _ = send_cli_command(ssh_client, command)
+        if manager_name in stdout:
+            return manager_name
+    return None
 
 def send_file_to_remote(ssh_client: paramiko.SSHClient, local_path: str,
                         remote_path: str):

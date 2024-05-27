@@ -13,9 +13,10 @@ class SlurmCompatiblityLayer():
     """
 
     def __init__(self, container_manager: str, user: str, logger=None):
-        self.container_manager = container_manager
         if not container_manager:
             self.container_manager = 'no_container'
+        else:
+            self.container_manager = container_manager
         self.user = user
 
         if not logger:
@@ -36,9 +37,7 @@ class SlurmCompatiblityLayer():
         base OS. Do not use unless you are sure the running applications
         are safe.
         """
-        if job.spec.run:
-            return job.spec.run
-        return 'true'
+        return job.spec.run or 'true'
 
     def run_docker(self, job: Job) -> str:  # pylint: disable=no-self-use
         """Generates Docker cli commands."""
@@ -80,7 +79,7 @@ class SlurmCompatiblityLayer():
         #     'shebang': '#!/bin/bash',
         #     'container_manager': 'singularity run ' + image,
         # }
-        return 'true'
+        raise NotImplementedError
 
     def run_containerd(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates Containerd cli commands.
@@ -101,7 +100,7 @@ class SlurmCompatiblityLayer():
         # }
         if "XDG_RUNTIME_DIR" not in job.spec.envs.keys():
             job.spec.envs["XDG_RUNTIME_DIR"] = 'blankshots'
-        return 'true'
+        raise NotImplementedError
 
     def run_podman_hpc(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates PodmanHPC run commands.
@@ -121,7 +120,7 @@ class SlurmCompatiblityLayer():
         #     'container_manager': 'podman-hpc run ' + job.spec.image,
         #     'run': job.spec.run,
         # }
-        return 'true'
+        raise NotImplementedError
 
     def run_podman(self, job: Job) -> str:  # pylint: disable=no-self-use
         """ Generates Podman run commands."""
@@ -134,7 +133,7 @@ class SlurmCompatiblityLayer():
         #     'container_manager': 'podman run -dt ' + job.spec.image,
         #     'run': job.spec.run,
         # }
-        return 'true'
+        raise NotImplementedError
 
     def run_shifter(self, job: Job) -> Dict[str, Union[int, str]]:  # pylint: disable=no-self-use
         """Generates Shifter cli commands."""

@@ -18,7 +18,7 @@ from skyflow.cluster_manager.slurm import slurm_utils
 from skyflow.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
 from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
-from skyflow.templates import CRIEnum, Job, ResourceEnum, TaskStatusEnum
+from skyflow.templates import Job, ResourceEnum, TaskStatusEnum
 from skyflow.templates.cluster_template import ClusterStatus, ClusterStatusEnum
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
@@ -105,9 +105,7 @@ def convert_slurm_job_table_to_status(
         _, task_index = job_id_str.split('.')
         if not task_index or not true_job_name:
             continue
-        try:
-            int(task_index)
-        except ValueError:
+        if not task_index.isdigit():
             continue
         job_state = job_info['State']
         if job_state in SLURM_JOB_ACTIVE:
@@ -143,6 +141,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         # Initalize SSH Client
         self.ssh_client = self.config.get_ssh_client(name)
         # Create directory for jobs and logs.
+        # Also checks if Skyflow can run commands on the Slurm node.
         stdout, stderr = slurm_utils.send_cli_command(
             self.ssh_client, f'mkdir -p {REMOTE_SCRIPT_DIR}; echo $HOME')
         if stderr:
@@ -150,7 +149,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                 'Failed to execute command on remote Slurm node.')
         self.remote_sky_dir = REMOTE_SCRIPT_DIR.replace('~', stdout)
 
-        self.container_manager = self._get_container_manager_type()
+        self.container_manager = slurm_utils.get_container_manager_type()
         # Initialize CRI compatibility layer
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager,
                                                    user=self.user)
@@ -160,21 +159,6 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         # Job name and IDs (Jobs that still need to be kept track by Skyflow)
         # that should be tracked by the manager.
         self.job_cache: Dict[str, str] = {}
-
-    def _get_container_manager_type(self):
-        """Finds and reports first available container manager.
-
-            Returns: Container manager on Slurm cluster.
-        """
-        command = ''
-        supported_containers = [e.value for e in CRIEnum]
-        for manager_name in supported_containers:
-            command = 'if command -v ' + manager_name + \
-                ' &> /dev/null;then echo ' + manager_name + ' ;fi'
-            stdout, _ = slurm_utils.send_cli_command(self.ssh_client, command)
-            if manager_name in stdout:
-                return manager_name
-        return None
 
     @property
     def cluster_resources(self) -> Dict[str, Dict[str, float]]:
