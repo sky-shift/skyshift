@@ -11,6 +11,8 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
+RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
+
 DEFAULT_NAMESPACE = "default"
 
 K8_MANAGERS = ('kubernetes', 'k8', 'k8s')

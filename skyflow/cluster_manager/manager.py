@@ -8,7 +8,11 @@ from fastapi import WebSocket
 
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
-SUPPORTED_CLUSTER_MANAGERS = ['k8', 'kubernetes', 'slurm']
+K8_MANAGERS = ['k8', 'kubernetes']
+SLURM_MANAGERS = ['slurm']
+RAY_MANAGERS = ["ray"]
+
+SUPPORTED_CLUSTER_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
 
 class ManagerException(Exception):
@@ -19,7 +23,7 @@ class Manager:
     """
     General manager object.
 
-    Serves as the base class for the compatability layer across cluster
+    Serves as the base class for the compatibility layer across cluster
     managers.
     """
 

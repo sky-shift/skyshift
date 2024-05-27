@@ -1,16 +1,17 @@
 # pylint: disable=E1101
 """
-Utils for cluster managers.
+This module contains utility functions for the ray cluster manager.
 """
 import logging
 from typing import Type
 
 from skyflow.cluster_manager.Kubernetes import KubernetesManager
 from skyflow.cluster_manager.manager import Manager
+from skyflow.cluster_manager.ray.ray_manager import RayManager
 from skyflow.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
 from skyflow.cluster_manager.slurm.slurm_utils import (SlurmConfig,
                                                        SlurmInterfaceEnum)
-from skyflow.globals import K8_MANAGERS, SLURM_MANAGERS, SUPPORTED_MANAGERS
+from skyflow.globals import K8_MANAGERS, RAY_MANAGERS, SLURM_MANAGERS, SUPPORTED_MANAGERS
 from skyflow.templates import Cluster
 
 logging.basicConfig(
@@ -48,13 +49,17 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
             cluster_manager_cls = SlurmManagerCLI
         else:
             raise ValueError(f"Unsupported Slurm interface: {interface_type}")
+    elif cluster_type in RAY_MANAGERS:
+        cluster_manager_cls = RayManager
+        args["ssh_key_path"] = cluster_obj.spec.ssh_key_path
+        args["username"] = cluster_obj.spec.username
+        args["host"] = cluster_obj.spec.host
 
     # Get the constructor of the class
     constructor = cluster_manager_cls.__init__
     # Get the parameter names of the constructor
     class_params = constructor.__code__.co_varnames[1:constructor.__code__.
                                                     co_argcount]
-
     # Filter the dictionary keys based on parameter names
     args.update({
         k: v
@@ -62,4 +67,5 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
     })
     logger = logging.getLogger(f"[{cluster_name} - {cluster_type} Manager]")
     # Create an instance of the class with the extracted arguments.
-    return cluster_manager_cls(logger=logger, **args)
+    manager = cluster_manager_cls(logger=logger, **args)
+    return manager

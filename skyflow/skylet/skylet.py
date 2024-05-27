@@ -7,6 +7,7 @@ It is responsible for updating the state of the cluster and jobs submitted.
 import traceback
 from typing import List, Type
 
+from skyflow.cluster_manager.manager import K8_MANAGERS
 from skyflow.controllers.controller import Controller
 from skyflow.globals import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,

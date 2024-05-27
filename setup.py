@@ -35,6 +35,9 @@ setup(
         "halo",
         "tqdm",
         "rapidfuzz",
+        "regex",
+        "paramiko",
+        "ray",
     ],
     extras_require={
         "server": [

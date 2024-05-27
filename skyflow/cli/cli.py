@@ -222,7 +222,7 @@ cli.add_command(apply_config)
               default='k8',
               show_default=True,
               required=True,
-              help='Cluster manager type (e.g. k8, slurm).')
+              help='Cluster manager type (e.g. k8, slurm, ray).')
 @click.option('--cpus',
               default=None,
               type=str,
@@ -267,6 +267,29 @@ cli.add_command(apply_config)
     show_default=True,
     required=False,
 )
+@click.option(
+    '--ssh_key_path',
+    '-k',
+    default="",
+    show_default=True,
+    required=False,
+    help=
+    'SSH key to use for Ray clusters. It can be a path to a file or the key itself'
+)
+@click.option('--host',
+              '-h',
+              '--hostname',
+              '-H',
+              default="",
+              show_default=True,
+              required=False,
+              help='Host to use for the cluster')
+@click.option('--username',
+              '-u',
+              default="",
+              show_default=True,
+              required=False,
+              help='Username to use for the cluster')
 @click.option('--provision',
               is_flag=True,
               help='True if cluster needs to be provisioned on the cloud.')
@@ -274,13 +297,18 @@ cli.add_command(apply_config)
 def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
         memory: str, disk_size: int, accelerators: str, ports: List[str],
-        num_nodes: int, cloud: str, region: str, provision: bool, spinner):
+        num_nodes: int, cloud: str, region: str, provision: bool,
+        ssh_key_path: str, host: str, username: str, spinner):
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
     from skyflow.cloud.utils import \
         cloud_cluster_dir  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_lookup.ray_lookup import \
+        add_cluster_to_config  # pylint: disable=import-outside-toplevel
+    from skyflow.cluster_manager.manager import \
+        RAY_MANAGERS  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_manager.manager import \
         SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
 
@@ -295,7 +323,6 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
 
     if not validate_labels(labels):
         raise click.BadParameter("Invalid label format.")
-
     if ports:
         ports = list(ports)
 
@@ -328,12 +355,23 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
             num_nodes,
             'provision':
             provision,
+            'ssh_key_path':
+            ssh_key_path,
+            'host':
+            host,
+            'username':
+            username,
             'config_path':
             "~/.kube/config" if not provision else
             f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
         },
     }
     create_cli_object(cluster_dictionary)
+
+    # If manager is 'ray', add the cluster configuration to the .skyconf/ray.yaml
+    if manager.lower() in RAY_MANAGERS:
+        add_cluster_to_config(name, host, username, ssh_key_path,
+                              None)  # No password for now
 
 
 @get.command(name="cluster", aliases=["clusters"])
