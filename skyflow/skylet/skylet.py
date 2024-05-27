@@ -37,8 +37,7 @@ def launch_skylet(cluster_obj: Cluster):
     Launches a Skylet for a given cluster.
     """
 
-    controller_types: List[
-        Type[Controller]] = BASE_CONTROLLERS
+    controller_types: List[Type[Controller]] = BASE_CONTROLLERS
 
     if cluster_obj.spec.manager in K8_MANAGERS:
         controller_types += SERVICE_CONTROLLERS
