@@ -90,6 +90,7 @@ def convert_slurm_job_table_to_status(
         if '.' not in job_id_str:
             if JOB_PREPEND_STR not in job_name:
                 skip = True
+                # Skip jobs that do not follow Skyflow's job tag.
                 continue
             skip = False
             # Remove JOB_PREPREND_STR from job name
@@ -99,13 +100,14 @@ def convert_slurm_job_table_to_status(
                 skip = True
             else:
                 job_dict[true_job_name] = {}
+            # Move to the next row once a Skyflow job has been found.
             continue
         if skip:
+            # There may be non-Skyflow jobs that have job steps.
             continue
         _, task_index = job_id_str.split('.')
-        if not task_index or not true_job_name:
-            continue
-        if not task_index.isdigit():
+        if not task_index or not true_job_name or not task_index.isdigit():
+            # Skip exceptional cases.
             continue
         job_state = job_info['State']
         if job_state in SLURM_JOB_ACTIVE:
@@ -149,7 +151,8 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                 'Failed to execute command on remote Slurm node.')
         self.remote_sky_dir = REMOTE_SCRIPT_DIR.replace('~', stdout)
 
-        self.container_manager = slurm_utils.get_container_manager_type()
+        self.container_manager = slurm_utils.get_container_manager_type(
+            self.ssh_client)
         # Initialize CRI compatibility layer
         self.compat_layer = SlurmCompatiblityLayer(self.container_manager,
                                                    user=self.user)
@@ -340,16 +343,42 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                                       f"touch {remote_job_run_script}; "
                                       f"chmod +x {remote_job_run_script}"))
 
+        sbatch_jinja = self._generate_sbatch_script(job, slurm_job_name)
+        # SFTP file the over to remote server.
+        with tempfile.NamedTemporaryFile(mode='w', delete=True) as file:
+            file.write(sbatch_jinja)
+            file.flush()
+            slurm_utils.send_file_to_remote(self.ssh_client, file.name,
+                                            remote_job_run_script)
+
+        slurm_command = f"sbatch {remote_job_run_script}"
+        sbatch_output, _ = slurm_utils.send_cli_command(
+            self.ssh_client, slurm_command)
+        slurm_job_match = re.search(r'\b\d+(?:_\d+)*\b', sbatch_output)
+        if not slurm_job_match:
+            raise AttributeError(
+                f"Failed to submit job {job_name} to Slurm cluster.")
+        slurm_job_id = slurm_job_match.group(0)
+        # Update cache on running job.
+        self.job_cache[slurm_job_name] = slurm_job_id
+        job.status.job_ids[self.name] = slurm_job_id
+        return {
+            "manager_job_id": slurm_job_id,
+            "api_responses": [sbatch_output],
+        }
+
+    def _generate_sbatch_script(self, job: Job, job_name: str):
         job_dict = {}
         #Set minimum resources that are allocatable by Slurm
         job = _override_resources(job)
         if self.compat_layer is None:
             raise ValueError(
                 "No container runtime interface found on Slurm cluster.")
+        remote_job_dir = f'{self.remote_sky_dir}/{job_name}'
         submission_script = self.compat_layer.compat_method_fn(job)
         job_resources = job.spec.resources
         job_dict = {
-            'name': slurm_job_name,
+            'name': job_name,
             'dir': remote_job_dir,
             'replicas': job.spec.replicas,
             'envs': job.spec.envs,
@@ -366,32 +395,13 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         )
         sbatch_jinja_template = jinja_env.get_template("sbatch.j2")
         sbatch_jinja = sbatch_jinja_template.render(job_dict)
-        # SFTP file the over to remote server.
-        with tempfile.NamedTemporaryFile(mode='w', delete=True) as file:
-            file.write(sbatch_jinja)
-            file.flush()
-            slurm_utils.send_file_to_remote(self.ssh_client, file.name,
-                                            remote_job_run_script)
-
-        slurm_command = f"sbatch {remote_job_run_script}"
-        sbatch_output, _ = slurm_utils.send_cli_command(
-            self.ssh_client, slurm_command)
-        slurm_job_match = re.search(r'\b\d+(?:_\d+)*\b', sbatch_output)
-        if not slurm_job_match:
-            raise ValueError(
-                f"Failed to submit job {job_name} to Slurm cluster.")
-        slurm_job_id = slurm_job_match.group(0)
-        # Update cache on running job.
-        self.job_cache[slurm_job_name] = slurm_job_id
-        job.status.job_ids[self.name] = slurm_job_id
-        return {
-            "manager_job_id": slurm_job_id,
-            "api_responses": [sbatch_output],
-        }
+        return sbatch_jinja
 
     def delete_job(self, job: Job) -> Dict[str, List[str]]:
         """Deletes a Slurm job."""
         job_id: str = job.status.job_ids[self.name]
+        if not job_id.isdigit():
+            raise ValueError(f"Invalid job ID {job_id}")
         slurm_job_id = int(job_id)
         _, stderr = slurm_utils.send_cli_command(self.ssh_client,
                                                  f'scancel {slurm_job_id}')
