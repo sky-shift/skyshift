@@ -83,7 +83,7 @@ launch_skyflow() {
 terminate_skyflow() {
   echo "Terminating Skyflow processes..."
   # Get PID of server
-  pkill -f launch_sky_manager.py
+  pkill -9 -f "launch_sky_manager.py"
   server_pid=$(pgrep -f launch_server.py)
   if [[ -z $server_pid ]]; then
     echo "API server not running."
@@ -96,9 +96,9 @@ terminate_skyflow() {
 
   # While these processes exist, kill them.
   while pgrep -f launch_server.py || pgrep -f launch_sky_manager.py; do
-    pkill -f launch_server.py
+    pkill -9 -f launch_server.py
     pkill -9 -f "multiprocessing.spawn"
-    pkill -f launch_sky_manager.py
+    pkill -9 -f launch_sky_manager.py
     sleep 1
   done
 

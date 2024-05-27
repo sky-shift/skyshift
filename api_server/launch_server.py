@@ -11,10 +11,11 @@ import requests
 import uvicorn
 from etcd3.exceptions import ConnectionFailedError
 
+from api_server import CONF_FLAG_DIR, remove_flag_file
 from skyflow.etcd_client.etcd_client import ETCDClient
-from skyflow.utils.utils import generate_manager_config, generate_temp_directory
-from api_server import remove_flag_file
-from api_server import CONF_FLAG_DIR
+from skyflow.utils.utils import (generate_manager_config,
+                                 generate_temp_directory)
+
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 
@@ -55,6 +56,7 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
         "[Installer] ETCD failed to install and launch. Try manually installing ETCD."
     )
     return False
+
 
 
 def check_and_install_minio(data_directory: str, minio_admin_user: str, secret_key: str, server_host, server_port: str, console_port: str) -> bool:
@@ -125,7 +127,7 @@ def parse_args():
     parser.add_argument(
         "--workers",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=min(8, multiprocessing.cpu_count()),
         help=
         "Number of workers running in parallel for the API server (default: %(default)s)",
     )
@@ -184,8 +186,11 @@ def parse_args():
 # -b :50051 api_server.api_server:app`
 if __name__ == "__main__":
     args = parse_args()
-    main(host=args.host, port=args.port, workers=args.workers, 
-         data_directory=args.data_directory, reset=args.reset, minio_data_directory=args.minio_data_directory, 
+    main(host=args.host,
+         port=args.port,
+         workers=args.workers,
+         data_directory=args.data_directory,
+         reset=args.reset, minio_data_directory=args.minio_data_directory, 
          minio_admin_user=args.minio_admin_user, minio_admin_password=args.minio_admin_password, minio_host=args.minio_host, 
          minio_server_port=args.minio_server_port, 
          minio_console_port=args.minio_console_port)

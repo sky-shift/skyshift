@@ -11,17 +11,18 @@ from copy import deepcopy
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, JobAPI
+from skyflow.api_client import JobAPI
 from skyflow.api_client.object_api import APIException
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
+from skyflow.templates.cluster_template import Cluster
 from skyflow.templates.job_template import Job, TaskStatusEnum
 
 DEFAULT_HEARTBEAT_TIME = 3  # seconds
-DEFAULT_RETRY_LIMIT = 3  # seconds
+DEFAULT_RETRY_LIMIT = 5
 
 
 @contextmanager
@@ -51,13 +52,13 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
 
     def __init__(
         self,
-        name,
+        cluster: Cluster,
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
-        self.name = name
+        self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
 
@@ -68,7 +69,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
 
         self.informer = Informer(JobAPI(namespace=''), logger=self.logger)
         self.retry_counter = 0
-        self.cluster_obj = ClusterAPI().get(name)
+        self.cluster_obj = cluster
         self.manager_api = setup_cluster_manager(self.cluster_obj)
         # Fetch cluster state template (cached cluster state).
         self.job_status = self.manager_api.get_jobs_status()
@@ -122,12 +123,17 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
 
         # For jobs that are no longer present on the cluster due to expiration or deletion.
         for job_name in filtered_jobs:
+            self.logger.warning("Job %s not found on cluster.", job_name)
             cached_job = informer_object[job_name]
-            self.update_job(
-                cached_job, {
-                    TaskStatusEnum.FAILED.value:
-                    sum(cached_job.status.replica_status[self.name].values())
-                }, {}, self.job_status["containers"])
+            # Ensure the job was in the RUNNING state before marking it as FAILED
+            if TaskStatusEnum.RUNNING.value in cached_job.status.replica_status.get(
+                    self.name, {}).values():
+                self.update_job(
+                    cached_job, {
+                        TaskStatusEnum.FAILED.value:
+                        sum(cached_job.status.replica_status[
+                            self.name].values())
+                    }, {}, self.job_status["containers"])
 
     def update_job(self, job: Job, status: dict, tasks: dict,
                    containers: dict):

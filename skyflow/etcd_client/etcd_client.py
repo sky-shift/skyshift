@@ -322,19 +322,9 @@ class ETCDClient:
             A generator that yields a tuple of WatchEventEnum and the
             value.
         """
+        etcd_client = Etcd3Client(port=self.port)
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
-        watch_iter, cancel_fn = self.etcd_client.watch_prefix(key,
-                                                              prev_kv=True)
+
+        watch_iter, cancel_fn = etcd_client.watch_prefix(key, prev_kv=True)
         return watch_generator_fn(watch_iter), cancel_fn
-
-
-if __name__ == "__main__":
-    etcd_client = ETCDClient()
-    new_value = {"b": 3}
-    etcd_client.write("a", {"a": 2})
-    original_value = etcd_client.read("a")
-    etcd_client.update("a", new_value)
-    etcd_client.update("a", new_value, resource_version=1)
-    new_value = etcd_client.read("a")
-    print(new_value)

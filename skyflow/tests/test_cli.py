@@ -8,16 +8,14 @@
     pytest skyflow/tests/cli_tests.py::test_create_cluster_success
 """
 import json
-import multiprocessing
 import os
-import shutil
 import subprocess
 import tempfile
 import time
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
-from unittest.mock import patch
 
 from skyflow.cli.cli import cli
 from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
@@ -47,9 +45,16 @@ def runner():
 
 
 def test_create_cluster_success(runner):
+    # Define cluster labels
+    labels = [("sky-cluster-id", "valid-cluster"), ("cluster-purpose", "dev")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
+    # Construct the command with parameters
     name = "valid-cluster"
     manager = "k8"
-    cmd = ['create', 'cluster', name, '--manager', manager]
+    cmd = ['create', 'cluster', name, '--manager', manager] + label_args
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
     assert name in result.output
@@ -1042,7 +1047,7 @@ def test_create_invite_failure(runner):
     password = "password"
     cmd_register = [
         'register', name, password, "--invite",
-        get_invite_helper(runner)
+        get_invite_helper(runner, roles=['reader-role'])
     ]
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
@@ -1051,7 +1056,7 @@ def test_create_invite_failure(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_inviter_fail']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1060,7 +1065,7 @@ def test_create_invite_failure(runner):
     assert result_invite.exit_code != 0
 
     #make sure active is changed back to admin
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1091,7 +1096,7 @@ def test_create_invite_failure_role(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_inviter_fail_without_role']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1104,22 +1109,22 @@ def test_create_invite_failure_role(runner):
     assert result_invite_invalid.exit_code != 0
 
     #make sure active is changed back to admin
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
 
-def test_switch_user(runner):
+def test_switch_context(runner):
     name = "user_cannot_invite"
     password = "password"
     cmd_register = [
         'register', name, password, "--invite",
-        get_invite_helper(runner)
+        get_invite_helper(runner, roles=['reader-role'])
     ]
     result_register = runner.invoke(cli, cmd_register)
     assert result_register.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_cannot_invite']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code != 0
 
@@ -1127,7 +1132,7 @@ def test_switch_user(runner):
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    cmd_switch = ['switch', '--user', 'user_cannot_invite']
+    cmd_switch = ['config', 'use-context', f'{name}-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1135,7 +1140,7 @@ def test_switch_user(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code != 0
 
-    cmd_switch = ['switch', '--user', 'admin']
+    cmd_switch = ['config', 'use-context', 'admin-default']
     result_switch = runner.invoke(cli, cmd_switch)
     assert result_switch.exit_code == 0
 
@@ -1143,6 +1148,6 @@ def test_switch_user(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code == 0
 
-    cmd_switch_fail = ['switch', '--user', 'not_exist']
+    cmd_switch_fail = ['config', 'use-context', f'not_exist-default']
     result_switch_fail = runner.invoke(cli, cmd_switch_fail)
     assert result_switch_fail.exit_code != 0
