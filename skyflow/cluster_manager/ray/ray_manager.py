@@ -136,7 +136,7 @@ class RayManager(Manager):
                 allocatable_capacity=self.allocatable_resources,
             )
 
-        except (TimeoutError, RuntimeError) as error:
+        except (TimeoutError, RuntimeError):
             traceback.print_exc()
             return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
@@ -207,7 +207,7 @@ class RayManager(Manager):
             Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
         """
         status = self._submit_and_fetch_logs("fetch_job_status.py")
-        self.logger.info("Jobs status: %s", status)
+        self.logger.debug("Jobs status: %s", status)
         return status
 
     def get_job_logs(self, job) -> List[str]:
