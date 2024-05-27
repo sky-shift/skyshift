@@ -1,4 +1,4 @@
-# pylint: disable=E1101
+# Rest API files and tests are removed for now. To be added in a future PR.
 """
 Represents the compatability layer over Slurm native REST API.
 """

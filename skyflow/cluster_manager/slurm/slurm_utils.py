@@ -58,10 +58,7 @@ def create_ssh_client(hostname: str,
                            username=user,
                            pkey=pkey,
                            password=password)
-    except (paramiko.AuthenticationException, paramiko.SSHException,
-            paramiko.BadHostKeyException, paramiko.ChannelException) as error:
-        raise error
-    except Exception as error:  # pylint: disable=broad-except
+    except paramiko.SSHException as error:
         raise error
     return ssh_client
 
