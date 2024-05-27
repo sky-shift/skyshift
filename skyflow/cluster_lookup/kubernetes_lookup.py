@@ -1,10 +1,10 @@
 """
 Lookup Kuberntes clusters under Kubeconfig.
 """
-import logging
 from typing import Any, List, Tuple
 
 from kubernetes import config
+
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
 from skyflow.utils.utils import sanitize_cluster_name
