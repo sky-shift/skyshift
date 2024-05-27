@@ -8,6 +8,7 @@ import traceback
 from typing import List, Type
 
 from skyflow.controllers.controller import Controller
+from skyflow.globals import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)
@@ -30,8 +31,10 @@ def launch_skylet(cluster_obj: Cluster):
     """
     Launches a Skylet for a given cluster.
     """
-    controller_types: List[
-        Type[Controller]] = BASE_CONTROLLERS + SERVICE_CONTROLLERS
+    manager_type = cluster_obj.spec.manager
+    controller_types: List[Type[Controller]] = BASE_CONTROLLERS
+    if manager_type in K8_MANAGERS:
+        controller_types.extend(SERVICE_CONTROLLERS)
     controllers: List[Controller] = []
     for cont in controller_types:
         try:

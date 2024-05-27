@@ -107,7 +107,7 @@ class SkyletController(Controller):
         k8_clusters = lookup_kube_config(self.cluster_api)
         slurm_clusters = lookup_slurm_config(self.cluster_api)
         new_clusters = k8_clusters + slurm_clusters
-        self.logger.info("Found existing clusters: %s.", k8_clusters)
+        self.logger.info("Found new clusters: %s.", k8_clusters)
 
         # Start new clusters that are detected in the configuration files.
         for cluster_dictionary in new_clusters:

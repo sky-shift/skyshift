@@ -75,7 +75,6 @@ def convert_slurm_job_table_to_status(
     lines = output.strip().split('\n')
     headers = lines[0].split()
     job_dict: Dict[str, Dict[str, str]] = {}
-
     # Get the starting positions of each header
     header_positions = [m.start() for m in re.finditer(r'\S+', lines[0])]
     true_job_name = None
@@ -284,7 +283,8 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         """
         all_jobs_command = (
             f'sacct -u {self.user} --format=JobID%-30,'
-            'JobName%-100,State%-30,NodeList%-50,AllocTRES%-100')
+            'JobName%-100,State%-30,NodeList%-50,AllocTRES%-100 '
+            '--starttime=now-5days')
         jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
             "tasks": {},
             "containers": {}
@@ -295,7 +295,6 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         jobs_info = convert_slurm_job_table_to_status(stdout)
 
         jobs_dict['tasks'] = jobs_info
-        print(jobs_dict)
         return jobs_dict
 
     def _get_matching_job_names(self, match_name: str):
