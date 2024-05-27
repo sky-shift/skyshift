@@ -20,7 +20,7 @@ class ResourceEnum(enum.Enum):
     DISK: str = 'disk'
 
 
-def fetch_allocatable_resources(use_available_resources):
+def fetch_resources(use_available_resources):
     ray.init(address='auto',
              logging_level=logging.ERROR)  # Connect to the Ray cluster
 
@@ -65,5 +65,5 @@ if __name__ == "__main__":
         help='Fetch available resources instead of total resources.')
     args = parser.parse_args()
 
-    resources = fetch_allocatable_resources(args.available)
+    resources = fetch_resources(args.available)
     print(json.dumps(resources, indent=4))

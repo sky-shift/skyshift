@@ -1,4 +1,5 @@
 #!/bin/bash
+# TODO(alex), supposrt for different OS distributions.
 
 # Directory where Miniconda will be installed
 MINICONDA_INSTALL_DIR="$HOME/miniconda3"

@@ -8,6 +8,7 @@ https://docs.ray.io/en/latest/cluster/running-applications/job-submission/sdk.ht
 import json
 import logging
 import os
+import traceback
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -39,6 +40,10 @@ RAY_JSON_PATTERN = "(\{(?:[^{}]|(?R))*\})"
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
+
+
+class RayConnectionError(RuntimeError):
+    """Raised when there is an error connecting to the Ray cluster."""
 
 
 class RayManager(Manager):
@@ -76,6 +81,10 @@ class RayManager(Manager):
                 "Ray client not initialized. Attempting to install Ray.")
             self._setup(ssh_client)
             self.client = self._connect_to_ray_cluster()
+            if not self.client:
+                self.logger.error(
+                    "Failed to initialize Ray client. Exiting...")
+                raise RayConnectionError("Failed to initialize Ray client.")
 
     def _setup(self, ssh_client: paramiko.SSHClient):
         """
@@ -106,7 +115,11 @@ class RayManager(Manager):
 
             self.logger.info("Installing Miniconda & Ray...")
             install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
-            ssh_send_command(ssh_client, install_conda_cmd)
+            _, stderr = ssh_send_command(ssh_client, install_conda_cmd)
+            if stderr:
+                self.logger.error(
+                    f"Error installing Miniconda & Ray: {stderr}")
+                raise RayConnectionError("Error installing Miniconda & Ray.")
             self.logger.info("Ray successfully started.")
         except paramiko.SSHException as error:
             self.logger.error(f"Error setting up Ray: {error}")
@@ -123,23 +136,8 @@ class RayManager(Manager):
                 allocatable_capacity=self.allocatable_resources,
             )
 
-        except TimeoutError:
-            logging.error("Ray API call timed out.")
-            return ClusterStatus(
-                status=ClusterStatusEnum.ERROR.value,
-                capacity=self.cluster_resources,
-                allocatable_capacity=self.allocatable_resources,
-            )
-        except RuntimeError as error:
-            # Catch-all for any other exception, which likely indicates an ERROR state
-            logging.error(f"Unexpected error: {error}")
-            return ClusterStatus(
-                status=ClusterStatusEnum.ERROR.value,
-                capacity=self.cluster_resources,
-                allocatable_capacity=self.allocatable_resources,
-            )
-        except Exception as error:  # pylint: disable=broad-except
-            logging.error(f"Unexpected error: {error}")
+        except (TimeoutError, RuntimeError) as error:
+            traceback.print_exc()
             return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
                 capacity=self.cluster_resources,

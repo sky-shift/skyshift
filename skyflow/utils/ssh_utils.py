@@ -263,10 +263,11 @@ def verify_ssh_client(ssh_params: SSHParams) -> SSHStatusEnum:
     return ssh_struct.status
 
 
-def ssh_send_command(ssh_client: paramiko.SSHClient, command: str) -> str:
+def ssh_send_command(ssh_client: paramiko.SSHClient,
+                     command: str) -> tuple[str, str]:
     """Sends command to remote machine over ssh pipe"""
-    _, stdout, _ = ssh_client.exec_command(command)
-    return stdout.read().decode().strip()
+    _, stdout, stderr = ssh_client.exec_command(command)
+    return stdout.read().decode().strip(), stderr.read().decode().strip()
 
 
 if __name__ == '__main__':

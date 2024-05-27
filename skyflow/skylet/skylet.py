@@ -13,7 +13,6 @@ from typing import List, Type
 import yaml
 
 from skyflow.controllers.controller import Controller
-from skyflow.cluster_manager.manager import K8_MANAGERS
 from skyflow.skylet import (ClusterController, EndpointsController,
                             FlowController, JobController, NetworkController,
                             ProxyController, ServiceController)

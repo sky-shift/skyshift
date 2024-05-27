@@ -64,7 +64,7 @@ def find_available_container_managers(ssh_client: paramiko.SSHClient,
     for container in ContainerEnum:
         try:
             command = f"command -v {container.value.lower()}"
-            output = ssh_send_command(ssh_client, command)
+            output, _ = ssh_send_command(ssh_client, command)
             if output:
                 available_containers.append(container)
                 logger.info(f"{container.value} is available.")
@@ -76,4 +76,5 @@ def find_available_container_managers(ssh_client: paramiko.SSHClient,
 def get_remote_home_directory(ssh_client: paramiko.SSHClient):
     """Fetch the home directory of the remote user."""
     command = "echo $HOME"
-    return ssh_send_command(ssh_client, command).strip()
+    output, _ = ssh_send_command(ssh_client, command)
+    return output.strip()
