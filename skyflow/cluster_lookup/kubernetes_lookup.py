@@ -1,13 +1,13 @@
 """
 Lookup Kuberntes clusters under Kubeconfig.
 """
+import logging
 from typing import Any, List, Tuple
 
 from kubernetes import config
-
-from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
+from skyflow.utils.utils import sanitize_cluster_name
 
 
 def _load_kube_config_contexts(file_path: str) -> Tuple[List[Any], bool]:
@@ -52,12 +52,9 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
         contexts, success = _load_kube_config_contexts(cfg)
         if success:
             for context in contexts:
-                context_to_config[context] = cfg
+                context_to_config[sanitize_cluster_name(context['name'])] = cfg
 
-    existing_clusters_names = [
-        utils.sanitize_cluster_name(context["name"])
-        for context in context_to_config
-    ]
+    existing_clusters_names = context_to_config.keys()
 
     existing_clusters_api = [cluster.metadata.name for cluster in cluster_list]
 
