@@ -108,6 +108,7 @@ class SkyletController(Controller):
         k8_clusters = lookup_kube_config(self.cluster_api)
         ray_clusters = lookup_ray_config(self.cluster_api)
         existing_clusters = k8_clusters + ray_clusters
+
         self.logger.info("Found existing clusters: %s.", existing_clusters)
 
         # Start clusters stored in .skyconf/cluster_manager.yaml

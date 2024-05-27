@@ -9,7 +9,7 @@ from typing import List
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, EndpointsAPI, ServiceAPI
+from skyflow.api_client import EndpointsAPI, ServiceAPI
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
@@ -19,6 +19,7 @@ from skyflow.network.cluster_linkv2 import (delete_export_service,
                                             export_service, import_service)
 from skyflow.structs import Informer
 from skyflow.templates import Endpoints, WatchEventEnum
+from skyflow.templates.cluster_template import Cluster
 
 
 @contextmanager
@@ -40,11 +41,10 @@ class ProxyController(Controller):
     The Proxy controller establishes links between different clusters.
     """
 
-    def __init__(self, name) -> None:
-        super().__init__()
-        self.name = name
-        cluster_obj = ClusterAPI().get(name)
-        self.manager_api = setup_cluster_manager(cluster_obj)
+    def __init__(self, cluster: Cluster) -> None:
+        super().__init__(cluster)
+        self.name = cluster.get_name()
+        self.manager_api = setup_cluster_manager(cluster)
         self.worker_queue: Queue = Queue()
 
         self.logger = create_controller_logger(
@@ -162,11 +162,3 @@ class ProxyController(Controller):
 
     def _delete_export_service(self, name: str):
         delete_export_service(f'{name}', self.manager_api)
-
-
-if __name__ == "__main__":
-    jc = ProxyController("mluo-onprem")
-    jc1 = ProxyController("mluo-cloud")
-
-    jc.start()
-    jc1.start()
