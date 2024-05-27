@@ -85,6 +85,7 @@ class RayManager(Manager):
                 self.logger.error(
                     "Failed to initialize Ray client. Exiting...")
                 raise RayConnectionError("Failed to initialize Ray client.")
+        self.logger.info("Ray client initialized.")
 
     def _setup(self, ssh_client: paramiko.SSHClient):
         """
