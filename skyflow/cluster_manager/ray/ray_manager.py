@@ -188,6 +188,10 @@ class RayManager(Manager):
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py")
         logging.debug("Cluster resources: %s", resources)
+        #Disk resources are fetched as bytes, convert to MB
+        for node_resources in resources.values():
+            node_resources[ResourceEnum.DISK.value] = node_resources[
+                ResourceEnum.DISK.value] / 1024 / 1024
         return fuzzy_map_gpu(resources)
 
     @property
@@ -197,6 +201,10 @@ class RayManager(Manager):
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py",
                                                 "--available")
+        #Disk resources are fetched as bytes, convert to MB
+        for node_resources in resources.values():
+            node_resources[ResourceEnum.DISK.value] = node_resources[
+                ResourceEnum.DISK.value] / 1024 / 1024
         logging.debug("Cluster allocatable resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
