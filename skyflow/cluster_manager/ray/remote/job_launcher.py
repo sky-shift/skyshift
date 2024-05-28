@@ -33,6 +33,7 @@ def mount_bucket(bucket_name: str, local_mapping: str) -> None:
         print(f"Error mounting bucket: {error}")
         sys.exit(1)
 
+
 def unmount_bucket(local_mapping: str) -> None:
     """
     Unmount the GCS bucket using fusermount.
@@ -73,7 +74,7 @@ def run_docker_container(job: Dict) -> int:
                 {image} \
                 {run_command}
                 """
-    
+
     print(f"Running command: {command}")
 
     process = subprocess.Popen(command,
