@@ -475,6 +475,12 @@ def delete_cluster(name: str):
               default="Always",
               show_default=True,
               help="Restart policy for job tasks.")
+@click.option("--volumes",
+                "-v",
+                type=(str, str),
+                multiple=True,
+                default=[],
+                help="Volume mounts for the job.")
 @halo_spinner("Creating job")
 def create_job(
     name,
@@ -490,6 +496,7 @@ def create_job(
     replicas,
     restart_policy,
     spinner,
+    volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Adds a new job."""
     from skyflow.cli.cli_utils import \
@@ -498,6 +505,7 @@ def create_job(
         ResourceEnum  # pylint: disable=import-outside-toplevel
 
     # Validate inputs
+
     if not validate_input_string(name):
         spinner.fail("Invalid name format.")
         raise click.BadParameter("Invalid name format.")
@@ -543,6 +551,8 @@ def create_job(
         },
         "spec": {
             "image": image,
+            "volumes": {bucket: {'container_dir': container_dir} \
+                         for bucket, container_dir in volumes},
             "envs": envs,
             "resources": resource_dict,
             "run": run,
