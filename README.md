@@ -1,29 +1,29 @@
-# SkyFlow - Container Orchestration across the Sky.
+# Skyshift - Container Orchestration across the Sky.
 
-Skyflow orchestrates container-based workloads across the Sky. Our goal is to abstract away the notion of many clusters into one super-cluster. It current supports automatic spreading jobs/deployments across clusters and its new feature - a network mesh - that allows for K8 services to natively load balance across pods in local and remote clusters.
+Skyshift orchestrates container-based workloads across the Sky. Our goal is to abstract away the notion of many clusters into one super-cluster. It current supports automatic spreading jobs/deployments across clusters and its new feature - a network mesh - that allows for K8 services to natively load balance across pods in local and remote clusters.
 
 ## Installing Sky Manager
 
 (Recommended) Create new conda enviornment
 
 ```
-conda create -n skyflow python=3.9
+conda create -n Skyshift python=3.9
 ```
 Activate it
 ```
-conda activate skyflow 
+conda activate Skyshift 
 ```
 
 Install dependencies, Sky Manager packages, and setup cli
-(assuming the repo has been cloned to ./skyflow)
+(assuming the repo has been cloned to ./Skyshift)
 ```
-cd skyflow
+cd Skyshift
 pip install -e .
-# Dependencies for Skyflow's API server.
+# Dependencies for Skyshift's API server.
 pip install -e .[server]
 ```
 
-To utilize Skyflow's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running Skyflow and make it executable. For example:  
+To utilize Skyshift's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running Skyshift and make it executable. For example:  
 ```
 wget https://github.com/rancher/rke/releases/download/v1.5.5/rke_linux-amd64 -o rke_linux-amd64
 mv rke_linux-amd64 /usr/bin/rke # /usr/local/bin/rke works too
@@ -54,7 +54,7 @@ CURRENT   NAME          CLUSTER                                   AUTHINFO
 Launch the API server on a separate tmux or screen window (or nohup). This will automatically install and run ETCD on your machine and launch the API server.
 
 ```
-# In skyflow/ base folder
+# In Skyshift/ base folder
 python api_server/launch_server.py
 ```
 
@@ -63,8 +63,8 @@ python api_server/launch_server.py
 Launch the Controller Manager (which manages Skylet controller + Scheduler controller) on a separate tmux or screen window:
 
 ```
-# In skyflow/ base folder
-python skyflow/launch_sky_manager.py
+# In Skyshift/ base folder
+python Skyshift/launch_sky_manager.py
 ```
 
 ### 4. Add Kubernetes Clusters on Sky Manager
@@ -100,7 +100,7 @@ hello    mluo-cloud   1/1         cpus: 1.0    default      RUNNING
 hello    mluo-onprem  1/1         cpus: 1.0    default      RUNNING
 ```
 
-### 6. Create Skyflow services!
+### 6. Create Skyshift services!
 
 Services can be submitted with `skyctl create services`:
 

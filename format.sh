@@ -77,7 +77,7 @@ format_changed() {
 
 # Format all files
 format_all() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" api_server examples Skyshift
+    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" api_server examples skyflow
 }
 
 ## This flag formats individual files. --files *must* be the first command line
@@ -100,19 +100,19 @@ ISORT_YAPF_EXCLUDES=(
 )
 
 echo 'Skyshift isort:'
-isort api_server Skyshift  "${ISORT_YAPF_EXCLUDES[@]}"
+isort api_server skyflow  "${ISORT_YAPF_EXCLUDES[@]}"
 echo '[Done] Skyshift isort:'
 
 #==============================================================================#
 # Run mypy
 echo 'SkyPilot mypy:'
-mypy api_server Skyshift --show-traceback
+mypy api_server skyflow --show-traceback
 echo '[Done] Skyshift mypy'
 
 #==============================================================================#
 # Run Pylint
 echo 'Skyshift Pylint:'
-pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code Skyshift api_server examples
+pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code skyflow api_server examples
 echo '[Done] Skyshift Pylint'
 
 #==============================================================================#
