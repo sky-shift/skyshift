@@ -344,7 +344,8 @@ class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
     resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES,
                                         validate_default=True)
-    volumes: Dict[str, Dict[str, str]] = Field(default={}, validate_default=True)
+    volumes: Dict[str, Dict[str, str]] = Field(default={},
+                                               validate_default=True)
     run: str = Field(default="", validate_default=True)
     envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
@@ -364,7 +365,7 @@ class JobSpec(ObjectSpec):
                 raise ValueError(
                     f"Volume {volume_name} is missing required field `container_dir`."
                 )
-        return volumes 
+        return volumes
 
     @field_validator('image')
     @classmethod

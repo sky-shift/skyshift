@@ -476,11 +476,11 @@ def delete_cluster(name: str):
               show_default=True,
               help="Restart policy for job tasks.")
 @click.option("--volumes",
-                "-v",
-                type=(str, str),
-                multiple=True,
-                default=[],
-                help="Volume mounts for the job.")
+              "-v",
+              type=(str, str),
+              multiple=True,
+              default=[],
+              help="Volume mounts for the job.")
 @halo_spinner("Creating job")
 def create_job(
     name,
