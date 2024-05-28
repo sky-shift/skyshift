@@ -295,6 +295,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         for pod in pods:
             if pod.metadata.namespace == self.namespace and pod.spec.node_name:
+                node_name = pod.spec.node_name
                 assert node_name in available_resources, (
                     f"Node {node_name} "
                     "not found in cluster resources.")

@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 from skyflow import utils
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.cluster_manager.slurm import SlurmConfig
-from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH
+from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS
 
 
 def _safe_load_slurm_config(config_path: str) -> Optional[SlurmConfig]:
@@ -31,8 +31,9 @@ def lookup_slurm_config(cluster_api: ClusterAPI) -> List[Any]:
     existing_configs = {SLURM_CONFIG_DEFAULT_PATH}
     cluster_list = cluster_api.list().objects
     for cluster in cluster_list:
-        if cluster.spec.config_path:
-            existing_configs.add(cluster.spec.config_path)
+        if cluster.spec.manager in SLURM_MANAGERS:
+            if cluster.spec.config_path:
+                existing_configs.add(cluster.spec.config_path)
 
     context_to_config = {}
     for config in existing_configs:
