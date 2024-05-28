@@ -75,8 +75,6 @@ def run_docker_container(job: Dict) -> int:
                 {run_command}
                 """
 
-    print(f"Running command: {command}")
-
     process = subprocess.Popen(command,
                                shell=True,
                                stdout=subprocess.PIPE,
