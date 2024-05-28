@@ -38,7 +38,6 @@ def run_docker_container(job: Dict) -> int:
     """
     Run the specified Docker container with the required parameters and output the logs.
     """
-    print(f"Running job: {job}")
     image = job['spec']['image']
     envs = job['spec']['envs']
     ports = job['spec']['ports']
@@ -93,26 +92,6 @@ def run_docker_container(job: Dict) -> int:
 
 
 if __name__ == "__main__":
-    sample_job = {
-        "spec": {
-            "image": "anakli/cca:parsec_blackscholes",
-            "envs": {
-                "ENV_VAR1": "value1",
-                "ENV_VAR2": "value2"
-            },
-            "ports": [8080, 443],
-            "run": "/bin/bash -c ls /mnt/storage",
-            "volumes": {
-                "sky_storage_test": {
-                    "container_dir": "/mnt/storage"
-                }
-            },
-            "host": "localhost"
-        }
-    }
-
-    job_json = json.dumps(sample_job)
-
     parser = argparse.ArgumentParser(
         description='Run a container job from a JSON specification.')
     parser.add_argument('job_json',
