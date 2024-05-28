@@ -25,7 +25,7 @@ def mount_bucket(bucket_name: str, local_mapping: str) -> None:
     """
     Mount the GCS bucket using gcsfuse.
     """
-    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping}"
+    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping} > /dev/null 2>&1"
     try:
         subprocess.run(command, shell=True, check=True)
         print(f"Mounted bucket {bucket_name} to {local_mapping}")
@@ -61,7 +61,6 @@ def run_docker_container(job: Dict) -> int:
                 {image} \
                 {run_command}
                 """
-    print(f"Running command: {command}")
 
     process = subprocess.Popen(command,
                                shell=True,
