@@ -1,5 +1,5 @@
 """
-Init module for Skyflow.
+Init module for Skyshift.
 """
 from skyflow.etcd_client.etcd_client import ETCD_PORT, ETCDClient
 

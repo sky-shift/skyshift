@@ -1,5 +1,5 @@
 """
-Utility functions for Skyflow.
+Utility functions for Skyshift.
 """
 import importlib
 import json

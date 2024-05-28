@@ -14,7 +14,7 @@ The ``create job`` command facilitates the addition of a new job to SkyFlow, ena
 job execution within the specified or default namespace, leveraging Docker images, and 
 customizing resources.
 The job will be scheduled to run on a specific cluster based on the specified resources and
-replicas. In the future, Skyflow will take into account data locality among other factors to
+replicas. In the future, Skyshift will take into account data locality among other factors to
 schedule the job on the most suitable cluster.
 
 **Usage:**

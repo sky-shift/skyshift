@@ -33,7 +33,7 @@ def verify_response(input_data):
 
 
 def fetch_context(admin_config: dict) -> dict:
-    """Fetches the context from the Skyflow config."""
+    """Fetches the context from the Skyshift config."""
     target_context = admin_config.get('current_context', None)
     users = admin_config.get('users', [])
     if not users:

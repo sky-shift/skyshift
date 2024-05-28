@@ -6,9 +6,9 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'SkyFlow'
-copyright = '2024, SkyFlow Team'
-author = 'The Skyflow Authors'
+project = 'Skyshift'
+copyright = '2024, Skyshift Team'
+author = 'The Skyshift Authors'
 release = 'v0.0.0'
 
 # -- General configuration ---------------------------------------------------
@@ -38,6 +38,6 @@ html_theme_options = {
     'pygment_dark_style': 'monokai',
 }
 html_static_path = ['_static']
-html_title = 'SkyFlow'
+html_title = 'Skyshift'
 
 sphinx_tabs_valid_builders = ['linkcheck']

@@ -19,7 +19,7 @@ SKY_MANAGER_CONTROLLERS = [
 
 def launch_sky_manager():
     """
-    Launches the Skyflow Manager, which manages Skylets, Schedulers, and Links.
+    Launches the Skyshift Manager, which manages Skylets, Schedulers, and Links.
     """
     # Launch SkyletController, which manages Skylets.
     try:

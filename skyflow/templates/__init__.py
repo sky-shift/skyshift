@@ -1,5 +1,5 @@
 """
-Init module for Skyflow object templates.
+Init module for Skyshift object templates.
 """
 from skyflow.templates.cluster_template import (Cluster, ClusterException,
                                                 ClusterList, ClusterStatus,

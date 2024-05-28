@@ -15,7 +15,7 @@ To launch the API server, run:
 .. code-block:: shell
 
     # This will automatically install ETCD and launch the API server.
-    cd skyflow
+    cd skyshift
     nohup python api_server/lauch_server.py > /dev/null 2>&1 &
 
 .. note::
@@ -26,7 +26,7 @@ To launch the controller manager, run:
 .. code-block:: shell
 
     # This will automatically install ETCD and launch the API server.
-    cd skyflow
-    nohup python skyflow/lauch_sky_manager.py > /dev/null 2>&1 &
+    cd skyshift
+    nohup python skyshift/lauch_sky_manager.py > /dev/null 2>&1 &
 
 The controller manager will automatically detect Kubernetes clusters in ``~/.kube/config``.

@@ -1,5 +1,5 @@
 """
-Utils module - Generic Skyflow utils.
+Utils module - Generic Skyshift utils.
 """
 from skyflow.utils.utils import (fuzzy_map_gpu, load_object, match_labels,
                                  sanitize_cluster_name,

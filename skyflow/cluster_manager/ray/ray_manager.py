@@ -1,5 +1,5 @@
 """
-Ray compatibility layer for Skyflow. 
+Ray compatibility layer for Skyshift. 
 This module provides a compatibility layer for Ray cluster manager using as backbone
 the Ray Job Submission Server.
 https://docs.ray.io/en/latest/cluster/running-applications/job-submission/sdk.html

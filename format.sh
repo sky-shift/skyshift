@@ -77,7 +77,7 @@ format_changed() {
 
 # Format all files
 format_all() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" api_server examples skyflow
+    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" api_server examples Skyshift
 }
 
 ## This flag formats individual files. --files *must* be the first command line
@@ -92,28 +92,28 @@ else
    # Format only the files that changed in last commit.
    format_changed
 fi
-echo '[Done] SkyFlow yapf'
+echo '[Done] Skyshift yapf'
 
 #==============================================================================#
 # Run Isort
 ISORT_YAPF_EXCLUDES=(
 )
 
-echo 'SkyFlow isort:'
-isort api_server skyflow  "${ISORT_YAPF_EXCLUDES[@]}"
-echo '[Done] SkyFlow isort:'
+echo 'Skyshift isort:'
+isort api_server Skyshift  "${ISORT_YAPF_EXCLUDES[@]}"
+echo '[Done] Skyshift isort:'
 
 #==============================================================================#
 # Run mypy
 echo 'SkyPilot mypy:'
-mypy api_server skyflow --show-traceback
-echo '[Done] SkyFlow mypy'
+mypy api_server Skyshift --show-traceback
+echo '[Done] Skyshift mypy'
 
 #==============================================================================#
 # Run Pylint
-echo 'SkyFlow Pylint:'
-pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code skyflow api_server examples
-echo '[Done] SkyFlow Pylint'
+echo 'Skyshift Pylint:'
+pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code Skyshift api_server examples
+echo '[Done] Skyshift Pylint'
 
 #==============================================================================#
 

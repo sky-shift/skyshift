@@ -217,7 +217,7 @@ class ClusterSpec(ObjectSpec):
             if manager_type in SLURM_MANAGERS:
                 return SLURM_CONFIG_DEFAULT_PATH
             if manager_type.lower() == 'skyflow':
-                return 'Skyflow'
+                return 'Skyshift'
             raise ValueError(
                 f"Manager type '{manager_type}' is not supported.")
         return config_path

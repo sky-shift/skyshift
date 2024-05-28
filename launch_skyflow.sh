@@ -1,10 +1,10 @@
 #!/bin/bash
-# Automatic script to launch Skyflow's API server and controller manager.
+# Automatic script to launch Skyshift's API server and controller manager.
 #
 # Usage:
-#    # Launch Skyflow with desired # of workers and logging behavior.
+#    # Launch Skyshift with desired # of workers and logging behavior.
 #    bash launch_skyflow.sh --workers <num_workers> --log <file|stdout|none>
-#    # Kill Skyflow API server and controller manager.
+#    # Kill Skyshift API server and controller manager.
 #    bash launch_skyflow.sh --kill
 
 # Default arguments
@@ -81,7 +81,7 @@ launch_skyflow() {
 
 # Function to kill programs and ensure they are terminated
 terminate_skyflow() {
-  echo "Terminating Skyflow processes..."
+  echo "Terminating Skyshift processes..."
   # Get PID of server
   pkill -9 -f "launch_sky_manager.py"
   server_pid=$(pgrep -f launch_server.py)
@@ -102,7 +102,7 @@ terminate_skyflow() {
     sleep 1
   done
 
-  echo "Skyflow processes terminated successfully."
+  echo "Skyshift processes terminated successfully."
 }
 
 # Parse the command-line arguments

@@ -1,5 +1,5 @@
 """
-Event template for Skyflow.
+Event template for Skyshift.
 """
 import enum
 from typing import Generic, TypeVar
@@ -29,7 +29,7 @@ class WatchEventEnum(enum.Enum):
 
 
 class WatchEvent(BaseModel, Generic[GenericType]):
-    """Watch event for Skyflow."""
+    """Watch event for Skyshift."""
     kind: str = Field(default="WatchEvent")
     event_type: str
     object: GenericType

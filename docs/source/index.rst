@@ -1,4 +1,4 @@
-.. Skyflow documentation master file, created by
+.. Skyshift documentation master file, created by
    sphinx-quickstart on Wed Mar 13 06:14:40 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
@@ -6,7 +6,7 @@
 Overview
 ===================================
 
-SkyFlow is a general-purpose container orchestration platform to deploy workloads *anywhere* - on any cloud provider, private cluster, or the edge. The vision of Skyflow is to complete the final layer of distributed computing - *automatically* managing the lifecycle of deployments, batch jobs, and services across multiple clusters.
+SkyFlow is a general-purpose container orchestration platform to deploy workloads *anywhere* - on any cloud provider, private cluster, or the edge. The vision of Skyshift is to complete the final layer of distributed computing - *automatically* managing the lifecycle of deployments, batch jobs, and services across multiple clusters.
 
 SkyFlow abstracts many clusters into one large cluster. SkyFlow presents a thin layer on top of existing cluster managers, such as Kubernetes, Slurm, and other SkyFlows, which presents infinite scalability. SkyFlow accomplishes this with a unified job and service abstraction.
 
@@ -38,7 +38,7 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
-   :caption: Using Skyflow
+   :caption: Using Skyshift
 
    cli/clusters.rst
    cli/jobs.rst

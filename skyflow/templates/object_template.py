@@ -20,8 +20,8 @@ class ObjectName(BaseModel, validate_assignment=True):
     @classmethod
     def verify_name(cls, value: str) -> str:
         """
-        Validates if the provided name is a valid Skyflow object name.
-        Skyflow object names must:
+        Validates if the provided name is a valid Skyshift object name.
+        Skyshift object names must:
         - contain only lowercase alphanumeric characters or '-'
         - start and end with an alphanumeric character
         - be no more than 63 characters long
@@ -69,8 +69,8 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     @classmethod
     def verify_name(cls, value: str) -> str:
         """
-        Validates if the provided name is a valid Skyflow object name.
-        Skyflow object names must:
+        Validates if the provided name is a valid Skyshift object name.
+        Skyshift object names must:
         - contain only lowercase alphanumeric characters or '-'
         - start and end with an alphanumeric character
         - be no more than 63 characters long

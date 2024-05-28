@@ -1,4 +1,4 @@
-"""User template for Skyflow."""
+"""User template for Skyshift."""
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field

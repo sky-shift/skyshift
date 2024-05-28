@@ -21,7 +21,7 @@ VALID_OBJECT_CLASSES = [
 
 
 class ActionEnum(enum.Enum):
-    """Types of actions performed on Skyflow objects."""
+    """Types of actions performed on Skyshift objects."""
     CREATE = "create"
     GET = "get"
     LIST = "list"
