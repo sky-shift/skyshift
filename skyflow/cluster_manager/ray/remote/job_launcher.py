@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import subprocess
 import sys
 from typing import Dict
@@ -19,6 +20,20 @@ def check_nvidia_smi() -> bool:
         return False
 
 
+# Assumes gcsfuse and fuse are installed on the system
+def mount_bucket(bucket_name: str, local_mapping: str) -> None:
+    """
+    Mount the GCS bucket using gcsfuse.
+    """
+    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping}"
+    try:
+        subprocess.run(command, shell=True, check=True)
+        print(f"Mounted bucket {bucket_name} to {local_mapping}")
+    except subprocess.CalledProcessError as error:
+        print(f"Error mounting bucket: {error}")
+        sys.exit(1)
+
+
 def run_docker_container(job: Dict) -> int:
     """
     Run the specified Docker container with the required parameters and output the logs.
@@ -27,13 +42,22 @@ def run_docker_container(job: Dict) -> int:
     envs = job['spec']['envs']
     ports = job['spec']['ports']
     run_command = job['spec']['run']
+    volumes: dict = job['spec']['volumes']
 
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
+    volume_mappings = ''
+
+    for bucket_name, volume in volumes.items():
+        local_dir = f"{os.environ['HOME']}/.Skyflow/{bucket_name}"
+        subprocess.run(f"mkdir -p {local_dir}", shell=True)
+        volume_mappings += f" -v {local_dir}:{volume['container_dir']}"
+        mount_bucket(bucket_name, local_dir)
 
     command = f"""docker run {'--gpus all' if check_nvidia_smi() else ''} \
                 {env_vars} \
                 {port_mappings} \
+                {volume_mappings} \
                 {image} \
                 {run_command}
                 """
