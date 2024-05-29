@@ -21,7 +21,8 @@ def check_nvidia_smi() -> bool:
 
 
 # Assumes that the required tools are installed on the system
-def mount_bucket(bucket_name: str, local_mapping: str, storage_type: str, config: Dict) -> None:
+def mount_bucket(bucket_name: str, local_mapping: str, storage_type: str,
+                 config: Dict) -> None:
     """
     Mount the bucket using the appropriate tool based on the storage type.
     """
@@ -36,7 +37,8 @@ def mount_bucket(bucket_name: str, local_mapping: str, storage_type: str, config
 
     try:
         subprocess.run(command, shell=True, check=True)
-        print(f"Mounted {storage_type} bucket {bucket_name} to {local_mapping}")
+        print(
+            f"Mounted {storage_type} bucket {bucket_name} to {local_mapping}")
     except subprocess.CalledProcessError as error:
         print(f"Error mounting {storage_type} bucket: {error}")
         sys.exit(1)

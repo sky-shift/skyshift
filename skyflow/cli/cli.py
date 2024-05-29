@@ -482,12 +482,15 @@ def delete_cluster(name: str):
               default="Always",
               show_default=True,
               help="Restart policy for job tasks.")
-@click.option("--volumes",
-              "-v",
-              type=(str, str, str, str),
-              multiple=True,
-              default=[],
-              help="Volume mounts for the job. Format: <bucket_name> <container_dir> <storage_type> <config_json>")
+@click.option(
+    "--volumes",
+    "-v",
+    type=(str, str, str, str),
+    multiple=True,
+    default=[],
+    help=
+    "Volume mounts for the job. Format: <bucket_name> <container_dir> <storage_type> <config_json>"
+)
 @halo_spinner("Creating job")
 def create_job(
     name,
@@ -552,15 +555,17 @@ def create_job(
     volumes_dict = {}
     for bucket, container_dir, storage_type, config_json in volumes:
         try:
-            config = json.loads(config_json) if config_json else {}
-        except json.JSONDecodeError:
+            bucket_config = json.loads(config_json) if config_json else {}
+        except json.JSONDecodeError as error:
             spinner.fail(f"Invalid JSON format for config in volume {bucket}.")
-            raise click.BadParameter(f"Invalid JSON format for config in volume {bucket}.")
+            raise click.BadParameter(
+                f"Invalid JSON format for config in volume {bucket}."
+            ) from error
 
         volumes_dict[bucket] = {
             'container_dir': container_dir,
             'storage_type': storage_type,
-            'config': config
+            'config': bucket_config
         }
 
     job_dictionary = {

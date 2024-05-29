@@ -14,7 +14,8 @@ from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
                                                ObjectException, ObjectList,
                                                ObjectName, ObjectSpec,
                                                ObjectStatus)
-from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum, StorageEnum
+from skyflow.templates.resource_template import (AcceleratorEnum, ResourceEnum,
+                                                 StorageEnum)
 
 DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
@@ -363,31 +364,36 @@ class JobSpec(ObjectSpec):
         """
         for volume_name, volume in volumes.items():
             if 'container_dir' not in volume:
-                raise ValueError(f"Volume {volume_name} is missing required field \
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field \
                                  `container_dir`.")
-            
+
             if 'storage_type' not in volume:
-                raise ValueError(f"Volume {volume_name} is missing required field \
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field \
                                  `storage_type`.")
-            
+
             storage_type = volume['storage_type']
-            if storage_type not in StorageEnum._value2member_map_:
-                raise ValueError(f"Volume {volume_name} has invalid `storage_type`. \
-                                 Must be one of {[e.value for e in StorageEnum]}.")
-            
+            if storage_type not in {e.value for e in StorageEnum}:
+                raise ValueError(
+                    f"Volume {volume_name} has invalid `storage_type`. "
+                    f"Must be one of {[e.value for e in StorageEnum]}.")
+
             if 'config' not in volume:
-                raise ValueError(f"Volume {volume_name} is missing required field \
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field \
                                  `config`.")
-            
+
             try:
                 config = json.loads(volume['config']) if isinstance(volume['config'], str) \
                     else volume['config']
                 if not isinstance(config, dict):
-                    raise ValueError(f"Volume {volume_name} has invalid `config`. \
+                    raise ValueError(
+                        f"Volume {volume_name} has invalid `config`. \
                                      Must be a JSON object.")
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as error:
                 raise ValueError(f"Volume {volume_name} has invalid `config`. \
-                                 Must be a valid JSON string.")
+                                 Must be a valid JSON string.") from error
 
         return volumes
 
