@@ -3,6 +3,16 @@ Resource template for Skyflow.
 """
 import enum
 
+class StorageEnum(enum.Enum):
+    """Enum for supported storage types."""
+    S3 = "s3"
+    AZURE = "azure"
+    GCS = "gcs"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
 
 class CRIEnum(enum.Enum):
     """Enum for upported container runtime interfaces (CRI)."""

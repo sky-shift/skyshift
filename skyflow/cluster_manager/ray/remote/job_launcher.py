@@ -20,23 +20,31 @@ def check_nvidia_smi() -> bool:
         return False
 
 
-# Assumes gcsfuse and fuse are installed on the system
-def mount_bucket(bucket_name: str, local_mapping: str) -> None:
+# Assumes that the required tools are installed on the system
+def mount_bucket(bucket_name: str, local_mapping: str, storage_type: str, config: Dict) -> None:
     """
-    Mount the GCS bucket using gcsfuse.
+    Mount the bucket using the appropriate tool based on the storage type.
     """
-    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping} > /dev/null 2>&1"
+    if storage_type == 'gcs':
+        command = f"gcsfuse -o allow_other {bucket_name} {local_mapping} > /dev/null 2>&1"
+    elif storage_type == 's3':
+        command = f"goofys {bucket_name} {local_mapping} > /dev/null 2>&1"
+    elif storage_type == 'azure':
+        command = f"blobfuse {local_mapping} --container-name={bucket_name} --tmp-path=/mnt/resource/blobfusetmp --config-file={config.get('config_file', '')} > /dev/null 2>&1"
+    else:
+        raise ValueError(f"Unsupported storage type: {storage_type}")
+
     try:
         subprocess.run(command, shell=True, check=True)
-        print(f"Mounted bucket {bucket_name} to {local_mapping}")
+        print(f"Mounted {storage_type} bucket {bucket_name} to {local_mapping}")
     except subprocess.CalledProcessError as error:
-        print(f"Error mounting bucket: {error}")
+        print(f"Error mounting {storage_type} bucket: {error}")
         sys.exit(1)
 
 
 def unmount_bucket(local_mapping: str) -> None:
     """
-    Unmount the GCS bucket using fusermount.
+    Unmount the bucket using fusermount.
     """
     command = f"fusermount -u {local_mapping} > /dev/null 2>&1"
     try:
@@ -62,10 +70,12 @@ def run_docker_container(job: Dict) -> int:
     volume_mappings = ''
 
     for bucket_name, volume in volumes.items():
+        storage_type = volume['storage_type']
+        config = volume.get('config', {})
         local_dir = f"{os.environ['HOME']}/.Skyflow/{bucket_name}"
         subprocess.run(f"mkdir -p {local_dir}", shell=True)
         volume_mappings += f" -v {local_dir}:{volume['container_dir']}"
-        mount_bucket(bucket_name, local_dir)
+        mount_bucket(bucket_name, local_dir, storage_type, config)
 
     command = f"""docker run {'--gpus all' if check_nvidia_smi() else ''} \
                 {env_vars} \
@@ -101,7 +111,9 @@ def run_docker_container(job: Dict) -> int:
     if return_code != 0:
         print(f"Container exited with error code: {return_code}")
 
-    unmount_bucket(local_dir)
+    for bucket_name in volumes.keys():
+        local_dir = f"{os.environ['HOME']}/.Skyflow/{bucket_name}"
+        unmount_bucket(local_dir)
 
     return return_code
 
