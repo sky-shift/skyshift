@@ -45,7 +45,7 @@ def _setup_sky_manager(num_workers: int = 16):
         os.path.join(current_directory, LAUNCH_SCRIPT_REL_PATH))
 
     workers_param_str = str(num_workers)
-    command = ["bash", install_script_path, "--workers", workers_param_str]
+    command = ["bash", install_script_path, "--workers", workers_param_str, "--log"]
     print(f"Setup up sky manager command:'{command}'.")
 
     process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
@@ -90,27 +90,74 @@ def _load_batch_job():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def etcd_backup_and_restore():
-    """Create/teardown new environment for each test."""
-    with tempfile.TemporaryDirectory() as temp_data_dir:
-        assert tests_utils.create_cluster("test-cluster-1") is True
-        assert tests_utils.create_cluster("test-cluster-2") is True
+def setup_and_shutdown():
+     with tempfile.TemporaryDirectory() as temp_data_dir:
+         # Kill any running sky_manager processes
+         _breakdown_sky_manager()
+         print("Sky manager clean up complete.")
 
-        with open(os.path.expanduser("~/.kube/config"), "r") as file:
-            print(file.read())
+         # Clean up from previous test
+         _breakdown_kind_clusters()
+         print("Kind clusters clean up complete.")
 
-        tests_utils.setup_skyflow(temp_data_dir)
+         # Setup clusters to use for testing
+         _setup_kind_clusters()
+         print("Kind clusters setup complete.")
+         # @TODO(dmatch01) Remove sleep after #191 issue is resolved
+         time.sleep(30)
 
-        yield  # Test execution happens here
+         # Setup and run Sky Manager
+         _setup_sky_manager()
 
-        tests_utils.shutdown_skyflow(temp_data_dir)
+         print(
+             "Setup up sky manager and kind clusters completed.  Testing begins..."
+         )
 
-        tests_utils.delete_cluster("test-cluster-1")
-        tests_utils.delete_cluster("test-cluster-2")
+         yield  # Test execution happens here
 
-        config_path = os.path.expanduser('~/.skyconf/config.yaml')
-        subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
-        print("Cleaned up temporary ETCD data directory.")
+         with open("api_server.log", "r") as file:
+             print("API Server Log")
+             print(file.read())
+
+         with open("sky_manager.log", "r") as file:
+             print("SkyManager Log")
+             print(file.read())
+
+         print("Test clean up begins.")
+
+         # Kill any running sky_manager processes
+         _breakdown_sky_manager()
+         print("Cleaned up sky manager and API Server.")
+
+         # Cleanup kind clusters after test
+         _breakdown_kind_clusters()
+         print("Cleaned up kind clusters.")
+
+         # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
+         subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
+         print("Cleaned up ETCD.")
+
+# def etcd_backup_and_restore():
+#     """Create/teardown new environment for each test."""
+#     with tempfile.TemporaryDirectory() as temp_data_dir:
+#         assert tests_utils.create_cluster("test-cluster-1") is True
+#         assert tests_utils.create_cluster("test-cluster-2") is True
+
+#         with open(os.path.expanduser("~/.kube/config"), "r") as file:
+#             print(file.read())
+
+#         tests_utils.setup_skyflow(temp_data_dir)
+
+#         yield  # Test execution happens here
+
+#         tests_utils.shutdown_skyflow(temp_data_dir)
+
+#         tests_utils.delete_cluster("test-cluster-1")
+#         tests_utils.delete_cluster("test-cluster-2")
+
+#         config_path = os.path.expanduser('~/.skyconf/config.yaml')
+#         subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
+#         print("Cleaned up temporary ETCD data directory.")
 
 
 @pytest.fixture(name="runner")
