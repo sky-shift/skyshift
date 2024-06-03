@@ -10,7 +10,6 @@ spec:
   image: ubuntu:latest
   resources:
     cpus: 1
-    memory: 128
   env:
     - HELLO_SKY: "hello_sky"
   run: 'echo $HELLO_SKY; sleep 300'
