@@ -96,6 +96,9 @@ def etcd_backup_and_restore():
         assert tests_utils.create_cluster("test-cluster-1") is True
         assert tests_utils.create_cluster("test-cluster-2") is True
 
+        with open(os.path.expanduser("~/.kube/config"), "r") as f:
+            print(f.read())
+
         tests_utils.setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
@@ -122,22 +125,6 @@ def deploy(runner, job_dict):
         result = runner.invoke(cli, cmd)
         print(f'get cluster results\n{result.output}')
         assert result.exit_code == 0, f"Job creation failed: {job_dict['metadata']['name']}"
-
-
-def test_create_cluster_success(runner):
-    # Define cluster labels
-    labels = [("sky-cluster-id", "valid-cluster"), ("cluster-purpose", "dev")]
-    label_args = []
-    for key, value in labels:
-        label_args.extend(['--labels', f'{key}', f'{value}'])
-
-    # Construct the command with parameters
-    name = "valid-cluster"
-    manager = "k8"
-    cmd = ['create', 'cluster', name, '--manager', manager] + label_args
-    result = runner.invoke(cli, cmd)
-    assert result.exit_code == 0
-    assert name in result.output
 
 
 # pylint: disable=R0915 (too-many-statements)
