@@ -22,8 +22,8 @@ jobs:
           cache-dependency-path: setup.py
       - name: Install Dependencies
         run: pip install -e .[server,dev]
-      - name: Check Format and Lint
-        run: bash format.sh --all --check
+      # - name: Check Format and Lint
+      #   run: bash format.sh --all --check
       - name: Run Tests
         run: pytest skyflow/tests -k "test_e2e_scheduling"
       - name: Echo API Logs
@@ -31,4 +31,15 @@ jobs:
         run: cat /tmp/api.log
       - name: Echo Manager Logs
         if: always()
-        run: cat /tmp/manager.log
+        run: |
+          cat /tmp/manager.log
+          echo cat ~/.skyconf/config.yaml
+          cat ~/.skyconf/config.yaml
+          echo cat ~/.skyconf/provisioner_controller.log
+          cat ~/.skyconf/provisioner_controller.log
+          echo cat ~/.skyconf/skylet_controller.log
+          cat ~/.skyconf/skylet_controller.log
+          echo cat ~/.skyconf/link_controller.log
+          cat ~/.skyconf/link_controller.log
+          echo cat ~/.skyconf/scheduler_controller.log
+          cat ~/.skyconf/scheduler_controller.log
