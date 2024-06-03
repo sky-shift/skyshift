@@ -2,10 +2,10 @@
     Tests for CLI interface. Mostly integration tests with the API server and ETCD.
 
     To test, run:
-    pytest skyflow/tests/cli_tests.py
+    pytest skyflow/tests/test_cli.py
 
     and for running a specific test:
-    pytest skyflow/tests/cli_tests.py::test_create_cluster_success
+    pytest skyflow/tests/test_cli.py::test_create_cluster_success
 """
 import json
 import os

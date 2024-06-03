@@ -135,6 +135,15 @@ def fixture_runner():
     return CliRunner()
 
 
+def deploy(runner, job_dict):
+    with tempfile.NamedTemporaryFile('w') as temp_file:
+        yaml.dump(job_dict, temp_file)
+        cmd = ['apply', '-f', temp_file.name]
+        result = runner.invoke(cli, cmd)
+        print(f'get cluster results\n{result.output}')
+        assert result.exit_code == 0, f"Job creation failed: {job_dict['metadata']['name']}"
+
+
 # pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_label(runner):
     # Construct the command with parameters
@@ -230,13 +239,8 @@ def test_filter_with_match_label(runner):
     }
 
     # create temporary file
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying unschedulable cluster filtering workload')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'get cluster results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying unschedulable cluster filtering workload')
+    deploy(runner, job_dict)
 
     print(
         f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed."
@@ -269,13 +273,8 @@ def test_filter_with_match_label(runner):
     }
 
     # Deploy schedulable workload
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying schedulable filtering workload')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'get cluster results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying schedulable filtering workload')
+    deploy(runner, job_dict)
 
     print(
         f"Waiting for 10 seconds to allow for job {batch_job_name} to get deployed."
@@ -336,13 +335,8 @@ def test_filter_with_match_expression(runner):
         }]
     }
 
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying unschedulable cluster filtering workload')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'get cluster results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying unschedulable cluster filtering workload')
+    deploy(runner, job_dict)
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
@@ -378,13 +372,8 @@ def test_filter_with_match_expression(runner):
         }]
     }
 
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying schedulable cluster filtering workload')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'get cluster results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying schedulable cluster filtering workload')
+    deploy(runner, job_dict)
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
@@ -430,13 +419,8 @@ def test_preference(runner):
         }]
     }
 
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying workload with dev preferences.')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'apply results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying workload with dev preferences.')
+    deploy(runner, job_dict)
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
@@ -473,13 +457,8 @@ def test_preference(runner):
         }]
     }
 
-    with tempfile.NamedTemporaryFile('w', delete=True) as temp_file:
-        yaml.dump(job_dict, temp_file)
-        print('Deploying workload with staging preferences.')
-        cmd = ['apply', '-f', temp_file.name]
-        result = runner.invoke(cli, cmd)
-        print(f'apply results\n{result.output}')
-        assert result.exit_code == 0, f'Job creation failed: {batch_job_name}'
+    print('Deploying workload with staging preferences.')
+    deploy(runner, job_dict)
 
     print("Waiting for 15 seconds to allow for job to get deployed.")
     # @TODO(dmatch01): Change sleep to code for job running with timeout
