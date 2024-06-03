@@ -112,6 +112,8 @@ def setup_and_shutdown():
     # Setup and run Sky Manager
     _setup_sky_manager()
 
+    time.sleep(30)
+
     print(
         "Setup up sky manager and kind clusters completed.  Testing begins...")
 
