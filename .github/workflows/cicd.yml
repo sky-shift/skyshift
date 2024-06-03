@@ -28,7 +28,7 @@ jobs:
         run: pytest skyflow/tests -k "test_e2e_scheduling"
       - name: Echo API Logs
         if: always()
-        run: echo /tmp/api.log
+        run: cat /tmp/api.log
       - name: Echo Manager Logs
         if: always()
-        run: echo /tmp/manager.log
+        run: cat /tmp/manager.log
