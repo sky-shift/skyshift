@@ -6,7 +6,7 @@ from typing import Any, List, Tuple
 from kubernetes import config
 
 from skyflow.api_client.cluster_api import ClusterAPI
-from skyflow.globals import KUBE_CONFIG_DEFAULT_PATH
+from skyflow.globals import K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH
 from skyflow.utils.utils import sanitize_cluster_name
 
 
@@ -44,8 +44,9 @@ def lookup_kube_config(cluster_api: ClusterAPI) -> List[Any]:
     existing_configs = {KUBE_CONFIG_DEFAULT_PATH}
     cluster_list = cluster_api.list().objects
     for cluster in cluster_list:
-        if cluster.spec.config_path:
-            existing_configs.add(cluster.spec.config_path)
+        if cluster.spec.manager in K8_MANAGERS:
+            if cluster.spec.config_path:
+                existing_configs.add(cluster.spec.config_path)
 
     context_to_config = {}
     for cfg in existing_configs:

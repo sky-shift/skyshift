@@ -219,6 +219,8 @@ def colorize_status(status: str) -> str:
         return f"{Fore.GREEN}{status}{Style.RESET_ALL}"
     if status in [ClusterStatusEnum.ERROR.value, TaskStatusEnum.FAILED.value]:
         return f"{Fore.RED}{status}{Style.RESET_ALL}"
+    if status in [TaskStatusEnum.COMPLETED.value]:
+        return f"{Fore.CYAN}{status}{Style.RESET_ALL}"
     return f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
 
 
