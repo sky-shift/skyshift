@@ -25,4 +25,4 @@ jobs:
       - name: Check Format and Lint
         run: bash format.sh --all --check
       - name: Run Tests
-        run: pytest skyflow/tests -k "test_e2e_scheduling"
+        run: pytest skyflow/tests -k "test_cli"
