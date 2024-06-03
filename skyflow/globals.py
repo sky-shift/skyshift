@@ -11,7 +11,7 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
-RAY_MANAGERS = ["ray"]
+RAY_MANAGERS = ("ray", "rayctl")
 RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
 
 DEFAULT_NAMESPACE = "default"
@@ -22,7 +22,7 @@ KUBE_CONFIG_DEFAULT_PATH = "~/.kube/config"
 SLURM_MANAGERS = ('slurm', 'slurmctl')
 SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
 
-SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS
+SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
 CLUSTER_TIMEOUT = 10  # seconds
 

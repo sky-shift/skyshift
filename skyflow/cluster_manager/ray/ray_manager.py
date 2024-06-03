@@ -85,6 +85,7 @@ class RayManager(Manager):
                 self.logger.error(
                     "Failed to initialize Ray client. Exiting...")
                 raise RayConnectionError("Failed to initialize Ray client.")
+        self.logger.info("Ray client initialized.")
 
     def _setup(self, ssh_client: paramiko.SSHClient):
         """
@@ -187,6 +188,10 @@ class RayManager(Manager):
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py")
         logging.debug("Cluster resources: %s", resources)
+        #Disk resources are fetched as bytes, convert to MB
+        for node_resources in resources.values():
+            node_resources[ResourceEnum.DISK.value] = node_resources[
+                ResourceEnum.DISK.value] / 1024 / 1024
         return fuzzy_map_gpu(resources)
 
     @property
@@ -196,6 +201,10 @@ class RayManager(Manager):
         """
         resources = self._submit_and_fetch_logs("fetch_resources.py",
                                                 "--available")
+        #Disk resources are fetched as bytes, convert to MB
+        for node_resources in resources.values():
+            node_resources[ResourceEnum.DISK.value] = node_resources[
+                ResourceEnum.DISK.value] / 1024 / 1024
         logging.debug("Cluster allocatable resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
@@ -235,6 +244,12 @@ class RayManager(Manager):
                 f"Fetched logs for job {job_id} on the Ray cluster.")
         except Exception as e:
             self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
+
+        try:
+            self.client.stop_job(job_id)
+            self.client.delete_job(job_id)
+        except RuntimeError as error:
+            self.logger.error(f"Failed to stop job {job_id}: {error}")
 
         return logs
 

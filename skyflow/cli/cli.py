@@ -276,6 +276,13 @@ cli.add_command(apply_config)
     help=
     'SSH key to use for Ray clusters. It can be a path to a file or the key itself'
 )
+@click.option('--config',
+              '-c',
+              '-C',
+              default="",
+              show_default=True,
+              required=False,
+              help='Config file for the cluster.')
 @click.option('--host',
               '-h',
               '--hostname',
@@ -298,7 +305,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
         memory: str, disk_size: int, accelerators: str, ports: List[str],
         num_nodes: int, cloud: str, region: str, provision: bool,
-        ssh_key_path: str, host: str, username: str, spinner):
+        ssh_key_path: str, config: str, host: str, username: str, spinner):  # pylint: disable=redefined-outer-name
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
@@ -362,7 +369,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
             'username':
             username,
             'config_path':
-            "~/.kube/config" if not provision else
+            config if not provision else
             f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
         },
     }
@@ -475,6 +482,12 @@ def delete_cluster(name: str):
               default="Always",
               show_default=True,
               help="Restart policy for job tasks.")
+@click.option("--volumes",
+              "-v",
+              type=(str, str),
+              multiple=True,
+              default=[],
+              help="Volume mounts for the job.")
 @halo_spinner("Creating job")
 def create_job(
     name,
@@ -490,6 +503,7 @@ def create_job(
     replicas,
     restart_policy,
     spinner,
+    volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Adds a new job."""
     from skyflow.cli.cli_utils import \
@@ -498,6 +512,7 @@ def create_job(
         ResourceEnum  # pylint: disable=import-outside-toplevel
 
     # Validate inputs
+
     if not validate_input_string(name):
         spinner.fail("Invalid name format.")
         raise click.BadParameter("Invalid name format.")
@@ -543,6 +558,8 @@ def create_job(
         },
         "spec": {
             "image": image,
+            "volumes": {bucket: {'container_dir': container_dir} \
+                         for bucket, container_dir in volumes},
             "envs": envs,
             "resources": resource_dict,
             "run": run,

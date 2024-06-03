@@ -91,6 +91,32 @@ def get_scp_sync(scp_client_instance: SCPClient, file_path_dict: Dict[str,
                                 local_path=local_file_path)
 
 
+def send_scp_async(ssh_client_instance: paramiko.SSHClient,
+                   file_path_dict: Dict[str, str]):
+    """
+    Asynchronous file transfer, spawns multiple SCP clients to transfer files.
+    Args:
+        ssh_client_instance: Paramiko SSHClient object.
+        file_path_dict: Dict of local file paths and remote file paths.
+    """
+    scp_structs = convert_file_path_dict_to_struct(file_path_dict,
+                                                   FileDirEnum.SEND)
+    start_scp_threads(ssh_client_instance, scp_structs)
+
+
+def get_scp_async(ssh_client_instance: paramiko.SSHClient,
+                  file_path_dict: Dict[str, str]):
+    """
+    Asynchronous file transfer, spawns multiple SCP clients to transfer files.
+    Args:
+        ssh_client_instance: Paramiko SSHClient object.
+        file_path_dict: Dict of remote file paths and local file paths.
+    """
+    scp_structs = convert_file_path_dict_to_struct(file_path_dict,
+                                                   FileDirEnum.RECEIVE)
+    start_scp_threads(ssh_client_instance, scp_structs)
+
+
 def wait_until_file_received(sftp: Optional[paramiko.SFTPClient],
                              local_file: str, remote_file: str):
     """
@@ -167,7 +193,6 @@ class FileTransferStruct:
 class SCPTransferThread(Thread):
     """
     Spawn multiple SCP clients to multithread file transfers.
-    TODO: Async thread spawn and join after done
     """
 
     def __init__(self, scp_client_instance: SCPClient,
@@ -187,6 +212,25 @@ class SCPTransferThread(Thread):
                                          self.file_struct.local_file,
                                          preserve_times=True,
                                          recursive=False)
+
+
+def convert_file_path_dict_to_struct(
+        file_path_dict: Dict[str, str],
+        direction: FileDirEnum) -> List[FileTransferStruct]:
+    """
+        Converts a dictionary of file paths to a list of file transfer structs.
+        Args:
+            file_path_dict: Dict of local file paths and remote file paths.
+            direction: Enum of whether we are sending or recieving files.
+        Returns:
+            List of file transfer structs.
+    """
+    file_structs = []
+    for local_file_path in file_path_dict:
+        remote_file_path = file_path_dict[local_file_path]
+        file_structs.append(
+            FileTransferStruct(local_file_path, remote_file_path, direction))
+    return file_structs
 
 
 def start_scp_threads(ssh_client_instance: paramiko.SSHClient,
