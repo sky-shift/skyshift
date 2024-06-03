@@ -45,7 +45,9 @@ def _setup_sky_manager(num_workers: int = 16):
         os.path.join(current_directory, LAUNCH_SCRIPT_REL_PATH))
 
     workers_param_str = str(num_workers)
-    command = ["bash", install_script_path, "--workers", workers_param_str, "--log"]
+    command = [
+        "bash", install_script_path, "--workers", workers_param_str, "--log"
+    ]
     print(f"Setup up sky manager command:'{command}'.")
 
     process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
@@ -91,51 +93,50 @@ def _load_batch_job():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_shutdown():
-     with tempfile.TemporaryDirectory() as temp_data_dir:
-         # Kill any running sky_manager processes
-         _breakdown_sky_manager()
-         print("Sky manager clean up complete.")
+    # Kill any running sky_manager processes
+    _breakdown_sky_manager()
+    print("Sky manager clean up complete.")
 
-         # Clean up from previous test
-         _breakdown_kind_clusters()
-         print("Kind clusters clean up complete.")
+    # Clean up from previous test
+    _breakdown_kind_clusters()
+    print("Kind clusters clean up complete.")
 
-         # Setup clusters to use for testing
-         _setup_kind_clusters()
-         print("Kind clusters setup complete.")
-         # @TODO(dmatch01) Remove sleep after #191 issue is resolved
-         time.sleep(30)
+    # Setup clusters to use for testing
+    _setup_kind_clusters()
+    print("Kind clusters setup complete.")
+    # @TODO(dmatch01) Remove sleep after #191 issue is resolved
+    time.sleep(30)
 
-         # Setup and run Sky Manager
-         _setup_sky_manager()
+    # Setup and run Sky Manager
+    _setup_sky_manager()
 
-         print(
-             "Setup up sky manager and kind clusters completed.  Testing begins..."
-         )
+    print(
+        "Setup up sky manager and kind clusters completed.  Testing begins...")
 
-         yield  # Test execution happens here
+    yield  # Test execution happens here
 
-         with open("api_server.log", "r") as file:
-             print("API Server Log")
-             print(file.read())
+    with open("api_server.log", "r") as file:
+        print("API Server Log")
+        print(file.read())
 
-         with open("sky_manager.log", "r") as file:
-             print("SkyManager Log")
-             print(file.read())
+    with open("sky_manager.log", "r") as file:
+        print("SkyManager Log")
+        print(file.read())
 
-         print("Test clean up begins.")
+    print("Test clean up begins.")
 
-         # Kill any running sky_manager processes
-         _breakdown_sky_manager()
-         print("Cleaned up sky manager and API Server.")
+    # Kill any running sky_manager processes
+    _breakdown_sky_manager()
+    print("Cleaned up sky manager and API Server.")
 
-         # Cleanup kind clusters after test
-         _breakdown_kind_clusters()
-         print("Cleaned up kind clusters.")
+    # Cleanup kind clusters after test
+    _breakdown_kind_clusters()
+    print("Cleaned up kind clusters.")
 
-         # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
-         subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
-         print("Cleaned up ETCD.")
+    # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
+    subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
+    print("Cleaned up ETCD.")
+
 
 # def etcd_backup_and_restore():
 #     """Create/teardown new environment for each test."""
