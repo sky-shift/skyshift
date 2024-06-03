@@ -93,11 +93,17 @@ def _load_batch_job():
 def etcd_backup_and_restore():
     """Create/teardown new environment for each test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
+        assert tests_utils.create_cluster("test-cluster-1") is True
+        assert tests_utils.create_cluster("test-cluster-2") is True
+
         tests_utils.setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
 
         tests_utils.shutdown_skyflow(temp_data_dir)
+        
+        tests_utils.delete_cluster("test-cluster-1")
+        tests_utils.delete_cluster("test-cluster-2")
 
         config_path = os.path.expanduser('~/.skyconf/config.yaml')
         subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
