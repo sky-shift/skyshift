@@ -74,8 +74,8 @@ def _breakdown_sky_manager():
             print(f"Cleaned up {dir_path}.")
 
     # Additional cleanup for pristine env.
-    for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
-        delete_dir_if_exists(os.path.expanduser(dir_path))
+    # for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
+    #     delete_dir_if_exists(os.path.expanduser(dir_path))
 
     return process
 
