@@ -101,7 +101,7 @@ def etcd_backup_and_restore():
         yield  # Test execution happens here
 
         tests_utils.shutdown_skyflow(temp_data_dir)
-        
+
         tests_utils.delete_cluster("test-cluster-1")
         tests_utils.delete_cluster("test-cluster-2")
 
