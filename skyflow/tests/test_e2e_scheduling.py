@@ -47,7 +47,7 @@ def _setup_sky_manager(num_workers: int = 16):
     workers_param_str = str(num_workers)
     command = [
         "bash", install_script_path, "--workers", workers_param_str, "--log",
-        "--api-log-file", "/tmp/api.log", "--manager-log-file",
+        "file", "--api-log-file", "/tmp/api.log", "--manager-log-file",
         "/tmp/manager.log"
     ]
     print(f"Setup up sky manager command:'{command}'.")
