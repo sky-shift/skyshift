@@ -117,14 +117,6 @@ def setup_and_shutdown():
 
     yield  # Test execution happens here
 
-    with open("/tmp/api.log", "r") as file:
-        print("API Server Log")
-        print(file.read())
-
-    with open("/tmp/manager.log", "r") as file:
-        print("SkyManager Log")
-        print(file.read())
-
     print("Test clean up begins.")
 
     # Kill any running sky_manager processes
