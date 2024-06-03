@@ -65,7 +65,7 @@ launch_skyflow() {
   if ! is_running "launch_sky_manager.py"; then
     case $log in
       file)
-        sky_manager_log_cmd="python skyflow/launch_sky_manager.py > $manager_log_file 2>&1"
+        sky_manager_log_cmd="python skyflow/launch_sky_manager.py >> $manager_log_file 2>&1"
         ;;
       stdout)
         sky_manager_log_cmd="python skyflow/launch_sky_manager.py"
