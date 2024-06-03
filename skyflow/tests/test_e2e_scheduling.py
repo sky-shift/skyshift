@@ -96,8 +96,8 @@ def etcd_backup_and_restore():
         assert tests_utils.create_cluster("test-cluster-1") is True
         assert tests_utils.create_cluster("test-cluster-2") is True
 
-        with open(os.path.expanduser("~/.kube/config"), "r") as f:
-            print(f.read())
+        with open(os.path.expanduser("~/.kube/config"), "r") as file:
+            print(file.read())
 
         tests_utils.setup_skyflow(temp_data_dir)
 
