@@ -25,12 +25,25 @@ def mount_bucket(bucket_name: str, local_mapping: str) -> None:
     """
     Mount the GCS bucket using gcsfuse.
     """
-    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping}"
+    command = f"gcsfuse -o allow_other {bucket_name} {local_mapping} > /dev/null 2>&1"
     try:
         subprocess.run(command, shell=True, check=True)
         print(f"Mounted bucket {bucket_name} to {local_mapping}")
     except subprocess.CalledProcessError as error:
         print(f"Error mounting bucket: {error}")
+        sys.exit(1)
+
+
+def unmount_bucket(local_mapping: str) -> None:
+    """
+    Unmount the GCS bucket using fusermount.
+    """
+    command = f"fusermount -u {local_mapping} > /dev/null 2>&1"
+    try:
+        subprocess.run(command, shell=True, check=True)
+        print(f"Unmounted bucket from {local_mapping}")
+    except subprocess.CalledProcessError as error:
+        print(f"Error unmounting bucket: {error}")
         sys.exit(1)
 
 
@@ -61,7 +74,6 @@ def run_docker_container(job: Dict) -> int:
                 {image} \
                 {run_command}
                 """
-    print(f"Running command: {command}")
 
     process = subprocess.Popen(command,
                                shell=True,
@@ -88,6 +100,9 @@ def run_docker_container(job: Dict) -> int:
     # Exit the script with the same code as the Docker container
     if return_code != 0:
         print(f"Container exited with error code: {return_code}")
+
+    unmount_bucket(local_dir)
+
     return return_code
 
 

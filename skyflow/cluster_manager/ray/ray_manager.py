@@ -245,6 +245,12 @@ class RayManager(Manager):
         except Exception as e:
             self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
 
+        try:
+            self.client.stop_job(job_id)
+            self.client.delete_job(job_id)
+        except RuntimeError as error:
+            self.logger.error(f"Failed to stop job {job_id}: {error}")
+
         return logs
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
