@@ -4,7 +4,7 @@
 
 A Slurm config can container multiple clusters. We provide a full example below.
 ```
-# Name of cluster in Skyshift.
+# Name of cluster in SkyShift.
 my-slurm-cluster:
   # Access config to authenticate into a Slurm node.
   access_config:
@@ -26,18 +26,18 @@ Move the config file to `~/.skyconf/slurm_config.yaml`.
 
 ### 2. Launch SkyFlow
 
-To launch Skyshift, run in `skyshift/`:
+To launch SkyShift, run in `SkyShift/`:
 
 ```
-./launch_skyshift.sh
+./launch_SkyShift.sh
 ```
 
-If Skyshift is already running and the Slurm cluster has not been added yet, attach the cluster:
+If SkyShift is already running and the Slurm cluster has not been added yet, attach the cluster:
 ```
 skyctl create cluster my-slurm-cluster --manager slurm 
 ```
 
-### 3. Run your Skyshift jobs!
+### 3. Run your SkyShift jobs!
 ```
 skyctl create job --cpus 1 --replicas 2 --run "echo hi; sleep 300; echo bye" my-test-job
 ```

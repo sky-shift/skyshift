@@ -121,7 +121,7 @@ class SkyletController(Controller):
                                   error)
             self._launch_skylet(cluster_obj)
 
-        # Start clusters already stored in ETCD by Skyshift.
+        # Start clusters already stored in ETCD by SkyShift.
         for cluster in self.cluster_api.list().objects:
             self._launch_skylet(cluster)
 

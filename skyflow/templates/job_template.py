@@ -1,5 +1,5 @@
 """
-Job template for Skyshift.
+Job template for SkyShift.
 """
 import enum
 import re

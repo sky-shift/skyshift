@@ -1,4 +1,4 @@
-"""Service template for Skyshift."""
+"""Service template for SkyShift."""
 import enum
 import ipaddress
 from typing import Dict, List, Optional

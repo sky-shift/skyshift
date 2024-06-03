@@ -7,19 +7,19 @@ Installation
 
     For Macs, macOS >= 10.15 is required to install SkyFlow.
 
-To install Skyshift's python API and CLI, run:
+To install SkyShift's python API and CLI, run:
 
 .. code-block:: shell
 
     # Recommended: Create new conda env to avoid package conflicts.
-    conda create -y -n skyshift python=3.10
-    conda activate skyshift
+    conda create -y -n SkyShift python=3.10
+    conda activate SkyShift
 
     # Pull the latest version of SkyFlow from Github.
-    git clone https://github.com/michaelzhiluo/skyshift.git
+    git clone https://github.com/michaelzhiluo/SkyShift.git
 
     # Install basic SkyFlow dependencies.
-    cd skyshift
+    cd SkyShift
     pip install -e .
 
 
@@ -28,12 +28,12 @@ To install dependencies for the API server, run:
 .. code-block:: shell
 
     # Recommended: Create new conda env to avoid package conflicts.
-    conda create -y -n skyshift python=3.10å
-    conda activate skyshift
+    conda create -y -n SkyShift python=3.10å
+    conda activate SkyShift
 
     # Pull the latest version of SkyFlow from Github.
-    git clone https://github.com/michaelzhiluo/skyshift.git
+    git clone https://github.com/michaelzhiluo/SkyShift.git
 
     # Install API server dependencies.
-    cd skyshift
+    cd SkyShift
     pip install -e .[server]

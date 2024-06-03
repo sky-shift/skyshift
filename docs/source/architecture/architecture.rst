@@ -5,7 +5,7 @@ SkyFlow Architecture
 
 SkyFlow's system architecture is designed to be highly modular, scalable, and flexible. It employs a controller-based architecture that orchestrates various components to manage the lifecycle of deployments and services across multiple clusters.
 
-.. image:: /_static/skyshift-architecture.svg
+.. image:: /_static/SkyShift-architecture.svg
   :width: 100%
   :align: center
   :alt: SkyFlow Architecture Diagram
@@ -26,8 +26,8 @@ Within the controller manager, the following higher-level controllers are respon
 Skylet represents an abstracted interface to manage the lifecycle of a cluster or a set of clusters. Within each Skylet, there are various controllers that manage different aspects of the cluster. Below, we describe a subset of these controllers:
 
 - **Cluster Controller**: Monitors the cluster state.
-- **Job Controller**: Monitors the state of Skyshift-submitted jobs.
-- **Service Controller**: Monitors the state of Skyshift-submitted services.
+- **Job Controller**: Monitors the state of SkyShift-submitted jobs.
+- **Service Controller**: Monitors the state of SkyShift-submitted services.
 - **Flow Controller**: Creates, updates, and deletes jobs and services on the cluster.
 - **Network Controller**: Manages the endpoints for services that span across clusters.
 

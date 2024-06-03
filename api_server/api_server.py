@@ -1,6 +1,6 @@
 # pylint: disable=C0302
 """
-Specifies the API server and its endpoints for Skyshift.
+Specifies the API server and its endpoints for SkyShift.
 """
 import asyncio
 import json
@@ -174,16 +174,16 @@ def remove_flag_file():
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-ADMIN_USER = os.getenv("SKYSHIFT_ADMIN_USR", "admin")
-ADMIN_PWD = os.getenv("SKYSHIFT_ADMIN_PASS", "admin")
+ADMIN_USER = os.getenv("SkyShift_ADMIN_USR", "admin")
+ADMIN_PWD = os.getenv("SkyShift_ADMIN_PASS", "admin")
 
 
 class APIServer:
     """
-    Defines the API server for the Skyshift.
+    Defines the API server for the SkyShift.
 
     It maintains a connection to the ETCD server and provides a REST API for
-    interacting with Skyshift objects. Supports CRUD operations on all objects.
+    interacting with SkyShift objects. Supports CRUD operations on all objects.
     """
 
     def __init__(self, app, etcd_port=ETCD_PORT):  # pylint: disable=redefined-outer-name
@@ -483,7 +483,7 @@ class APIServer:
     # Authentication/RBAC Methods
     # pylint: disable=too-many-branches
     def register_user(self, user: User, invite_token: str = Body(...)):
-        """Registers a user into Skyshift."""
+        """Registers a user into SkyShift."""
         try:
             invite = authenticate_jwt(invite_token)
             if datetime.now(timezone.utc) >= datetime.fromtimestamp(

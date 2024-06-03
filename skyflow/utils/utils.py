@@ -1,5 +1,5 @@
 """
-Utility functions for Skyshift.
+Utility functions for SkyShift.
 """
 import importlib
 import json

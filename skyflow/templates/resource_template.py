@@ -1,5 +1,5 @@
 """
-Resource template for Skyshift.
+Resource template for SkyShift.
 """
 import enum
 

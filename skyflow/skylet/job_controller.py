@@ -47,7 +47,7 @@ def heartbeat_error_handler(controller: "JobController"):
 
 class JobController(Controller):  # pylint: disable=too-many-instance-attributes
     """
-    Updates the status of the jobs sent by Skyshift.
+    Updates the status of the jobs sent by SkyShift.
     """
 
     def __init__(
@@ -83,7 +83,7 @@ class JobController(Controller):  # pylint: disable=too-many-instance-attributes
 
     def run(self):
         self.logger.info(
-            "Running job controller - Updates the status of the jobs sent by Skyshift."
+            "Running job controller - Updates the status of the jobs sent by SkyShift."
         )
         while True:
             start = time.time()
