@@ -1581,16 +1581,26 @@ def status():  # pylint: disable=too-many-locals
 
     total_resources, available_resources = calculate_total_resources(
         cluster_list)
+
+    # Determine the status for the aggregate cluster
+    ready_clusters = [
+        cluster for cluster in cluster_list
+        if cluster.status.status == ClusterStatusEnum.READY.value
+    ]
+    aggregate_cluster_status = ClusterStatusEnum.READY.value if \
+        ready_clusters else ClusterStatusEnum.ERROR.value
+
     # Create aggregate cluster (sum of all existing READY clusters)
-    total_cluster = Cluster(metadata=ClusterMeta(name='Merged-Cluster'),
+    total_cluster = Cluster(metadata=ClusterMeta(
+        name='Merged-Cluster',
+        creation_timestamp=get_oldest_cluster_age(cluster_list)),
                             spec=ClusterSpec(manager=APP_NAME),
                             status=ClusterStatus(
-                                status=ClusterStatusEnum.READY.value,
+                                status=aggregate_cluster_status,
                                 capacity=total_resources,
                                 allocatable_capacity=available_resources))
-    total_cluster.metadata.creation_timestamp = get_oldest_cluster_age(  # pylint: disable=assigning-non-slot
-        cluster_list)
     total_cluster_list = ClusterList(objects=[total_cluster])
+
     # Print aggregate cluster
     print_table('cluster', total_cluster_list)
 
