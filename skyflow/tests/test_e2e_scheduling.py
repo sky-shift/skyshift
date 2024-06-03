@@ -10,6 +10,7 @@ Prerequisites :
 Run : pytest test_scheduling.py
 """
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -63,24 +64,14 @@ def _breakdown_sky_manager():
     process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
     time.sleep(15)  # Wait for the server to stop
 
+    def delete_dir_if_exists(dir_path):
+        if os.path.exists(dir_path) and os.path.isdir(dir_path):
+            shutil.rmtree(dir_path)
+            print(f"Cleaned up {dir_path}.")
+
     # Additional cleanup for pristine env.
-    home_dir = os.environ.get('HOME')
-
-    etcd_dir = f'{home_dir}/.etcd'
-    command = ["rm", "-rf", etcd_dir]
-    print(f"Etcd directory cleaned up ({command}).")
-
-    subprocess.Popen(command)
-
-    sky_dir = f'{home_dir}/.sky'
-    command = ["rm", "-rf", sky_dir]
-    print(f"Sky working directory cleaned up ({command}).")
-    subprocess.Popen(command)
-
-    skyconf_dir = f'{home_dir}/.skyconf'
-    command = ["rm", "-rf", skyconf_dir]
-    print(f"Sky config working directory cleaned up ({command}).")
-    subprocess.Popen(command)
+    for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
+        delete_dir_if_exists(os.path.expanduser(dir_path))
 
     return process
 
