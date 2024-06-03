@@ -16,6 +16,7 @@ from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.network.cluster_linkv2 import launch_clusterlink, status_network
+from skyflow.templates.cluster_template import Cluster
 
 # Check every 5 minutes. Can adjust as needed.
 DEFAULT_HEARTBEAT_TIME = 300
@@ -53,25 +54,24 @@ class NetworkController(Controller):
 
     def __init__(
         self,
-        name,
+        cluster: Cluster,
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
-        self.name = name
+        self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
         self.cluster_api = ClusterAPI()
-        cluster_obj = self.cluster_api.get(name)
         self.logger = create_controller_logger(
             title=
             f"[{utils.unsanitize_cluster_name(self.name)} - Network Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/network_controller.log')
         # The Compataibility layer that interfaces with the underlying cluster manager.
         # For now, we only support Kubernetes. (Slurm @TODO(daron))
-        self.manager_api = setup_cluster_manager(cluster_obj)
+        self.manager_api = setup_cluster_manager(cluster)
 
     def run(self):
         self.logger.info(

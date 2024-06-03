@@ -3,17 +3,37 @@ Utility functions for Skyflow.
 """
 import importlib
 import json
+import logging
 import os
+import re
 import shutil
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 import yaml
+from rapidfuzz import process
 
 from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
+from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
+
+
+def parse_resource_cpu(resource_str):
+    """Parse CPU string to cpu count."""
+    unit_map = {"m": 1e-3, "K": 1e3}
+    value = re.search(r"\d+", resource_str).group()
+    unit = resource_str[len(value):]
+    return float(value) * unit_map.get(unit, 1)
+
+
+def parse_resource_memory(resource_str):
+    """Parse resource string to megabytes."""
+    unit_map = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
+    value = re.search(r"\d+", resource_str).group()
+    unit = resource_str[len(value):]
+    return float(value) * unit_map.get(unit, 1) / (2**20)
 
 
 def sanitize_cluster_name(value: str) -> str:
@@ -26,6 +46,39 @@ def sanitize_cluster_name(value: str) -> str:
     sanitized_value = value.replace(" ", "-space-").replace(
         "/", "-dash-").replace("@", "-at-").replace("_", "-underscore-")
     return sanitized_value
+
+
+def fetch_absolute_path(path: str) -> str:
+    """
+    Fetches the absolute path of a given path.
+    """
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def handle_invalid_config(func):
+    """
+    Decorator to handle invalid configuration files.
+    """
+
+    def wrapper(file_path: str) -> Optional[Tuple[Union[dict, None], bool]]:
+        config = None
+        try:
+            config = func(file_path)
+            return config
+        except (yaml.YAMLError, FileNotFoundError):
+            logger = logging.getLogger(__name__)
+            _handle_invalid_file(file_path, logger)
+            return None
+
+    return wrapper
+
+
+def _handle_invalid_file(file_path: str, logger: logging.Logger):
+    """
+    Prints an appropriate message based on the error encountered.
+    """
+    logger.error(f'Invalid file {file_path}. Skipping this. '
+                 'Ensure the file is valid and accessible.')
 
 
 def unsanitize_cluster_name(value: Optional[str]) -> str:
@@ -186,3 +239,21 @@ def update_manager_config(config: dict):
     """Updates the API server config file."""
     with open(os.path.expanduser(API_SERVER_CONFIG_PATH), "w") as config_file:
         yaml.dump(config, config_file)
+
+
+def fuzzy_map_gpu(
+    resources_dict: Dict[str, Dict[str,
+                                   float]]) -> Dict[str, Dict[str, float]]:
+    """
+    Maps GPUs to the closest match in the enum class using rapidfuzz.
+    """
+    enum_values = [e.value for e in AcceleratorEnum]
+    non_gpu_keys = {e.value for e in ResourceEnum}
+
+    for _, resources in resources_dict.items():
+        for key in list(resources.keys()):
+            if key not in non_gpu_keys:
+                closest_match = process.extractOne(key, enum_values)
+                if closest_match:
+                    resources[closest_match[0]] = resources.pop(key)
+    return resources_dict

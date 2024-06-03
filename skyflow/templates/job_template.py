@@ -19,6 +19,7 @@ DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
     ResourceEnum.CPU.value: 1,
     ResourceEnum.MEMORY.value: 0,
+    ResourceEnum.GPU.value: 0,
 }
 DEFAULT_NAMESPACE = "default"
 DEFAULT_MIN_WEIGHT = 1
@@ -343,6 +344,8 @@ class JobSpec(ObjectSpec):
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
     resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES,
                                         validate_default=True)
+    volumes: Dict[str, Dict[str, str]] = Field(default={},
+                                               validate_default=True)
     run: str = Field(default="", validate_default=True)
     envs: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[int] = Field(default=[], validate_default=True)
@@ -350,6 +353,19 @@ class JobSpec(ObjectSpec):
     restart_policy: str = Field(default=RestartPolicyEnum.ALWAYS.value,
                                 validate_default=True)
     placement: Placement = Field(default=Placement(), validate_default=True)
+
+    @field_validator('volumes')
+    @classmethod
+    def validate_volumes(cls, volumes: Dict[str, Dict[str, str]]):
+        """
+        Function to check if the volumes are in the correct format.
+        """
+        for volume_name, volume in volumes.items():
+            if 'container_dir' not in volume:
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field `container_dir`."
+                )
+        return volumes
 
     @field_validator('image')
     @classmethod

@@ -1053,7 +1053,8 @@ class TestAPIServer(unittest.TestCase):
                     "image": "ubuntu:latest",
                     "resources": {
                         "cpus": 1.0,
-                        "memory": 0.0
+                        "memory": 0.0,
+                        "gpus": 0,
                     },
                     "run": "",
                     "envs": {},

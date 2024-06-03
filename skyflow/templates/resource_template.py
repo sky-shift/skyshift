@@ -4,10 +4,23 @@ Resource template for Skyflow.
 import enum
 
 
+class CRIEnum(enum.Enum):
+    """Enum for upported container runtime interfaces (CRI)."""
+    CONTAINERD = "containerd"
+    SINGULARITY = "singularity"
+    PODMAN = "podman"
+    PODMANHPC = "podman-hpc"
+    DOCKER = "docker"
+    NONE = "none"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return super().__eq__(other)
+
+
 class ResourceEnum(enum.Enum):
-    """
-    Different types of resources.
-    """
+    """Different types of compute resources."""
     # CPUs
     CPU: str = "cpus"
     # Generic GPUs
@@ -155,3 +168,7 @@ class AcceleratorEnum(enum.Enum):
     NVIDIA_DGX_1: str = "NVIDIA DGX-1"
     NVIDIA_DGX_2: str = "NVIDIA DGX-2"
     NVIDIA_DGX_STATION: str = "NVIDIA DGX Station"
+
+    # Failed GPUs
+    NOGPU: str = "NoGPU"
+    UNKGPU: str = "UnknownGPU"

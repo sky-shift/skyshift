@@ -1,0 +1,17 @@
+# Example of Slurm cluster accessed through Rest API.
+# RestAPI not supported yet.
+slurmcluster1: 
+  interface: rest
+  access_config:
+    openapi_ver: v0.0.38
+    port: /var/lib/slurm-llnl/slurmrestd.socket
+    auth: jwt
+
+# Example of Slurm cluster accessed through CLI.
+slurmcluster2: 
+  interface: cli
+  access_config:
+    hostname: llama.millennium.berkeley.edu
+    user: mluo
+    ssh_key: ~/berzerkeley
+    # password: whatever

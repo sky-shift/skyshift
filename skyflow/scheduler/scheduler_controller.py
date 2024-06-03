@@ -211,6 +211,6 @@ class SchedulerController(Controller):
 
 
 # Testing Scheduler Controller.
-if __name__ == "__main__":
-    controller = SchedulerController()
-    controller.start()
+#if __name__ == "__main__":
+#    controller = SchedulerController()
+#    controller.start()

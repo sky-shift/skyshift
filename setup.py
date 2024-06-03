@@ -23,8 +23,10 @@ setup(
         "requests>=2.31.0",
         "rich",
         "skypilot==0.5.0",
+        "paramiko",
         "tabulate",
         "types-passlib",
+        "types-paramiko",
         "types-psutil",
         "types-tabulate",
         "types-PyYAML",
@@ -32,6 +34,10 @@ setup(
         "websockets",
         "halo",
         "tqdm",
+        "rapidfuzz",
+        "regex",
+        "paramiko",
+        "ray",
     ],
     extras_require={
         "server": [
