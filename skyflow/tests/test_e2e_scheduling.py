@@ -90,44 +90,18 @@ def _load_batch_job():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_and_shutdown():
-    with tempfile.TemporaryDirectory():
-        # Kill any running sky_manager processes
-        _breakdown_sky_manager()
-        print("Sky manager clean up complete.")
-
-        # Clean up from previous test
-        _breakdown_kind_clusters()
-        print("Kind clusters clean up complete.")
-
-        # Setup clusters to use for testing
-        _setup_kind_clusters()
-        print("Kind clusters setup complete.")
-        # @TODO(dmatch01) Remove sleep after #191 issue is resolved
-        time.sleep(30)
-
-        # Setup and run Sky Manager
-        _setup_sky_manager()
-
-        print(
-            "Setup up sky manager and kind clusters completed.  Testing begins..."
-        )
+def etcd_backup_and_restore():
+    """Create/teardown new environment for each test."""
+    with tempfile.TemporaryDirectory() as temp_data_dir:
+        tests_utils.setup_skyflow(temp_data_dir)
 
         yield  # Test execution happens here
 
-        print("Test clean up begins.")
+        tests_utils.shutdown_skyflow(temp_data_dir)
 
-        # Kill any running sky_manager processes
-        _breakdown_sky_manager()
-        print("Cleaned up sky manager and API Server.")
-
-        # Cleanup kind clusters after test
-        _breakdown_kind_clusters()
-        print("Cleaned up kind clusters.")
-
-        # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
-        subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
-        print("Cleaned up ETCD.")
+        config_path = os.path.expanduser('~/.skyconf/config.yaml')
+        subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
+        print("Cleaned up temporary ETCD data directory.")
 
 
 @pytest.fixture(name="runner")
@@ -142,6 +116,22 @@ def deploy(runner, job_dict):
         result = runner.invoke(cli, cmd)
         print(f'get cluster results\n{result.output}')
         assert result.exit_code == 0, f"Job creation failed: {job_dict['metadata']['name']}"
+
+
+def test_create_cluster_success(runner):
+    # Define cluster labels
+    labels = [("sky-cluster-id", "valid-cluster"), ("cluster-purpose", "dev")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
+    # Construct the command with parameters
+    name = "valid-cluster"
+    manager = "k8"
+    cmd = ['create', 'cluster', name, '--manager', manager] + label_args
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+    assert name in result.output
 
 
 # pylint: disable=R0915 (too-many-statements)
