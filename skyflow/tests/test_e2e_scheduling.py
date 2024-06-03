@@ -74,8 +74,8 @@ def _breakdown_sky_manager():
             print(f"Cleaned up {dir_path}.")
 
     # Additional cleanup for pristine env.
-    # for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
-    #     delete_dir_if_exists(os.path.expanduser(dir_path))
+    for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
+        delete_dir_if_exists(os.path.expanduser(dir_path))
 
     return process
 
@@ -117,19 +117,19 @@ def setup_and_shutdown():
 
     yield  # Test execution happens here
 
-    print("Test clean up begins.")
+    # print("Test clean up begins.")
 
-    # Kill any running sky_manager processes
-    _breakdown_sky_manager()
-    print("Cleaned up sky manager and API Server.")
+    # # Kill any running sky_manager processes
+    # _breakdown_sky_manager()
+    # print("Cleaned up sky manager and API Server.")
 
-    # Cleanup kind clusters after test
-    _breakdown_kind_clusters()
-    print("Cleaned up kind clusters.")
+    # # Cleanup kind clusters after test
+    # _breakdown_kind_clusters()
+    # print("Cleaned up kind clusters.")
 
-    # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
-    subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
-    print("Cleaned up ETCD.")
+    # # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
+    # subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
+    # print("Cleaned up ETCD.")
 
 
 # def etcd_backup_and_restore():

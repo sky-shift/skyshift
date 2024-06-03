@@ -31,15 +31,4 @@ jobs:
         run: cat /tmp/api.log
       - name: Echo Manager Logs
         if: always()
-        run: |
-          cat /tmp/manager.log
-          echo cat ~/.skyconf/config.yaml
-          cat ~/.skyconf/config.yaml
-          echo cat ~/.skyconf/provisioner_controller.log
-          cat ~/.skyconf/provisioner_controller.log
-          echo cat ~/.skyconf/skylet_controller.log
-          cat ~/.skyconf/skylet_controller.log
-          echo cat ~/.skyconf/link_controller.log
-          cat ~/.skyconf/link_controller.log
-          echo cat ~/.skyconf/scheduler_controller.log
-          cat ~/.skyconf/scheduler_controller.log
+        run: cat ~/.skyconf/*
