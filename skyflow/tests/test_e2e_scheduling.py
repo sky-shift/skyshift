@@ -322,7 +322,7 @@ def test_filter_with_match_label(runner):
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
-    time.sleep(10) # wait for job to get deleted
+    time.sleep(10)  # wait for job to get deleted
 
 
 # pylint: disable=R0915 (too-many-statements)
@@ -421,7 +421,7 @@ def test_filter_with_match_expression(runner):
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
-    time.sleep(10) # wait for job to get deleted
+    time.sleep(10)  # wait for job to get deleted
 
 
 def test_preference(runner):

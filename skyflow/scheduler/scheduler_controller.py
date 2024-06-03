@@ -6,6 +6,7 @@ gang/coscheduling, colocation, and governance requirements that are not possible
 the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 
+import logging
 import queue
 from copy import deepcopy
 from typing import Dict, List
@@ -41,7 +42,8 @@ class SchedulerController(Controller):
         super().__init__()
         self.logger = create_controller_logger(
             title="[Scheduler Controller]",
-            log_path=f'{SKYCONF_DIR}/scheduler_controller.log')
+            log_path=f'{SKYCONF_DIR}/scheduler_controller.log',
+            level=logging.DEBUG)
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
