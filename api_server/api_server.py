@@ -174,8 +174,8 @@ def remove_flag_file():
 # Hashing password
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-ADMIN_USER = os.getenv("SkyShift_ADMIN_USR", "admin")
-ADMIN_PWD = os.getenv("SkyShift_ADMIN_PASS", "admin")
+ADMIN_USER = os.getenv("SKYSHIFT_ADMIN_USR", "admin")
+ADMIN_PWD = os.getenv("SKYSHIFT_ADMIN_PASS", "admin")
 
 
 class APIServer:
