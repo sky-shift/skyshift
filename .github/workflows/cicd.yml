@@ -20,4 +20,4 @@ jobs:
             go install sigs.k8s.io/kind@v0.22.0
             pip install -e .[server,dev]
             minikube delete && minikube start && kind delete clusters $(kind get clusters) && kind create cluster
-            python -m pytest skyflow/tests
+            bash race_cond_test.sh
