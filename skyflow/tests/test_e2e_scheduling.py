@@ -46,7 +46,9 @@ def _setup_sky_manager(num_workers: int = 16):
 
     workers_param_str = str(num_workers)
     command = [
-        "bash", install_script_path, "--workers", workers_param_str, "--log"
+        "bash", install_script_path, "--workers", workers_param_str, "--log",
+        "--api-log-file", "/tmp/api.log", "--manager-log-file",
+        "/tmp/manager.log"
     ]
     print(f"Setup up sky manager command:'{command}'.")
 
@@ -115,11 +117,11 @@ def setup_and_shutdown():
 
     yield  # Test execution happens here
 
-    with open("api_server.log", "r") as file:
+    with open("/tmp/api.log", "r") as file:
         print("API Server Log")
         print(file.read())
 
-    with open("sky_manager.log", "r") as file:
+    with open("/tmp/manager.log", "r") as file:
         print("SkyManager Log")
         print(file.read())
 
