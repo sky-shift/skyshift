@@ -25,7 +25,7 @@ jobs:
       # - name: Check Format and Lint
       #   run: bash format.sh --all --check
       - name: Run Tests
-        run: pytest skyflow/tests -k "test_filter_with_match_expression"
+        run: pytest skyflow/tests -k "test_e2e_scheduling"
       - name: Echo API Logs
         if: always()
         run: cat /tmp/api.log
