@@ -1,5 +1,5 @@
 """
-Globals contains variables used across the Skyflow.
+Globals contains variables used across the SkyShift.
 """
 import os
 
@@ -26,7 +26,7 @@ SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
 CLUSTER_TIMEOUT = 10  # seconds
 
-APP_NAME = "Skyflow"
+APP_NAME = "SkyShift"
 
 
 def cluster_dir(cluster_name: str):

@@ -1,5 +1,5 @@
 """
-Globals Object contains variables used across the Skyflow.
+Globals Object contains variables used across the SkyShift.
 This file is different from the globals.py file to avoid circular imports.
 Generally, every global variable should be defined in globals.py,
 unless that way causes a circular import.

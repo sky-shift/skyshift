@@ -1,5 +1,5 @@
 """
-Resource template for Skyflow.
+Resource template for SkyShift.
 """
 import enum
 

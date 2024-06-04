@@ -18,7 +18,7 @@ from requests import Timeout
 
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
-from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
+from skyflow.tests.tests_utils import setup_skyshift, shutdown_skyshift
 
 # pylint: disable=W0613 (unused-argument)
 
@@ -28,13 +28,13 @@ def etcd_backup_and_restore():
     """Create/teardown fresh environment for test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
         # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
-        setup_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
+        setup_skyshift(temp_data_dir)
 
         yield  # Test execution happens here
 
         # Stop the application and ETCD server
-        shutdown_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
 
         print("Cleaned up temporary ETCD data directory.")
 

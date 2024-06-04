@@ -1,20 +1,20 @@
 Jobs
 =======================
 
-SkyFlow’s `skyctl` CLI equips users with a robust set of commands for managing jobs 
+SkyShift’s `skyctl` CLI equips users with a robust set of commands for managing jobs 
 within clusters. These commands streamline the process of adding new jobs, fetching 
-details or logs of existing jobs, and deleting jobs from SkyFlow’s oversight. This 
+details or logs of existing jobs, and deleting jobs from SkyShift’s oversight. This 
 section details the syntax, options, and examples for each job-related command, 
 enhancing your ability to manage jobs effectively.
 
 Creating a New Job
 ------------------
 
-The ``create job`` command facilitates the addition of a new job to SkyFlow, enabling 
+The ``create job`` command facilitates the addition of a new job to SkyShift, enabling 
 job execution within the specified or default namespace, leveraging Docker images, and 
 customizing resources.
 The job will be scheduled to run on a specific cluster based on the specified resources and
-replicas. In the future, Skyflow will take into account data locality among other factors to
+replicas. In the future, SkyShift will take into account data locality among other factors to
 schedule the job on the most suitable cluster.
 
 **Usage:**
@@ -41,7 +41,7 @@ schedule the job on the most suitable cluster.
 
 .. code-block:: shell
 
-    skyctl create job myJob --image ubuntu:latest --cpus 2 --memory 2048 --run "echo Hello, SkyFlow!"
+    skyctl create job myJob --image ubuntu:latest --cpus 2 --memory 2048 --run "echo Hello, SkyShift!"
 
 This command creates a new job named ``myJob``, using the ``ubuntu:latest`` image, 
 with specified resources and a simple echo command as the job to run.
@@ -100,7 +100,7 @@ This command fetches and displays the logs for the job named ``myJob``.
 Deleting a Job
 --------------
 
-The ``delete job`` command removes a job from SkyFlow’s management and terminates its 
+The ``delete job`` command removes a job from SkyShift’s management and terminates its 
 execution.
 
 **Usage:**
@@ -130,6 +130,6 @@ Validation and Constraints
 - Labels follow the key-value pair format, with keys and values also adhering to DNS label standards.
 - The image format validation ensures compatibility with Docker image naming conventions.
 - Resource specifications for CPUs, GPUs, and memory must match the available resources in the cluster to ensure successful job execution.
-- The restart policy determines the behavior of job replicas upon exit and must be one of the predefined policies supported by SkyFlow.
+- The restart policy determines the behavior of job replicas upon exit and must be one of the predefined policies supported by SkyShift.
 
-These validations are crucial for maintaining the integrity and reliability of job management within SkyFlow.
+These validations are crucial for maintaining the integrity and reliability of job management within SkyShift.

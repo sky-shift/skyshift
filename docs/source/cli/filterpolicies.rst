@@ -1,7 +1,7 @@
 Filter Policies
 =================================
 
-SkyFlow’s CLI, `skyctl`, provides a specialized set of commands for managing 
+SkyShift’s CLI, `skyctl`, provides a specialized set of commands for managing 
 FilterPolicies. These policies enable refined control over where jobs can be 
 scheduled, akin to node taints in Kubernetes but applied across clusters. 
 FilterPolicies can be defined to include or exclude clusters from job scheduling 
@@ -11,7 +11,7 @@ requirements, company-specific policies, or other operational constraints.
 Creating a New Filter Policy
 ----------------------------
 
-The ``create filterPolicy`` command introduces a new filter policy into SkyFlow, 
+The ``create filterPolicy`` command introduces a new filter policy into SkyShift, 
 dictating the scheduling eligibility of clusters based on the specified inclusion and 
 exclusion criteria.
 
@@ -66,7 +66,7 @@ namespace.
 Deleting a Filter Policy
 -------------------------
 
-The ``delete filterPolicy`` command removes a specified filter policy from SkyFlow.
+The ``delete filterPolicy`` command removes a specified filter policy from SkyShift.
 
 **Usage:**
 

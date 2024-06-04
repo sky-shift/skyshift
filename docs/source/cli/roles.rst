@@ -1,7 +1,7 @@
 Roles and Permissions
 ========================
 
-SkyFlow implements a Role-Based Access Control (RBAC) system to manage access 
+SkyShift implements a Role-Based Access Control (RBAC) system to manage access 
 permissions within its ecosystem. This RBAC system allows for granular control 
 over who can perform actions on specific resources across different namespaces. 
 Detailed information about RBAC can be found in the security section 
@@ -13,7 +13,7 @@ with their organizational roles and responsibilities.
 Creating a New Role
 -------------------
 
-The ``create role`` command establishes a new role within SkyFlow, associating it 
+The ``create role`` command establishes a new role within SkyShift, associating it 
 with specified actions, resources, and users.
 
 **Usage:**
@@ -65,7 +65,7 @@ Omitting the name argument fetches details of all roles.
 Deleting a Role
 ---------------
 
-The ``delete role`` command removes a specified role from SkyFlow, revoking the 
+The ``delete role`` command removes a specified role from SkyShift, revoking the 
 associated permissions.
 
 **Usage:**
@@ -80,17 +80,17 @@ associated permissions.
 
     skyctl delete role myRole
 
-This command deletes the role named ``myRole`` from SkyFlow.
+This command deletes the role named ``myRole`` from SkyShift.
 
 .. note:: Deleting a role is irreversible. It's essential to ensure that the role is no longer required before proceeding with deletion.
 
-Understanding Roles in SkyFlow
+Understanding Roles in SkyShift
 ------------------------------
 
-Roles are fundamental to enforcing security and operational policies within SkyFlow. They enable administrators to:
+Roles are fundamental to enforcing security and operational policies within SkyShift. They enable administrators to:
 
 - Assign specific permissions to users, ensuring that personnel can only perform actions aligned with their job functions.
 - Control access to resources across different namespaces, enhancing security and operational efficiency.
 - Streamline the management of permissions as users' roles within the organization change.
 
-Roles, when used effectively, help maintain the integrity and security of the SkyFlow environment, ensuring that resources are accessed and managed responsibly.
+Roles, when used effectively, help maintain the integrity and security of the SkyShift environment, ensuring that resources are accessed and managed responsibly.

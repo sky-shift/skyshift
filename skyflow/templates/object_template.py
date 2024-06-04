@@ -3,6 +3,7 @@ Object template.
 """
 import re
 import uuid
+from datetime import datetime
 from typing import Dict, Generic, List, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -20,8 +21,8 @@ class ObjectName(BaseModel, validate_assignment=True):
     @classmethod
     def verify_name(cls, value: str) -> str:
         """
-        Validates if the provided name is a valid Skyflow object name.
-        Skyflow object names must:
+        Validates if the provided name is a valid SkyShift object name.
+        SkyShift object names must:
         - contain only lowercase alphanumeric characters or '-'
         - start and end with an alphanumeric character
         - be no more than 63 characters long
@@ -69,8 +70,8 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     @classmethod
     def verify_name(cls, value: str) -> str:
         """
-        Validates if the provided name is a valid Skyflow object name.
-        Skyflow object names must:
+        Validates if the provided name is a valid SkyShift object name.
+        SkyShift object names must:
         - contain only lowercase alphanumeric characters or '-'
         - start and end with an alphanumeric character
         - be no more than 63 characters long
@@ -93,11 +94,15 @@ class ObjectMeta(BaseModel, validate_assignment=True):
         """
         Validates the creation timestamp.
 
-        If it does not exist, set it to the current time.
+        If it does not exist or is not valid, set it to the current time.
         """
-        if timestamp:
-            return timestamp
-        return fetch_datetime()
+        try:
+            # Try to parse the timestamp to ensure it's valid
+            datetime.fromisoformat(timestamp)
+        except ValueError:
+            # If parsing fails, set to current timestamp
+            timestamp = fetch_datetime()
+        return timestamp
 
 
 class NamespacedObjectMeta(ObjectMeta):

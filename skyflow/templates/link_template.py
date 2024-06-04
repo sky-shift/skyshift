@@ -1,5 +1,5 @@
 """
-Link Template for Skyflow.
+Link Template for SkyShift.
 """
 import enum
 from typing import Optional

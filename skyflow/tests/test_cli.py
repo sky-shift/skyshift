@@ -16,7 +16,7 @@ import pytest
 from click.testing import CliRunner
 
 from skyflow.cli.cli import cli
-from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
+from skyflow.tests.tests_utils import setup_skyshift, shutdown_skyshift
 
 # pylint: disable=C0116,C0302 (missing-function-docstring, too-many-lines)
 
@@ -25,11 +25,11 @@ from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
 def etcd_backup_and_restore():
     """Create/teardown new environment for each test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        setup_skyflow(temp_data_dir)
+        setup_skyshift(temp_data_dir)
 
         yield  # Test execution happens here
 
-        shutdown_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
 
         config_path = os.path.expanduser('~/.skyconf/config.yaml')
         subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check

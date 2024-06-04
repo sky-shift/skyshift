@@ -1,5 +1,5 @@
 """
-Monkey patches etcd3 package to better support Skyflow.
+Monkey patches etcd3 package to better support SkyShift.
 """
 import etcd3
 from etcd3.client import _handle_errors

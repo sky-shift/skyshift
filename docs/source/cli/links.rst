@@ -1,7 +1,7 @@
 Links
 ========================
 
-SkyFlow's CLI, `skyctl`, offers a suite of commands for managing links between 
+SkyShift's CLI, `skyctl`, offers a suite of commands for managing links between 
 clusters, establishing bidirectional connections that enhance inter-cluster 
 communication and service discovery. This section guides you through the creation, 
 retrieval, and deletion of links, ensuring seamless connectivity across your clustered 
@@ -83,7 +83,7 @@ pathway between the associated clusters.
 Future Enhancements
 -------------------
 
-Looking ahead, SkyFlow aims to automate the creation of links, streamlining 
+Looking ahead, SkyShift aims to automate the creation of links, streamlining 
 service discovery and inter-cluster communication. This advancement will enable tasks 
 in different clusters within the same namespace to discover and communicate with each 
 other effortlessly, further enhancing the flexibility and efficiency of managing 
@@ -91,5 +91,5 @@ distributed environments.
 
 Links serve as critical infrastructure components in distributed systems, ensuring
 that services across clusters can locate and interact with each other without manual 
-configuration. By facilitating this level of interconnectivity, SkyFlow empowers users
+configuration. By facilitating this level of interconnectivity, SkyShift empowers users
 to architect more resilient, scalable, and interconnected applications.
