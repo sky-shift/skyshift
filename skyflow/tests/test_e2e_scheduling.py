@@ -49,8 +49,7 @@ def _setup_sky_manager(num_workers: int = 16):
         os.path.join(current_directory, LAUNCH_SCRIPT_REL_PATH))
 
     workers_param_str = str(num_workers)
-    command = [
-        "bash", install_script_path, "--workers", workers_param_str]
+    command = ["bash", install_script_path, "--workers", workers_param_str]
     print(f"Setup up sky manager command:'{command}'.")
 
     subprocess.run(command, check=False)
