@@ -7,17 +7,17 @@ SkyShift orchestrates container-based workloads across the Sky. Our goal is to a
 (Recommended) Create new conda enviornment
 
 ```
-conda create -n SkyShift python=3.9
+conda create -n skyshift python=3.9
 ```
 Activate it
 ```
-conda activate SkyShift 
+conda activate skyshift 
 ```
 
 Install dependencies, Sky Manager packages, and setup cli
-(assuming the repo has been cloned to ./SkyShift)
+(assuming the repo has been cloned to ./Skyflow)
 ```
-cd SkyShift
+cd Skyflow
 pip install -e .
 # Dependencies for SkyShift's API server.
 pip install -e .[server]
@@ -54,7 +54,7 @@ CURRENT   NAME          CLUSTER                                   AUTHINFO
 Launch the API server on a separate tmux or screen window (or nohup). This will automatically install and run ETCD on your machine and launch the API server.
 
 ```
-# In SkyShift/ base folder
+# In Skyflow/ base folder
 python api_server/launch_server.py
 ```
 
@@ -63,8 +63,8 @@ python api_server/launch_server.py
 Launch the Controller Manager (which manages Skylet controller + Scheduler controller) on a separate tmux or screen window:
 
 ```
-# In SkyShift/ base folder
-python SkyShift/launch_sky_manager.py
+# In skyflow/ base folder
+python skyflow/launch_sky_manager.py
 ```
 
 ### 4. Add Kubernetes Clusters on Sky Manager
