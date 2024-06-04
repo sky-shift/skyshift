@@ -11,7 +11,6 @@ pytest skyflow/tests/api_client_unit_tests.py::test_namespace_object_api_create_
 import tempfile
 from enum import Enum
 from typing import Any, Dict, Generator, List, Tuple, Union
-from unittest.mock import patch
 
 import pytest
 import requests
@@ -19,25 +18,29 @@ from requests import Timeout
 
 from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
-from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
+from skyflow.tests.tests_utils import setup_skyshift, shutdown_skyshift
+
+# pylint: disable=W0613 (unused-argument)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
+    """Create/teardown fresh environment for test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
         # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
-        setup_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
+        setup_skyshift(temp_data_dir)
 
         yield  # Test execution happens here
 
         # Stop the application and ETCD server
-        shutdown_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
 
         print("Cleaned up temporary ETCD data directory.")
 
 
 class ResponseType(Enum):
+    """Possible request responses."""
     ERROR = "error"
     TIMEOUT = "timeout"
     BAD = "bad"
@@ -47,6 +50,7 @@ class ResponseType(Enum):
     SELECTIVE_LIST = "selective-list"
 
 
+# pylint: disable=R0903 (too-few-public-methods)
 class MockResponse:
     """A class to mock HTTP responses."""
 
@@ -61,8 +65,8 @@ class MockResponse:
         raise ValueError("No JSON content")
 
 
-@pytest.fixture
-def namespace_api() -> NamespaceObjectAPI:
+@pytest.fixture(name="namespace_api")
+def fixture_namespace_api() -> NamespaceObjectAPI:
     """Fixture to setup a NamespaceObjectAPI instance for testing."""
     namespace = "test-namespace"
     object_type = "test-object-type"
@@ -72,8 +76,8 @@ def namespace_api() -> NamespaceObjectAPI:
     return api
 
 
-@pytest.fixture
-def nonamespace_api() -> NoNamespaceObjectAPI:
+@pytest.fixture(name="nonamespace_api")
+def fixture_nonamespace_api() -> NoNamespaceObjectAPI:
     """Fixture to setup a NoNamespaceObjectAPI instance for testing."""
     object_type = "test-object-type"
     api = NoNamespaceObjectAPI(object_type)
@@ -82,8 +86,8 @@ def nonamespace_api() -> NoNamespaceObjectAPI:
     return api
 
 
-@pytest.fixture
-def mock_requests(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_requests")
+def fixture_mock_requests(monkeypatch: Any) -> None:
     """Fixture to mock HTTP requests using a predefined response map."""
 
     response_map: Dict[Tuple[str, ResponseType], Any] = {
@@ -167,8 +171,8 @@ def mock_requests(monkeypatch: Any) -> None:
                             mock_request(method, url, *args, **kwargs))
 
 
-@pytest.fixture
-def mock_timeout(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_timeout")
+def fixture_mock_timeout(monkeypatch: Any) -> None:
     """Fixture to simulate a timeout exception for POST requests."""
 
     def mock_post(*args: Any, **kwargs: Any) -> None:
@@ -177,8 +181,8 @@ def mock_timeout(monkeypatch: Any) -> None:
     monkeypatch.setattr(requests, "post", mock_post)
 
 
-@pytest.fixture
-def mock_wrong_response(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_wrong_response")
+def fixture_mock_wrong_response(monkeypatch: Any) -> None:
     """Fixture to simulate a wrong response structure for POST requests."""
 
     def mock_post(*args: Any, **kwargs: Any) -> MockResponse:
@@ -187,8 +191,8 @@ def mock_wrong_response(monkeypatch: Any) -> None:
     monkeypatch.setattr(requests, "post", mock_post)
 
 
-@pytest.fixture
-def mock_server_error(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_server_error")
+def fixture_mock_server_error(monkeypatch: Any) -> None:
     """Fixture to simulate server errors (5XX) for POST requests."""
 
     def mock_post(*args: Any, **kwargs: Any) -> MockResponse:
@@ -197,8 +201,8 @@ def mock_server_error(monkeypatch: Any) -> None:
     monkeypatch.setattr(requests, "post", mock_post)
 
 
-@pytest.fixture
-def mock_bad_request(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_bad_request")
+def fixture_mock_bad_request(monkeypatch: Any) -> None:
     """Fixture to simulate a bad request response (400) for POST requests."""
 
     def mock_post(*args: Any, **kwargs: Any) -> MockResponse:
@@ -207,8 +211,8 @@ def mock_bad_request(monkeypatch: Any) -> None:
     monkeypatch.setattr(requests, "post", mock_post)
 
 
-@pytest.fixture
-def mock_no_json_response(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_no_json_response")
+def fixture_mock_no_json_response(monkeypatch: Any) -> None:
     """Fixture to simulate a response without JSON data (e.g., status 204 No Content) for POST requests."""
 
     def mock_post(*args: Any, **kwargs: Any) -> MockResponse:

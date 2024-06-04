@@ -31,8 +31,8 @@ SLURM_JOB_FAILED = {
 }
 SLURM_JOB_COMPLETE = {'COMPLETED'}
 
-# Prefix for all jobs managed by Skyflow.
-JOB_PREPEND_STR = "skyflow2slurm"
+# Prefix for all jobs managed by SkyShift.
+JOB_PREPEND_STR = "skyshift2slurm"
 # Remote directory for storing scripts on Slurm node.
 REMOTE_SCRIPT_DIR = "~/.skyconf"
 # Defines Slurm node states.
@@ -90,7 +90,7 @@ def convert_slurm_job_table_to_status(
         if '.' not in job_id_str:
             if JOB_PREPEND_STR not in job_name:
                 skip = True
-                # Skip jobs that do not follow Skyflow's job tag.
+                # Skip jobs that do not follow SkyShift's job tag.
                 continue
             skip = False
             # Remove JOB_PREPREND_STR from job name
@@ -100,10 +100,10 @@ def convert_slurm_job_table_to_status(
                 skip = True
             else:
                 job_dict[true_job_name] = {}
-            # Move to the next row once a Skyflow job has been found.
+            # Move to the next row once a SkyShift job has been found.
             continue
         if skip:
-            # There may be non-Skyflow jobs that have job steps.
+            # There may be non-SkyShift jobs that have job steps.
             continue
         _, task_index = job_id_str.split('.')
         if not task_index or not true_job_name or not task_index.isdigit():
@@ -143,7 +143,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         # Initalize SSH Client
         self.ssh_client = self.config.get_ssh_client(name)
         # Create directory for jobs and logs.
-        # Also checks if Skyflow can run commands on the Slurm node.
+        # Also checks if SkyShift can run commands on the Slurm node.
         stdout, stderr = slurm_utils.send_cli_command(
             self.ssh_client, f'mkdir -p {REMOTE_SCRIPT_DIR}; echo $HOME')
         if stderr:
@@ -159,7 +159,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         # Maps node name to `sinfo get nodes` outputs.
         # This serves as a cache to fetch information.
         self.slurm_node_dict: Dict[str, Any] = {}
-        # Job name and IDs (Jobs that still need to be kept track by Skyflow)
+        # Job name and IDs (Jobs that still need to be kept track by SkyShift)
         # that should be tracked by the manager.
         self.job_cache: Dict[str, str] = {}
 
@@ -262,7 +262,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         )
 
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
-        """ Gets status' of all managed jobs running under skyflow slurm user account.
+        """ Gets status' of all managed jobs running under SkyShift slurm user account.
 
             Returns:
                 Dict of jobs with their status as the value.

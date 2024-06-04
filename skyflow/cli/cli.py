@@ -1,6 +1,6 @@
 # pylint: disable=too-many-lines
 """
-Skyflow CLI.
+SkyShift CLI.
 """
 import json
 import os
@@ -46,7 +46,7 @@ def halo_spinner(text):
 
 @click.group()
 def cli():
-    """Skyflow CLI."""
+    """SkyShift CLI."""
     return
 
 
@@ -184,7 +184,7 @@ def validate_restart_policy(policy: str) -> bool:
               help="Path to config file (YAML).")
 @halo_spinner("Applying configuration")
 def apply_config(file: str, spinner):
-    """Converts a config file to a Skyflow object."""
+    """Converts a config file to a SkyShift object."""
     from skyflow.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1280,7 +1280,7 @@ def delete_role(name, spinner):
 
 
 # ==============================================================================
-# Skyflow exec
+# SkyShift exec
 
 
 @click.command(name="exec")
@@ -1581,16 +1581,23 @@ def status():  # pylint: disable=too-many-locals
 
     total_resources, available_resources = calculate_total_resources(
         cluster_list)
+
+    # Determine the status for the aggregate cluster
+    aggregate_cluster_status = ClusterStatusEnum.READY.value if \
+        any(cluster.status.status == ClusterStatusEnum.READY.value for cluster in cluster_list) \
+            else ClusterStatusEnum.ERROR.value
+
     # Create aggregate cluster (sum of all existing READY clusters)
-    total_cluster = Cluster(metadata=ClusterMeta(name='Merged-Cluster'),
+    total_cluster = Cluster(metadata=ClusterMeta(
+        name='Merged-Cluster',
+        creation_timestamp=get_oldest_cluster_age(cluster_list)),
                             spec=ClusterSpec(manager=APP_NAME),
                             status=ClusterStatus(
-                                status=ClusterStatusEnum.READY.value,
+                                status=aggregate_cluster_status,
                                 capacity=total_resources,
                                 allocatable_capacity=available_resources))
-    total_cluster.metadata.creation_timestamp = get_oldest_cluster_age(  # pylint: disable=assigning-non-slot
-        cluster_list)
     total_cluster_list = ClusterList(objects=[total_cluster])
+
     # Print aggregate cluster
     print_table('cluster', total_cluster_list)
 

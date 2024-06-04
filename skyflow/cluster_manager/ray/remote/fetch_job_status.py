@@ -14,7 +14,7 @@ def extract_job_name(submission_id):
 
 def map_ray_status_to_task_status(ray_status: str) -> str:
     """
-    Maps Ray job statuses to Skyflow's statuses.
+    Maps Ray job statuses to SkyShift's statuses.
     """
     status_mapping = {
         "PENDING": "PENDING",
