@@ -6,7 +6,6 @@ gang/coscheduling, colocation, and governance requirements that are not possible
 the default Kubernetes scheduler (without CRDs or custom controllers).
 """
 
-import logging
 import queue
 from copy import deepcopy
 from typing import Dict, List
