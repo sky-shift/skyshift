@@ -167,6 +167,7 @@ class ClusterStatus(ObjectStatus):
 class ClusterMeta(ObjectMeta):
     """Metadata for a Cluster."""
     name: str = Field(default="cluster", validate_default=True)
+    creation_timestamp: str = Field(default="", validate_default=True)
 
     @field_validator("name")
     @classmethod
