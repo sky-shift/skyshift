@@ -42,8 +42,7 @@ class SchedulerController(Controller):
         super().__init__()
         self.logger = create_controller_logger(
             title="[Scheduler Controller]",
-            log_path=f'{SKYCONF_DIR}/scheduler_controller.log',
-            level=logging.DEBUG)
+            log_path=f'{SKYCONF_DIR}/scheduler_controller.log')
 
         # Assumed FIFO
         self.workload_queue: List[Job] = []
