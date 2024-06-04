@@ -1,11 +1,11 @@
-"""User template for Skyflow."""
+"""User template for SkyShift."""
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
 
 class User(BaseModel):
-    """Represents a user for SkyFlow."""
+    """Represents a user for SkyShift."""
     username: str = Field(...,
                           min_length=4,
                           max_length=50,

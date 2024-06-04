@@ -5,9 +5,9 @@ import subprocess
 import time
 
 
-def setup_skyflow(temp_data_dir: str) -> None:
+def setup_skyshift(temp_data_dir: str) -> None:
     """
-    Sets up the Skyflow service by starting the necessary processes.
+    Sets up the SkyShift service by starting the necessary processes.
     
     Args:
         temp_data_dir (str): The temporary directory to use for data storage.
@@ -58,9 +58,9 @@ def setup_skyflow(temp_data_dir: str) -> None:
         20)  # Additional wait time for the server to become fully operational.
 
 
-def shutdown_skyflow(temporal_directory: str) -> None:
+def shutdown_skyshift(temporal_directory: str) -> None:
     """
-    Shuts down the Skyflow service by terminating its processes.
+    Shuts down the SkyShift service by terminating its processes.
     """
 
     kill_process("launch_sky_manager")

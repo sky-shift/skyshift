@@ -1,6 +1,6 @@
 # pylint: disable=too-many-lines
 """
-Skyflow CLI.
+SkyShift CLI.
 """
 import json
 import os
@@ -46,7 +46,7 @@ def halo_spinner(text):
 
 @click.group()
 def cli():
-    """Skyflow CLI."""
+    """SkyShift CLI."""
     return
 
 
@@ -184,7 +184,7 @@ def validate_restart_policy(policy: str) -> bool:
               help="Path to config file (YAML).")
 @halo_spinner("Applying configuration")
 def apply_config(file: str, spinner):
-    """Converts a config file to a Skyflow object."""
+    """Converts a config file to a SkyShift object."""
     from skyflow.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1280,7 +1280,7 @@ def delete_role(name, spinner):
 
 
 # ==============================================================================
-# Skyflow exec
+# SkyShift exec
 
 
 @click.command(name="exec")

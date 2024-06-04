@@ -1,7 +1,7 @@
 Executing Commands Within Resources
 ===================================
 
-SkyFlow’s CLI, `skyctl`, introduces the `exec` command, designed to execute 
+SkyShift’s CLI, `skyctl`, introduces the `exec` command, designed to execute 
 specified commands within the containers of a resource. This command mirrors the 
 functionality of Kubernetes' `kubectl exec`, offering the flexibility to run commands 
 directly inside containers for debugging, monitoring, or operational purposes.
@@ -41,7 +41,7 @@ namespace, allowing the user to interact directly with a bash shell inside the c
 Role of the Command
 -------------------
 
-The `exec` command in SkyFlow serves multiple purposes:
+The `exec` command in SkyShift serves multiple purposes:
 
 - **Debugging and Troubleshooting**: Quickly diagnose and resolve issues by running diagnostic commands or accessing logs within containers.
 - **Operational Management**: Perform operational tasks such as database migrations, configuration changes, or updates directly within containers.
@@ -57,6 +57,6 @@ especially in production environments.
 Security and remote execution
 ------------------------------------------
 
-SkyFlow follows a Role-Based Access Control (RBAC) system, which is detailed in 
+SkyShift follows a Role-Based Access Control (RBAC) system, which is detailed in 
 the security section (to be added). This system ensures that only authorized users can 
 perform actions like `exec`, based on their assigned roles and permissions.

@@ -11,7 +11,7 @@ from skyflow.templates import Job
 
 
 class SlurmManagerREST(Manager):
-    """ Slurm Rest API compatability layer for Skyflow."""
+    """ Slurm Rest API compatability layer for SkyShift."""
 
     @property
     def cluster_resources(self):

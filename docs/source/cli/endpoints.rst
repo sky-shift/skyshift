@@ -1,8 +1,8 @@
 Endpoints
 =============================
 
-SkyFlow's CLI, `skyctl`, includes commands for managing endpoints, which are crucial 
-for defining the network connectivity for services within SkyFlow. Endpoints can be 
+SkyShift's CLI, `skyctl`, includes commands for managing endpoints, which are crucial 
+for defining the network connectivity for services within SkyShift. Endpoints can be 
 explicitly exposed to the cluster, allowing for external access. This section details 
 the commands to create, view, and delete endpoint configurations, streamlining the 
 management of network entry points for services and jobs.
@@ -11,7 +11,7 @@ Creating New Endpoints
 ----------------------
 
 The ``create endpoints`` command facilitates the creation of a new set of endpoints, 
-specifying how services within SkyFlow can access external networks or how they are 
+specifying how services within SkyShift can access external networks or how they are 
 accessed from outside.
 
 **Usage:**
@@ -64,7 +64,7 @@ Executing this command retrieves information about the endpoints named ``myEndpo
 Deleting Endpoints
 ------------------
 
-The ``delete endpoints`` command removes a specified set of endpoints from SkyFlow, 
+The ``delete endpoints`` command removes a specified set of endpoints from SkyShift, 
 eliminating the configured network access points.
 
 **Usage:**
@@ -88,11 +88,11 @@ exposure and connectivity configurations.
 
 .. note:: Deletion of endpoints is irreversible. Ensure that the endpoints are no longer required for network communication before proceeding with deletion.
 
-Understanding SkyFlow Endpoints
+Understanding SkyShift Endpoints
 --------------------------------
 
-Endpoints in SkyFlow are analogous to Kubernetes endpoints, acting as network conduits 
+Endpoints in SkyShift are analogous to Kubernetes endpoints, acting as network conduits 
 either into or out of services and jobs. They play a vital role in:
 
-- **Facilitating External Access**: Exposed endpoints allow services within SkyFlow to be accessible from outside the cluster, enabling integration with external systems or users.
-- **Enabling Internal Connectivity**: Endpoints can also be configured to allow services within SkyFlow to reach out to external resources, supporting a wide range of communication patterns and use cases.
+- **Facilitating External Access**: Exposed endpoints allow services within SkyShift to be accessible from outside the cluster, enabling integration with external systems or users.
+- **Enabling Internal Connectivity**: Endpoints can also be configured to allow services within SkyShift to reach out to external resources, supporting a wide range of communication patterns and use cases.

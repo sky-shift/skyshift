@@ -92,28 +92,28 @@ else
    # Format only the files that changed in last commit.
    format_changed
 fi
-echo '[Done] SkyFlow yapf'
+echo '[Done] SkyShift yapf'
 
 #==============================================================================#
 # Run Isort
 ISORT_YAPF_EXCLUDES=(
 )
 
-echo 'SkyFlow isort:'
+echo 'SkyShift isort:'
 isort api_server skyflow  "${ISORT_YAPF_EXCLUDES[@]}"
-echo '[Done] SkyFlow isort:'
+echo '[Done] SkyShift isort:'
 
 #==============================================================================#
 # Run mypy
 echo 'SkyPilot mypy:'
 mypy api_server skyflow --show-traceback
-echo '[Done] SkyFlow mypy'
+echo '[Done] SkyShift mypy'
 
 #==============================================================================#
 # Run Pylint
-echo 'SkyFlow Pylint:'
+echo 'SkyShift Pylint:'
 pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code skyflow api_server examples
-echo '[Done] SkyFlow Pylint'
+echo '[Done] SkyShift Pylint'
 
 #==============================================================================#
 
