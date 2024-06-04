@@ -74,7 +74,7 @@ fi
 #==============================================================================#
 # Run Yapf
 
-echo '[SkyFlow] Running yapf'
+echo '[SkyShift] Running yapf'
 if [ "$CHECK" = true ] ; then
     ARGS=("--diff")
 else
@@ -85,7 +85,7 @@ printf "%s\n" "${FILES[@]}" | xargs -P 5 yapf "${ARGS[@]}" --recursive --paralle
 #==============================================================================#
 # Run Isort
 
-echo '[SkyFlow] Running isort'
+echo '[SkyShift] Running isort'
 if [ "$CHECK" = true ] ; then
     ARGS=("--check-only" "--diff" "--color")
 else
@@ -96,13 +96,13 @@ printf "%s\n" "${FILES[@]}" | xargs -P 5 isort "${ARGS[@]}"
 #==============================================================================#
 # Run mypy
 
-echo '[SkyFlow] Running mypy'
+echo '[SkyShift] Running mypy'
 mypy --show-traceback api_server skyflow
 
 #==============================================================================#
 # Run Pylint
 
-echo '[SkyFlow] Running pylint'
+echo '[SkyShift] Running pylint'
 printf "%s\n" "${FILES[@]}" | xargs -P 5 pylint \
     --load-plugins pylint_quotes \
     --disable invalid-string-quote,duplicate-code \
@@ -110,7 +110,7 @@ printf "%s\n" "${FILES[@]}" | xargs -P 5 pylint \
 
 #==============================================================================#
 
-echo '[SkyFlow] Completed all checks!'
+echo '[SkyShift] Completed all checks!'
 
 if ! git diff --quiet &>/dev/null; then
     echo

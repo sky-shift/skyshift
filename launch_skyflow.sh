@@ -65,7 +65,7 @@ launch_skyflow() {
   if ! is_running "launch_sky_manager.py"; then
     case $log in
       file)
-        sky_manager_log_cmd="python skyflow/launch_sky_manager.py >> $manager_log_file 2>&1"
+        sky_manager_log_cmd="python skyflow/launch_sky_manager.py > $manager_log_file 2>&1"
         ;;
       stdout)
         sky_manager_log_cmd="python skyflow/launch_sky_manager.py"
@@ -74,8 +74,6 @@ launch_skyflow() {
         sky_manager_log_cmd="python skyflow/launch_sky_manager.py > /dev/null 2>&1"
         ;;
     esac
-    echo "Echo hello in log"
-    echo "Hello from script!" > $manager_log_file
     eval $sky_manager_log_cmd &
     echo "Sky Manager launched."
   fi

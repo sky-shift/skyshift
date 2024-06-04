@@ -17,8 +17,6 @@ from skyflow.etcd_client.etcd_client import (ConflictError, ETCDClient,
                                              KeyNotFoundError,
                                              get_resource_version)
 
-# pylint: disable=C0116 (missing-function-docstring)
-
 # NOTE:
 # In the following test, we assume that the key for the value dictionary is always "value_key". This is hard-coded.
 
@@ -28,6 +26,7 @@ from skyflow.etcd_client.etcd_client import (ConflictError, ETCDClient,
 
 @pytest.fixture(scope="module", name="etcd_client")
 def fixture_etcd_client():
+    """Setup etcd server."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
         print("Using temporary data directory for ETCD:", temp_data_dir)
 
@@ -62,6 +61,7 @@ def fixture_etcd_client():
 
 ## For Basic Functionality ##
 def generate_random_string(min_length=10, max_length=100):
+    """Generate a random string."""
     key_length = random.randint(min_length, max_length)
     key = "".join(
         random.choices(string.ascii_letters + string.digits, k=key_length))
@@ -70,6 +70,7 @@ def generate_random_string(min_length=10, max_length=100):
 
 
 def generate_random_key():
+    """Generate random key."""
     key = generate_random_string(10, 20)
     while key in used_keys:
         key = generate_random_string(10, 20)
@@ -79,12 +80,14 @@ def generate_random_key():
 
 
 def generate_random_value_dict():
+    """Generate random `value_dict`."""
     value = {"value_key": generate_random_string(20, 100)}
 
     return value
 
 
 def generate_random_value_dict_keep_metadata(target_value_dict):
+    """Generate random `value_dict` that keeps metadata."""
     new_value = generate_random_string(20, 100)
     while new_value == target_value_dict["value_key"]:
         new_value = generate_random_string(20, 100)
@@ -94,6 +97,7 @@ def generate_random_value_dict_keep_metadata(target_value_dict):
 
 
 def generate_random_resource_version(old_resource_version, num=1):
+    """Generate random resource version."""
     if num == 1:
         new_resource_version = random.randint(1, 100000)
         while new_resource_version in (old_resource_version,
@@ -112,6 +116,7 @@ def generate_random_resource_version(old_resource_version, num=1):
 
 
 def generate_prefix_key(num=5):
+    """Generate n random prefix keys."""
     prefix = generate_random_string(5, 10)
     result = []
     for _ in range(num):
@@ -122,12 +127,14 @@ def generate_prefix_key(num=5):
 
 ## For Concurrency Test ##
 def concurrent_write(client, key, thread_id, barrier):
+    """Perform a concurrent write."""
     value_dict = {"value_key": thread_id}
     barrier.wait()  # Wait for all threads to be ready
     client.write(key, value_dict)
 
 
 def concurrent_read(client, key, expect_value, barrier):
+    """Perform a concurrent read."""
     barrier.wait()  # Wait for all threads to be ready
     assert client.read(key)["value_key"] == expect_value
 
@@ -135,6 +142,7 @@ def concurrent_read(client, key, expect_value, barrier):
 # pylint: disable=R0913 (too-many-arguments)
 def concurrent_update(client, key, resource_version, chosen_index, thread_id,
                       barrier):
+    """Perform a concurrent update."""
     value_dict = {"value_key": thread_id}
     barrier.wait()  # Wait for all threads to be ready
     if thread_id == chosen_index:
@@ -182,9 +190,8 @@ NUM_OPERATIONS_PER_THREAD = 1000
 
 
 def test_simple_read_write_update(etcd_client):
-
-    # Test writing a key-value pair to the store and assert it's correctly stored.
-    # Test reading a previously written key-value pair.
+    """Test writing a key-value pair to the store and assert it's correctly stored.
+    Test reading a previously written key-value pair."""
     key = generate_random_key()
     write_value = generate_random_value_dict()
     etcd_client.write(key, write_value)
@@ -242,6 +249,7 @@ def test_simple_read_write_update(etcd_client):
 
 
 def test_simple_delete(etcd_client):
+    """Test deleting (non)existent key."""
 
     key = generate_random_key()
     write_value = generate_random_value_dict()
@@ -263,7 +271,7 @@ def test_simple_delete(etcd_client):
 
 # pylint: disable=R0914 (too-many-locals)
 def test_simple_prefix_read_delete(etcd_client):
-    # Read using prefix_1, then delete using prefix_2.
+    """Read using prefix_1, then delete using prefix_2."""
 
     prefix_1, keys_1 = generate_prefix_key(10)
     write_values_1 = [generate_random_value_dict() for _ in range(len(keys_1))]
@@ -323,16 +331,15 @@ def test_simple_prefix_read_delete(etcd_client):
 
 
 def test_delete_all(etcd_client):
-
-    # Test deleting all keys and verify the store is empty.
+    """Test deleting all keys and verify the store is empty."""
     etcd_client.delete_all()
 
     assert len(etcd_client.read_prefix("")) == 0
 
 
 def test_concurrent_read_write_update(etcd_client):
-    # Simulate multiple clients performing concurrent operations on the same keys
-    # to verify proper synchronization and conflict resolution mechanisms.
+    """Simulate multiple clients performing concurrent operations on the same keys
+    to verify proper synchronization and conflict resolution mechanisms."""
 
     key = generate_random_key()
     barrier = threading.Barrier(NUM_THREADS)
@@ -387,7 +394,7 @@ def test_concurrent_read_write_update(etcd_client):
 
 
 def test_concurrent_access(etcd_client):
-    # Stress Test the ETCD client by simulating concurrent read, write and update operations.
+    """Stress Test the ETCD client by simulating concurrent read, write and update operations."""
 
     prefix_list = []
     keys_list = []

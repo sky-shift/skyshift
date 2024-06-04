@@ -22,22 +22,26 @@ from click.testing import CliRunner
 import skyflow.tests.tests_utils as tests_utils
 from skyflow.cli.cli import cli
 
-# pylint: disable=C0116 (missing-function-docstring)
-
 LAUNCH_SCRIPT_REL_PATH = "../../launch_skyflow.sh"
 
 
 def _setup_kind_clusters():
+    """Setup KIND clusters."""
+
     assert tests_utils.create_cluster("test-cluster-1") is True
     assert tests_utils.create_cluster("test-cluster-2") is True
 
 
 def _breakdown_kind_clusters():
+    """Teardown KIND clusters."""
+
     tests_utils.delete_cluster("test-cluster-1")
     tests_utils.delete_cluster("test-cluster-2")
 
 
 def _setup_sky_manager(num_workers: int = 16):
+    """Setup Sky Manager."""
+
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
 
@@ -52,12 +56,12 @@ def _setup_sky_manager(num_workers: int = 16):
     ]
     print(f"Setup up sky manager command:'{command}'.")
 
-    process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
-    time.sleep(15)  # Wait for the server to start
-    return process
+    subprocess.run(command, check=True)
 
 
 def _breakdown_sky_manager():
+    """Teardown Sky Manager."""
+
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
     install_script_path = os.path.abspath(
@@ -65,8 +69,7 @@ def _breakdown_sky_manager():
 
     command = ["bash", install_script_path, "--kill"]
     print(f"Sky manager cleaned up ({command}).")
-    process = subprocess.Popen(command)  # pylint: disable=R1732 (consider-using-with)
-    time.sleep(15)  # Wait for the server to stop
+    subprocess.run(command, check=True)
 
     def delete_dir_if_exists(dir_path):
         if os.path.exists(dir_path) and os.path.isdir(dir_path):
@@ -74,13 +77,13 @@ def _breakdown_sky_manager():
             print(f"Cleaned up {dir_path}.")
 
     # Additional cleanup for pristine env.
-    for dir_path in ["~/.etcd", "~/.sky", "~/.skyconf"]:
+    for dir_path in ["~/.etcd", "~/.skyconf"]:
         delete_dir_if_exists(os.path.expanduser(dir_path))
-
-    return process
 
 
 def _load_batch_job():
+    """Load a batch job from the example folder."""
+
     current_file_path = os.path.abspath(__file__)
     current_directory = os.path.dirname(current_file_path)
     # Load yaml file
@@ -95,6 +98,8 @@ def _load_batch_job():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_and_shutdown():
+    """Setup/teardown a fresh environment."""
+
     # Kill any running sky_manager processes
     _breakdown_sky_manager()
     print("Sky manager clean up complete.")
@@ -119,50 +124,29 @@ def setup_and_shutdown():
 
     yield  # Test execution happens here
 
-    # print("Test clean up begins.")
+    print("Test clean up begins.")
 
-    # # Kill any running sky_manager processes
-    # _breakdown_sky_manager()
-    # print("Cleaned up sky manager and API Server.")
+    # Kill any running sky_manager processes
+    _breakdown_sky_manager()
+    print("Cleaned up sky manager and API Server.")
 
-    # # Cleanup kind clusters after test
-    # _breakdown_kind_clusters()
-    # print("Cleaned up kind clusters.")
+    # Cleanup kind clusters after test
+    _breakdown_kind_clusters()
+    print("Cleaned up kind clusters.")
 
-    # # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
-    # subprocess.run('pkill -9 -f "etcd"', shell=True)  # pylint: disable=subprocess-run-check
-    # print("Cleaned up ETCD.")
-
-
-# def etcd_backup_and_restore():
-#     """Create/teardown new environment for each test."""
-#     with tempfile.TemporaryDirectory() as temp_data_dir:
-#         assert tests_utils.create_cluster("test-cluster-1") is True
-#         assert tests_utils.create_cluster("test-cluster-2") is True
-
-#         with open(os.path.expanduser("~/.kube/config"), "r") as file:
-#             print(file.read())
-
-#         tests_utils.setup_skyflow(temp_data_dir)
-
-#         yield  # Test execution happens here
-
-#         tests_utils.shutdown_skyflow(temp_data_dir)
-
-#         tests_utils.delete_cluster("test-cluster-1")
-#         tests_utils.delete_cluster("test-cluster-2")
-
-#         config_path = os.path.expanduser('~/.skyconf/config.yaml')
-#         subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
-#         print("Cleaned up temporary ETCD data directory.")
+    # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
+    subprocess.run('pkill -9 -f "etcd"', shell=True, check=True)
+    print("Cleaned up ETCD.")
 
 
 @pytest.fixture(name="runner")
 def fixture_runner():
+    """The CLI runner."""
     return CliRunner()
 
 
 def deploy(runner, job_dict):
+    """Deploy the given `job_dict`."""
     with tempfile.NamedTemporaryFile('w') as temp_file:
         yaml.dump(job_dict, temp_file)
         cmd = ['apply', '-f', temp_file.name]
@@ -173,6 +157,8 @@ def deploy(runner, job_dict):
 
 # pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_label(runner):
+    """Test the placement filter with match label."""
+
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
     cluster_2_name = "kind-test-cluster-2"
@@ -327,6 +313,8 @@ def test_filter_with_match_label(runner):
 
 # pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_expression(runner):
+    """Test the placement filter with match expression."""
+
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
     cluster_2_name = "kind-test-cluster-2"
@@ -425,6 +413,8 @@ def test_filter_with_match_expression(runner):
 
 
 def test_preference(runner):
+    """Test the placement preference scheduling."""
+
     # Construct the command with parameters
     cluster_1_name = "kind-test-cluster-1"
     cluster_2_name = "kind-test-cluster-2"

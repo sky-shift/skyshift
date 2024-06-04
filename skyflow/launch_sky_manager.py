@@ -34,6 +34,4 @@ def launch_sky_manager():
 
 
 if __name__ == "__main__":
-    print("launch_sky_manager.py before call")
     launch_sky_manager()
-    print("launch_sky_manager.py after call")
