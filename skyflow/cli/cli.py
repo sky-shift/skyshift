@@ -1583,12 +1583,9 @@ def status():  # pylint: disable=too-many-locals
         cluster_list)
 
     # Determine the status for the aggregate cluster
-    ready_clusters = [
-        cluster for cluster in cluster_list
-        if cluster.status.status == ClusterStatusEnum.READY.value
-    ]
     aggregate_cluster_status = ClusterStatusEnum.READY.value if \
-        ready_clusters else ClusterStatusEnum.ERROR.value
+        any(cluster.status.status == ClusterStatusEnum.READY.value for cluster in cluster_list) \
+            else ClusterStatusEnum.ERROR.value
 
     # Create aggregate cluster (sum of all existing READY clusters)
     total_cluster = Cluster(metadata=ClusterMeta(
