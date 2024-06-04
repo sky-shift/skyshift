@@ -4,7 +4,7 @@ SkyShift orchestrates container-based workloads across the Sky. Our goal is to a
 
 ## Installing Sky Manager
 
-(Recommended) Create new conda enviornment
+(Recommended) Create new conda environment
 
 ```
 conda create -n skyshift python=3.9
