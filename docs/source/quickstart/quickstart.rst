@@ -127,5 +127,5 @@ Since a job is running on ``cluster1``, SkyShift observes fewer resources on ``c
     NAME               MANAGER    RESOURCES                          STATUS
     cluster1             k8       cpus: 0.93/2.0                     READY
                                   memory: 5779.6/7954.6 MiB
-    cluster2             k8       cpus: 1.83/2.0                     READY
+    cluster2            slurm     cpus: 1.83/2.0                     READY
                                   memory: 6035.6/7954.6 MiB

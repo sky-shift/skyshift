@@ -26,10 +26,10 @@ Move the config file to `~/.skyconf/slurm_config.yaml`.
 
 ### 2. Launch SkyShift
 
-To launch SkyShift, run in `SkyShift/`:
+To launch SkyShift, run in `skyshift/`:
 
 ```
-./launch_SkyShift.sh
+./launch_skyshift.sh
 ```
 
 If SkyShift is already running and the Slurm cluster has not been added yet, attach the cluster:

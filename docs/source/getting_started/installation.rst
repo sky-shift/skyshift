@@ -12,14 +12,14 @@ To install SkyShift's python API and CLI, run:
 .. code-block:: shell
 
     # Recommended: Create new conda env to avoid package conflicts.
-    conda create -y -n SkyShift python=3.10
-    conda activate SkyShift
+    conda create -y -n skyshift python=3.10
+    conda activate skyshift
 
     # Pull the latest version of SkyShift from Github.
-    git clone https://github.com/michaelzhiluo/SkyShift.git
+    git clone https://github.com/michaelzhiluo/skyshift.git
 
     # Install basic SkyShift dependencies.
-    cd SkyShift
+    cd skyshift
     pip install -e .
 
 
@@ -28,12 +28,12 @@ To install dependencies for the API server, run:
 .. code-block:: shell
 
     # Recommended: Create new conda env to avoid package conflicts.
-    conda create -y -n SkyShift python=3.10å
-    conda activate SkyShift
+    conda create -y -n skyshift python=3.10å
+    conda activate skyshift
 
     # Pull the latest version of SkyShift from Github.
-    git clone https://github.com/michaelzhiluo/SkyShift.git
+    git clone https://github.com/michaelzhiluo/skyshift.git
 
     # Install API server dependencies.
-    cd SkyShift
+    cd skyshift
     pip install -e .[server]

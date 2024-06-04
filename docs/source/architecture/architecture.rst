@@ -5,7 +5,7 @@ SkyShift Architecture
 
 SkyShift's system architecture is designed to be highly modular, scalable, and flexible. It employs a controller-based architecture that orchestrates various components to manage the lifecycle of deployments and services across multiple clusters.
 
-.. image:: /_static/SkyShift-architecture.svg
+.. image:: /_static/skyshift-architecture.svg
   :width: 100%
   :align: center
   :alt: SkyShift Architecture Diagram

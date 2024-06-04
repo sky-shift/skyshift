@@ -29,12 +29,12 @@ export PATH="$MINICONDA_INSTALL_DIR/bin:$PATH"
 # Update conda
 conda update -y conda
 
-# Create a new environment called 'SkyShift'
-echo "Creating new environment 'SkyShift'..."
-conda create -y -n SkyShift python=3.10
+# Create a new environment called 'skyshift'
+echo "Creating new environment 'skyshift'..."
+conda create -y -n skyshift python=3.10
 
 # Activate the environment
-source "$MINICONDA_INSTALL_DIR/bin/activate" SkyShift
+source "$MINICONDA_INSTALL_DIR/bin/activate" skyshift
 
 # Install Ray in the environment via pip
 echo "Installing Ray..."
