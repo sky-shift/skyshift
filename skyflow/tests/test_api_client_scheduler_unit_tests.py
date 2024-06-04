@@ -9,13 +9,15 @@ pytest skyflow/tests/api_client_scheduler_unit_tests.py::test_namespace_object_a
 
 """
 from enum import Enum
-from typing import Any, Dict, Generator, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import pytest
 import requests
 
-from skyflow.api_client.object_api import (APIException, NamespaceObjectAPI,
+from skyflow.api_client.object_api import (NamespaceObjectAPI,
                                            NoNamespaceObjectAPI)
+
+# pylint: disable=W0613 (unused-argument)
 
 # Test Cases
 DEFAULT_JSON = {
@@ -416,6 +418,8 @@ INVALID_EXPRESSION_OPERATOR_ERROR_JSON = {
 
 
 class ResponseType(Enum):
+    """Possible responses."""
+
     FILTER_EMPTY_NAME_ERROR = "filter-empty-name-error"
     PREFERENCE_EMPTY_NAME_ERROR = "preference-empty-name-error"
     FILTER_NAME_SYNTAX_ERROR = "filter-syntax-name-error"
@@ -437,6 +441,7 @@ class ResponseType(Enum):
     SELECTIVE_LIST = "selective-list"
 
 
+# pylint: disable=R0903 (too-few-public-methods)
 class MockResponse:
     """A class to mock HTTP responses."""
 
@@ -451,8 +456,8 @@ class MockResponse:
         raise ValueError("No JSON content")
 
 
-@pytest.fixture
-def namespace_api() -> NamespaceObjectAPI:
+@pytest.fixture(name="namespace_api")
+def fixture_namespace_api() -> NamespaceObjectAPI:
     """Fixture to setup a NamespaceObjectAPI instance for testing."""
     namespace = "test-namespace"
     object_type = "test-object-type"
@@ -472,8 +477,8 @@ def nonamespace_api() -> NoNamespaceObjectAPI:
     return api
 
 
-@pytest.fixture
-def mock_requests(monkeypatch: Any) -> None:
+@pytest.fixture(name="mock_requests")
+def fixture_mock_requests(monkeypatch: Any) -> None:
     """Fixture to mock HTTP requests using a predefined response map."""
 
     response_map: Dict[Tuple[str, ResponseType], Any] = {
@@ -512,6 +517,7 @@ def mock_requests(monkeypatch: Any) -> None:
         ("put", ResponseType.DEFAULT): (DEFAULT_JSON, 200),
     }
 
+    # pylint: disable=R0912 (too-many-branches)
     def mock_request(method: str, url: str, *args: Any,
                      **kwargs: Any) -> MockResponse:
         key_suffix = ResponseType.DEFAULT

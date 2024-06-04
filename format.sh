@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
+
 # YAPF Formatter, adapted from Ray and Skypilot.
-#
-# Usage:
-#    # Do work and commit your work.
-#    # Format files that differ from origin/main.
-#    bash format.sh
-#    # Format all files.
-#    bash format.sh --all
-#    # Format individual files.
-#    bash format.sh --files <filenames>
-#    # Commit changed files with message 'Run yapf and pylint'
-#
-# YAPF + Clang formatter (if installed). This script formats all changed files from the last mergebase.
-# Run this locally before pushing changes for review.
+
+USAGE="
+Usage: format.sh [OPTIONS] [FILENAMES...]
+
+If no filenames are given, format all files that differ from origin/main.
+
+Options:
+  --all      Format all files
+  --check    Report errors but do not modify the files
+
+Examples:
+  Format files that differ from origin/main   ./format.sh
+  Format files a.txt and b/c.txt              ./format.sh a.txt b/c.txt
+  Format all files in the repository          ./format.sh --all
+  Only check the formatting (like the CI)     ./format.sh --all --check"
 
 # Cause the script to exit if a single command fails
 set -eo pipefail
@@ -43,84 +46,83 @@ tool_version_check "pylint-quotes" $PYLINT_QUOTES_VERSION "0.2.3"
 tool_version_check "mypy" "$MYPY_VERSION" "1.8.0"
 
 #==============================================================================#
-# Run Yapf
-YAPF_FLAGS=(
-    '--recursive'
-    '--parallel'
-)
 
-YAPF_EXCLUDES=(
-)
+# Parse CLI arguments (based on https://stackoverflow.com/a/14203146)
 
-# Format specified files
-format() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "$@"
-}
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --all)
+            ALL=true
+            shift
+            ;;
+        --check)
+            CHECK=true
+            shift
+            ;;
+        -*|--*)
+            echo "Error: unknown option $1"
+            echo "$USAGE"
+            exit 1
+            ;;
+        *)
+            FILES=("${@:1}")
+            break
+    esac
+done
 
-# Format files that differ from main branch. Ignores dirs that are not slated
-# for autoformat yet.
-format_changed() {
-    # The `if` guard ensures that the list of filenames is not empty, which
-    # could cause yapf to receive 0 positional arguments, making it hang
-    # waiting for STDIN.
-    #
-    # `diff-filter=ACM` and $MERGEBASE is to ensure we only format files that
-    # exist on both branches.
+if [ "$ALL" = true ] ; then
+    FILES=("api_server" "examples" "skyflow")
+elif [ -z "${FILES}" ]; then
     MERGEBASE="$(git merge-base origin/main HEAD)"
-
-    if ! git diff --diff-filter=ACM --quiet --exit-code "$MERGEBASE" -- '*.py' '*.pyi' &>/dev/null; then
-        git diff --name-only --diff-filter=ACM "$MERGEBASE" -- '*.py' '*.pyi' | xargs -P 5 \
-             yapf --in-place "${YAPF_EXCLUDES[@]}" "${YAPF_FLAGS[@]}"
-    fi
-
-}
-
-# Format all files
-format_all() {
-    yapf --in-place "${YAPF_FLAGS[@]}" "${YAPF_EXCLUDES[@]}" api_server examples skyflow
-}
-
-## This flag formats individual files. --files *must* be the first command line
-## arg to use this option.
-if [[ "$1" == '--files' ]]; then
-   format "${@:2}"
-   # If `--all` is passed, then any further arguments are ignored and the
-   # entire python directory is formatted.
-elif [[ "$1" == '--all' ]]; then
-   format_all
-else
-   # Format only the files that changed in last commit.
-   format_changed
+    FILES="$(git diff --name-only --diff-filter=ACM "$MERGEBASE" -- '*.py' '*.pyi')"
 fi
-echo '[Done] SkyShift yapf'
+
+#==============================================================================#
+# Run Yapf
+
+echo '[SkyShift] Running yapf'
+if [ "$CHECK" = true ] ; then
+    ARGS=("--diff")
+else
+    ARGS=("--in-place")
+fi
+printf "%s\n" "${FILES[@]}" | xargs -P 5 yapf "${ARGS[@]}" --recursive --parallel
 
 #==============================================================================#
 # Run Isort
-ISORT_YAPF_EXCLUDES=(
-)
 
-echo 'SkyShift isort:'
-isort api_server skyflow  "${ISORT_YAPF_EXCLUDES[@]}"
-echo '[Done] SkyShift isort:'
+echo '[SkyShift] Running isort'
+if [ "$CHECK" = true ] ; then
+    ARGS=("--check-only" "--diff" "--color")
+else
+    ARGS=()
+fi
+printf "%s\n" "${FILES[@]}" | xargs -P 5 isort "${ARGS[@]}"
 
 #==============================================================================#
 # Run mypy
-echo 'SkyPilot mypy:'
-mypy api_server skyflow --show-traceback
-echo '[Done] SkyShift mypy'
+
+echo '[SkyShift] Running mypy'
+mypy --show-traceback api_server skyflow
 
 #==============================================================================#
 # Run Pylint
-echo 'SkyShift Pylint:'
-pylint --load-plugins pylint_quotes --disable invalid-string-quote,duplicate-code skyflow api_server examples
-echo '[Done] SkyShift Pylint'
+
+echo '[SkyShift] Running pylint'
+printf "%s\n" "${FILES[@]}" | xargs -P 5 pylint \
+    --load-plugins pylint_quotes \
+    --disable invalid-string-quote,duplicate-code \
+    --max-line-length=120
 
 #==============================================================================#
 
+echo '[SkyShift] Completed all checks!'
+
 if ! git diff --quiet &>/dev/null; then
-    echo 'Reformatted files. Please review and stage the changes.'
-    echo 'Changes not staged for commit:'
     echo
+    echo 'Reformatted files. Please review and stage the changes.'
+    echo
+    echo 'Changes not staged for commit:'
     git --no-pager diff --name-only
 
     exit 1

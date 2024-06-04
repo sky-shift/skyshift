@@ -2,17 +2,15 @@
     Tests for CLI interface. Mostly integration tests with the API server and ETCD.
 
     To test, run:
-    pytest skyflow/tests/cli_tests.py
+    pytest skyflow/tests/test_cli.py
 
     and for running a specific test:
-    pytest skyflow/tests/cli_tests.py::test_create_cluster_success
+    pytest skyflow/tests/test_cli.py::test_create_cluster_success
 """
 import json
 import os
 import subprocess
 import tempfile
-import time
-from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -20,9 +18,12 @@ from click.testing import CliRunner
 from skyflow.cli.cli import cli
 from skyflow.tests.tests_utils import setup_skyshift, shutdown_skyshift
 
+# pylint: disable=C0116,C0302 (missing-function-docstring, too-many-lines)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
+    """Create/teardown new environment for each test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
         setup_skyshift(temp_data_dir)
 
@@ -35,8 +36,8 @@ def etcd_backup_and_restore():
         print("Cleaned up temporary ETCD data directory.")
 
 
-@pytest.fixture
-def runner():
+@pytest.fixture(name="runner")
+def fixture_runner():
     return CliRunner()
 
 
@@ -136,13 +137,11 @@ def test_delete_cluster_success(runner, name="valid-cluster"):
 
 def test_create_cluster_success_no_manager(runner):
     name = "cluster1"
-    manager = "k8"
     cmd = ['create', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
     assert name in result.output
     name = "cluster2"
-    manager = "k8"
     cmd = ['create', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
@@ -375,7 +374,7 @@ def test_delete_nonexistent_namespace(runner):
     "name, namespace, labelselector, includecluster, excludecluster", [
         ('test-policy-4', 'default', [('app', 'test')], ['cluster1'
                                                          ], ['cluster2']),
-    ])
+    ])  # pylint: disable=R0913 (too-many-arguments)
 def test_create_filter_policy_success(runner, name, namespace, labelselector,
                                       includecluster, excludecluster):
     label_args = []
@@ -423,7 +422,9 @@ def test_create_filter_policy_missing_required_params(runner, missing_arg):
     result = runner.invoke(cli, missing_arg)
     print(missing_arg)
     assert result.exit_code != 0
-    assert "Missing" in result.output or "Invalid" in result.output or "not found" in result.output or "requires 2 arguments" in result.output
+    assert ("Missing" in result.output or "Invalid" in result.output
+            or "not found" in result.output
+            or "requires 2 arguments" in result.output)
 
 
 def test_create_filter_policy_idempotent(runner):
@@ -923,17 +924,15 @@ def test_create_role(runner):
 # User tests
 
 
-def get_invite_helper(runner, roles=[]):
+def get_invite_helper(runner, roles=None):
     name = "admin"
     password = "admin"
     cmd_login = ['login', name, password]
     result_login = runner.invoke(cli, cmd_login)
     assert result_login.exit_code == 0
 
-    if not roles:
-        cmd_invite = ['invite', '--json']
-    else:
-        cmd_invite = ['invite', '--json']
+    cmd_invite = ['invite', '--json']
+    if roles is not None:
         for role in roles:
             cmd_invite.append('--role')
             cmd_invite.append(role)
@@ -1148,6 +1147,6 @@ def test_switch_context(runner):
     result_invite = runner.invoke(cli, cmd_invite)
     assert result_invite.exit_code == 0
 
-    cmd_switch_fail = ['config', 'use-context', f'not_exist-default']
+    cmd_switch_fail = ['config', 'use-context', 'not_exist-default']
     result_switch_fail = runner.invoke(cli, cmd_switch_fail)
     assert result_switch_fail.exit_code != 0

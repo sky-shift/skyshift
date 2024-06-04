@@ -1,3 +1,7 @@
+"""
+Common utilities shared by all tests.
+"""
+
 import logging
 import os
 import shutil
@@ -8,10 +12,10 @@ import time
 def setup_skyshift(temp_data_dir: str) -> None:
     """
     Sets up the SkyShift service by starting the necessary processes.
-    
+
     Args:
         temp_data_dir (str): The temporary directory to use for data storage.
-    
+
     Raises:
         RuntimeError: If the server does not start within the expected time frame.
     """
@@ -21,8 +25,8 @@ def setup_skyshift(temp_data_dir: str) -> None:
     skyconf_dir = os.path.expanduser("~/.skyconf/")
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
     if os.path.exists(dest_skyconf_dir):
-        shutil.rmtree(
-            dest_skyconf_dir)  # Remove the backup directory if it exists.
+        # Remove the backup directory if it exists.
+        shutil.rmtree(dest_skyconf_dir)
 
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
@@ -93,7 +97,7 @@ def shutdown_skyshift(temporal_directory: str) -> None:
 def kill_process(process_name: str) -> None:
     """
     Attempts to kill a process by name.
-    
+
     Args:
         process_name (str): The name of the process to terminate.
     """
@@ -109,10 +113,10 @@ def kill_process(process_name: str) -> None:
 def retrieve_current_working_dir(relative_path_to_script: str) -> str:
     """
     Retrieves the absolute path to a script, given its relative path.
-    
+
     Args:
         relative_path_to_script (str): The relative path from this script to the target.
-    
+
     Returns:
         str: The absolute path to the target script.
     """
@@ -126,10 +130,10 @@ def retrieve_current_working_dir(relative_path_to_script: str) -> str:
 def is_process_running(process_name: str) -> bool:
     """
     Checks if a process with the given name is currently running.
-    
+
     Args:
         process_name (str): The name of the process to check.
-    
+
     Returns:
         bool: True if the process is running, False otherwise.
     """
@@ -152,15 +156,15 @@ def is_process_running(process_name: str) -> bool:
 
 
 def create_cluster(name: str):
-    """ 
-    Creates a KIND Cluster 
+    """
+    Creates a KIND Cluster
 
-    Prerequisites : 
+    Prerequisites :
         KIND (https://kind.sigs.k8s.io)
         DOCKER
         KUBECTL
     """
-    logging.debug(f'Creating cluster {name}')
+    logging.debug('Creating cluster %s', name)
     os.system(f"kind create cluster  --name={name}")
 
     cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
@@ -169,13 +173,13 @@ def create_cluster(name: str):
                                 shell=True,
                                 stderr=subprocess.STDOUT).decode('utf-8')
         return True
-    except subprocess.CalledProcessError as error:
+    except subprocess.CalledProcessError:
         return False
 
 
 def delete_cluster(name: str):
-    """ 
-    Deletes a KIND Cluster 
     """
-    logging.debug(f'Deleting cluster {name}')
+    Deletes a KIND Cluster
+    """
+    logging.debug('Deleting cluster %s', name)
     os.system(f"kind delete cluster --name={name}")

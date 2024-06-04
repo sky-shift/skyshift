@@ -8,16 +8,10 @@ Run : pytest clusterlink_test.py
 import logging
 import os
 import subprocess
-import sys
 import time
 
-import pytest
-
-sys.path.append('path')
-
 from skyflow.cluster_manager import KubernetesManager
-from skyflow.network.cluster_linkv2 import (create_link, delete_export_service,
-                                            delete_import_service,
+from skyflow.network.cluster_linkv2 import (create_link, delete_import_service,
                                             export_service, import_service,
                                             launch_clusterlink)
 
@@ -49,12 +43,12 @@ spec:
 
 
 def _cleanup_clusters():
+    """ Cleans up test environment """
 
     def _delete_cluster(name):
         """ Deletes a KIND Cluster """
         os.system(f"kind delete cluster --name={name}")
 
-    """ Cleans up test environment """
     _delete_cluster(CL1)
     _delete_cluster(CL2)
     _delete_cluster(CL3)
@@ -89,9 +83,10 @@ def _load_exporter_services(cluster: str):
 def _setup_importer_service():
     """ Creates the service for replicas imported from other clusters """
     os.system(f"kubectl config use-context {CL1NAME}")
-    kubectl_process = subprocess.Popen(['kubectl', 'apply', '-f', '-'],
-                                       stdin=subprocess.PIPE)
-    kubectl_process.communicate(input=bytes(HTTP_SERVICE, 'utf-8'))
+    with subprocess.Popen(['kubectl', 'apply', '-f', '-'],
+                          stdin=subprocess.PIPE) as kubectl_process:
+        kubectl_process.communicate(input=bytes(HTTP_SERVICE, 'utf-8'))
+        kubectl_process.wait()
 
 
 def _try_connection():
@@ -105,11 +100,11 @@ def _try_connection():
             f"'until wget -T 1 http-server:{DSTPORT} -q -O -; do sleep 0.1; done'",
             shell=True)
 
-        logging.debug(f"{direct_output.decode()}")
+        logging.debug(direct_output.decode())
         if "clusterlink-hello" in direct_output.decode():
             logging.debug("Successful connection")
             return True
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         return False
     return False
 
