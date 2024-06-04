@@ -1,20 +1,20 @@
 .. _architecture:
 
-SkyFlow Architecture
+SkyShift Architecture
 ======================
 
-SkyFlow's system architecture is designed to be highly modular, scalable, and flexible. It employs a controller-based architecture that orchestrates various components to manage the lifecycle of deployments and services across multiple clusters.
+SkyShift's system architecture is designed to be highly modular, scalable, and flexible. It employs a controller-based architecture that orchestrates various components to manage the lifecycle of deployments and services across multiple clusters.
 
 .. image:: /_static/SkyShift-architecture.svg
   :width: 100%
   :align: center
-  :alt: SkyFlow Architecture Diagram
+  :alt: SkyShift Architecture Diagram
   :class: no-scaled-link, only-dark
 
-SkyFlow's architecture consists of the following components:
+SkyShift's architecture consists of the following components:
 
-- **ETCD**: A distributed, reliable key-value store that provides a robust datastore for SkyFlow objects.
-- **API server**: The central API server that utilizes FastAPI to provide create, read, update, delete, and watch operations over SkyFlow objects. The API server is the central interface for both users and controllers.
+- **ETCD**: A distributed, reliable key-value store that provides a robust datastore for SkyShift objects.
+- **API server**: The central API server that utilizes FastAPI to provide create, read, update, delete, and watch operations over SkyShift objects. The API server is the central interface for both users and controllers.
 - **Controller Manager**: Manages various higher-level controllers that make decisions across clusters.
 
 Within the controller manager, the following higher-level controllers are responsible for managing different aspects of the system:
@@ -31,4 +31,4 @@ Skylet represents an abstracted interface to manage the lifecycle of a cluster o
 - **Flow Controller**: Creates, updates, and deletes jobs and services on the cluster.
 - **Network Controller**: Manages the endpoints for services that span across clusters.
 
-Most importantly, SkyFlow's compatibility layer abstracts the underlying cluster manager's specific APIs into a common interface. This allows SkyFlow to interact with different cluster managers like Kubernetes and Slurm,  managing workloads across multiple clusters regardless of the underlying cluster manager.
+Most importantly, SkyShift's compatibility layer abstracts the underlying cluster manager's specific APIs into a common interface. This allows SkyShift to interact with different cluster managers like Kubernetes and Slurm,  managing workloads across multiple clusters regardless of the underlying cluster manager.

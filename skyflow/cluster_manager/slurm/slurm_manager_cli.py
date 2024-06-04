@@ -32,7 +32,7 @@ SLURM_JOB_FAILED = {
 SLURM_JOB_COMPLETE = {'COMPLETED'}
 
 # Prefix for all jobs managed by SkyShift.
-JOB_PREPEND_STR = "skyflow2slurm"
+JOB_PREPEND_STR = "skyshift2slurm"
 # Remote directory for storing scripts on Slurm node.
 REMOTE_SCRIPT_DIR = "~/.skyconf"
 # Defines Slurm node states.

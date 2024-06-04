@@ -5,7 +5,7 @@ import subprocess
 import time
 
 
-def setup_skyflow(temp_data_dir: str) -> None:
+def setup_skyshift(temp_data_dir: str) -> None:
     """
     Sets up the SkyShift service by starting the necessary processes.
     
@@ -58,7 +58,7 @@ def setup_skyflow(temp_data_dir: str) -> None:
         20)  # Additional wait time for the server to become fully operational.
 
 
-def shutdown_skyflow(temporal_directory: str) -> None:
+def shutdown_skyshift(temporal_directory: str) -> None:
     """
     Shuts down the SkyShift service by terminating its processes.
     """

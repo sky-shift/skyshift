@@ -1,8 +1,8 @@
 Services
 ===========================
 
-SkyFlow's CLI, `skyctl`, introduces a set of commands tailored for creating, 
-retrieving, and deleting services. Services in SkyFlow mirror the functionality of 
+SkyShift's CLI, `skyctl`, introduces a set of commands tailored for creating, 
+retrieving, and deleting services. Services in SkyShift mirror the functionality of 
 Kubernetes services, providing a stable endpoint for accessing a dynamic set of jobs 
 or tasks within a cluster (a task would be similar to a kubernetes pod). 
 These commands are instrumental in defining how jobs are 
@@ -12,7 +12,7 @@ discovery mechanisms typical in cloud-native environments.
 Creating a New Service
 ----------------------
 
-The ``create service`` command provisions a new service within SkyFlow, 
+The ``create service`` command provisions a new service within SkyShift, 
 specifying how jobs are exposed based on label selectors and port mappings.
 
 **Usage:**
@@ -69,7 +69,7 @@ specifying a name, it returns details of all services in the given namespace.
 Deleting a Service
 ------------------
 
-The ``delete service`` command removes a specified service from SkyFlow, terminating 
+The ``delete service`` command removes a specified service from SkyShift, terminating 
 its endpoint and ceasing any network exposure to the targeted jobs.
 
 **Usage:**
@@ -93,10 +93,10 @@ removing the defined network access to the selected jobs.
 
 .. note:: Deleting a service is irreversible and impacts the network accessibility of the associated jobs. Ensure that the service is no longer required before proceeding with deletion.
 
-Understanding SkyFlow Services
+Understanding SkyShift Services
 ------------------------------
 
-Services in SkyFlow serve as the backbone for network communication within the 
+Services in SkyShift serve as the backbone for network communication within the 
 platform, akin to Kubernetes services. They allow for:
 
 - **Stable Networking Endpoints**: Services provide a consistent way to access a dynamic set of jobs, regardless of the individual lifecycles of those jobs.

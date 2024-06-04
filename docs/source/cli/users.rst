@@ -1,7 +1,7 @@
 Users
 ========================
 
-SkyFlow's CLI, `skyctl`, provides an extensive array of commands tailored for user account management. 
+SkyShift's CLI, `skyctl`, provides an extensive array of commands tailored for user account management. 
 Seamlessly integrated with the platform's Role-Based Access Control (RBAC) framework, 
 it guarantees stringent security measures for resource access permissions. 
 Designed with both simplicity and robust security in mind, `skyctl`` streamlines the user onboarding process, 
@@ -10,7 +10,7 @@ effortlessly aligning new users with their respective Roles to ensure immediate 
 Creating a New Account
 -------------------
 
-The ``register`` command creates a new account within SkyFlow, associating it 
+The ``register`` command creates a new account within SkyShift, associating it 
 with predefined roles.
 
 **Usage:**
@@ -21,7 +21,7 @@ with predefined roles.
 
 **Options:**
 
-- ``-inv, --invite``: The invite to registering to SkyFlow. It should be sent by administrators and contains predefined roles.
+- ``-inv, --invite``: The invite to registering to SkyShift. It should be sent by administrators and contains predefined roles.
 - ``--email``: Email address for this account.
 
 **Example:**
@@ -61,7 +61,7 @@ Executing this command retrieves an access token for the user account and stores
 Invite a New User
 ---------------
 
-The ``invite`` command creates a new invitation to register into SkyFlow.
+The ``invite`` command creates a new invitation to register into SkyShift.
 
 **Usage:**
 
@@ -109,9 +109,9 @@ This revokes the invite and no registeration can be done using it.
 Switch Active Context
 ---------------
 
-Active context in SkyFlow is defined to be the active user account and namespace combined. 
+Active context in SkyShift is defined to be the active user account and namespace combined. 
 It is the context all provisioning requests are sent with by default.
-The ``switch`` updates the local SkyFlow config to use the new context.
+The ``switch`` updates the local SkyShift config to use the new context.
 
 **Usage:**
 
@@ -135,7 +135,7 @@ After this command, all future commands uses ``newUser`` and  ``newNamespace``.
 .. note:: This command checks if ``newUser`` exists in the local configuration and aborts if not. However, it does NOT check for the validity and active user's access to ``newNamespace``.
 
 
-Understanding SkyFlow Users
+Understanding SkyShift Users
 ------------------------------
 
 Accounts are basic block in identifying different users. Each is tied to a set of 

@@ -1,4 +1,4 @@
-# Tutorial - Adding Slurm Clusters to SkyFlow
+# Tutorial - Adding Slurm Clusters to SkyShift
 
 ### 1. Creating a config file
 
@@ -24,7 +24,7 @@ sky-lab-cluster:
 
 Move the config file to `~/.skyconf/slurm_config.yaml`.
 
-### 2. Launch SkyFlow
+### 2. Launch SkyShift
 
 To launch SkyShift, run in `SkyShift/`:
 

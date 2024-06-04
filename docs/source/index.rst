@@ -6,13 +6,13 @@
 Overview
 ===================================
 
-SkyFlow is a general-purpose container orchestration platform to deploy workloads *anywhere* - on any cloud provider, private cluster, or the edge. The vision of SkyShift is to complete the final layer of distributed computing - *automatically* managing the lifecycle of deployments, batch jobs, and services across multiple clusters.
+SkyShift is a general-purpose container orchestration platform to deploy workloads *anywhere* - on any cloud provider, private cluster, or the edge. The vision of SkyShift is to complete the final layer of distributed computing - *automatically* managing the lifecycle of deployments, batch jobs, and services across multiple clusters.
 
-SkyFlow abstracts many clusters into one large cluster. SkyFlow presents a thin layer on top of existing cluster managers, such as Kubernetes, Slurm, and other SkyFlows, which presents infinite scalability. SkyFlow accomplishes this with a unified job and service abstraction.
+SkyShift abstracts many clusters into one large cluster. SkyShift presents a thin layer on top of existing cluster managers, such as Kubernetes, Slurm, and other SkyShifts, which presents infinite scalability. SkyShift accomplishes this with a unified job and service abstraction.
 
-SkyFlow can flexibly breathe in and out resources as needed. SkyFlow can provision clusters on any cloud provider, and can be attached to any existing cluster with minimal administrator permissions. SkyFlow is designed to be lightweight and simple to install.
+SkyShift can flexibly breathe in and out resources as needed. SkyShift can provision clusters on any cloud provider, and can be attached to any existing cluster with minimal administrator permissions. SkyShift is designed to be lightweight and simple to install.
 
-Finally, SkyFlow enforces security and isolation by independently managing authentication and role-based access control (RBAC) across clusters.
+Finally, SkyShift enforces security and isolation by independently managing authentication and role-based access control (RBAC) across clusters.
 
 Documentation
 ==================

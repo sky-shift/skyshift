@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class User(BaseModel):
-    """Represents a user for SkyFlow."""
+    """Represents a user for SkyShift."""
     username: str = Field(...,
                           min_length=4,
                           max_length=50,

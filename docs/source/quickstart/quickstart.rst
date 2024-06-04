@@ -5,11 +5,11 @@ Quickstart
 
 In this quickstart, we will walk through:
 
-- Adding and removing clusters from SkyFlow.
-- Creating and running SkyFlow jobs.
-- Using SkyFlow CLI commands.
+- Adding and removing clusters from SkyShift.
+- Creating and running SkyShift jobs.
+- Using SkyShift CLI commands.
 
-Note that this tutorial assumes that SkyFlow is already installed and running. If not, please refer to the :ref:`installation guide <installation>`.
+Note that this tutorial assumes that SkyShift is already installed and running. If not, please refer to the :ref:`installation guide <installation>`.
 
 
 Prerequisites
@@ -29,7 +29,7 @@ Create 3 Kind clusters.
   kind create cluster --name cluster$i
   done
 
-Attach provisioned clusters to SkyFlow.
+Attach provisioned clusters to SkyShift.
 
 .. code-block:: shell
 
@@ -52,7 +52,7 @@ Check the status of existing clusters.
     cluster3             k8       cpus: 1.83/2.0                     READY
                                   memory: 6035.6/7954.6 MiB
 
-Detach a cluster from SkyFlow.
+Detach a cluster from SkyShift.
 
 .. code-block:: shell
 
@@ -73,7 +73,7 @@ Check the status of remaining clusters. Note that cluster3 is no longer listed, 
 Submitting Jobs
 +++++++++++++++++++++++++++++++
 
-The following is an example of a SkyFlow job:
+The following is an example of a SkyShift job:
 
 .. code-block:: yaml
 
@@ -95,13 +95,13 @@ The following is an example of a SkyFlow job:
     # Always restart a job's tasks, regardless of exit code.
     restartPolicy: Always
 
-To create a SkyFlow job, run the following command:
+To create a SkyShift job, run the following command:
 
 .. code-block:: shell
   
     skyctl apply -f example-job.yaml
 
-Alternatively, a SkyFlow job can be created via our Python API or the SkyFlow job CLI. Below, we demonstrate how to create a job using the SkyFlow job CLI.
+Alternatively, a SkyShift job can be created via our Python API or the SkyShift job CLI. Below, we demonstrate how to create a job using the SkyShift job CLI.
 
 .. code-block:: shell
   
@@ -118,7 +118,7 @@ Note that, once a job is created, it will be automatically scheduled to run on o
     myservicejob  cluster1   2/2         cpus: 0.5               default      RUNNING
                                          memory: 128.0 MiB
 
-Since a job is running on ``cluster1``, SkyFlow observes fewer resources on ``cluster1``.
+Since a job is running on ``cluster1``, SkyShift observes fewer resources on ``cluster1``.
 
 .. code-block:: shell
 

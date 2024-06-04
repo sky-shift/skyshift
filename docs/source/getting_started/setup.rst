@@ -1,14 +1,14 @@
 .. _setup:
 
-Launching SkyFlow
+Launching SkyShift
 ==================
 
-SkyFlow depends on two components:
+SkyShift depends on two components:
 
 - API Server - Proccesses user and controller requests. Relies on FastAPI and ETCD.
-- Controller Manager - Manages different controllers, which monitor and update SkyFlow state.
+- Controller Manager - Manages different controllers, which monitor and update SkyShift state.
 
-More information can be found under SkyFlow's architecture.
+More information can be found under SkyShift's architecture.
 
 To launch the API server, run:
 
@@ -19,7 +19,7 @@ To launch the API server, run:
     nohup python api_server/lauch_server.py > /dev/null 2>&1 &
 
 .. note::
-    While SkyFlow automatically installs ETCD for users, it might not work for all users, so `installing ETCD manually <https://etcd.io/docs/v3.4/install/>`_ might be neccessary.
+    While SkyShift automatically installs ETCD for users, it might not work for all users, so `installing ETCD manually <https://etcd.io/docs/v3.4/install/>`_ might be neccessary.
 
 To launch the controller manager, run:
 
