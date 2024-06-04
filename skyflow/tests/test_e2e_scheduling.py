@@ -69,7 +69,7 @@ def _breakdown_sky_manager():
 
     command = ["bash", install_script_path, "--kill"]
     print(f"Sky manager cleaned up ({command}).")
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=False)
 
     def delete_dir_if_exists(dir_path):
         if os.path.exists(dir_path) and os.path.isdir(dir_path):
