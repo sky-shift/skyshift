@@ -22,7 +22,7 @@ from click.testing import CliRunner
 import skyflow.tests.tests_utils as tests_utils
 from skyflow.cli.cli import cli
 
-LAUNCH_SCRIPT_REL_PATH = "../../launch_skyflow.sh"
+LAUNCH_SCRIPT_REL_PATH = "../../launch_skyshift.sh"
 
 
 def _setup_kind_clusters():
