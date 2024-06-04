@@ -52,7 +52,7 @@ def _setup_sky_manager(num_workers: int = 16):
     command = ["bash", install_script_path, "--workers", workers_param_str]
     print(f"Setup up sky manager command:'{command}'.")
 
-    subprocess.run(command, check=False)
+    subprocess.run(command, check=True)
 
 
 def _breakdown_sky_manager():
@@ -65,7 +65,7 @@ def _breakdown_sky_manager():
 
     command = ["bash", install_script_path, "--kill"]
     print(f"Sky manager cleaned up ({command}).")
-    subprocess.run(command, check=False)
+    subprocess.run(command, check=True)
 
     def delete_dir_if_exists(dir_path):
         if os.path.exists(dir_path) and os.path.isdir(dir_path):
@@ -304,8 +304,6 @@ def test_filter_with_match_label(runner):
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
 
-    time.sleep(10)  # wait for job to get deleted
-
 
 # pylint: disable=R0915 (too-many-statements)
 def test_filter_with_match_expression(runner):
@@ -404,8 +402,6 @@ def test_filter_with_match_expression(runner):
     cmd = ['delete', 'job', batch_job_name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0, f'Job deletion failed: {batch_job_name}'
-
-    time.sleep(10)  # wait for job to get deleted
 
 
 def test_preference(runner):
