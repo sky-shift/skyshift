@@ -9,7 +9,13 @@ If no filenames are given, format all files that differ from origin/main.
 
 Options:
   --all      Format all files
-  --check    Report errors but do not modify the files"
+  --check    Report errors but do not modify the files
+
+Examples:
+  Format files that differ from origin/main   ./format.sh
+  Format files a.txt and b/c.txt              ./format.sh a.txt b/c.txt
+  Format all files in the repository          ./format.sh --all
+  Only check the formatting (like the CI)     ./format.sh --all --check"
 
 # Cause the script to exit if a single command fails
 set -eo pipefail

@@ -50,13 +50,10 @@ def _setup_sky_manager(num_workers: int = 16):
 
     workers_param_str = str(num_workers)
     command = [
-        "bash", install_script_path, "--workers", workers_param_str, "--log",
-        "file", "--api-log-file", "/tmp/api.log", "--manager-log-file",
-        "/tmp/manager.log"
-    ]
+        "bash", install_script_path, "--workers", workers_param_str]
     print(f"Setup up sky manager command:'{command}'.")
 
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=False)
 
 
 def _breakdown_sky_manager():
@@ -135,7 +132,7 @@ def setup_and_shutdown():
     print("Cleaned up kind clusters.")
 
     # Stop ETCD server (launch script does not cleanup etcd. Putting etcd cleanup here.)
-    subprocess.run('pkill -9 -f "etcd"', shell=True, check=True)
+    subprocess.run('pkill -9 -f "etcd"', shell=True, check=False)
     print("Cleaned up ETCD.")
 
 
