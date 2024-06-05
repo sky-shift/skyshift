@@ -176,8 +176,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         for node in node_list.items:
             node_name = node.metadata.name
             for label in node.metadata.labels:
-                if self._is_accelerator_label(label):
-                    accelerator_types[label].append(node_name)
+                if utils.is_accelerator_label(label):
+                    accelerator_types[node.metadata.labels.get(label,"0")]\
+                        .append(node_name)
                     break
 
         return accelerator_types
@@ -217,14 +218,6 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def _is_accelerator_label(self, label: str) -> bool:  # pylint: disable=no-self-use
-        """Uses fuzzy matching to determine if a label is an accelerator label."""
-        keywords = ["accelerator", "nvidia"]
-        _, score, _ = process.extractOne(label, keywords)
-        # Define a threshold for fuzzy matching. Adjust it as needed.
-        threshold = 80
-        return score >= threshold
-
     def get_allocatable_resources(
             self, nodes: List[client.V1Node]
     ) -> Tuple[Dict[str, Dict[str, float]], str]:
@@ -241,7 +234,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 node.status.allocatable.get("memory", "0"))
             node_gpu = int(node.status.allocatable.get("nvidia.com/gpu", 0))
             for label in node.metadata.labels.keys():
-                if self._is_accelerator_label(label):
+                if utils.is_accelerator_label(label):
                     gpu_type = node.metadata.labels[label]
                     break  # Only consider the first accelerator as we only supports one accelerator type per node.
             available_resources[name] = {
@@ -411,7 +404,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 available_accelerators = list(cluster_acc_types.keys())
                 best_match = process.extractOne(accelerator_type,
                                                 available_accelerators,
-                                                score_cutoff=80)
+                                                score_cutoff=40) # Minimum score to match T4
                 if not best_match:
                     raise ValueError(
                         f"Accelerator type {accelerator_type} not found in cluster."
@@ -475,7 +468,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 available_accelerators = list(cluster_acc_types.keys())
                 best_match = process.extractOne(accelerator_type,
                                                 available_accelerators,
-                                                score_cutoff=80)
+                                                score_cutoff=40) # Minimum score to match T4
                 if not best_match:
                     raise ValueError(
                         f"Accelerator type {accelerator_type} not found in cluster."
