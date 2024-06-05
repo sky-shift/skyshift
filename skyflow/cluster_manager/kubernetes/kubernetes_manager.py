@@ -218,9 +218,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def get_allocatable_resources(
-            self, nodes: List[client.V1Node]
-    ) -> Tuple[Dict[str, Dict[str, float]], str]:
+    def get_allocatable_resources(  # pylint: disable=no-self-use
+            self, nodes: List[client.V1Node]) -> Tuple[Dict[str, Dict[
+                str, float]], str]:
         """Gets allocatable resources in this cluster."""
         available_resources = {}
         gpu_type = ResourceEnum.GPU.value
@@ -402,9 +402,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 gpus = job_resource_dict[accelerator_type]
                 cluster_acc_types = self.get_accelerator_types()
                 available_accelerators = list(cluster_acc_types.keys())
-                best_match = process.extractOne(accelerator_type,
-                                                available_accelerators,
-                                                score_cutoff=40) # Minimum score to match T4
+                best_match = process.extractOne(
+                    accelerator_type, available_accelerators,
+                    score_cutoff=40)  # Minimum score to match T4
                 if not best_match:
                     raise ValueError(
                         f"Accelerator type {accelerator_type} not found in cluster."
@@ -466,9 +466,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 gpus = job_resource_dict[accelerator_type]
                 cluster_acc_types = self.get_accelerator_types()
                 available_accelerators = list(cluster_acc_types.keys())
-                best_match = process.extractOne(accelerator_type,
-                                                available_accelerators,
-                                                score_cutoff=40) # Minimum score to match T4
+                best_match = process.extractOne(
+                    accelerator_type, available_accelerators,
+                    score_cutoff=40)  # Minimum score to match T4
                 if not best_match:
                     raise ValueError(
                         f"Accelerator type {accelerator_type} not found in cluster."

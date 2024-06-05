@@ -8,14 +8,13 @@ from datetime import datetime, timezone
 from typing import Dict, List
 
 from pydantic import Field, field_validator
+from rapidfuzz import process
 
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
                                                ObjectException, ObjectList,
                                                ObjectName, ObjectSpec,
                                                ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
-from skyflow.utils import utils
-from rapidfuzz import process
 
 DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
@@ -417,7 +416,10 @@ class JobSpec(ObjectSpec):
         resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
 
         #Filter out resources with 0 values
-        resources = {key: value for key, value in resources.items() if value != 0}
+        resources = {
+            key: value
+            for key, value in resources.items() if value != 0
+        }
 
         resource_enums = [member.value for member in ResourceEnum]
         acc_enums = [member.value for member in AcceleratorEnum]
@@ -428,7 +430,8 @@ class JobSpec(ObjectSpec):
                                                 acc_enums,
                                                 score_cutoff=80)
                 if not best_match:
-                    raise ValueError(f"Invalid resource type: {resource_type}.")
+                    raise ValueError(
+                        f"Invalid resource type: {resource_type}.")
             if resource_value < 0:
                 raise ValueError(
                     f"Invalid resource value for {resource_type}: {resource_value}."
