@@ -14,10 +14,23 @@ from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 
 def is_subset_and_values_smaller(dict1: dict, dict2: dict) -> bool:
-    """Determines if all values in dict2 are smaller than \
-        corresponding values in dict1, ignoring keys with value 0 in dict2."""
+    """
+    Determines if all values in dict2 are smaller than corresponding values in dict1,
+    ignoring keys with value 0 in dict2. Also handles GPU requirements by checking total
+    available GPUs if any GPU is requested.
+    """
     filtered_dict2 = {key: value for key, value in dict2.items() if value != 0}
 
+    # Handle GPU requests separately
+    if ResourceEnum.GPU.value in filtered_dict2:
+        total_gpus = sum(dict1.get(gpu.name, 0) for gpu in AcceleratorEnum)
+        print(f"Total GPUs available: {total_gpus}")
+        if filtered_dict2[ResourceEnum.GPU.value] > total_gpus:
+            return False
+        filtered_dict2.pop(ResourceEnum.GPU.value
+                           )  # Remove 'gpus' key as it is already handled
+
+    # Check remaining resources
     if all(key in dict1 for key in filtered_dict2):
         return all(filtered_dict2[key] <= dict1[key] for key in filtered_dict2)
     return False

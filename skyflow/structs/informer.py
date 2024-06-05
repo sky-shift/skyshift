@@ -74,7 +74,7 @@ class Informer:  # pylint: disable=too-many-instance-attributes
             self.cache[name] = obj
 
     def resync_cache(self):
-        """Resyncs the cache with the API server."""
+        """Resync the cache with the API server."""
         api_object = self.api.list()
         obj_names = {obj.get_name() for obj in api_object.objects}
         for obj in api_object.objects:
