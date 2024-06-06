@@ -36,6 +36,18 @@ def parse_resource_memory(resource_str):
     return float(value) * unit_map.get(unit, 1) / (2**20)
 
 
+def format_resource_units(value: float) -> str:
+    """
+    Converts a given value to the most optimal units (TB, GB, MB, KB).
+    """
+    units = ['PB', 'TB', 'GB']
+    thresholds = [1 << 30, 1 << 20, 1 << 10]
+    for unit, threshold in zip(units, thresholds):
+        if value >= threshold:
+            return f"{value / threshold:.2f} {unit}"
+    return f"{value} MB"
+
+
 def sanitize_cluster_name(value: str) -> str:
     """
     Validates the name field of a Cluster, ensuring

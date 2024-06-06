@@ -27,6 +27,7 @@ from skyflow.templates import (Cluster, ClusterList, FilterPolicy,
                                Service, ServiceList, TaskStatusEnum)
 from skyflow.templates.cluster_template import ClusterStatusEnum
 from skyflow.templates.job_template import JobStatusEnum
+from skyflow.templates.resource_template import ResourceEnum
 from skyflow.utils.utils import (API_SERVER_CONFIG_PATH,
                                  compute_datetime_delta, fetch_datetime,
                                  load_manager_config, update_manager_config)
@@ -274,7 +275,12 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
             # Get the first two decimals
             available_resources = round(available_resources, 2)
             resources[key] = round(resources[key], 2)
-            resources_str += f"{key}: {available_resources}/{resources[key]}\n"
+            if key in [ResourceEnum.MEMORY.value, ResourceEnum.DISK.value]:
+                resources_str += f"{key}: {utils.format_resource_units(available_resources)}/\
+                    {utils.format_resource_units(resources[key])}\n"
+
+            else:
+                resources_str += f"{key}: {available_resources}/{resources[key]}\n"
         if not resources_str:
             resources_str = "{}"
         status = colorize_status(entry.get_status())
@@ -289,7 +295,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
     return table
 
 
-def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches
+def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     """
     Prints out a table of jobs.
     """
@@ -314,7 +320,10 @@ def print_job_table(job_list: Union[JobList, Job]):  # pylint: disable=too-many-
         for key in resources.keys():
             if resources[key] == 0:
                 continue
-            resources_str += f"{key}: {resources[key]}\n"
+            if key in [ResourceEnum.MEMORY.value, ResourceEnum.DISK.value]:
+                resources_str += f"{key}: {utils.format_resource_units(resources[key])}\n"
+            else:
+                resources_str += f"{key}: {resources[key]}\n"
 
         status = entry.status.conditions[-1]["type"]
         if clusters:
