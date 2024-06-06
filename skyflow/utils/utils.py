@@ -38,7 +38,7 @@ def parse_resource_memory(resource_str):
 
 def format_resource_units(value: float) -> str:
     """
-    Converts a given value to the most optimal units (TB, GB, MB, KB).
+    Converts a given value to the most optimal units (PB, TB, GB, MB).
     """
     units = ['PB', 'TB', 'GB']
     thresholds = [1 << 30, 1 << 20, 1 << 10]
