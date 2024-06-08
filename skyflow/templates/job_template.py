@@ -426,12 +426,11 @@ class JobSpec(ObjectSpec):
         for resource_type, resource_value in resources.items():
             if resource_type not in resource_enums:
                 # Fuzzy match the accelerator type.
-                best_match = process.extractOne(resource_type,
-                                                acc_enums,
-                                                score_cutoff=80)
-                if not best_match:
-                    raise ValueError(
-                        f"Invalid resource type: {resource_type}.")
+                best_match, score, _ = process.extractOne(
+                    resource_type.upper(), acc_enums)
+                if score < 80:
+                    best_match = AcceleratorEnum.UNKGPU.value
+                resource_type = best_match
             if resource_value < 0:
                 raise ValueError(
                     f"Invalid resource value for {resource_type}: {resource_value}."

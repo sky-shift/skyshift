@@ -171,13 +171,13 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
     def get_accelerator_types(self) -> Dict[str, List[str]]:
         """Fetches accelerator types for each node."""
         accelerator_types = defaultdict(list)
-        node_list = self.core_v1.list_node(_request_timeout=CLUSTER_TIMEOUT)
+        nodes = self._fetch_node_list()
 
-        for node in node_list.items:
+        for node in nodes:
             node_name = node.metadata.name
             for label in node.metadata.labels:
                 if utils.is_accelerator_label(label):
-                    accelerator_types[node.metadata.labels.get(label,"0")]\
+                    accelerator_types[node.metadata.labels.get(label,"")]\
                         .append(node_name)
                     break
 
@@ -218,10 +218,24 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def get_allocatable_resources(  # pylint: disable=no-self-use
-            self, nodes: List[client.V1Node]) -> Tuple[Dict[str, Dict[
-                str, float]], str]:
+    def _fetch_node_list(self) -> List[client.V1Node]:
+        """Fetches the list of nodes in the cluster."""
+        limit = None
+        continue_token = ""
+        nodes, _, _ = self.core_v1.list_node_with_http_info(
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
+        return nodes.items
+
+    def process_resources(
+            self, nodes: List[client.V1Node]
+    ) -> Tuple[Dict[str, Dict[str, float]], str]:
         """Gets allocatable resources in this cluster."""
+
+        if not nodes:
+            nodes = self._fetch_node_list()
+
         available_resources = {}
         gpu_type = ResourceEnum.GPU.value
         for node in nodes:
@@ -232,7 +246,12 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 node.status.allocatable.get("cpu", "0"))
             node_memory = parse_resource_memory(
                 node.status.allocatable.get("memory", "0"))
-            node_gpu = int(node.status.allocatable.get("nvidia.com/gpu", 0))
+            node_gpu = 0
+            for allocatable in node.status.allocatable:
+                if utils.is_accelerator_label(allocatable):
+                    node_gpu = int(node.status.allocatable.get(allocatable, 0))
+                    break
+
             for label in node.metadata.labels.keys():
                 if utils.is_accelerator_label(label):
                     gpu_type = node.metadata.labels[label]
@@ -248,16 +267,10 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
     @property
     def cluster_resources(self):
         """Gets total cluster resources for each node."""
-        limit = None
-        continue_token = ""
-        nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit,
-            _continue=continue_token,
-            _request_timeout=CLUSTER_TIMEOUT)
-        nodes = nodes.items
+        nodes = self._fetch_node_list()
 
         # Initialize a dictionary to store available resources per node
-        cluster_resources, _ = self.get_allocatable_resources(nodes)
+        cluster_resources, _ = self.process_resources(nodes)
 
         return utils.fuzzy_map_gpu(cluster_resources)
 
@@ -267,14 +280,10 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Get the nodes and running pods
         limit = None
         continue_token = ""
-        nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit,
-            _continue=continue_token,
-            _request_timeout=CLUSTER_TIMEOUT)
-        nodes = nodes.items
+        nodes = self._fetch_node_list()
 
         # Initialize a dictionary to store available resources per node
-        available_resources, gpu_type = self.get_allocatable_resources(nodes)
+        available_resources, gpu_type = self.process_resources(nodes)
 
         pods, _, _ = self.core_v1.list_pod_for_all_namespaces_with_http_info(
             limit=limit, _continue=continue_token)
