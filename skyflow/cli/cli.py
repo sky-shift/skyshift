@@ -309,7 +309,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
     """Attaches a new cluster."""
     from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+        create_cli_object, parse_resource_with_units  # pylint: disable=import-outside-toplevel
     from skyflow.cloud.utils import \
         cloud_cluster_dir  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_lookup.ray_lookup import \
@@ -334,6 +334,20 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         ports = list(ports)
 
     labels_dict = dict(labels)
+
+    # Convert memory and disk_size to MB, default to GB if no unit is provided
+    if memory:
+        try:
+            memory = parse_resource_with_units(memory)
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
+    if disk_size:
+        try:
+            disk_size = parse_resource_with_units(disk_size)
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
 
     cluster_dictionary = {
         "kind": "Cluster",
@@ -507,7 +521,7 @@ def create_job(
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Adds a new job."""
     from skyflow.cli.cli_utils import \
-        create_cli_object  # pylint: disable=import-outside-toplevel
+        create_cli_object, parse_resource_with_units  # pylint: disable=import-outside-toplevel
     from skyflow.templates.resource_template import \
         ResourceEnum  # pylint: disable=import-outside-toplevel
 
@@ -548,6 +562,20 @@ def create_job(
 
     labels = dict(labels)
     envs = dict(envs)
+
+    # Convert memory to MB, default to MB if no unit is provided
+    if memory:
+        try:
+            memory = parse_resource_with_units(memory, "MB")
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
+    if disk_size:
+        try:
+            disk_size = parse_resource_with_units(disk_size, "MB")
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
 
     job_dictionary = {
         "kind": "Job",

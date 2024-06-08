@@ -4,6 +4,7 @@ Utils for SkyShift CLI.
 import enum
 import io
 import json as json_lib
+import re
 import time
 from contextlib import redirect_stdout
 from typing import Dict, List, Optional, Union
@@ -111,9 +112,28 @@ def stream_cli_object(config: dict):
         api_response = api_object.websocket_stream(config)
     except APIException as error:
         raise click.ClickException(
-            f"Failed to create {object_type} stream: {error}")
+            f"Failed to create {object_type} stream: {error}") from error
     return api_response
 
+def parse_resource_with_units(resource: str, default_unit: str = "GB") -> int:
+    """
+    Parses a resource string with units (e.g., "32GB", "100MB") and converts it to MB.
+    Assumes GB if no units are specified.
+
+    Args:
+        resource: The resource string to parse.
+        default_unit: The default unit to use if no unit is specified.
+    Raises:
+        ValueError: If the resource string is invalid.
+    """
+    units = {"KB": 1 / 1024, "MB": 1, "GB": 1024, "TB": 1024**2, "PB": 1024**3}
+    pattern = re.compile(r'(\d+(\.\d+)?)(\s*(KB|MB|GB|TB|PB))?', re.IGNORECASE)
+    match = pattern.match(resource)
+    if not match:
+        raise ValueError(f"Invalid resource format: {resource}")
+    value, _, _, unit = match.groups()
+    unit = unit.upper() if unit else default_unit
+    return int(float(value) * units[unit])
 
 def get_cli_object(
     object_type: str,
