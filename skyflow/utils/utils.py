@@ -1,5 +1,5 @@
 """
-Utility functions for Skyflow.
+Utility functions for SkyShift.
 """
 import importlib
 import json
@@ -14,7 +14,8 @@ import requests
 import yaml
 from rapidfuzz import process
 
-from skyflow.globals import API_SERVER_CONFIG_PATH, SKYCONF_DIR
+from skyflow.globals import (ACCELERATOR_KEYWORDS, API_SERVER_CONFIG_PATH,
+                             SKYCONF_DIR)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyflow.templates")
@@ -34,6 +35,12 @@ def parse_resource_memory(resource_str):
     value = re.search(r"\d+", resource_str).group()
     unit = resource_str[len(value):]
     return float(value) * unit_map.get(unit, 1) / (2**20)
+
+
+def is_accelerator_label(label: str, threshold: int = 80) -> bool:
+    """Uses fuzzy matching to determine if a label is an accelerator label."""
+    _, score, _ = process.extractOne(label, ACCELERATOR_KEYWORDS)
+    return score >= threshold
 
 
 def sanitize_cluster_name(value: str) -> str:

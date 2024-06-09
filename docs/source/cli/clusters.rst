@@ -3,20 +3,20 @@
 Clusters
 ===========================
 
-SkyFlow, through its command-line interface (CLI), `skyctl`, offers a comprehensive 
+SkyShift, through its command-line interface (CLI), `skyctl`, offers a comprehensive 
 suite of commands for efficient cluster management. These commands facilitate the 
 attachment of new clusters, the retrieval of details about existing clusters, and the 
-removal of clusters from SkyFlow's oversight. This document delineates the usage, 
-options, and examples pertinent to each command, ensuring you can leverage SkyFlow to 
+removal of clusters from SkyShift's oversight. This document delineates the usage, 
+options, and examples pertinent to each command, ensuring you can leverage SkyShift to 
 its fullest potential.
 
 Creating a New Cluster
 ----------------------
 
 The ``create cluster`` command facilitates the integration of a new cluster into 
-SkyFlow for seamless management. This command is versatile, allowing for the creation 
+SkyShift for seamless management. This command is versatile, allowing for the creation 
 of a cluster on your chosen cloud provider with designated resources, or for the 
-attachment of an existing cluster to SkyFlow. The command supports clusters managed by 
+attachment of an existing cluster to SkyShift. The command supports clusters managed by 
 Kubernetes or Slurm.
 
 **Usage:**
@@ -47,13 +47,13 @@ Kubernetes or Slurm.
 This command initiates the creation of a new cluster named ``myCluster``, managed by 
 Kubernetes. It provisions the cluster on AWS in the US West (Oregon) region, 
 configuring 3 nodes each with 4 vCPUs, 16 GB of memory, and a 100 GB OS disk. 
-Post-creation, SkyFlow connects to the cluster and commences status monitoring.
+Post-creation, SkyShift connects to the cluster and commences status monitoring.
 
 Retrieving Cluster Information
 ------------------------------
 
 The ``get cluster`` command fetches and displays details for one or all clusters under 
-SkyFlow management, including names, managers, statuses, and resources (both allocated 
+SkyShift management, including names, managers, statuses, and resources (both allocated 
 and available).
 
 **Usage:**
@@ -73,12 +73,12 @@ and available).
     skyctl get cluster myCluster
 
 Executing this command will reveal details about the cluster named ``myCluster``. 
-Omitting the name argument will yield information on all clusters managed by SkyFlow.
+Omitting the name argument will yield information on all clusters managed by SkyShift.
 
 Deleting a Cluster
 -------------------
 
-The ``delete cluster`` command extricates a cluster from SkyFlow’s management framework. For clusters provisioned by SkyFlow, this command also orchestrates their removal from the corresponding cloud provider.
+The ``delete cluster`` command extricates a cluster from SkyShift’s management framework. For clusters provisioned by SkyShift, this command also orchestrates their removal from the corresponding cloud provider.
 
 **Usage:**
 
@@ -92,7 +92,7 @@ The ``delete cluster`` command extricates a cluster from SkyFlow’s management 
 
     skyctl delete cluster myCluster
 
-By executing this command, the cluster named ``myCluster`` is detached from SkyFlow 
-and expunged from the cloud provider, contingent on its SkyFlow-provisioned status.
+By executing this command, the cluster named ``myCluster`` is detached from SkyShift 
+and expunged from the cloud provider, contingent on its SkyShift-provisioned status.
 
-.. note:: Exercise caution when invoking the ``delete`` command; it irrevocably disassociates the cluster from SkyFlow’s management and, if applicable, eradicates it from the cloud.
+.. note:: Exercise caution when invoking the ``delete`` command; it irrevocably disassociates the cluster from SkyShift’s management and, if applicable, eradicates it from the cloud.

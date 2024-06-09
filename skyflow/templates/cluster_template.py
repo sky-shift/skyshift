@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from skyflow.globals import (K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
+from skyflow.globals import (APP_NAME, K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
                              RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
                              SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyflow.templates.object_template import (Object, ObjectException,
@@ -167,6 +167,7 @@ class ClusterStatus(ObjectStatus):
 class ClusterMeta(ObjectMeta):
     """Metadata for a Cluster."""
     name: str = Field(default="cluster", validate_default=True)
+    creation_timestamp: str = Field(default="", validate_default=True)
 
     @field_validator("name")
     @classmethod
@@ -219,8 +220,8 @@ class ClusterSpec(ObjectSpec):
                 return SLURM_CONFIG_DEFAULT_PATH
             if manager_type in RAY_MANAGERS:
                 return RAY_CLUSTERS_CONFIG_PATH
-            if manager_type.lower() == 'skyflow':
-                return 'Skyflow'
+            if manager_type.lower() == APP_NAME.lower():
+                return APP_NAME
             raise ValueError(
                 f"Manager type '{manager_type}' is not supported.")
         return config_path

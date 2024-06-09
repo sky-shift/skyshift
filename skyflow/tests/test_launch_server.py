@@ -1,10 +1,12 @@
-import argparse
+"""
+Test launching the API server.
+"""
+
 import multiprocessing
 import os
-import subprocess
 import sys
 import unittest
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import yaml
 
@@ -14,19 +16,19 @@ from skyflow.utils.utils import generate_manager_config
 
 
 class TestLaunchAPIServer(unittest.TestCase):
+    """Test launching the API server."""
 
-    @patch('os.urandom', return_value=b'\x00' * 32
-           )  # Mocks os.urandom to return a predictable value.
+    # Mocks os.urandom to return a predictable value.
+    @patch('os.urandom')
     @patch('os.makedirs')
-    @patch('builtins.open', new_callable=mock_open, read_data=""
-           )  # Mocks file opening, read_data can simulate file content.
-    @patch('yaml.safe_load'
-           )  # Mocks yaml.safe_load to control its return value.
-    def test_generate_manager_config(self, mock_yaml_safe_load, mock_file,
-                                     mock_makedirs, mock_urandom):
+    # Mocks file opening, read_data can simulate file content.
+    @patch('builtins.open', new_callable=mock_open, read_data="")
+    def test_generate_manager_config(self, mock_file, mock_makedirs,
+                                     mock_urandom):
         """
         Test if the manager configuration file is generated correctly.
         """
+        mock_urandom.side_effect = lambda len: b'\x00' * len
 
         # Remove the API_SERVER_CONFIG_PATH file if it exists
         if os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
@@ -39,13 +41,12 @@ class TestLaunchAPIServer(unittest.TestCase):
                 "host": test_host,
                 "port": test_port,
                 "secret":
-                '00' * 32,  # Corresponds to the mocked os.urandom output
+                '00' * 256,  # Corresponds to the mocked os.urandom output
             },
             "users": [],
+            "contexts": [],
+            "current_context": "",
         }
-
-        # Mock yaml.safe_load to return the mock_config_dict
-        mock_yaml_safe_load.return_value = mock_config_dict
 
         # Call the function with test data
         generate_manager_config(test_host, test_port)
@@ -71,6 +72,7 @@ class TestLaunchAPIServer(unittest.TestCase):
     @patch('api_server.launch_server.uvicorn.run')
     @patch('api_server.launch_server.generate_manager_config')
     @patch('api_server.launch_server.check_and_install_etcd')
+    # pylint: disable=R0201 (no-self-use)
     def test_main(self, mock_check_etcd, mock_generate_config, mock_uvicorn):
         """
         Test the main function with mocked dependencies.

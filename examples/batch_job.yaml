@@ -6,7 +6,7 @@ metadata:
     app: batchjob
 
 spec:
-  replicas: 2
+  replicas: 1
   image: ubuntu:latest
   resources:
     cpus: 1

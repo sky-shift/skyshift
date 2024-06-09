@@ -74,7 +74,7 @@ def run_docker_container(job: Dict) -> int:
     for bucket_name, volume in volumes.items():
         storage_type = volume['storage_type']
         config = volume.get('config', {})
-        local_dir = f"{os.environ['HOME']}/.Skyflow/{bucket_name}"
+        local_dir = f"{os.environ['HOME']}/.skyshift/{bucket_name}"
         subprocess.run(f"mkdir -p {local_dir}", shell=True)
         volume_mappings += f" -v {local_dir}:{volume['container_dir']}"
         mount_bucket(bucket_name, local_dir, storage_type, config)

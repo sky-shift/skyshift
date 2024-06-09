@@ -1,11 +1,11 @@
 #!/bin/bash
-# Automatic script to launch Skyflow's API server and controller manager.
+# Automatic script to launch SkyShift's API server and controller manager.
 #
 # Usage:
-#    # Launch Skyflow with desired # of workers and logging behavior.
-#    bash launch_skyflow.sh --workers <num_workers> --log <file|stdout|none>
-#    # Kill Skyflow API server and controller manager.
-#    bash launch_skyflow.sh --kill
+#    # Launch SkyShift with desired # of workers and logging behavior.
+#    bash launch_skyshift.sh --workers <num_workers> --log <file|stdout|none>
+#    # Kill SkyShift API server and controller manager.
+#    bash launch_skyshift.sh --kill
 
 # Default arguments
 workers=$(nproc)
@@ -39,7 +39,7 @@ is_running() {
 
 # Function to launch programs with logging options
 # Function to launch programs with logging options
-launch_skyflow() {
+launch_skyshift() {
   cd "$(dirname "$0")"
 
   # Determine logging behavior and construct command for API server
@@ -80,8 +80,8 @@ launch_skyflow() {
 }
 
 # Function to kill programs and ensure they are terminated
-terminate_skyflow() {
-  echo "Terminating Skyflow processes..."
+terminate_skyshift() {
+  echo "Terminating SkyShift processes..."
   # Get PID of server
   pkill -9 -f "launch_sky_manager.py"
   server_pid=$(pgrep -f launch_server.py)
@@ -102,7 +102,7 @@ terminate_skyflow() {
     sleep 1
   done
 
-  echo "Skyflow processes terminated successfully."
+  echo "SkyShift processes terminated successfully."
 }
 
 # Parse the command-line arguments
@@ -110,8 +110,8 @@ parse_args "$@"
 
 if [[ "$kill_flag" -eq 1 ]]; then
   # Kill the programs if the kill flag is set
-  terminate_skyflow
+  terminate_skyshift
 else
   # Launch the programs otherwise
-  launch_skyflow
+  launch_skyshift
 fi

@@ -1,5 +1,5 @@
 """
- - Pythonic API for interacting with Skyflow API Server.
+ - Pythonic API for interacting with SkyShift API Server.
 """
 from skyflow.api_client.cluster_api import ClusterAPI
 from skyflow.api_client.endpoints_api import EndpointsAPI

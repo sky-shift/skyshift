@@ -1,5 +1,5 @@
 """
-Utils for Skyflow CLI.
+Utils for SkyShift CLI.
 """
 import enum
 import io
