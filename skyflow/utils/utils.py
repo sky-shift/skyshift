@@ -42,7 +42,7 @@ def format_resource_units(value: float) -> str:
     Converts a given value to the most optimal units (EB, PB, TB, GB, MB, KB).
     """
     units = ['EB', 'PB', 'TB', 'GB', 'MB', 'KB']
-    thresholds = [1024**5, 1024**4, 1024**3, 1024**2, 1024, 1]
+    thresholds = [1024**4, 1024**3, 1024**2, 1024, 1, 1 / 1024]
     for unit, threshold in zip(units, thresholds):
         if value >= threshold:
             return f"{value / threshold:.2f} {unit}"
@@ -73,20 +73,15 @@ def parse_resource_with_units(resource: Union[str, float],
         "P": 1024**3,
         "E": 1024**4
     }
-    pattern = re.compile(r'(\d+(\.\d+)?)(\s*([BKMGTPE](B|I)?))?',
-                         re.IGNORECASE)
+    pattern = re.compile(r'(\d+(\.\d+)?)(\s*([BKMGTPE]))?', re.IGNORECASE)
     match = pattern.match(resource)
     if not match:
         raise ValueError(f"Invalid resource format: {resource}")
 
-    value, _, _, unit = match.groups()
+    value, _, unit, _ = match.groups()
     unit = unit.upper() if unit else default_unit.upper()
-    base_unit = unit[0]  # Extract the base unit (K, M, G, T, P, E)
 
-    if base_unit not in units:
-        raise ValueError(f"Invalid resource unit: {unit}")
-
-    return float(value) * units[base_unit]
+    return float(value) * units[unit]
 
 
 def is_accelerator_label(label: str, threshold: int = 80) -> bool:
