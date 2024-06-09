@@ -49,6 +49,30 @@ def format_resource_units(value: float) -> str:
     return f"{value} MB"
 
 
+def parse_resource_with_units(resource: Union[str, float],
+                              default_unit: str = "GB") -> float:
+    """
+    Parses a resource string with units (e.g., "32GB", "100MB") and converts it to MB.
+    Assumes GB if no units are specified.
+
+    Args:
+        resource: The resource string to parse.
+        default_unit: The default unit to use if no unit is specified.
+    Raises:
+        ValueError: If the resource string is invalid.
+    """
+    if not isinstance(resource, str):
+        return resource
+    units = {"KB": 1 / 1024, "MB": 1, "GB": 1024, "TB": 1024**2, "PB": 1024**3}
+    pattern = re.compile(r'(\d+(\.\d+)?)(\s*(KB|MB|GB|TB|PB))?', re.IGNORECASE)
+    match = pattern.match(resource)
+    if not match:
+        raise ValueError(f"Invalid resource format: {resource}")
+    value, _, _, unit = match.groups()
+    unit = unit.upper() if unit else default_unit
+    return float(value) * units[unit]
+
+
 def is_accelerator_label(label: str, threshold: int = 80) -> bool:
     """Uses fuzzy matching to determine if a label is an accelerator label."""
     _, score, _ = process.extractOne(label, ACCELERATOR_KEYWORDS)
