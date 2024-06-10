@@ -303,7 +303,7 @@ cli.add_command(apply_config)
 @halo_spinner("Creating cluster")
 def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         name: str, labels: List[Tuple[str, str]], manager: str, cpus: str,
-        memory: str, disk_size: int, accelerators: str, ports: List[str],
+        memory: str, disk_size: str, accelerators: str, ports: List[str],
         num_nodes: int, cloud: str, region: str, provision: bool,
         ssh_key_path: str, config: str, host: str, username: str, spinner):  # pylint: disable=redefined-outer-name
     """Attaches a new cluster."""
@@ -334,6 +334,20 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         ports = list(ports)
 
     labels_dict = dict(labels)
+
+    # Convert memory and disk_size to MB, default to GB if no unit is provided
+    if memory:
+        try:
+            memory = f"{utils.parse_resource_with_units(memory)}"
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
+    if disk_size:
+        try:
+            disk_size = f"{utils.parse_resource_with_units(disk_size)}"
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
 
     cluster_dictionary = {
         "kind": "Cluster",
@@ -506,6 +520,7 @@ def create_job(
     volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Adds a new job."""
+    from skyflow import utils  # pylint: disable=import-outside-toplevel
     from skyflow.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
     from skyflow.templates.resource_template import \
@@ -548,6 +563,14 @@ def create_job(
 
     labels = dict(labels)
     envs = dict(envs)
+
+    # Convert memory to MB, default to MB if no unit is provided
+    if memory:
+        try:
+            memory = f"{utils.parse_resource_with_units(memory, 'MB')}"
+        except ValueError as error:
+            spinner.fail(str(error))
+            raise click.BadParameter(str(error)) from error
 
     job_dictionary = {
         "kind": "Job",

@@ -5,11 +5,12 @@ import enum
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from pydantic import Field, field_validator
 from rapidfuzz import process
 
+from skyflow import utils
 from skyflow.templates.object_template import (NamespacedObjectMeta, Object,
                                                ObjectException, ObjectList,
                                                ObjectName, ObjectSpec,
@@ -18,9 +19,10 @@ from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
-    ResourceEnum.CPU.value: 1,
+    ResourceEnum.CPU.value: 0,
     ResourceEnum.MEMORY.value: 0,
     ResourceEnum.GPU.value: 0,
+    ResourceEnum.DISK.value: 0,
 }
 DEFAULT_NAMESPACE = "default"
 DEFAULT_MIN_WEIGHT = 1
@@ -409,9 +411,22 @@ class JobSpec(ObjectSpec):
             raise ValueError(f"Invalid restart policy: {restart_policy}.")
         return restart_policy
 
+    @field_validator("resources", mode="before")
+    @classmethod
+    def unit_preprocessing(cls, resources: Dict[str, Any]) -> Dict[str, float]:
+        """Parses the units of the resources field of a job."""
+        if ResourceEnum.MEMORY.value in resources:
+            resources[ResourceEnum.MEMORY.value] = \
+                float(utils.parse_resource_with_units(resources[ResourceEnum.MEMORY.value]))
+
+        if ResourceEnum.DISK.value in resources:
+            resources[ResourceEnum.DISK.value] = \
+                float(utils.parse_resource_with_units(resources[ResourceEnum.DISK.value]))
+        return resources
+
     @field_validator("resources")
     @classmethod
-    def verify_resources(cls, resources: Dict[str, float]):
+    def verify_resources(cls, resources: Dict[str, float]) -> Dict[str, float]:
         """Validates the resources field of a job."""
         resources = {**deepcopy(DEFAULT_JOB_RESOURCES), **resources}
 
