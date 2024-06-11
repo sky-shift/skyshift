@@ -276,8 +276,7 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
             available_resources = round(available_resources, 2)
             resources[key] = round(resources[key], 2)
             if key in [ResourceEnum.MEMORY.value, ResourceEnum.DISK.value]:
-                resources_str += f"{key}: {utils.format_resource_units(available_resources)}/\
-                    {utils.format_resource_units(resources[key])}\n"
+                resources_str += f"{key}: {utils.format_resource_units(available_resources)}/{utils.format_resource_units(resources[key])}\n"  # pylint: disable=line-too-long
 
             else:
                 resources_str += f"{key}: {available_resources}/{resources[key]}\n"

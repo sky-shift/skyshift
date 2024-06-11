@@ -18,5 +18,6 @@ class JobAPI(NamespaceObjectAPI):
         """
         Get logs of a job.
         """
-        response = requests.get(f"{self.url}/{name}/logs").json()
+        response = requests.get(f"{self.url}/{name}/logs",
+                                headers=self.auth_headers).json()
         return response
