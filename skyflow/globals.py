@@ -28,6 +28,8 @@ CLUSTER_TIMEOUT = 10  # seconds
 
 ACCELERATOR_KEYWORDS = ["accelerator", "nvidia"]
 
+PROVISIONER_CPU_REGEX = r'^([+-]?)(\d+)([+-]?)'
+
 APP_NAME = "SkyShift"
 
 

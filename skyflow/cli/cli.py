@@ -318,6 +318,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         RAY_MANAGERS  # pylint: disable=import-outside-toplevel
     from skyflow.cluster_manager.manager import \
         SUPPORTED_CLUSTER_MANAGERS  # pylint: disable=import-outside-toplevel
+    from skyflow.globals import \
+        PROVISIONER_CPU_REGEX  # pylint: disable=import-outside-toplevel
 
     if manager not in SUPPORTED_CLUSTER_MANAGERS:
         spinner.fail(f"Unsupported manager_type: {manager}")
@@ -348,6 +350,13 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         except ValueError as error:
             spinner.fail(str(error))
             raise click.BadParameter(str(error)) from error
+
+    if cpus:
+        match = re.match(PROVISIONER_CPU_REGEX, cpus)
+        if not match:
+            spinner.fail("Error: Invalid CPU format.")
+            raise click.BadParameter("Invalid CPU format.")
+        cpus = f"{match.group(2)}+"
 
     cluster_dictionary = {
         "kind": "Cluster",
