@@ -9,7 +9,8 @@ In this quickstart, we will walk through:
 - Creating and running SkyShift jobs.
 - Using SkyShift CLI commands.
 
-Note that this tutorial assumes that SkyShift is already installed and running. If not, please refer to the :ref:`installation guide <installation>`.
+Note that this tutorial assumes that SkyShift is already installed and running. If not, please refer to the :ref:`installation guide <installation>`
+and to the :ref:`setup guide <setup>` .
 
 
 Prerequisites
