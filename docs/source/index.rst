@@ -38,6 +38,16 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Slurm Support
+   
+   slurm_support/overview.rst
+   slurm_support/getting_started/slurm_setup.rst
+   slurm_support/quickstart/slurm_quickstart.rst
+
+
+
+.. toctree::
+   :maxdepth: 1
    :caption: Using SkyShift
 
    cli/clusters.rst

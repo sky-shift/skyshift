@@ -7,10 +7,7 @@ SkyShift orchestrates container-based workloads across the Sky. Our goal is to a
 (Recommended) Create new conda environment
 
 ```
-conda create -n skyshift python=3.9
-```
-Activate it
-```
+conda create -n skyshift python=3.10
 conda activate skyshift 
 ```
 
