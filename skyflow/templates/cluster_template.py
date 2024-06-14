@@ -5,13 +5,16 @@ import enum
 import time
 from typing import Dict, List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 
-from skyflow import utils
+from skyflow.globals import (APP_NAME, K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
+                             RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
+                             SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.utils import sanitize_cluster_name
 
 
 class ClusterStatusEnum(enum.Enum):
@@ -164,13 +167,14 @@ class ClusterStatus(ObjectStatus):
 class ClusterMeta(ObjectMeta):
     """Metadata for a Cluster."""
     name: str = Field(default="cluster", validate_default=True)
+    creation_timestamp: str = Field(default="", validate_default=True)
 
     @field_validator("name")
     @classmethod
     def verify_name(cls, value: str) -> str:
         """Validates the name field of a Cluster,
         ensuring it does not contain whitespaces or '/'."""
-        return utils.sanitize_cluster_name(value)
+        return sanitize_cluster_name(value)
 
 
 class ClusterSpec(ObjectSpec):
@@ -185,7 +189,10 @@ class ClusterSpec(ObjectSpec):
     ports: List[str] = Field(default=[], validate_default=True)
     num_nodes: int = Field(default=1, validate_default=True)
     provision: bool = Field(default=False, validate_default=True)
-    config_path: str = Field(default="~/.kube/config", validate_default=True)
+    config_path: str = Field(default="", validate_default=True)
+    ssh_key_path: str = Field(default="~/.ssh/id_rsa", validate_default=True)
+    host: str = Field(default="", validate_default=True)
+    username: str = Field(default="", validate_default=True)
 
     @field_validator('accelerators')
     @classmethod
@@ -200,6 +207,24 @@ class ClusterSpec(ObjectSpec):
         if not num.isdigit():
             raise ValueError(f'Invalid accelerator number: {num}.')
         return accelerators
+
+    @field_validator('config_path')
+    @classmethod
+    def verify_config_path(cls, config_path: str, info: ValidationInfo) -> str:
+        """Validates the accelerators field of a ClusterResources."""
+        if not config_path:
+            manager_type: str = info.data.get('manager', '')
+            if manager_type in K8_MANAGERS:
+                return KUBE_CONFIG_DEFAULT_PATH
+            if manager_type in SLURM_MANAGERS:
+                return SLURM_CONFIG_DEFAULT_PATH
+            if manager_type in RAY_MANAGERS:
+                return RAY_CLUSTERS_CONFIG_PATH
+            if manager_type.lower() == APP_NAME.lower():
+                return APP_NAME
+            raise ValueError(
+                f"Manager type '{manager_type}' is not supported.")
+        return config_path
 
     @field_validator('cpus')
     @classmethod

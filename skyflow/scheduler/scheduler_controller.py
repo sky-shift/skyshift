@@ -14,7 +14,7 @@ from skyflow.api_client import ClusterAPI, JobAPI
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
-from skyflow.scheduler.plugins import ClusterAffinityPlugin, DefaultPlugin
+from skyflow.scheduler.plugins import ClusterAffinityPluginV2, DefaultPlugin
 from skyflow.structs import Informer
 from skyflow.templates import Cluster, Job, JobStatusEnum, TaskStatusEnum
 from skyflow.templates.cluster_template import ClusterStatusEnum
@@ -58,7 +58,7 @@ class SchedulerController(Controller):
 
         # Load scheduler plugins
         # @TODO(mluo): Make this dynamic.
-        self.plugins = [DefaultPlugin(), ClusterAffinityPlugin()]
+        self.plugins = [DefaultPlugin(), ClusterAffinityPluginV2()]
 
     def post_init_hook(self):
 
@@ -112,6 +112,12 @@ class SchedulerController(Controller):
             for plugin in self.plugins:
                 status = plugin.filter(cluster, job)
                 if status.is_unschedulable():
+                    cluster_name = cluster.get_name()
+                    self.logger.info(
+                        ("Job %s/%s unscheduable on cluster %s due to "
+                         "filter of plugin: %s, message: %s"),
+                        job.metadata.name, job.metadata.namespace,
+                        cluster_name, type(plugin), status.get_message())
                     remove_cluster = True
                     break
             if not remove_cluster:
@@ -205,6 +211,6 @@ class SchedulerController(Controller):
 
 
 # Testing Scheduler Controller.
-if __name__ == "__main__":
-    controller = SchedulerController()
-    controller.start()
+#if __name__ == "__main__":
+#    controller = SchedulerController()
+#    controller.start()

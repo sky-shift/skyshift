@@ -1,7 +1,7 @@
 kind: Job
 
 metadata: 
-  name: mybatchjob
+  name: my-batch-job
   labels:
     app: batchjob
 

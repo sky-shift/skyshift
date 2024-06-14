@@ -6,7 +6,7 @@
 
 .vscode
 
-# Skyflow Documentation
+# SkyShift Documentation
 docs/build
 slurm/berkrsa
 slurm/log.txt

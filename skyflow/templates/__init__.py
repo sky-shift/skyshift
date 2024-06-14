@@ -1,5 +1,5 @@
 """
-Init module for Skyflow object templates.
+Init module for SkyShift object templates.
 """
 from skyflow.templates.cluster_template import (Cluster, ClusterException,
                                                 ClusterList, ClusterStatus,
@@ -14,7 +14,9 @@ from skyflow.templates.filter_policy import (FilterPolicy,
                                              FilterPolicyException,
                                              FilterPolicyList)
 from skyflow.templates.job_template import (Job, JobException, JobList,
-                                            JobStatusEnum, RestartPolicyEnum,
+                                            JobStatusEnum,
+                                            LabelSelectorOperatorEnum,
+                                            MatchExpression, RestartPolicyEnum,
                                             TaskStatusEnum)
 from skyflow.templates.link_template import (Link, LinkException, LinkList,
                                              LinkStatus, LinkStatusEnum)
@@ -25,12 +27,15 @@ from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
 from skyflow.templates.rbac_template import Role, RoleList
-from skyflow.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyflow.templates.resource_template import (AcceleratorEnum, CRIEnum,
+                                                 ResourceEnum)
 from skyflow.templates.service_template import (Service, ServiceException,
                                                 ServiceList, ServiceMeta)
+from skyflow.templates.user_template import User
 
 __all__ = [
     "AcceleratorEnum",
+    "CRIEnum",
     "Cluster",
     "ClusterException",
     "ClusterList",
@@ -76,4 +81,5 @@ __all__ = [
     "TaskStatusEnum",
     "WatchEvent",
     "WatchEventEnum",
+    "User",
 ]

@@ -1,3 +1,7 @@
+"""
+Test the API server.
+"""
+
 import asyncio
 import json
 import unittest
@@ -11,13 +15,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
 from api_server import launch_server
+from api_server.api_server import APIServer
 from skyflow.etcd_client.etcd_client import KeyNotFoundError
-from skyflow.globals import ALL_OBJECTS, DEFAULT_NAMESPACE, NAMESPACED_OBJECTS
-from skyflow.templates import Namespace, NamespaceMeta
+from skyflow.globals import DEFAULT_NAMESPACE
+from skyflow.globals_object import NAMESPACED_OBJECTS
 
 launch_server.check_and_install_etcd()
 
-from api_server.api_server import APIServer
+# pylint: disable=C0302 (too-many-lines)
 
 
 def apply_modification(base, path, value):
@@ -42,26 +47,28 @@ def apply_modification(base, path, value):
     return base
 
 
+def run_async(coro: Coroutine[Any, Any, Any]) -> Any:
+    """
+    Utility method to run the coroutine and manage the event loop.
+    """
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
 class TestAPIServer(unittest.TestCase):
+    """Test the API server."""
 
     @patch('api_server.api_server.ETCDClient')
-    @patch('api_server.api_server.APIServer._authenticate_role')
-    def setUp(self, mock_authenticate_role, mock_etcd_client):
+    def setUp(self, mock_etcd_client):  # pylint: disable=W0221 (arguments-differ)
         """
-        Set up the test environment by mocking the ETCDClient and 
+        Set up the test environment by mocking the ETCDClient and
         initializing the APIServer.
         """
         self.mock_etcd_client_instance = mock_etcd_client.return_value
-        self.api_server = APIServer()
-        self.api_server._authenticate_role = MagicMock(return_value=True)
+        self.api_server = APIServer(app="test")
+        # pylint: disable=W0212 (protected-access)
+        self.api_server._authenticate_action = MagicMock(return_value=True)
         self.api_server._check_cluster_connectivity = MagicMock(
             return_value=True)
-
-    def run_async(self, coro: Coroutine[Any, Any, Any]) -> Any:
-        """
-        Utility method to run the coroutine and manage the event loop.
-        """
-        return asyncio.get_event_loop().run_until_complete(coro)
 
     def test_create_object_with_different_headers(self):
         """
@@ -123,17 +130,17 @@ class TestAPIServer(unittest.TestCase):
                     mock_request.body = AsyncMock(
                         return_value=test_request["body"].encode())
 
-                    self.create_object = self.api_server.create_object("jobs")
+                    create_object = self.api_server.create_object("jobs")
 
                     if modification["expected_success"]:
-                        await self.create_object(mock_request)
+                        await create_object(mock_request)
                         self.mock_etcd_client_instance.write.assert_called()
                         self.mock_etcd_client_instance.write.reset_mock()
                     else:
                         with self.assertRaises(HTTPException):
-                            await self.create_object(mock_request)
+                            await create_object(mock_request)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     async def execute_tests(self, create_object_func: Callable[[Request],
                                                                Coroutine[None,
@@ -143,7 +150,8 @@ class TestAPIServer(unittest.TestCase):
                             modifications: List[Dict[str, Any]]) -> None:
         """
         Tests the creation of objects with various specifications, including invalid specs.
-        This function dynamically generates test scenarios based on a base specification and a list of modifications to apply.
+        This function dynamically generates test scenarios based on a base specification and
+        a list of modifications to apply.
 
         :param create_object_func: The coroutine function to be tested, which creates the object.
         :param base_spec: The base specification dictionary for creating a valid object.
@@ -360,7 +368,7 @@ class TestAPIServer(unittest.TestCase):
             await self.execute_tests(self.api_server.create_object("jobs"),
                                      base_spec, modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_filter_policy_creation_with_various_specs(self):
         """
@@ -467,7 +475,7 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.create_object("filterpolicies"), base_spec,
                 modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_service_creation_with_various_specs(self):
         """
@@ -542,7 +550,7 @@ class TestAPIServer(unittest.TestCase):
             await self.execute_tests(self.api_server.create_object("services"),
                                      base_spec, modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_endpoints_creation_with_various_specs(self):
         """
@@ -614,7 +622,7 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.create_object("endpoints"), base_spec,
                 modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_cluster_creation_with_various_specs(self):
         """
@@ -722,7 +730,7 @@ class TestAPIServer(unittest.TestCase):
             await self.execute_tests(self.api_server.create_object("clusters"),
                                      base_spec, modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_namespace_creation_with_various_specs(self):
         """
@@ -768,7 +776,7 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.create_object("namespaces"), base_spec,
                 modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_link_creation_with_various_specs(self):
         """
@@ -827,7 +835,7 @@ class TestAPIServer(unittest.TestCase):
             await self.execute_tests(self.api_server.create_object("links"),
                                      base_spec, modifications)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_create_object(self):
         """
@@ -869,7 +877,7 @@ class TestAPIServer(unittest.TestCase):
                 await invalid_type_func(mock_request)
             self.assertEqual(context.exception.status_code, 400)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_list_objects(self):
         """
@@ -908,11 +916,12 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.list_objects("invalid_type", watch=False)
             self.assertEqual(context.exception.status_code, 400)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_list_objects_extended(self):
         """
-        Extended tests for the list_objects functionality, covering various scenarios like empty responses and different namespaces.
+        Extended tests for the list_objects functionality, covering various scenarios like
+        empty responses and different namespaces.
         """
 
         async def async_test():
@@ -939,11 +948,12 @@ class TestAPIServer(unittest.TestCase):
                     self.assertEqual(len(obj_list.objects), 1)
                     self.mock_etcd_client_instance.reset_mock()
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_get_object(self):
         """
-        Test the retrieval of objects functionality, including handling of invalid object types and the 'watch' parameter.
+        Test the retrieval of objects functionality, including handling of
+        invalid object types and the 'watch' parameter.
         """
 
         async def async_test():
@@ -974,14 +984,15 @@ class TestAPIServer(unittest.TestCase):
                 self.api_server.get_object("jobs", "non-existent", watch=False)
             self.assertEqual(context.exception.status_code, 404)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_get_object_extended(self):
         """
-        Extended tests for the get_object functionality, covering various scenarios like different object names and complex object data.
+        Extended tests for the get_object functionality, covering various scenarios
+        like different object names and complex object data.
         """
 
-        async def async_test():
+        def test():
             # 1. Test Different Namespaces
             for namespace in ["namespace1", "namespace2"]:
                 self.mock_etcd_client_instance.read.return_value = {
@@ -1042,7 +1053,8 @@ class TestAPIServer(unittest.TestCase):
                     "image": "ubuntu:latest",
                     "resources": {
                         "cpus": 1.0,
-                        "memory": 0.0
+                        "memory": 1.0,
+                        "gpus": 1.0,
                     },
                     "run": "",
                     "envs": {},
@@ -1068,7 +1080,7 @@ class TestAPIServer(unittest.TestCase):
             self.assertEqual(obj.spec.restart_policy,
                              complex_data["spec"]["restart_policy"])
             with self.assertRaises(AttributeError):
-                obj.spec.key
+                obj.spec.key  # pylint: disable=W0104 (pointless-statement)
 
             # 5. Test Retrieval of Non-Namespaced Objects
             self.mock_etcd_client_instance.read.return_value = {
@@ -1094,11 +1106,12 @@ class TestAPIServer(unittest.TestCase):
                                              watch=False)
             self.assertIsNotNone(obj)
 
-        self.run_async(async_test())
+        test()
 
     def test_update_object(self):
         """
-        Test the object update functionality for all supported object types, including handling of non-existing and invalid objects.
+        Test the object update functionality for all supported object types,
+        including handling of non-existing and invalid objects.
         """
 
         async def async_test():
@@ -1146,7 +1159,7 @@ class TestAPIServer(unittest.TestCase):
             # Test exception handling during etcd client update
             self.mock_etcd_client_instance.read_prefix.return_value = [{
                 "metadata": {
-                    "name": f"test-{object_type}"
+                    "name": "test-endpoints"
                 }
             }]
             self.mock_etcd_client_instance.update.side_effect = KeyNotFoundError(
@@ -1155,11 +1168,12 @@ class TestAPIServer(unittest.TestCase):
                 await update_func(mock_request)
             self.assertEqual(context.exception.status_code, 404)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
     def test_delete_object(self):
         """
-        Test the object deletion functionality for all supported object types, including handling of non-existing objects.
+        Test the object deletion functionality for all supported object types,
+        including handling of non-existing objects.
         """
 
         async def async_test():
@@ -1191,7 +1205,7 @@ class TestAPIServer(unittest.TestCase):
                 delete_func("jobs", "non_existing_object")
             self.assertEqual(context.exception.status_code, 400)
 
-        self.run_async(async_test())
+        run_async(async_test())
 
 
 if __name__ == '__main__':

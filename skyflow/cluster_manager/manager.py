@@ -1,13 +1,18 @@
 """
 Defines compatability layer for generic Managers.
 """
-from typing import Dict, List
+import logging
+from typing import Dict, List, Optional
 
 from fastapi import WebSocket
 
 from skyflow.templates import ClusterStatus, ClusterStatusEnum, Job
 
-SUPPORTED_CLUSTER_MANAGERS = ['k8', 'kubernetes', 'slurm']
+K8_MANAGERS = ['k8', 'kubernetes']
+SLURM_MANAGERS = ['slurm']
+RAY_MANAGERS = ["ray"]
+
+SUPPORTED_CLUSTER_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
 
 class ManagerException(Exception):
@@ -18,7 +23,7 @@ class Manager:
     """
     General manager object.
 
-    Serves as the base class for the compatability layer across cluster
+    Serves as the base class for the compatibility layer across cluster
     managers.
     """
 
@@ -27,8 +32,10 @@ class Manager:
     #When the cluster name is fetched from an external source, it should be unsanitized
     #to ensure that the original name is used. This is done by the unsanitize_cluster_name function.
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, logger: Optional[logging.Logger] = None):
         self.cluster_name = name
+        self.name = name
+        self.logger = logger
 
     @property
     def cluster_resources(self):
@@ -47,7 +54,7 @@ class Manager:
     def get_cluster_status(self):
         """Gets the cluster status."""
         return ClusterStatus(
-            status=ClusterStatusEnum.READY.value,
+            status=ClusterStatusEnum.INIT.value,
             capacity=self.cluster_resources,
             allocatable_capacity=self.allocatable_resources,
         )

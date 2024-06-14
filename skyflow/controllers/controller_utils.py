@@ -12,9 +12,9 @@ def create_controller_logger(title: str, log_path: str, level=logging.INFO):
         "%(name)s - %(asctime)s - %(levelname)s - %(message)s")
 
     logger = logging.getLogger(title)
+
     if not logger.handlers:  # Check if the logger already has handlers
         logger.setLevel(level)
-
         # Create log_path if it does not exist.
         if log_path:
             log_path = os.path.expanduser(log_path)

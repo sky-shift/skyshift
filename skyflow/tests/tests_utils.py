@@ -1,16 +1,21 @@
+"""
+Common utilities shared by all tests.
+"""
+
+import logging
 import os
 import shutil
 import subprocess
 import time
 
 
-def setup_skyflow(temp_data_dir: str) -> None:
+def setup_skyshift(temp_data_dir: str) -> None:
     """
-    Sets up the Skyflow service by starting the necessary processes.
-    
+    Sets up the SkyShift service by starting the necessary processes.
+
     Args:
         temp_data_dir (str): The temporary directory to use for data storage.
-    
+
     Raises:
         RuntimeError: If the server does not start within the expected time frame.
     """
@@ -19,11 +24,13 @@ def setup_skyflow(temp_data_dir: str) -> None:
 
     skyconf_dir = os.path.expanduser("~/.skyconf/")
     dest_skyconf_dir = os.path.join(temp_data_dir, ".skyconf")
+    if os.path.exists(dest_skyconf_dir):
+        # Remove the backup directory if it exists.
+        shutil.rmtree(dest_skyconf_dir)
+
     if os.path.exists(skyconf_dir):
         shutil.copytree(skyconf_dir, dest_skyconf_dir)
-        shutil.rmtree(skyconf_dir)  # Remove the original ~/.skyconf/ directory after copying.
-        print(f"Copied {skyconf_dir} to {dest_skyconf_dir} and removed the original directory.")
-
+        print(f"Copied {skyconf_dir} to {dest_skyconf_dir}.")
 
     workers = 1  # Number of worker processes to use.
     # Retrieves the absolute path to the launch script.
@@ -55,9 +62,9 @@ def setup_skyflow(temp_data_dir: str) -> None:
         20)  # Additional wait time for the server to become fully operational.
 
 
-def shutdown_skyflow(temporal_directory: str) -> None:
+def shutdown_skyshift(temporal_directory: str) -> None:
     """
-    Shuts down the Skyflow service by terminating its processes.
+    Shuts down the SkyShift service by terminating its processes.
     """
 
     kill_process("launch_sky_manager")
@@ -65,10 +72,10 @@ def shutdown_skyflow(temporal_directory: str) -> None:
     kill_process("etcd")
     # Path to the backed up .skyconf directory within the temporary directory.
     backup_skyconf_dir = os.path.join(temporal_directory, ".skyconf")
-    
+
     # Original .skyconf directory path.
     original_skyconf_dir = os.path.expanduser("~/.skyconf")
-    
+
     # Check if the backup exists.
     if os.path.exists(backup_skyconf_dir):
         # Remove the current .skyconf directory if it exists to avoid conflicts.
@@ -78,19 +85,27 @@ def shutdown_skyflow(temporal_directory: str) -> None:
         shutil.move(backup_skyconf_dir, original_skyconf_dir)
         print(f"Restored {original_skyconf_dir} from the backup.")
     else:
-        print(f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration.")
+        print(
+            f"No backup found in {backup_skyconf_dir}. No action taken for ~/.skyconf restoration."
+        )
+
+    if os.path.exists(temporal_directory):
+        shutil.rmtree(temporal_directory)
+        print(f"Removed temporary directory {temporal_directory}")
 
 
 def kill_process(process_name: str) -> None:
     """
     Attempts to kill a process by name.
-    
+
     Args:
         process_name (str): The name of the process to terminate.
     """
     try:
-        command = f"pkill -f '{process_name}'"
+        print("Killing process:", process_name)
+        command = f"sudo pkill -9 -f '{process_name}'"
         subprocess.run(command, shell=True, check=True)
+        print(f"Successfully killed process {process_name}")
     except subprocess.CalledProcessError:
         print(f"Failed to kill process {process_name}")
 
@@ -98,10 +113,10 @@ def kill_process(process_name: str) -> None:
 def retrieve_current_working_dir(relative_path_to_script: str) -> str:
     """
     Retrieves the absolute path to a script, given its relative path.
-    
+
     Args:
         relative_path_to_script (str): The relative path from this script to the target.
-    
+
     Returns:
         str: The absolute path to the target script.
     """
@@ -115,10 +130,10 @@ def retrieve_current_working_dir(relative_path_to_script: str) -> str:
 def is_process_running(process_name: str) -> bool:
     """
     Checks if a process with the given name is currently running.
-    
+
     Args:
         process_name (str): The name of the process to check.
-    
+
     Returns:
         bool: True if the process is running, False otherwise.
     """
@@ -138,3 +153,33 @@ def is_process_running(process_name: str) -> bool:
     except subprocess.CalledProcessError:
         # If an error occurs (e.g., the process is not found), returns False.
         return False
+
+
+def create_cluster(name: str):
+    """
+    Creates a KIND Cluster
+
+    Prerequisites :
+        KIND (https://kind.sigs.k8s.io)
+        DOCKER
+        KUBECTL
+    """
+    logging.debug('Creating cluster %s', name)
+    os.system(f"kind create cluster  --name={name}")
+
+    cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
+    try:
+        subprocess.check_output(cluster_info_cmd,
+                                shell=True,
+                                stderr=subprocess.STDOUT).decode('utf-8')
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def delete_cluster(name: str):
+    """
+    Deletes a KIND Cluster
+    """
+    logging.debug('Deleting cluster %s', name)
+    os.system(f"kind delete cluster --name={name}")

@@ -1,0 +1,31 @@
+# Placement filter example using matching label
+# stanza.
+#
+# This job will only run on clusters labeled
+# "purpose": "dev".  If there are no clusters
+# annotated with the label the job will queue
+# until a cluster annotated with the label
+# "purpose": "dev" is enabled in the system.  
+# The intent for this job is to only run on
+# any (can be more than 1) development clusters.
+#
+kind: Job
+metadata: 
+  name: my-batch-job-with-dev-filter-match-label
+  labels:
+    app: batchjob
+spec:
+  replicas: 1
+  image: ubuntu:latest
+  resources:
+    cpus: 1
+    memory: 128
+  env:
+    - HELLO_SKY: "hello_sky"
+  run: 'echo $HELLO_SKY; sleep 300'
+  restart_policy: Never
+  placement:
+    filters:
+    - name: "filter-1"
+      match_labels:
+        "purpose": "dev" # or "prod"

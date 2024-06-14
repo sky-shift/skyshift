@@ -19,10 +19,9 @@ SKY_MANAGER_CONTROLLERS = [
 
 def launch_sky_manager():
     """
-    Launches the Skyflow Manager, which manages Skylets, Schedulers, and Links.
+    Launches the SkyShift Manager, which manages Skylets, Schedulers, and Links.
     """
     # Launch SkyletController, which manages Skylets.
-    print("Launching Skylet Controller Manager.")
     try:
         controllers = [c() for c in SKY_MANAGER_CONTROLLERS]
     except Exception:  # pylint: disable=broad-except

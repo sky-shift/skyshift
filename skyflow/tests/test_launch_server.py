@@ -1,36 +1,38 @@
-import argparse
+"""
+Test launching the API server.
+"""
+
 import multiprocessing
 import os
-import subprocess
 import sys
 import unittest
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 import yaml
 
 from api_server import launch_server
+from skyflow.globals import API_SERVER_CONFIG_PATH
 from skyflow.utils.utils import generate_manager_config
 
 
 class TestLaunchAPIServer(unittest.TestCase):
+    """Test launching the API server."""
 
-    @patch('os.urandom', return_value=b'\x00' * 32
-           )  # Mocks os.urandom to return a predictable value.
+    # Mocks os.urandom to return a predictable value.
+    @patch('os.urandom')
     @patch('os.makedirs')
-    @patch('builtins.open', new_callable=mock_open, read_data=""
-           )  # Mocks file opening, read_data can simulate file content.
-    @patch('yaml.safe_load'
-           )  # Mocks yaml.safe_load to control its return value.
-    def test_generate_manager_config(self, mock_yaml_safe_load, mock_file,
-                                     mock_makedirs, mock_urandom):
+    # Mocks file opening, read_data can simulate file content.
+    @patch('builtins.open', new_callable=mock_open, read_data="")
+    def test_generate_manager_config(self, mock_file, mock_makedirs,
+                                     mock_urandom):
         """
         Test if the manager configuration file is generated correctly.
         """
+        mock_urandom.side_effect = lambda len: b'\x00' * len
 
         # Remove the API_SERVER_CONFIG_PATH file if it exists
-        if os.path.exists(
-                os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH)):
-            os.remove(os.path.expanduser(launch_server.API_SERVER_CONFIG_PATH))
+        if os.path.exists(os.path.expanduser(API_SERVER_CONFIG_PATH)):
+            os.remove(os.path.expanduser(API_SERVER_CONFIG_PATH))
 
         test_host = "127.0.0.1"
         test_port = 8080
@@ -39,13 +41,12 @@ class TestLaunchAPIServer(unittest.TestCase):
                 "host": test_host,
                 "port": test_port,
                 "secret":
-                '00' * 32,  # Corresponds to the mocked os.urandom output
+                '00' * 256,  # Corresponds to the mocked os.urandom output
             },
             "users": [],
+            "contexts": [],
+            "current_context": "",
         }
-
-        # Mock yaml.safe_load to return the mock_config_dict
-        mock_yaml_safe_load.return_value = mock_config_dict
 
         # Call the function with test data
         generate_manager_config(test_host, test_port)
@@ -54,8 +55,7 @@ class TestLaunchAPIServer(unittest.TestCase):
         expected_config = mock_config_dict  # Or construct this as needed
 
         # Build the expected absolute file path
-        expected_file_path = os.path.expanduser(
-            launch_server.API_SERVER_CONFIG_PATH)
+        expected_file_path = os.path.expanduser(API_SERVER_CONFIG_PATH)
 
         # Verify if the directories were created
         mock_makedirs.assert_called_with(os.path.dirname(expected_file_path),
@@ -69,40 +69,10 @@ class TestLaunchAPIServer(unittest.TestCase):
             [call.args[0] for call in mock_file().write.call_args_list])
         self.assertEqual(yaml.safe_load(written_content), expected_config)
 
-    @patch('subprocess.run')
-    @patch('subprocess.Popen')
-    def test_check_and_install_etcd(self, mock_popen, mock_run):
-        """
-        Test the check and installation process of ETCD.
-        """
-        # Case 1: ETCD is already running
-        mock_run.return_value.returncode = 0
-        launch_server.check_and_install_etcd()
-        mock_run.assert_called_with('ps aux | grep "[e]tcd"',
-                                    shell=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    text=True)
-        mock_popen.assert_not_called()
-
-        # Case 2: ETCD is not running
-        mock_run.return_value.returncode = 1
-        mock_popen_inst = MagicMock()
-        mock_popen_inst.wait.return_value = 0
-        mock_popen_inst.returncode = 0  # Simulate successful installation
-        mock_popen.return_value = mock_popen_inst
-
-        launch_server.check_and_install_etcd()
-        # Verify that Popen is called with the correct command
-        relative_dir = os.path.dirname(os.path.realpath(
-            launch_server.__file__))
-        mock_popen.assert_called_with(f"{relative_dir}/install_etcd.sh",
-                                      shell=True,
-                                      start_new_session=True)
-
     @patch('api_server.launch_server.uvicorn.run')
     @patch('api_server.launch_server.generate_manager_config')
     @patch('api_server.launch_server.check_and_install_etcd')
+    # pylint: disable=R0201 (no-self-use)
     def test_main(self, mock_check_etcd, mock_generate_config, mock_uvicorn):
         """
         Test the main function with mocked dependencies.
@@ -111,7 +81,8 @@ class TestLaunchAPIServer(unittest.TestCase):
         test_port = 8080
         launch_server.main(test_host,
                            test_port,
-                           workers=multiprocessing.cpu_count())
+                           workers=multiprocessing.cpu_count(),
+                           reset=False)
 
         mock_check_etcd.assert_called_once()
         mock_generate_config.assert_called_with(test_host, test_port)

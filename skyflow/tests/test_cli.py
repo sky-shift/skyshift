@@ -2,36 +2,42 @@
     Tests for CLI interface. Mostly integration tests with the API server and ETCD.
 
     To test, run:
-    pytest skyflow/tests/cli_tests.py
+    pytest skyflow/tests/test_cli.py
 
     and for running a specific test:
-    pytest skyflow/tests/cli_tests.py::test_create_cluster_success
+    pytest skyflow/tests/test_cli.py::test_create_cluster_success
 """
+import json
+import os
+import subprocess
 import tempfile
 
 import pytest
 from click.testing import CliRunner
 
 from skyflow.cli.cli import cli
-from skyflow.tests.tests_utils import setup_skyflow, shutdown_skyflow
+from skyflow.tests.tests_utils import setup_skyshift, shutdown_skyshift
+
+# pylint: disable=C0116,C0302 (missing-function-docstring, too-many-lines)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def etcd_backup_and_restore():
+    """Create/teardown new environment for each test."""
     with tempfile.TemporaryDirectory() as temp_data_dir:
-        # Kill any running sky_manager processes
-        shutdown_skyflow(temp_data_dir)
-        setup_skyflow(temp_data_dir)
+        setup_skyshift(temp_data_dir)
 
         yield  # Test execution happens here
 
-        shutdown_skyflow(temp_data_dir)
+        shutdown_skyshift(temp_data_dir)
 
+        config_path = os.path.expanduser('~/.skyconf/config.yaml')
+        subprocess.run(['rm', config_path])  # pylint: disable=subprocess-run-check
         print("Cleaned up temporary ETCD data directory.")
 
 
-@pytest.fixture
-def runner():
+@pytest.fixture(name="runner")
+def fixture_runner():
     return CliRunner()
 
 
@@ -40,9 +46,16 @@ def runner():
 
 
 def test_create_cluster_success(runner):
+    # Define cluster labels
+    labels = [("sky-cluster-id", "valid-cluster"), ("cluster-purpose", "dev")]
+    label_args = []
+    for key, value in labels:
+        label_args.extend(['--labels', f'{key}', f'{value}'])
+
+    # Construct the command with parameters
     name = "valid-cluster"
     manager = "k8"
-    cmd = ['create', 'cluster', name, '--manager', manager]
+    cmd = ['create', 'cluster', name, '--manager', manager] + label_args
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
     assert name in result.output
@@ -124,13 +137,11 @@ def test_delete_cluster_success(runner, name="valid-cluster"):
 
 def test_create_cluster_success_no_manager(runner):
     name = "cluster1"
-    manager = "k8"
     cmd = ['create', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
     assert name in result.output
     name = "cluster2"
-    manager = "k8"
     cmd = ['create', 'cluster', name]
     result = runner.invoke(cli, cmd)
     assert result.exit_code == 0
@@ -363,7 +374,7 @@ def test_delete_nonexistent_namespace(runner):
     "name, namespace, labelselector, includecluster, excludecluster", [
         ('test-policy-4', 'default', [('app', 'test')], ['cluster1'
                                                          ], ['cluster2']),
-    ])
+    ])  # pylint: disable=R0913 (too-many-arguments)
 def test_create_filter_policy_success(runner, name, namespace, labelselector,
                                       includecluster, excludecluster):
     label_args = []
@@ -411,7 +422,9 @@ def test_create_filter_policy_missing_required_params(runner, missing_arg):
     result = runner.invoke(cli, missing_arg)
     print(missing_arg)
     assert result.exit_code != 0
-    assert "Missing" in result.output or "Invalid" in result.output or "not found" in result.output or "requires 2 arguments" in result.output
+    assert ("Missing" in result.output or "Invalid" in result.output
+            or "not found" in result.output
+            or "requires 2 arguments" in result.output)
 
 
 def test_create_filter_policy_idempotent(runner):
@@ -893,3 +906,247 @@ def test_delete_nonexistent_endpoints(runner):
         cli, ['delete', 'endpoints', name, '--namespace', namespace])
     assert result.exit_code != 0
     assert "does not exist" in result.output
+
+
+# ==============================================================================
+# Roles tests
+
+
+def test_create_role(runner):
+    name = "new-role"
+    namespace = "default"
+    cmd = ['create', 'role', name, '--namespace', namespace]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+
+# ==============================================================================
+# User tests
+
+
+def get_invite_helper(runner, roles=None):
+    name = "admin"
+    password = "admin"
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_invite = ['invite', '--json']
+    if roles is not None:
+        for role in roles:
+            cmd_invite.append('--role')
+            cmd_invite.append(role)
+
+    result_invite = runner.invoke(cli, cmd_invite)
+    invite = ""
+    if result_invite.exit_code == 0:
+        data = json.loads(result_invite.stdout)
+        invite = data.get("invite")
+    return invite
+
+
+def test_create_user_success(runner):
+    name = "user_success"
+    email = "test@email.com"
+    password = "password"
+    cmd = [
+        'register', name, password, "--email", email, "--invite",
+        get_invite_helper(runner)
+    ]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+
+def test_create_user_wrong_invite(runner):
+    name = "user_wrong_invite"
+    password = "password"
+    cmd = [
+        'register', name, password, "--invite",
+        get_invite_helper(runner) + "0"
+    ]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code != 0
+
+
+def test_create_user_duplicate(runner):
+    name = "user_dup"
+    password = "password"
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+    cmd2 = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result2 = runner.invoke(cli, cmd2)
+    assert result2.exit_code != 0
+
+
+def test_create_user_err(runner):
+    bad_name = "%p"
+    good_name = "user_goodname"
+    bad_email = "bad@email"
+    bad_password = "123"
+    good_password = "password"
+    cmd = [
+        'register', good_name, good_password, "--email", bad_email, "--invite",
+        get_invite_helper(runner)
+    ]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code != 0
+
+    cmd2 = [
+        'register', good_name, bad_password, "--invite",
+        get_invite_helper(runner)
+    ]
+    result2 = runner.invoke(cli, cmd2)
+    assert result2.exit_code != 0
+
+    cmd3 = [
+        'register', bad_name, good_password, "--invite",
+        get_invite_helper(runner)
+    ]
+    result3 = runner.invoke(cli, cmd3)
+    assert result3.exit_code != 0
+
+
+def test_login_user_success(runner):
+    name = "user_login_success"
+    password = "password"
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+    cmd_login = ['login', name, password]
+    result2 = runner.invoke(cli, cmd_login)
+    assert result2.exit_code == 0
+
+
+def test_login_user_wrong_password(runner):
+    name = "user_login_fail"
+    password = "password"
+    cmd = ['register', name, password, "--invite", get_invite_helper(runner)]
+    result = runner.invoke(cli, cmd)
+    assert result.exit_code == 0
+
+    cmd_login = ['login', name, "wrong_pw"]
+    result2 = runner.invoke(cli, cmd_login)
+    assert result2.exit_code != 0
+
+
+def test_create_invite_success(runner):
+    name = "admin"
+    password = "admin"
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+
+def test_create_invite_failure(runner):
+    name = "user_inviter_fail"
+    password = "password"
+    cmd_register = [
+        'register', name, password, "--invite",
+        get_invite_helper(runner, roles=['reader-role'])
+    ]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['config', 'use-context', f'{name}-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code != 0
+
+    #make sure active is changed back to admin
+    cmd_switch = ['config', 'use-context', 'admin-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+
+def test_revoke_invite_success(runner):
+    invite = get_invite_helper(runner, roles=[])
+    cmd_revoke_invite = ['revoke_invite', invite]
+    result_revoke_invite = runner.invoke(cli, cmd_revoke_invite)
+    assert result_revoke_invite.exit_code == 0
+    new_name = "user_revoked_invite"
+    new_password = "password"
+    cmd_register = ['register', new_name, new_password, "--invite", invite]
+    result_revoke_register = runner.invoke(cli, cmd_register)
+    assert result_revoke_register.exit_code != 0
+
+
+def test_create_invite_failure_role(runner):
+    name = "user_inviter_fail_without_role"
+    password = "password"
+    cmd_register = [
+        'register', name, password, "--invite",
+        get_invite_helper(runner, roles=['inviter-role'])
+    ]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['config', 'use-context', f'{name}-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+    cmd_invite_invalid = ['invite', '--role', 'admin-role']
+    result_invite_invalid = runner.invoke(cli, cmd_invite_invalid)
+    assert result_invite_invalid.exit_code != 0
+
+    #make sure active is changed back to admin
+    cmd_switch = ['config', 'use-context', 'admin-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+
+def test_switch_context(runner):
+    name = "user_cannot_invite"
+    password = "password"
+    cmd_register = [
+        'register', name, password, "--invite",
+        get_invite_helper(runner, roles=['reader-role'])
+    ]
+    result_register = runner.invoke(cli, cmd_register)
+    assert result_register.exit_code == 0
+
+    cmd_switch = ['config', 'use-context', f'{name}-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code != 0
+
+    cmd_login = ['login', name, password]
+    result_login = runner.invoke(cli, cmd_login)
+    assert result_login.exit_code == 0
+
+    cmd_switch = ['config', 'use-context', f'{name}-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code != 0
+
+    cmd_switch = ['config', 'use-context', 'admin-default']
+    result_switch = runner.invoke(cli, cmd_switch)
+    assert result_switch.exit_code == 0
+
+    cmd_invite = ['invite']
+    result_invite = runner.invoke(cli, cmd_invite)
+    assert result_invite.exit_code == 0
+
+    cmd_switch_fail = ['config', 'use-context', 'not_exist-default']
+    result_switch_fail = runner.invoke(cli, cmd_switch_fail)
+    assert result_switch_fail.exit_code != 0

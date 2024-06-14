@@ -6,6 +6,8 @@ the cluster's state. If a cluster is deleted, the corresponding Skylet is termin
 """
 
 import multiprocessing
+import os
+import signal
 import time
 from queue import Queue
 
@@ -13,7 +15,8 @@ import psutil
 
 from skyflow.api_client import ClusterAPI
 from skyflow.api_client.object_api import APIException
-from skyflow.cluster_lookup import lookup_kube_config
+from skyflow.cluster_lookup import (lookup_kube_config, lookup_ray_config,
+                                    lookup_slurm_config)
 from skyflow.controllers import Controller, controller_error_handler
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import SKYCONF_DIR
@@ -22,15 +25,15 @@ from skyflow.structs import Informer
 from skyflow.templates import Cluster, ClusterStatusEnum
 from skyflow.templates.event_template import WatchEventEnum
 
-SKYLET_CONTROLLER_INTERVAL = 0.5
+SKYLET_CONTROLLER_INTERVAL = 0.5  # seconds
 
 
 def terminate_process(pid: int):
     """Terminates a process and all its children."""
     parent = psutil.Process(pid)
     for child in parent.children(recursive=True):
-        child.terminate()
-    parent.terminate()
+        os.kill(child.pid, signal.SIGKILL)
+    os.kill(parent.pid, signal.SIGKILL)
 
 
 class SkyletController(Controller):
@@ -45,7 +48,8 @@ class SkyletController(Controller):
         self.event_queue = Queue()
         self.skylets = {}
         self.cluster_api = ClusterAPI()
-        self.cluster_informer = Informer(self.cluster_api, logger=self.logger)
+        self.cluster_informer: Informer = Informer(ClusterAPI(),
+                                                   logger=self.logger)
 
     def post_init_hook(self):
         """Declares a Cluster informer that watches all changes to all cluster objects."""
@@ -70,7 +74,6 @@ class SkyletController(Controller):
         self.cluster_informer.start()
 
     def run(self):
-        # Establish a watch over added clusters.
         self.logger.info(
             "Executing Skylet controller - Manages launching and terminating Skylets for clusters."
         )
@@ -87,55 +90,51 @@ class SkyletController(Controller):
         event_type = watch_event.event_type
         cluster_obj = watch_event.object
         cluster_name = cluster_obj.get_name()
+
         # Launch Skylet for clusters that are finished provisioning.
-        if event_type == WatchEventEnum.UPDATE and cluster_obj.get_status(
+        if event_type == WatchEventEnum.UPDATE.value and cluster_obj.get_status(
         ) == ClusterStatusEnum.READY:
             if cluster_name not in self.skylets:
                 self._launch_skylet(cluster_obj)
                 self.logger.info('Launched Skylet for cluster: %s.',
                                  cluster_name)
-        else:
+        elif event_type == WatchEventEnum.DELETE.value:
             # Terminate Skylet controllers if the cluster is deleted.
             self._terminate_skylet(cluster_obj)
             self.logger.info("Terminated Skylet for cluster: %s.",
                              cluster_name)
 
     def _load_clusters(self):
-        existing_clusters = lookup_kube_config(self.cluster_api)
-        self.logger.info("Found existing clusters: %s.", existing_clusters)
-        for cluster_name in existing_clusters:
-            self.logger.info("Found existing cluster: %s.", cluster_name)
+        k8_clusters = lookup_kube_config(self.cluster_api)
+        slurm_clusters = lookup_slurm_config(self.cluster_api)
+        ray_clusters = lookup_ray_config(self.cluster_api)
+        new_clusters = k8_clusters + slurm_clusters + ray_clusters
+        self.logger.info("Found new clusters: %s.", new_clusters)
+
+        # Start new clusters that are detected in the configuration files.
+        for cluster_dictionary in new_clusters:
             try:
-                cluster_obj = ClusterAPI().get(cluster_name)
-            except APIException:
-                cluster_dictionary = {
-                    "kind": "Cluster",
-                    "metadata": {
-                        "name": cluster_name,
-                    },
-                    "spec": {
-                        "manager": "k8",
-                    },
-                }
-                try:
-                    cluster_obj = ClusterAPI().create(
-                        config=cluster_dictionary)
-                except APIException as error:
-                    self.logger.error(
-                        "Failed to create cluster: %s. Error: %s",
-                        cluster_name, error)
-                    continue
+                cluster_obj = ClusterAPI().create(config=cluster_dictionary)
+            except APIException as error:
+                self.logger.error("Failed to create cluster: %s. Error: %s",
+                                  cluster_dictionary['metadata']['name'],
+                                  error)
             self._launch_skylet(cluster_obj)
+
+        # Start clusters already stored in ETCD by SkyShift.
+        for cluster in self.cluster_api.list().objects:
+            self._launch_skylet(cluster)
 
     def _launch_skylet(self, cluster_obj: Cluster):
         """Hidden method that launches Skylet in a Python thread."""
         cluster_name = cluster_obj.get_name()
         if cluster_name in self.skylets:
+            self.logger.warning("Skylet already running for cluster: %s.", )
             return
         # Launch a Skylet to manage the cluster state.
         self.logger.info("Launching Skylet for cluster: %s.", cluster_name)
         skylet_process = multiprocessing.Process(target=launch_skylet,
-                                                 args=(cluster_name, ))
+                                                 args=(cluster_obj, ))
         skylet_process.start()
         self.skylets[cluster_name] = skylet_process
 

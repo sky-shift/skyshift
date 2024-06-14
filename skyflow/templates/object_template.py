@@ -3,13 +3,41 @@ Object template.
 """
 import re
 import uuid
+from datetime import datetime
 from typing import Dict, Generic, List, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from skyflow.utils.utils import load_object
+from skyflow.utils.utils import fetch_datetime, load_object
 
 GenericType = TypeVar("GenericType")
+
+
+class ObjectName(BaseModel, validate_assignment=True):
+    """Name of an object."""
+    name: str = Field(default="", validate_default=True)
+
+    @field_validator("name")
+    @classmethod
+    def verify_name(cls, value: str) -> str:
+        """
+        Validates if the provided name is a valid SkyShift object name.
+        SkyShift object names must:
+        - contain only lowercase alphanumeric characters or '-'
+        - start and end with an alphanumeric character
+        - be no more than 63 characters long
+        """
+        name = value
+        if not name:
+            raise ValueError("Object name cannot be empty.")
+        pattern = r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        match = bool(re.match(pattern, name)) and len(name) <= 63
+        if match:
+            return name
+        # Regex failed
+        raise ValueError(("Invalid object name. Object names must follow "
+                          f"regex pattern, {pattern}, and must be no more "
+                          "than 63 characters long."))
 
 
 class ObjectException(Exception):
@@ -34,6 +62,7 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     name: str = Field(default=uuid.uuid4().hex[:16], validate_default=True)
     labels: Dict[str, str] = Field(default={})
     annotations: Dict[str, str] = Field(default={})
+    creation_timestamp: str = Field(default="", validate_default=True)
     # ETCD resource version for an object.
     resource_version: int = Field(default=-1)
 
@@ -41,8 +70,8 @@ class ObjectMeta(BaseModel, validate_assignment=True):
     @classmethod
     def verify_name(cls, value: str) -> str:
         """
-        Validates if the provided name is a valid Skyflow object name.
-        Skyflow object names must:
+        Validates if the provided name is a valid SkyShift object name.
+        SkyShift object names must:
         - contain only lowercase alphanumeric characters or '-'
         - start and end with an alphanumeric character
         - be no more than 63 characters long
@@ -58,6 +87,22 @@ class ObjectMeta(BaseModel, validate_assignment=True):
         raise ValueError(("Invalid object name. Object names must follow "
                           f"regex pattern, {pattern}, and must be no more "
                           "than 63 characters long."))
+
+    @field_validator("creation_timestamp")
+    @classmethod
+    def verify_timestamp(cls, timestamp: str) -> str:
+        """
+        Validates the creation timestamp.
+
+        If it does not exist or is not valid, set it to the current time.
+        """
+        try:
+            # Try to parse the timestamp to ensure it's valid
+            datetime.fromisoformat(timestamp)
+        except ValueError:
+            # If parsing fails, set to current timestamp
+            timestamp = fetch_datetime()
+        return timestamp
 
 
 class NamespacedObjectMeta(ObjectMeta):

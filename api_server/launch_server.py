@@ -8,10 +8,13 @@ import subprocess
 from typing import Optional
 
 import uvicorn
+from etcd3.exceptions import ConnectionFailedError
 
-from skyflow.utils.utils import generate_manager_config
+from api_server import CONF_FLAG_DIR, remove_flag_file
+from skyflow.etcd_client.etcd_client import ETCDClient
+from skyflow.utils.utils import (generate_manager_config,
+                                 generate_temp_directory)
 
-API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 API_SERVER_HOST = "127.0.0.1"
 API_SERVER_PORT = 50051
 
@@ -20,18 +23,14 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     """
     Checks if ETCD is installed and running. If not, installs and launches ETCD.
     """
-    result = subprocess.run(  # pylint: disable=subprocess-run-check
-        'ps aux | grep "[e]tcd"',
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return_code = result.returncode
-    if return_code == 0:
+    try:
+        ETCDClient().read_prefix("namespaces")
         print("[Installer] ETCD is running.")
         return True
-    print("[Installer] ETCD is not running, automatically installing ETCD.")
+    except ConnectionFailedError:
+        print(
+            "[Installer] ETCD is not running, automatically installing ETCD.")
+
     relative_dir = os.path.dirname(os.path.realpath(__file__))
     install_command = f"{relative_dir}/install_etcd.sh"
     # Pass data_directory to the install script if provided
@@ -51,12 +50,24 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     return False
 
 
-def main(host: str, port: int, workers: int, data_directory=None):
+def main(
+    host: str,
+    port: int,
+    workers: int,
+    reset: bool,
+    data_directory=None,
+):
     """Main function that encapsulates the script logic, now supports specifying data directory."""
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
         return
+
     generate_manager_config(host, port)
+    #Create temperorary directory used for worker sync
+    generate_temp_directory(CONF_FLAG_DIR)
+    #Remove flag to trigger new initialzations
+    if reset:
+        remove_flag_file()
     uvicorn.run(
         "api_server:app",
         host=host,
@@ -83,7 +94,7 @@ def parse_args():
     parser.add_argument(
         "--workers",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=min(8, multiprocessing.cpu_count()),
         help=
         "Number of workers running in parallel for the API server (default: %(default)s)",
     )
@@ -91,6 +102,11 @@ def parse_args():
         "--data-directory",
         type=str,
         help="Optional directory for ETCD data (default: uses ~/.etcd/)",
+    )
+    parser.add_argument(
+        "--reset",
+        action='store_true',
+        help="Rewrite configuration file (default: False)",
     )
     return parser.parse_args()
 
@@ -100,4 +116,8 @@ def parse_args():
 # -b :50051 api_server.api_server:app`
 if __name__ == "__main__":
     args = parse_args()
-    main(args.host, args.port, args.workers, args.data_directory)
+    main(host=args.host,
+         port=args.port,
+         workers=args.workers,
+         data_directory=args.data_directory,
+         reset=args.reset)

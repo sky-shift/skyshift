@@ -1,13 +1,13 @@
 """
-Represents the comptability layer over Kubernetes native API.
+Represents the compatibility layer over Kubernetes native API.
 """
 import asyncio
 import logging
 import os
-import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, TypedDict
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import yaml
 from fastapi import WebSocket
@@ -15,35 +15,22 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from kubernetes.stream import stream
+from rapidfuzz import process
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
+from skyflow.globals import CLUSTER_TIMEOUT
 from skyflow.templates import (AcceleratorEnum, ClusterStatus,
                                ClusterStatusEnum, EndpointObject, Endpoints,
                                Job, ResourceEnum, RestartPolicyEnum, Service,
                                TaskStatusEnum)
 from skyflow.templates.job_template import ContainerStatusEnum
+from skyflow.utils.utils import parse_resource_cpu, parse_resource_memory
 
 client.rest.logger.setLevel(logging.WARNING)
 logging.basicConfig(
     level=logging.INFO,
     format="%(name)s - %(asctime)s - %(levelname)s - %(message)s")
-
-
-def parse_resource_cpu(resource_str):
-    """Parse CPU string to cpu count."""
-    unit_map = {"m": 1e-3, "K": 1e3}
-    value = re.search(r"\d+", resource_str).group()
-    unit = resource_str[len(value):]
-    return float(value) * unit_map.get(unit, 1)
-
-
-def parse_resource_memory(resource_str):
-    """Parse resource string to megabytes."""
-    unit_map = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
-    value = re.search(r"\d+", resource_str).group()
-    unit = resource_str[len(value):]
-    return float(value) * unit_map.get(unit, 1) / (2**20)
 
 
 def process_pod_status(pod: client.V1Pod) -> str:
@@ -72,10 +59,14 @@ class K8ConnectionError(config.config_exception.ConfigException):
 class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attributes
     """Kubernetes compatability set for Sky Manager."""
 
-    def __init__(self, name: str, config_path: str = '~/.kube/config', logger: Optional[logging.Logger] = None):
+    def __init__(self,
+                 name: str,
+                 config_path: str = '~/.kube/config',
+                 logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
-        if not logger:
+        self.logger = logger
+        if not self.logger:
             self.logger = logging.getLogger(f"[{name} - K8 Manager]")
         try:
             config.load_kube_config(config_file=config_path)
@@ -177,34 +168,27 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         else:
             await write_task
 
-    def get_accelerator_types(self) -> Dict[str, str]:
+    def get_accelerator_types(self) -> Dict[str, List[str]]:
         """Fetches accelerator types for each node."""
-        # For now overfit to GKE cluster. TODO(mluo): Replace with a more general solution.
-        accelerator_labels = [
-            "nvidia.com/gpu.product", "cloud.google.com/gke-accelerator"
-        ]
-        accelerator_types = {}
-        node_list = self.core_v1.list_node()
-        for node in node_list.items:
+        accelerator_types = defaultdict(list)
+        nodes = self._fetch_node_list()
+
+        for node in nodes:
             node_name = node.metadata.name
-            # Fetch type from list of labels. None otherwise.
-            for label in accelerator_labels:
-                node_accelerator_type = node.metadata.labels.get(label, None)
-                if node_accelerator_type:
+            for label in node.metadata.labels:
+                if utils.is_accelerator_label(label):
+                    accelerator_types[node.metadata.labels.get(label,"")]\
+                        .append(node_name)
                     break
-            if node_accelerator_type is None:
-                continue
-            node_accelerator_type = node_accelerator_type.split(
-                "-")[-1].upper()
-            accelerator_types[node_name] = node_accelerator_type
+
         return accelerator_types
 
     def get_cluster_status(self):
         """
-        Returns the current status of a Kubernetes cluster.
+        Returns the current status of a Kubernetes cluster with a timeout on the list_node call.
         """
         try:
-            self.core_v1.list_node()
+            self.core_v1.list_node(_request_timeout=CLUSTER_TIMEOUT)
             return ClusterStatus(
                 status=ClusterStatusEnum.READY.value,
                 capacity=self.cluster_resources,
@@ -217,53 +201,78 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
+        except ApiException as error:
+            # Handle cases where the Kubernetes API itself returns an error
+            self.logger.error("API Exception: %s", error)
+            return ClusterStatus(
+                status=ClusterStatusEnum.ERROR.value,
+                capacity=self.cluster_resources,
+                allocatable_capacity=self.allocatable_resources,
+            )
         except Exception as error:  # pylint: disable=broad-except
             # Catch-all for any other exception, which likely indicates an ERROR state
-            print(f"Unexpected error: {error}")
+            self.logger.error("Unexpected error: %s", error)
             return ClusterStatus(
                 status=ClusterStatusEnum.ERROR.value,
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def _process_gpu_resources(
-            self, resources: Dict[str,
-                                  Dict[str,
-                                       float]]) -> Dict[str, Dict[str, float]]:
-        # Refetch node accelerator types if the nodes have changed
-        # (such as in cluster autoscaling or admin adds/removes nodes).
-        if not self.accelerator_types or not set(
-                self.accelerator_types).issubset(set(resources.keys())):
-            self.accelerator_types = self.get_accelerator_types()
+    def _fetch_node_list(self) -> List[client.V1Node]:
+        """Fetches the list of nodes in the cluster."""
+        limit = None
+        continue_token = ""
+        nodes, _, _ = self.core_v1.list_node_with_http_info(
+            limit=limit,
+            _continue=continue_token,
+            _request_timeout=CLUSTER_TIMEOUT)
+        return nodes.items
 
-        for node_name, accelerator_type in self.accelerator_types.items():
-            gpu_value: float = resources[node_name].pop(ResourceEnum.GPU.value)
-            resources[node_name][accelerator_type] = gpu_value
-        return resources
+    def process_resources(
+            self, nodes: List[client.V1Node]
+    ) -> Tuple[Dict[str, Dict[str, float]], str]:
+        """Gets allocatable resources in this cluster."""
+
+        if not nodes:
+            nodes = self._fetch_node_list()
+
+        available_resources = {}
+        gpu_type = ResourceEnum.GPU.value
+        for node in nodes:
+            name = node.metadata.name
+            node_disk = parse_resource_memory(
+                node.status.allocatable.get("ephemeral-storage", "0"))
+            node_cpu = parse_resource_cpu(
+                node.status.allocatable.get("cpu", "0"))
+            node_memory = parse_resource_memory(
+                node.status.allocatable.get("memory", "0"))
+            node_gpu = 0
+            for allocatable in node.status.allocatable:
+                if utils.is_accelerator_label(allocatable):
+                    node_gpu = int(node.status.allocatable.get(allocatable, 0))
+                    break
+
+            for label in node.metadata.labels.keys():
+                if utils.is_accelerator_label(label):
+                    gpu_type = node.metadata.labels[label]
+                    break  # Only consider the first accelerator as we only supports one accelerator type per node.
+            available_resources[name] = {
+                ResourceEnum.CPU.value: node_cpu,
+                ResourceEnum.MEMORY.value: node_memory,  # MB
+                ResourceEnum.DISK.value: node_disk,  # MB
+                gpu_type: node_gpu,
+            }
+        return available_resources, gpu_type
 
     @property
     def cluster_resources(self):
         """Gets total cluster resources for each node."""
-        limit = None
-        continue_token = ""
-        nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token)
-        nodes = nodes.items
+        nodes = self._fetch_node_list()
 
         # Initialize a dictionary to store available resources per node
-        cluster_resources = {}
-        for node in nodes:
-            name = node.metadata.name
-            node_cpu = parse_resource_cpu(node.status.capacity["cpu"])
-            node_memory = parse_resource_memory(node.status.capacity["memory"])
-            node_gpu = int(node.status.allocatable.get("nvidia.com/gpu", 0))
-            cluster_resources[name] = {
-                ResourceEnum.CPU.value: node_cpu,
-                ResourceEnum.MEMORY.value: node_memory,  # MB
-                ResourceEnum.GPU.value: node_gpu,
-            }
+        cluster_resources, _ = self.process_resources(nodes)
 
-        return self._process_gpu_resources(cluster_resources)
+        return utils.fuzzy_map_gpu(cluster_resources)
 
     @property
     def allocatable_resources(self) -> Dict[str, Dict[str, float]]:
@@ -271,22 +280,10 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         # Get the nodes and running pods
         limit = None
         continue_token = ""
-        nodes, _, _ = self.core_v1.list_node_with_http_info(
-            limit=limit, _continue=continue_token)
-        nodes = nodes.items
+        nodes = self._fetch_node_list()
 
-        available_resources = {}
-        for node in nodes:
-            node_name = node.metadata.name
-            node_cpu = parse_resource_cpu(node.status.allocatable["cpu"])
-            node_memory = parse_resource_memory(
-                node.status.allocatable["memory"])
-            node_gpu = float(node.status.allocatable.get("nvidia.com/gpu", 0))
-            available_resources[node_name] = {
-                ResourceEnum.CPU.value: node_cpu,
-                ResourceEnum.MEMORY.value: node_memory,
-                ResourceEnum.GPU.value: node_gpu,
-            }
+        # Initialize a dictionary to store available resources per node
+        available_resources, gpu_type = self.process_resources(nodes)
 
         pods, _, _ = self.core_v1.list_pod_for_all_namespaces_with_http_info(
             limit=limit, _continue=continue_token)
@@ -294,7 +291,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
 
         for pod in pods:
             if pod.metadata.namespace == self.namespace and pod.spec.node_name:
-                assert node_name in available_resources, (
+                node_name = pod.spec.node_name
+                assert node_name in available_resources.keys(), (
                     f"Node {node_name} "
                     "not found in cluster resources.")
                 for container in pod.spec.containers:
@@ -308,10 +306,13 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                                 container.resources.requests.get(
                                     "memory", "0Mi"))
                         available_resources[node_name][
-                            ResourceEnum.GPU.value] -= int(
+                            ResourceEnum.DISK.value] -= parse_resource_memory(
                                 container.resources.requests.get(
-                                    "nvidia.com/gpu", 0))
-        return self._process_gpu_resources(available_resources)
+                                    "ephemeral-storage", "0Ki"))
+                        available_resources[node_name][gpu_type] -= int(
+                            container.resources.requests.get(
+                                "nvidia.com/gpu", 0))
+        return utils.fuzzy_map_gpu(available_resources)
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
         """
@@ -409,9 +410,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 accelerator_type = list(job_resource_dict.keys())[0]
                 gpus = job_resource_dict[accelerator_type]
                 cluster_acc_types = self.get_accelerator_types()
-                for node_name, acc_type in cluster_acc_types.items():
-                    if acc_type == accelerator_type:
-                        node_set.append(node_name)
+                available_accelerators = list(cluster_acc_types.keys())
+                best_match = process.extractOne(
+                    accelerator_type, available_accelerators,
+                    score_cutoff=40)  # Minimum score to match T4
+                if not best_match:
+                    raise ValueError(
+                        f"Accelerator type {accelerator_type} not found in cluster."
+                    )
+                node_set = cluster_acc_types[best_match[0]]
 
         deployment_dict = {
             "deployment_name": job_name,
@@ -467,9 +474,15 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 accelerator_type = list(job_resource_dict.keys())[0]
                 gpus = job_resource_dict[accelerator_type]
                 cluster_acc_types = self.get_accelerator_types()
-                for node_name, acc_type in cluster_acc_types.items():
-                    if acc_type == accelerator_type:
-                        node_set.append(node_name)
+                available_accelerators = list(cluster_acc_types.keys())
+                best_match = process.extractOne(
+                    accelerator_type, available_accelerators,
+                    score_cutoff=40)  # Minimum score to match T4
+                if not best_match:
+                    raise ValueError(
+                        f"Accelerator type {accelerator_type} not found in cluster."
+                    )
+                node_set = cluster_acc_types[best_match[0]]
 
         for rank_id in range(replicas):
             jinja_dict = {
@@ -520,6 +533,9 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             if sky_job_name not in jobs_dict["tasks"]:
                 jobs_dict["tasks"][sky_job_name] = {}
             jobs_dict["tasks"][sky_job_name][pod.metadata.name] = pod_status
+            # To prevent crashes when a pod is scheduled but doesn't have containers running.
+            if not pod.status.container_statuses:
+                continue
             for container_status in pod.status.container_statuses:
                 state: str = ContainerStatusEnum.UNKNOWN.value  # Default state
                 if container_status.state.running is not None:

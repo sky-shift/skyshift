@@ -1,30 +1,34 @@
 """
-Globals contains variables used across the Skyflow.
+Globals contains variables used across the SkyShift.
 """
 import os
 
-from skyflow.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
-                               Namespace, Role, Service)
+CLUSTER_TIMEOUT = 10  # seconds
 
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
+API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
+
+RAY_MANAGERS = ("ray", "rayctl")
+RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
+
 DEFAULT_NAMESPACE = "default"
 
-NAMESPACED_OBJECTS = {
-    "jobs": Job,
-    "filterpolicies": FilterPolicy,
-    "services": Service,
-    "endpoints": Endpoints,
-}
-NON_NAMESPACED_OBJECTS = {
-    "clusters": Cluster,
-    "namespaces": Namespace,
-    "links": Link,
-    "roles": Role,
-}
-ALL_OBJECTS = {**NON_NAMESPACED_OBJECTS, **NAMESPACED_OBJECTS}
+K8_MANAGERS = ('kubernetes', 'k8', 'k8s')
+KUBE_CONFIG_DEFAULT_PATH = "~/.kube/config"
+
+SLURM_MANAGERS = ('slurm', 'slurmctl')
+SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
+
+SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
+
+CLUSTER_TIMEOUT = 10  # seconds
+
+ACCELERATOR_KEYWORDS = ["accelerator", "nvidia"]
+
+APP_NAME = "SkyShift"
 
 
 def cluster_dir(cluster_name: str):

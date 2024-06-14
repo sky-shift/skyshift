@@ -16,11 +16,12 @@ VALID_OBJECT_CLASSES = [
     'links',
     'roles',
     'rolebindings',
+    'user',
 ]
 
 
 class ActionEnum(enum.Enum):
-    """Types of actions performed on Skyflow objects."""
+    """Types of actions performed on SkyShift objects."""
     CREATE = "create"
     GET = "get"
     LIST = "list"

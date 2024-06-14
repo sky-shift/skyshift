@@ -10,17 +10,25 @@ from copy import deepcopy
 import requests
 
 from skyflow import utils
-from skyflow.api_client import ClusterAPI, ServiceAPI
+from skyflow.api_client import ServiceAPI
 from skyflow.api_client.object_api import APIException
+from skyflow.cluster_manager import KubernetesManager, Manager
 from skyflow.cluster_manager.manager_utils import setup_cluster_manager
 from skyflow.controllers import Controller
 from skyflow.controllers.controller_utils import create_controller_logger
 from skyflow.globals import cluster_dir
 from skyflow.structs import Informer
 from skyflow.templates import Service
+from skyflow.templates.cluster_template import Cluster
 
 DEFAULT_HEARTBEAT_TIME = 3
 DEFAULT_RETRY_LIMIT = 3
+
+
+def _filter_manager(manager: Manager) -> KubernetesManager:
+    if isinstance(manager, KubernetesManager):
+        return manager
+    raise ValueError("Manager is not a KubernetesManager.")
 
 
 @contextmanager
@@ -72,21 +80,22 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
 
     def __init__(
         self,
-        name,
+        cluster: Cluster,
         heartbeat_interval: int = DEFAULT_HEARTBEAT_TIME,
         retry_limit: int = DEFAULT_RETRY_LIMIT,
     ):
-        super().__init__()
+        super().__init__(cluster)
 
-        self.name = name
+        self.name = cluster.get_name()
         self.heartbeat_interval = heartbeat_interval
         self.retry_limit = retry_limit
         self.retry_counter = 0
-        cluster_obj = ClusterAPI().get(name)
-        self.manager_api = setup_cluster_manager(cluster_obj)
+        self.manager_api: KubernetesManager = _filter_manager(
+            setup_cluster_manager(cluster))
         # Fetch cluster state template (cached cluster state).
         self.logger = create_controller_logger(
-            title=f"[{utils.unsanitize_cluster_name(self.name)} - Service Controller]",
+            title=
+            f"[{utils.unsanitize_cluster_name(self.name)} - Service Controller]",
             log_path=f'{cluster_dir(self.name)}/logs/service_controller.log')
         self.service_status = self.manager_api.get_service_status()
         self.informer = Informer(ServiceAPI(namespace=''), logger=self.logger)
@@ -118,9 +127,3 @@ class ServiceController(Controller):  # pylint: disable=too-many-instance-attrib
                 continue
             cached_svc = deepcopy(self.informer.get_cache()[svc_name])
             update_svc(cached_svc, fetched_status)
-
-
-# Testing purposes.
-if __name__ == "__main__":
-    jc = ServiceController("mluo-onprem")
-    jc.start()
