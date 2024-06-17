@@ -8,10 +8,10 @@ from typing import Dict, List, Optional
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from skyflow.globals import (APP_NAME, K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
-                             PROVISIONER_CPU_REGEX, RAY_CLUSTERS_CONFIG_PATH,
-                             RAY_MANAGERS, SLURM_CONFIG_DEFAULT_PATH,
-                             SLURM_MANAGERS)
+from skyflow.globals import (APP_NAME, CPU_NUMBER_VALIDATOR, K8_MANAGERS,
+                             KUBE_CONFIG_DEFAULT_PATH,
+                             RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
+                             SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyflow.templates.object_template import (Object, ObjectException,
                                                ObjectList, ObjectMeta,
                                                ObjectSpec, ObjectStatus)
@@ -234,9 +234,11 @@ class ClusterSpec(ObjectSpec):
         """Validates the cpus field of a ClusterResources."""
         if cpus is None:
             return cpus
-        match = re.match(PROVISIONER_CPU_REGEX, cpus)
+        # Accepts a string of the form: [+-]number[+-] to simplify the syntax.
+        match = re.match(CPU_NUMBER_VALIDATOR, cpus)
         if not match:
             raise ValueError(f'Invalid cpus: {cpus}.')
+        # Then construct the valid cpu syntax (e.g. 2+) from the simplified syntax.
         return f"{match.group(2)}+"
 
     @field_validator("manager")
