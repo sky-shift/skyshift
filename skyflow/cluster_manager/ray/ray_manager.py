@@ -27,7 +27,7 @@ from skyflow.globals import APP_NAME, CLUSTER_TIMEOUT
 from skyflow.templates import (ClusterStatus, ClusterStatusEnum, Job,
                                ResourceEnum)
 # Import the new SSH utility functions and classes
-from skyflow.utils.ssh_utils import (SSHParams, connect_ssh_client,
+from skyflow.utils.ssh_utils import (SSHParams, SSHStatusEnum, SSHStruct, connect_ssh_client,
                                      ssh_send_command)
 from skyflow.utils.utils import fuzzy_map_gpu
 
@@ -69,11 +69,13 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         self.ssh_params = SSHParams(remote_hostname=host,
                                     remote_username=username,
                                     rsa_key=ssh_key_path)
-        ssh_client = connect_ssh_client(self.ssh_params).ssh_client
-        if not ssh_client:
+        ssh_client: SSHStruct = connect_ssh_client(self.ssh_params)
+
+        if not ssh_client or ssh_client.status == SSHStatusEnum.NOT_REACHABLE:
             self.logger.error(
                 "Failed to establish an SSH connection to the remote host.")
             return
+        ssh_client = ssh_client.ssh_client
         self.remote_dir = os.path.join(get_remote_home_directory(ssh_client),
                                        f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
@@ -174,7 +176,8 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         self.logger.error(
             "Failed to fetch resources from the Ray dashboard: %s",
             response.text)
-        return {}
+        raise RayConnectionError(
+            f"Failed to fetch resources from the Ray dashboard: {response.text}")
 
     @property
     def cluster_resources(self):
@@ -203,7 +206,7 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         """
         if not self.client:
             self.logger.error("Ray client not initialized.")
-            return {"tasks": {}, "containers": {}}
+            raise RayConnectionError("Ray client not initialized.")
 
         jobs_details = self.client.list_jobs()
         status = fetch_all_job_statuses(jobs_details)
@@ -222,8 +225,7 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         """
 
         if not self.client:
-            self.logger.error("Ray client not initialized.")
-            return []
+            raise RayConnectionError("Ray client not initialized.")
 
         job_id = job.status.job_ids[self.cluster_name]
         self.logger.info("Fetching logs for job %s on the Ray cluster.",

@@ -30,13 +30,15 @@ def heartbeat_error_handler(controller: "ClusterController"):
     try:
         # Yield control back to the calling block
         yield
+    except requests.exceptions.Timeout:
+        controller.logger.error("Request timed out. Retrying.")
     except requests.exceptions.ConnectionError:
-        controller.logger.error(traceback.format_exc())
         controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception:  # pylint: disable=broad-except
-        controller.logger.error(traceback.format_exc())
         controller.logger.error("Encountered unusual error. Trying again.")
-        controller.retry_counter += 1
+    
+    # Keep track of the number of retries for each failed attempt.
+    controller.retry_counter += 1
 
     if controller.retry_counter > controller.retry_limit:
         controller.logger.error(
