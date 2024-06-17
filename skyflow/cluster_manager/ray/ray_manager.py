@@ -16,12 +16,13 @@ import paramiko
 import ray
 import regex as re
 from ray.job_submission import JobSubmissionClient
+import requests
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.ray.ray_utils import (
-    copy_required_files, find_available_container_managers,
-    get_remote_home_directory)
+    copy_required_files, fetch_all_job_statuses, find_available_container_managers,
+    get_remote_home_directory, process_cluster_status)
 from skyflow.globals import APP_NAME
 from skyflow.templates import (ClusterStatus, ClusterStatusEnum, Job,
                                ResourceEnum, TaskStatusEnum)
@@ -32,6 +33,7 @@ from skyflow.utils.utils import fuzzy_map_gpu
 
 RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
+RAY_DASHBOARD_PORT = 8265
 RAY_NODES_PORT = 6379
 
 RAY_JSON_PATTERN = "(\{(?:[^{}]|(?R))*\})"
@@ -101,7 +103,7 @@ class RayManager(Manager):
     def _connect_to_ray_cluster(self) -> Optional[JobSubmissionClient]:
         """Connect to the Ray cluster using the Ray client."""
         try:
-            #TODO: change to https
+            # Todo: change to https
             return JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
         except ConnectionError as error:
             self.logger.error(
@@ -145,53 +147,21 @@ class RayManager(Manager):
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def _submit_and_fetch_logs(self, script_name, script_args="") -> Dict:
-        job_id = f"job_{uuid4().hex[:10]}"
-        entrypoint = f"python {self.remote_dir}/{script_name} {script_args}"
-
-        if not self.client:
-            self.logger.error("Ray client not initialized.")
-            return {}
-
-        self.client.submit_job(entrypoint=entrypoint, submission_id=job_id)
-
-        # Wait for the job to complete
-        job_info = self.client.get_job_info(job_id)
-        while job_info.status != 'SUCCEEDED':
-            job_info = self.client.get_job_info(job_id)
-
-        logs = self.client.get_job_logs(job_id)
-        json_pattern = re.compile(RAY_JSON_PATTERN)
-        match = json_pattern.search(logs)
-
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError as e:
-                self.logger.error(
-                    "Failed to decode JSON from the logs, check the log output for errors.",
-                    exc_info=e)
+    def fetch_resources_from_dashboard(self, usage: bool):
+        response = requests.get(f"http://{self.host}:{RAY_DASHBOARD_PORT}/api/cluster_status")
+        if response.status_code == 200:
+            cluster_status = response.json()
+            return process_cluster_status(cluster_status, usage)
         else:
-            self.logger.error("No JSON object found in the logs.")
-
-        try:
-            self.client.stop_job(job_id)
-            self.client.delete_job(job_id)
-        except RuntimeError as error:
-            self.logger.error(f"Failed to stop job {job_id}: {error}")
-        return {}
+            response.raise_for_status()
 
     @property
     def cluster_resources(self):
         """
         Gets total cluster resources for each node using Ray, excluding the internal head node.
         """
-        resources = self._submit_and_fetch_logs("fetch_resources.py")
+        resources = self.fetch_resources_from_dashboard(usage=False)
         logging.debug("Cluster resources: %s", resources)
-        #Disk resources are fetched as bytes, convert to MB
-        for node_resources in resources.values():
-            node_resources[ResourceEnum.DISK.value] = node_resources[
-                ResourceEnum.DISK.value] / 1024 / 1024
         return fuzzy_map_gpu(resources)
 
     @property
@@ -199,13 +169,8 @@ class RayManager(Manager):
         """
         Gets total allocatable resources for each node using Ray, excluding the internal head node.
         """
-        resources = self._submit_and_fetch_logs("fetch_resources.py",
-                                                "--available")
-        #Disk resources are fetched as bytes, convert to MB
-        for node_resources in resources.values():
-            node_resources[ResourceEnum.DISK.value] = node_resources[
-                ResourceEnum.DISK.value] / 1024 / 1024
-        logging.debug("Cluster allocatable resources: %s", resources)
+        resources = self.fetch_resources_from_dashboard(usage=False)
+        logging.debug("Cluster available resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
@@ -215,7 +180,12 @@ class RayManager(Manager):
         Returns:
             Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
         """
-        status = self._submit_and_fetch_logs("fetch_job_status.py")
+        if not self.client:
+            self.logger.error("Ray client not initialized.")
+            return {"tasks": {}, "containers": {}}
+            
+        jobs_details = self.client.list_jobs()
+        status = fetch_all_job_statuses(jobs_details)
         self.logger.debug("Jobs status: %s", status)
         return status
 
