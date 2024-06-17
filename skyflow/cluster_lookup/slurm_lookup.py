@@ -1,7 +1,6 @@
 """
 Lookup Slurm clusters under Kubeconfig.
 """
-import traceback
 from typing import Any, List, Optional
 
 from skyflow import utils
@@ -13,8 +12,7 @@ from skyflow.globals import SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS
 def _safe_load_slurm_config(config_path: str) -> Optional[SlurmConfig]:
     try:
         slurm_config = SlurmConfig(config_path=config_path)
-    except Exception:  # pylint: disable=broad-except
-        print(traceback.format_exc())
+    except FileNotFoundError:
         print(f"Error loading slurm config: {config_path}")
         return None
     return slurm_config
