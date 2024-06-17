@@ -313,7 +313,6 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                             container.resources.requests.get(
                                 "nvidia.com/gpu", 0))
 
-        self.logger.debug(f"Allocatable resources: {available_resources}")
         return utils.fuzzy_map_gpu(available_resources)
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
