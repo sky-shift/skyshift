@@ -1,3 +1,7 @@
+"""
+Utility functions for the Ray cluster manager.
+"""
+
 import logging
 import os
 import tarfile
@@ -5,7 +9,6 @@ from typing import Any, Dict, List
 
 import paramiko
 from paramiko import SSHClient
-import requests
 from ray.job_submission import JobDetails
 
 from skyflow.templates.resource_template import CRIEnum, ResourceEnum
@@ -39,7 +42,9 @@ def extract_archive_on_remote(ssh_client: SSHClient, remote_dir: str,
 
     ssh_send_command(ssh_client, command)
 
-def process_cluster_status(status_dict: Dict[str, Any], usage: bool) -> Dict[str, Dict[str, float]]:
+
+def process_cluster_status(status_dict: Dict[str, Any],
+                           usage: bool) -> Dict[str, Dict[str, float]]:
     """
     Processes the cluster status and extracts resource usage or capacity information.
 
@@ -54,9 +59,12 @@ def process_cluster_status(status_dict: Dict[str, Any], usage: bool) -> Dict[str
             and the values are dictionaries with resource names as keys and their \
             corresponding quantities as values.
     """
-    result = {}
-    
-    info = status_dict.get("data",{}).get("clusterStatus", {}).get("loadMetricsReport", {}).get("usageByNode", {}).items()
+    result: Dict[str, Dict[str, float]] = {}
+
+    info = status_dict.get("data", {}).get("clusterStatus",
+                                           {}).get("loadMetricsReport",
+                                                   {}).get("usageByNode",
+                                                           {}).items()
     for node_id, resources in info:
         if result.get(node_id) is None:
             res = {}
@@ -79,12 +87,14 @@ def process_cluster_status(status_dict: Dict[str, Any], usage: bool) -> Dict[str
 
     return result
 
-def extract_job_name(submission_id: str):
+
+def extract_job_name(submission_id: str) -> str:
     """
     Extracts the original job name from the submission_id.
     """
     parts = submission_id.rsplit('-', 2)
     return '-'.join(parts[:-2]) if len(parts) >= 3 else submission_id
+
 
 def map_ray_status_to_task_status(ray_status: str) -> str:
     """
@@ -99,19 +109,28 @@ def map_ray_status_to_task_status(ray_status: str) -> str:
     }
     return status_mapping.get(ray_status, "UNKNOWN")
 
-def fetch_all_job_statuses(jobs_details: List[JobDetails]) -> Dict[str, Dict[str, Dict[str, str]]]:
+
+def fetch_all_job_statuses(
+        jobs_details: List[JobDetails]
+) -> Dict[str, Dict[str, Dict[str, str]]]:
     """
     Processes the status of all jobs from the Ray cluster.
     """
-    jobs_dict = {"tasks": {}, "containers": {}}
+    jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
+        "tasks": {},
+        "containers": {}
+    }
 
     for job in jobs_details:
         #Only keep track of jobs deployed by SkyShift
-        if len(job.submission_id.split('-')) != 3: 
+        if not job.submission_id or len(job.submission_id.split('-')) != 3:
             # Doesn't follow the SkyShift format
             continue
         job_name = extract_job_name(job.submission_id)
         job_id = job.job_id
+        if not job_id:
+            # Job ID not available
+            continue
         job_status = map_ray_status_to_task_status(job.status)
 
         if job_name not in jobs_dict["tasks"]:
@@ -123,6 +142,7 @@ def fetch_all_job_statuses(jobs_details: List[JobDetails]) -> Dict[str, Dict[str
         jobs_dict["containers"][job_name][job_id] = job_status
 
     return jobs_dict
+
 
 def copy_required_files(ssh_client: paramiko.SSHClient, remote_dir: str,
                         logger: logging.Logger):

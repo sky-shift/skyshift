@@ -1,5 +1,5 @@
 """
-Ray compatibility layer for SkyShift. 
+Ray compatibility layer for SkyShift.
 This module provides a compatibility layer for Ray cluster manager using as backbone
 the Ray Job Submission Server.
 https://docs.ray.io/en/latest/cluster/running-applications/job-submission/sdk.html
@@ -13,19 +13,19 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 import paramiko
-import ray
-import regex as re
-from ray.job_submission import JobSubmissionClient
 import requests
+from fastapi import WebSocket
+from ray.job_submission import JobSubmissionClient
 
 from skyflow import utils
 from skyflow.cluster_manager.manager import Manager
 from skyflow.cluster_manager.ray.ray_utils import (
-    copy_required_files, fetch_all_job_statuses, find_available_container_managers,
-    get_remote_home_directory, process_cluster_status)
+    copy_required_files, fetch_all_job_statuses,
+    find_available_container_managers, get_remote_home_directory,
+    process_cluster_status)
 from skyflow.globals import APP_NAME
 from skyflow.templates import (ClusterStatus, ClusterStatusEnum, Job,
-                               ResourceEnum, TaskStatusEnum)
+                               ResourceEnum)
 # Import the new SSH utility functions and classes
 from skyflow.utils.ssh_utils import (SSHParams, connect_ssh_client,
                                      ssh_send_command)
@@ -35,8 +35,6 @@ RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
 RAY_DASHBOARD_PORT = 8265
 RAY_NODES_PORT = 6379
-
-RAY_JSON_PATTERN = "(\{(?:[^{}]|(?R))*\})"
 
 # Set up logging
 logging.basicConfig(
@@ -48,17 +46,18 @@ class RayConnectionError(RuntimeError):
     """Raised when there is an error connecting to the Ray cluster."""
 
 
-class RayManager(Manager):
+class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
     """ Compatibility layer for Ray cluster manager. """
 
     is_initialized = False
 
-    def __init__(self,
-                 name: str,
-                 ssh_key_path: Optional[str],
-                 username: str,
-                 host: str,
-                 logger: Optional[logging.Logger] = None):
+    def __init__(  # pylint: disable=too-many-arguments
+            self,
+            name: str,
+            ssh_key_path: Optional[str],
+            username: str,
+            host: str,
+            logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
         self.logger: logging.Logger = logger if logger else logging.getLogger(
@@ -103,11 +102,10 @@ class RayManager(Manager):
     def _connect_to_ray_cluster(self) -> Optional[JobSubmissionClient]:
         """Connect to the Ray cluster using the Ray client."""
         try:
-            # Todo: change to https
             return JobSubmissionClient(f"http://{self.host}:{RAY_JOBS_PORT}")
         except ConnectionError as error:
             self.logger.error(
-                f"Failed to connect to the Job Submission Server: {error}")
+                "Failed to connect to the Job Submission Server: %s", error)
         return None
 
     def _install_ray(self, ssh_client: paramiko.SSHClient):
@@ -120,12 +118,27 @@ class RayManager(Manager):
             install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
             _, stderr = ssh_send_command(ssh_client, install_conda_cmd)
             if stderr:
-                self.logger.error(
-                    f"Error installing Miniconda & Ray: {stderr}")
+                self.logger.error("Error installing Miniconda & Ray: %s",
+                                  stderr)
                 raise RayConnectionError("Error installing Miniconda & Ray.")
             self.logger.info("Ray successfully started.")
         except paramiko.SSHException as error:
-            self.logger.error(f"Error setting up Ray: {error}")
+            self.logger.error("Error setting up Ray: %s", error)
+
+    async def execute_command(  # pylint: disable=too-many-arguments
+            self, websocket: WebSocket, task: str, container: str, tty: bool,
+            command: List[str]):
+        """
+        Execute a command on the head node.
+
+        Args:
+            command: Command to be executed on the Ray cluster.
+
+        Returns:
+            str: Output of the command execution.
+        """
+        raise NotImplementedError(
+            "execute_command is not implemented for Ray.")
 
     def get_cluster_status(self):
         """
@@ -147,13 +160,20 @@ class RayManager(Manager):
                 allocatable_capacity=self.allocatable_resources,
             )
 
-    def fetch_resources_from_dashboard(self, usage: bool):
-        response = requests.get(f"http://{self.host}:{RAY_DASHBOARD_PORT}/api/cluster_status")
+    def fetch_resources_from_dashboard(
+            self, usage: bool) -> Dict[str, Dict[str, float]]:
+        """
+        Fetches resources from the Ray dashboard.
+        """
+        response = requests.get(
+            f"http://{self.host}:{RAY_DASHBOARD_PORT}/api/cluster_status")
         if response.status_code == 200:
             cluster_status = response.json()
             return process_cluster_status(cluster_status, usage)
-        else:
-            response.raise_for_status()
+        self.logger.error(
+            "Failed to fetch resources from the Ray dashboard: %s",
+            response.text)
+        return {}
 
     @property
     def cluster_resources(self):
@@ -176,14 +196,14 @@ class RayManager(Manager):
     def get_jobs_status(self) -> Dict[str, Dict[str, Dict[str, str]]]:
         """
         Gets the jobs tasks status. (Map from job name to task mapped to status)
-        
+
         Returns:
             Dict[str, Dict[str, Dict[str, str]]]: A dictionary mapping job names to task statuses.
         """
         if not self.client:
             self.logger.error("Ray client not initialized.")
             return {"tasks": {}, "containers": {}}
-            
+
         jobs_details = self.client.list_jobs()
         status = fetch_all_job_statuses(jobs_details)
         self.logger.debug("Jobs status: %s", status)
@@ -192,7 +212,7 @@ class RayManager(Manager):
     def get_job_logs(self, job) -> List[str]:
         """
         Gets logs for a given job.
-        
+
         Args:
             job: Job object containing job specifications.
 
@@ -205,27 +225,29 @@ class RayManager(Manager):
             return []
 
         job_id = job.status.job_ids[self.cluster_name]
-        self.logger.info(f"Fetching logs for job {job_id} on the Ray cluster.")
+        self.logger.info("Fetching logs for job %s on the Ray cluster.",
+                         job_id)
         logs = []
         try:
             log = self.client.get_job_logs(job_id)
             logs.append(log)
-            self.logger.info(
-                f"Fetched logs for job {job_id} on the Ray cluster.")
-        except Exception as e:
-            self.logger.error(f"Failed to fetch logs for job {job_id}: {e}")
+            self.logger.info("Fetched logs for job %s on the Ray cluster.",
+                             job_id)
+        except RuntimeError as error:
+            self.logger.error("Failed to fetch logs for job %s: %s", job_id,
+                              error)
 
         try:
             self.client.stop_job(job_id)
             self.client.delete_job(job_id)
         except RuntimeError as error:
-            self.logger.error(f"Failed to stop job {job_id}: {error}")
+            self.logger.error("Failed to stop job %s: %s", job_id, error)
 
         return logs
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
         """
-        Submit a job to the Ray cluster using Docker containers. This method checks if the job has 
+        Submit a job to the Ray cluster using Docker containers. This method checks if the job has
         already been submitted and if so, does nothing.
 
         Args:
@@ -293,17 +315,16 @@ class RayManager(Manager):
         try:
             # Stop the job in the Ray cluster
             self.client.stop_job(job_id)
-            self.logger.info(
-                f"Successfully stopped job {job.get_name()} on the Ray cluster."
-            )
+            self.logger.info("Successfully stopped job %s on the Ray cluster.",
+                             job.get_name())
             self.client.delete_job(job_id)
             self.logger.info(
-                f"Successfully deleted job {job.get_name()} from the Ray cluster."
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to stop job {job_id}: {e}")
+                "Successfully deleted job %s from the Ray cluster.",
+                job.get_name())
+        except RuntimeError as error:
+            self.logger.error("Failed to stop job %s: %s", job_id, error)
 
-        self.logger.info(f"Removed job {job.get_name()} from job registry.")
+        self.logger.info("Removed job from job registry: %s", job.get_name())
 
 
 #print("Ray Manager")
