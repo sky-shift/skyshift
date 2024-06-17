@@ -290,7 +290,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         pods = pods.items
 
         for pod in pods:
-            if pod.metadata.namespace == self.namespace and pod.spec.node_name:
+            if pod.spec.node_name:
                 node_name = pod.spec.node_name
                 assert node_name in available_resources.keys(), (
                     f"Node {node_name} "
@@ -312,6 +312,8 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                         available_resources[node_name][gpu_type] -= int(
                             container.resources.requests.get(
                                 "nvidia.com/gpu", 0))
+
+        self.logger.debug(f"Allocatable resources: {available_resources}")
         return utils.fuzzy_map_gpu(available_resources)
 
     def submit_job(self, job: Job) -> Dict[str, Any]:
