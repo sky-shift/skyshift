@@ -23,7 +23,7 @@ from skyflow.cluster_manager.ray.ray_utils import (
     copy_required_files, fetch_all_job_statuses,
     find_available_container_managers, get_remote_home_directory,
     process_cluster_status)
-from skyflow.globals import APP_NAME
+from skyflow.globals import APP_NAME, CLUSTER_TIMEOUT
 from skyflow.templates import (ClusterStatus, ClusterStatusEnum, Job,
                                ResourceEnum)
 # Import the new SSH utility functions and classes
@@ -166,7 +166,8 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         Fetches resources from the Ray dashboard.
         """
         response = requests.get(
-            f"http://{self.host}:{RAY_DASHBOARD_PORT}/api/cluster_status")
+            f"http://{self.host}:{RAY_DASHBOARD_PORT}/api/cluster_status",
+            timeout=CLUSTER_TIMEOUT)
         if response.status_code == 200:
             cluster_status = response.json()
             return process_cluster_status(cluster_status, usage)
