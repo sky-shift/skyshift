@@ -1,3 +1,4 @@
+"""Setups Skyflow pacakage."""
 from setuptools import setup
 
 setup(
@@ -9,7 +10,7 @@ setup(
         "bcrypt==4.0.1",
         "Click",
         "click_aliases",
-        "etcd3",
+        "etcd3@ git+https://github.com/sky-shift/python-etcd3.git@master#egg=etcd3",
         "fastapi",
         "kubernetes",
         "passlib",

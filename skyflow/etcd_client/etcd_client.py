@@ -20,15 +20,20 @@ import traceback
 from contextlib import suppress
 from typing import Generator, List, Optional, Tuple
 
-from etcd3.client import Etcd3Client
+from etcd3.client import Endpoint, MultiEndpointEtcd3Client
 
 from skyflow.etcd_client.monkey_patch import delete_prefix
 from skyflow.templates.event_template import WatchEventEnum
 
 # Perform Monkey Patch over faulty Etcd3 Delete_Prefix method
-Etcd3Client.delete_prefix = delete_prefix
+MultiEndpointEtcd3Client.delete_prefix = delete_prefix
 ETCD_PORT = 2379
 DEFAULT_CLIENT_NAME = "/sky_registry/"
+
+
+def _create_etcd3_client(port=ETCD_PORT):
+    endpoint = Endpoint(host='127.0.0.1', port=port, secure=False)
+    return MultiEndpointEtcd3Client(endpoints=[endpoint])
 
 
 def remove_prefix(input_string: str, prefix: str = DEFAULT_CLIENT_NAME):
@@ -143,7 +148,7 @@ class ETCDClient:
     def __init__(self, log_name: str = DEFAULT_CLIENT_NAME, port=ETCD_PORT):
         self.log_name = log_name
         self.port = port
-        self.etcd_client = Etcd3Client(port=port)
+        self.etcd_client = _create_etcd3_client(port=port)
 
     def write(self, key: str, value: dict):
         """
@@ -322,7 +327,7 @@ class ETCDClient:
             A generator that yields a tuple of WatchEventEnum and the
             value.
         """
-        etcd_client = Etcd3Client(port=self.port)
+        etcd_client = _create_etcd3_client(port=self.port)
         if self.log_name not in key:
             key = f"{self.log_name}{key}"
 
