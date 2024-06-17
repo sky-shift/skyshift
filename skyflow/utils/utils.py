@@ -50,9 +50,10 @@ def format_resource_units(value: float) -> str:
 
 
 def parse_resource_with_units(resource: Union[str, float],
-                              default_unit: str = "GB") -> float:
+                              default_unit: str = "G") -> float:
     """
-    Parses a resource string with units (e.g., "32GB", "100MB") and converts it to MB.
+    Parses a resource string with units (e.g., "32GB", "100MB") and converts it to \
+    the specified unit.
     Assumes GB if no units are specified.
 
     Args:
@@ -79,7 +80,7 @@ def parse_resource_with_units(resource: Union[str, float],
         raise ValueError(f"Invalid resource format: {resource}")
 
     value, _, unit, _ = match.groups()
-    unit = unit.upper() if unit else default_unit.upper()
+    unit = unit.upper() if unit else default_unit.upper()[0]
 
     return float(value) * units[unit]
 

@@ -2,12 +2,14 @@
 Cluster Template - Defines the Cluster object.
 """
 import enum
+import re
 import time
 from typing import Dict, List, Optional
 
 from pydantic import Field, ValidationInfo, field_validator
 
-from skyflow.globals import (APP_NAME, K8_MANAGERS, KUBE_CONFIG_DEFAULT_PATH,
+from skyflow.globals import (APP_NAME, CPU_NUMBER_VALIDATOR, K8_MANAGERS,
+                             KUBE_CONFIG_DEFAULT_PATH,
                              RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
                              SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyflow.templates.object_template import (Object, ObjectException,
@@ -232,11 +234,12 @@ class ClusterSpec(ObjectSpec):
         """Validates the cpus field of a ClusterResources."""
         if cpus is None:
             return cpus
-        if cpus.isdigit():
-            return cpus
-        if cpus[-1] == '+' and cpus[:-1].isdigit():
-            return cpus
-        raise ValueError(f'Invalid cpus: {cpus}.')
+        # Accepts a string of the form: [+-]number[+-] to simplify the syntax.
+        match = re.match(CPU_NUMBER_VALIDATOR, cpus)
+        if not match:
+            raise ValueError(f'Invalid cpus: {cpus}.')
+        # Then construct the valid cpu syntax (e.g. 2+) from the simplified syntax.
+        return f"{match.group(2)}+"
 
     @field_validator("manager")
     @classmethod
