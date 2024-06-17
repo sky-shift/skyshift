@@ -136,8 +136,14 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         self.cluster_name = utils.sanitize_cluster_name(name)
         self.config_path = config_path
         if not logger:
-            self.logger = logging.getLogger(f"[{name} - K8 Manager]")
-        self.config = slurm_utils.SlurmConfig(config_path=self.config_path)
+            self.logger: logging.Logger = logging.getLogger(
+                f"[{name} - SLURM Manager]")
+        try:
+            self.config = slurm_utils.SlurmConfig(config_path=self.config_path)
+        except FileNotFoundError as error:
+            self.logger.error("Failed to load Slurm config file: %s",
+                              self.config_path)
+            raise error
         self.auth_config = self.config.get_auth_config(name)
         self.user = self.auth_config.get('user', '')
         # Initalize SSH Client
