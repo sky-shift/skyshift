@@ -6,7 +6,6 @@ These controllers are launched in Skylet.
 """
 
 import time
-import traceback
 from contextlib import contextmanager
 
 import requests
@@ -36,7 +35,7 @@ def heartbeat_error_handler(controller: "ClusterController"):
         controller.logger.error("Cannot connect to API server. Retrying.")
     except Exception:  # pylint: disable=broad-except
         controller.logger.error("Encountered unusual error. Trying again.")
-    
+
     # Keep track of the number of retries for each failed attempt.
     controller.retry_counter += 1
 

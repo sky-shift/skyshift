@@ -27,8 +27,8 @@ from skyflow.globals import APP_NAME, CLUSTER_TIMEOUT
 from skyflow.templates import (ClusterStatus, ClusterStatusEnum, Job,
                                ResourceEnum)
 # Import the new SSH utility functions and classes
-from skyflow.utils.ssh_utils import (SSHParams, SSHStatusEnum, SSHStruct, connect_ssh_client,
-                                     ssh_send_command)
+from skyflow.utils.ssh_utils import (SSHParams, SSHStatusEnum, SSHStruct,
+                                     connect_ssh_client, ssh_send_command)
 from skyflow.utils.utils import fuzzy_map_gpu
 
 RAY_CLIENT_PORT = 10001
@@ -71,18 +71,18 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
                                     rsa_key=ssh_key_path)
         ssh_client: SSHStruct = connect_ssh_client(self.ssh_params)
 
-        if not ssh_client or ssh_client.status == SSHStatusEnum.NOT_REACHABLE:
+        if not ssh_client.ssh_client or ssh_client.status == SSHStatusEnum.NOT_REACHABLE:
             self.logger.error(
                 "Failed to establish an SSH connection to the remote host.")
             return
-        ssh_client = ssh_client.ssh_client
-        self.remote_dir = os.path.join(get_remote_home_directory(ssh_client),
+        client = ssh_client.ssh_client
+        self.remote_dir = os.path.join(get_remote_home_directory(client),
                                        f".{APP_NAME}")
         self.client = self._connect_to_ray_cluster()
         if not self.client:  # If the client is still not initialized, ray might not be installed
             self.logger.info(
                 "Ray client not initialized. Attempting to install Ray.")
-            self._setup(ssh_client)
+            self._setup(client)
             self.client = self._connect_to_ray_cluster()
             if not self.client:
                 self.logger.error(
@@ -177,7 +177,8 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
             "Failed to fetch resources from the Ray dashboard: %s",
             response.text)
         raise RayConnectionError(
-            f"Failed to fetch resources from the Ray dashboard: {response.text}")
+            f"Failed to fetch resources from the Ray dashboard: {response.text}"
+        )
 
     @property
     def cluster_resources(self):
