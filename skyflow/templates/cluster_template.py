@@ -192,9 +192,24 @@ class ClusterSpec(ObjectSpec):
     num_nodes: int = Field(default=1, validate_default=True)
     provision: bool = Field(default=False, validate_default=True)
     config_path: str = Field(default="", validate_default=True)
-    ssh_key_path: str = Field(default="~/.ssh/id_rsa", validate_default=True)
-    host: str = Field(default="", validate_default=True)
-    username: str = Field(default="", validate_default=True)
+    access_config: Dict[str, str] = Field(default={}, validate_default=True)
+
+    @field_validator('access_config')
+    @classmethod
+    def verify_access_config(cls, access_config: Dict[str,
+                                                      str]) -> Dict[str, str]:
+        """Validates the access_config field of a ClusterResources."""
+        # Return if a non ray cluster is used.
+        if not hasattr(cls, 'manager') or cls.manager not in RAY_MANAGERS:
+            return access_config
+        if "host" not in access_config:
+            raise ValueError("Access config must contain 'host' field.")
+        if "username" not in access_config:
+            raise ValueError("Access config must contain 'username' field.")
+        if "ssh_key_path" not in access_config:
+            raise ValueError(
+                "Access config must contain 'ssh_key_path' field.")
+        return access_config
 
     @field_validator('accelerators')
     @classmethod

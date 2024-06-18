@@ -3,7 +3,7 @@
 This module contains utility functions for the ray cluster manager.
 """
 import logging
-from typing import Type
+from typing import Any, Type
 
 from skyflow.cluster_manager.kubernetes import KubernetesManager
 from skyflow.cluster_manager.manager import Manager
@@ -35,7 +35,7 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
     if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
 
-    args = {}
+    args: dict[str, Any] = {}
     cluster_manager_cls: Type[Manager] = Manager
     if cluster_type in K8_MANAGERS:
         cluster_manager_cls = KubernetesManager
@@ -52,9 +52,7 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
             raise ValueError(f"Unsupported Slurm interface: {interface_type}")
     elif cluster_type in RAY_MANAGERS:
         cluster_manager_cls = RayManager
-        args["ssh_key_path"] = cluster_obj.spec.ssh_key_path
-        args["username"] = cluster_obj.spec.username
-        args["host"] = cluster_obj.spec.host
+        args["access_config"] = cluster_obj.spec.access_config
 
     # Get the constructor of the class
     constructor = cluster_manager_cls.__init__

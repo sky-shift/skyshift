@@ -32,7 +32,7 @@ def _load_sky_config(file_path: str) -> dict:
 def add_cluster_to_config(cluster_name: str, host: str, user: str,
                           ssh_key: Optional[str], password: Optional[str]):
     """
-    Add a new Ray cluster configuration to the .skyconf/ray.yaml file.
+    Add a new Ray cluster configuration to the .skyconf/clusters/ray.yaml file.
     """
     config_path = os.path.expanduser(RAY_CLUSTERS_CONFIG_PATH)
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -72,24 +72,26 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
         for cluster_name, access_info in clusters_info.items():
             if cluster_name in existing_clusters:
                 continue
+            access_dict = {
+                "username":
+                access_info.get('username', None),
+                "host":
+                access_info.get('host', None),
+                "config_path":
+                access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
+                "ssh_key_path":
+                access_info.get('ssh_key', None),
+                "password":
+                access_info.get('password', None)
+            }
             cluster_dict = {
                 "kind": "Cluster",
                 "metadata": {
                     "name": cluster_name,
                 },
                 "spec": {
-                    "manager":
-                    "ray",
-                    "username":
-                    access_info.get('username', None),
-                    "host":
-                    access_info.get('host', None),
-                    "config_path":
-                    access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
-                    "ssh_key_path":
-                    access_info.get('ssh_key', None),
-                    "password":
-                    access_info.get('password', None),
+                    "manager": "ray",
+                    "access_config": access_dict
                 },
             }
             cluster_dictionaries.append(cluster_dict)

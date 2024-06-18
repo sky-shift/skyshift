@@ -5,6 +5,8 @@ import os
 
 CLUSTER_TIMEOUT = 10  # seconds
 
+SSH_TIMEOUT = 10  # seconds
+
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
@@ -12,7 +14,7 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 RAY_MANAGERS = ("ray", "rayctl")
-RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
+RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/clusters/ray.yaml"
 
 DEFAULT_NAMESPACE = "default"
 
@@ -23,8 +25,6 @@ SLURM_MANAGERS = ('slurm', 'slurmctl')
 SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
 
 SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
-
-CLUSTER_TIMEOUT = 10  # seconds
 
 ACCELERATOR_KEYWORDS = ["accelerator", "nvidia"]
 
