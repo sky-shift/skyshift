@@ -49,8 +49,6 @@ class RayConnectionError(RuntimeError):
 class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
     """ Compatibility layer for Ray cluster manager. """
 
-    is_initialized = False
-
     def __init__(  # pylint: disable=too-many-arguments
             self,
             name: str,

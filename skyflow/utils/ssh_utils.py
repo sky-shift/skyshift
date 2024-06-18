@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import paramiko
 from paramiko.config import SSHConfig
 
-from skyflow.globals import CLUSTER_TIMEOUT, SKYCONF_DIR, USER_SSH_PATH
+from skyflow.globals import SKYCONF_DIR, SSH_TIMEOUT, USER_SSH_PATH
 
 # Constants
 DEFAULT_SSH_CONFIG_PATH = os.path.join(USER_SSH_PATH, "config")
@@ -203,11 +203,11 @@ def connect_ssh_client(ssh_params: SSHParams) -> SSHStruct:
             ssh_client.connect(hostname=ssh_params.remote_hostname,
                                username=ssh_params.remote_username,
                                password=ssh_params.passkey,
-                               timeout=CLUSTER_TIMEOUT)
+                               timeout=SSH_TIMEOUT)
         else:
             ssh_client.connect(hostname=ssh_params.remote_hostname,
                                username=ssh_params.remote_username,
-                               timeout=CLUSTER_TIMEOUT,
+                               timeout=SSH_TIMEOUT,
                                pkey=load_private_key(ssh_params.rsa_key)
                                if ssh_params.rsa_key else None)
         logging.info(

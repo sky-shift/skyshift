@@ -389,12 +389,9 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
             'provision':
             provision,
             'access_config': {
-                'host':
-                host,
-                'username':
-                username,
-                'ssh_key_path':
-                ssh_key_path
+                'host': host,
+                'username': username,
+                'ssh_key_path': ssh_key_path
             },
             'config_path':
             config if not provision else

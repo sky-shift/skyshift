@@ -196,7 +196,8 @@ class ClusterSpec(ObjectSpec):
 
     @field_validator('access_config')
     @classmethod
-    def verify_access_config(cls, access_config: Dict[str, str]) -> Dict[str, str]:
+    def verify_access_config(cls, access_config: Dict[str,
+                                                      str]) -> Dict[str, str]:
         """Validates the access_config field of a ClusterResources."""
         # Return if a non ray cluster is used.
         if not hasattr(cls, 'manager') or cls.manager not in RAY_MANAGERS:
@@ -206,7 +207,8 @@ class ClusterSpec(ObjectSpec):
         if "username" not in access_config:
             raise ValueError("Access config must contain 'username' field.")
         if "ssh_key_path" not in access_config:
-            raise ValueError("Access config must contain 'ssh_key_path' field.")
+            raise ValueError(
+                "Access config must contain 'ssh_key_path' field.")
         return access_config
 
     @field_validator('accelerators')

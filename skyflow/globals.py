@@ -5,6 +5,8 @@ import os
 
 CLUSTER_TIMEOUT = 10  # seconds
 
+SSH_TIMEOUT = 10  # seconds
+
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")

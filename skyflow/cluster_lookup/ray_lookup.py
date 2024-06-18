@@ -73,27 +73,25 @@ def lookup_ray_config(cluster_api: ClusterAPI) -> List[Any]:
             if cluster_name in existing_clusters:
                 continue
             access_dict = {
-                    "username":
-                    access_info.get('username', None),
-                    "host":
-                    access_info.get('host', None),
-                    "config_path":
-                    access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
-                    "ssh_key_path":
-                    access_info.get('ssh_key', None),
-                    "password":
-                    access_info.get('password', None)
-                }
+                "username":
+                access_info.get('username', None),
+                "host":
+                access_info.get('host', None),
+                "config_path":
+                access_info.get('config_path', RAY_CLUSTERS_CONFIG_PATH),
+                "ssh_key_path":
+                access_info.get('ssh_key', None),
+                "password":
+                access_info.get('password', None)
+            }
             cluster_dict = {
                 "kind": "Cluster",
                 "metadata": {
                     "name": cluster_name,
                 },
                 "spec": {
-                    "manager":
-                    "ray",
-                    "access_info":
-                    access_dict
+                    "manager": "ray",
+                    "access_config": access_dict
                 },
             }
             cluster_dictionaries.append(cluster_dict)

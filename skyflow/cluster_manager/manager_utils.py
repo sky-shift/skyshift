@@ -3,7 +3,7 @@
 This module contains utility functions for the ray cluster manager.
 """
 import logging
-from typing import Type
+from typing import Any, Type
 
 from skyflow.cluster_manager.kubernetes import KubernetesManager
 from skyflow.cluster_manager.manager import Manager
@@ -35,7 +35,7 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
     if cluster_type not in SUPPORTED_MANAGERS:
         raise ValueError(f"Cluster type {cluster_type} not supported.")
 
-    args = {}
+    args: dict[str, Any] = {}
     cluster_manager_cls: Type[Manager] = Manager
     if cluster_type in K8_MANAGERS:
         cluster_manager_cls = KubernetesManager
