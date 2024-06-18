@@ -52,9 +52,7 @@ def setup_cluster_manager(cluster_obj: Cluster) -> Manager:
             raise ValueError(f"Unsupported Slurm interface: {interface_type}")
     elif cluster_type in RAY_MANAGERS:
         cluster_manager_cls = RayManager
-        args["ssh_key_path"] = cluster_obj.spec.ssh_key_path
-        args["username"] = cluster_obj.spec.username
-        args["host"] = cluster_obj.spec.host
+        args["access_config"] = cluster_obj.spec.access_config
 
     # Get the constructor of the class
     constructor = cluster_manager_cls.__init__

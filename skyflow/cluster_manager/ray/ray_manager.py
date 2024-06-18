@@ -54,21 +54,19 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-arguments
             self,
             name: str,
-            ssh_key_path: Optional[str],
-            username: str,
-            host: str,
+            access_config: Dict[str, str],
             logger: Optional[logging.Logger] = None):
         super().__init__(name)
         self.cluster_name = utils.sanitize_cluster_name(name)
         self.logger: logging.Logger = logger if logger else logging.getLogger(
             f"[{name} - Ray Manager]")
         self.accelerator_types: Dict[str, str] = {}
-        self.ssh_key_path = ssh_key_path
-        self.username = username
-        self.host = host
-        self.ssh_params = SSHParams(remote_hostname=host,
-                                    remote_username=username,
-                                    rsa_key=ssh_key_path)
+        self.ssh_key_path = access_config.get("ssh_key_path", "")
+        self.username = access_config.get("username", "")
+        self.host = access_config.get("host", "")
+        self.ssh_params = SSHParams(remote_hostname=self.host,
+                                    remote_username=self.username,
+                                    rsa_key=self.ssh_key_path)
         ssh_client: SSHStruct = connect_ssh_client(self.ssh_params)
 
         if not ssh_client.ssh_client or ssh_client.status == SSHStatusEnum.NOT_REACHABLE:

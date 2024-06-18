@@ -12,7 +12,7 @@ SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
 
 RAY_MANAGERS = ("ray", "rayctl")
-RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/ray.yaml"
+RAY_CLUSTERS_CONFIG_PATH = "~/.skyconf/clusters/ray.yaml"
 
 DEFAULT_NAMESPACE = "default"
 
