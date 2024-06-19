@@ -9,6 +9,7 @@ import secrets
 import signal
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
@@ -758,7 +759,7 @@ class APIServer:
 
         return _create_object
 
-    def list_objects(
+    async def list_objects(
             self,
             object_type: str,
             namespace: str = DEFAULT_NAMESPACE,
@@ -780,11 +781,8 @@ class APIServer:
             link_header = f"{object_type}"
 
         if watch:
-            try:
-                return asyncio.get_event_loop().run_until_complete(
-                    self._watch_key(link_header))
-            except Exception:  # pylint: disable=broad-except
-                return asyncio.run(self._watch_key(link_header))
+            return await self._watch_key(link_header)
+
         read_response = self.etcd_client.read_prefix(link_header)
         obj_cls = object_class.__name__ + "List"
         obj_list = load_object({
@@ -793,7 +791,7 @@ class APIServer:
         })
         return obj_list
 
-    def get_object(
+    async def get_object(
         self,
         object_type: str,
         object_name: str,
@@ -802,7 +800,7 @@ class APIServer:
         user: str = Depends(authenticate_request),
     ):  # pylint: disable=too-many-arguments
         """
-        Returns a specific object, raises Error otherwise.
+        Gets a specific object, raises Error otherwise.
         """
         self._authenticate_action(ActionEnum.GET.value, user, object_type,
                                   namespace)
@@ -817,39 +815,42 @@ class APIServer:
             link_header = f"{object_type}"
         if object_type == "clusters":
             object_name = sanitize_cluster_name(object_name)
+
         if watch:
-            try:
-                return asyncio.get_event_loop().run_until_complete(
-                    self._watch_key(f"{link_header}/{object_name}"))
-            except Exception:  # pylint: disable=broad-except
-                return asyncio.run(
-                    self._watch_key(f"{link_header}/{object_name}"))
+            return await self._watch_key(f"{link_header}/{object_name}")
+
         obj_dict = self._fetch_etcd_object(f"{link_header}/{object_name}")
         obj = object_class(**obj_dict)
         return obj
 
     async def _watch_key(self, key: str):
+        event_queue: asyncio.Queue = asyncio.Queue()
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
+        loop = asyncio.get_event_loop()
+
+        def watch_etcd_key():
+            for event in events_iterator:
+                asyncio.run_coroutine_threadsafe(event_queue.put(event), loop)
+            # User cancels the watch, or if the watch errors.
+            asyncio.run_coroutine_threadsafe(event_queue.put(None), loop)
+
+        executor = ThreadPoolExecutor(max_workers=1)  # pylint: disable=consider-using-with
+        loop.run_in_executor(executor, watch_etcd_key)
 
         async def generate_events():
-            try:
-                while True:
-                    try:
-                        event = await asyncio.to_thread(
-                            next, events_iterator, None)
-                        if event is None:
-                            break
-                        event_type, event_value = event
-                        event_value = load_object(event_value)
-                        # Check and validate event type.
-                        watch_event = WatchEvent(event_type=event_type.value,
-                                                 object=event_value)
-                        yield watch_event.model_dump_json() + "\n"
-                    except (StopIteration, ValueError):
+            while True:
+                try:
+                    event = await event_queue.get()
+                    if event is None:
                         break
-            except asyncio.CancelledError:
-                # Happens when client disconnects.
-                pass
+                    event_type, event_value = event
+                    event_value = load_object(event_value)
+                    watch_event = WatchEvent(event_type=event_type.value,
+                                             object=event_value)
+                    yield watch_event.model_dump_json() + "\n"
+                except Exception:  # pylint: disable=broad-except
+                    # If watch errors, cancel watch.
+                    break
             cancel_watch_fn()
             yield "{}"
 
@@ -1125,11 +1126,11 @@ class APIServer:
         await websocket.accept()
 
         try:
-            job = self.get_object(object_type="jobs",
-                                  namespace=namespace,
-                                  object_name=resource,
-                                  watch=False,
-                                  user=user)
+            job = await self.get_object(object_type="jobs",
+                                        namespace=namespace,
+                                        object_name=resource,
+                                        watch=False,
+                                        user=user)
         except HTTPException as error:
             await websocket.send_text(error.detail)
             await websocket.close(code=1003)
@@ -1157,10 +1158,10 @@ class APIServer:
                         break
         # Check if cluster is accessible and supported.
         try:
-            cluster_obj = self.get_object(object_type="clusters",
-                                          object_name=cluster,
-                                          watch=False,
-                                          user=user)
+            cluster_obj = await self.get_object(object_type="clusters",
+                                                object_name=cluster,
+                                                watch=False,
+                                                user=user)
         except HTTPException as error:
             await websocket.send_text(error.detail)
             await websocket.close(code=1003
