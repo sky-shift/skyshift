@@ -902,8 +902,8 @@ class TestAPIServer(unittest.TestCase):
                     }]
                     self.mock_etcd_client_instance.read_prefix.return_value = mock_response
 
-                    listed_objects = self.api_server.list_objects(object_type,
-                                                                  watch=False)
+                    listed_objects = await self.api_server.list_objects(
+                        object_type, watch=False)
                     self.assertEqual(listed_objects.kind,
                                      object_class.__name__ + "List")
                     self.assertEqual(len(listed_objects.objects),
@@ -913,7 +913,7 @@ class TestAPIServer(unittest.TestCase):
 
             # Test handling of invalid object type
             with self.assertRaises(HTTPException) as context:
-                self.api_server.list_objects("invalid_type", watch=False)
+                await self.api_server.list_objects("invalid_type", watch=False)
             self.assertEqual(context.exception.status_code, 400)
 
         run_async(async_test())
@@ -928,8 +928,8 @@ class TestAPIServer(unittest.TestCase):
             # Test empty response from etcd_client
             for object_type in NAMESPACED_OBJECTS:
                 self.mock_etcd_client_instance.read_prefix.return_value = []
-                obj_list = self.api_server.list_objects(object_type,
-                                                        watch=False)
+                obj_list = await self.api_server.list_objects(object_type,
+                                                              watch=False)
                 self.assertEqual(len(obj_list.objects), 0)
                 self.mock_etcd_client_instance.reset_mock()
 
@@ -943,7 +943,7 @@ class TestAPIServer(unittest.TestCase):
                     }
                 }]
                 for object_type in NAMESPACED_OBJECTS:
-                    obj_list = self.api_server.list_objects(
+                    obj_list = await self.api_server.list_objects(
                         object_type, namespace=namespace, watch=False)
                     self.assertEqual(len(obj_list.objects), 1)
                     self.mock_etcd_client_instance.reset_mock()
@@ -965,23 +965,23 @@ class TestAPIServer(unittest.TestCase):
                 mock_object_data = {"metadata": {"name": object_name}}
 
                 self.mock_etcd_client_instance.read.return_value = mock_object_data
-                retrieved_object = self.api_server.get_object(object_type,
-                                                              object_name,
-                                                              namespace,
-                                                              watch=False)
+                retrieved_object = await self.api_server.get_object(
+                    object_type, object_name, namespace, watch=False)
                 self.assertIsInstance(retrieved_object, object_class)
 
                 self.mock_etcd_client_instance.reset_mock()
 
             # Test handling of invalid object type
             with self.assertRaises(HTTPException) as context:
-                self.api_server.get_object("invalid_type", "name")
+                await self.api_server.get_object("invalid_type", "name")
             self.assertEqual(context.exception.status_code, 400)
 
             # Test object not found
             self.mock_etcd_client_instance.read.return_value = None
             with self.assertRaises(HTTPException) as context:
-                self.api_server.get_object("jobs", "non-existent", watch=False)
+                await self.api_server.get_object("jobs",
+                                                 "non-existent",
+                                                 watch=False)
             self.assertEqual(context.exception.status_code, 404)
 
         run_async(async_test())
@@ -992,7 +992,7 @@ class TestAPIServer(unittest.TestCase):
         like different object names and complex object data.
         """
 
-        def test():
+        async def test():
             # 1. Test Different Namespaces
             for namespace in ["namespace1", "namespace2"]:
                 self.mock_etcd_client_instance.read.return_value = {
@@ -1000,10 +1000,10 @@ class TestAPIServer(unittest.TestCase):
                         "name": f"test-object-{namespace}"
                     }
                 }
-                obj = self.api_server.get_object("jobs",
-                                                 "test-object",
-                                                 namespace,
-                                                 watch=False)
+                obj = await self.api_server.get_object("jobs",
+                                                       "test-object",
+                                                       namespace,
+                                                       watch=False)
                 self.assertIsNotNone(obj)
 
             # 2. Test Object Name Variations
@@ -1014,7 +1014,9 @@ class TestAPIServer(unittest.TestCase):
                         "name": name
                     }
                 }
-                obj = self.api_server.get_object("jobs", name, watch=False)
+                obj = await self.api_server.get_object("jobs",
+                                                       name,
+                                                       watch=False)
                 self.assertIsNotNone(obj)
 
             # 2.1 Test Invalid Object Names
@@ -1026,7 +1028,7 @@ class TestAPIServer(unittest.TestCase):
                     }
                 }
                 with self.assertRaises(ValidationError):
-                    self.api_server.get_object("jobs", name, watch=False)
+                    await self.api_server.get_object("jobs", name, watch=False)
 
             # 3. Test Watch Parameter with Event Generation
             self.mock_etcd_client_instance.watch.return_value = ([("PUT", {
@@ -1034,10 +1036,8 @@ class TestAPIServer(unittest.TestCase):
                     "name": "watched-object"
                 }
             })], lambda: None)
-            watch_response = self.api_server.get_object("jobs",
-                                                        "watched-object",
-                                                        namespace=namespace,
-                                                        watch=True)
+            watch_response = await self.api_server.get_object(
+                "jobs", "watched-object", namespace=namespace, watch=True)
             link_header = f"{'jobs'}/{namespace}" if namespace else "jobs"
             self.mock_etcd_client_instance.watch.assert_called_once_with(
                 f"{link_header}/{'watched-object'}")
@@ -1064,9 +1064,9 @@ class TestAPIServer(unittest.TestCase):
                 }
             }
             self.mock_etcd_client_instance.read.return_value = complex_data
-            obj = self.api_server.get_object("jobs",
-                                             "complex-object",
-                                             watch=False)
+            obj = await self.api_server.get_object("jobs",
+                                                   "complex-object",
+                                                   watch=False)
             self.assertEqual(obj.metadata.name,
                              complex_data["metadata"]["name"])
             self.assertEqual(obj.spec.image, complex_data["spec"]["image"])
@@ -1088,25 +1088,28 @@ class TestAPIServer(unittest.TestCase):
                     "name": "non-namespaced-object"
                 }
             }
-            obj = self.api_server.get_object("clusters",
-                                             "non-namespaced-object",
-                                             watch=False)
+            obj = await self.api_server.get_object("clusters",
+                                                   "non-namespaced-object",
+                                                   watch=False)
             self.assertIsNotNone(obj)
 
             # 6. Test Invalid Object Names
             self.mock_etcd_client_instance.read.return_value = None
             with self.assertRaises(HTTPException):
-                self.api_server.get_object("jobs", "invalid_name", watch=False)
+                await self.api_server.get_object("jobs",
+                                                 "invalid_name",
+                                                 watch=False)
 
             # 7. Test Handling of Partial Object Data
             partial_data = {"metadata": {"name": "partial-object"}}
             self.mock_etcd_client_instance.read.return_value = partial_data
-            obj = self.api_server.get_object("jobs",
-                                             "partial-object",
-                                             watch=False)
+            obj = await self.api_server.get_object("jobs",
+                                                   "partial-object",
+                                                   watch=False)
             self.assertIsNotNone(obj)
 
-        test()
+        # Run async function test
+        run_async(test())
 
     def test_update_object(self):
         """
