@@ -25,4 +25,4 @@ jobs:
       - name: Check Format and Lint
         run: bash format.sh --all --check
       - name: Run Tests
-        run: pytest skyflow/tests
+        run: pytest -rpP skyflow/tests
