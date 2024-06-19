@@ -24,6 +24,7 @@ from fastapi import (APIRouter, Body, Depends, FastAPI, HTTPException, Query,
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
+from pydantic import ValidationError
 
 from skyflow.cluster_manager.kubernetes.kubernetes_manager import \
     K8ConnectionError
@@ -824,6 +825,7 @@ class APIServer:
         return obj
 
     async def _watch_key(self, key: str):
+        """Watches a set of keys (prefixed by key) from Etcd3 Client."""
         event_queue: asyncio.Queue = asyncio.Queue()
         events_iterator, cancel_watch_fn = self.etcd_client.watch(key)
         loop = asyncio.get_event_loop()
@@ -838,6 +840,7 @@ class APIServer:
         loop.run_in_executor(executor, watch_etcd_key)
 
         async def generate_events():
+            """Pops events from event queue and returns WatchEvent objects."""
             while True:
                 try:
                     event = await event_queue.get()
@@ -848,7 +851,7 @@ class APIServer:
                     watch_event = WatchEvent(event_type=event_type.value,
                                              object=event_value)
                     yield watch_event.model_dump_json() + "\n"
-                except Exception:  # pylint: disable=broad-except
+                except (ValidationError, Exception):  # pylint: disable=broad-except
                     # If watch errors, cancel watch.
                     break
             cancel_watch_fn()

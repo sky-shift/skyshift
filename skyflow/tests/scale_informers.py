@@ -13,9 +13,9 @@ UPDATE_COUNTER = 0
 
 def launch_informer(idx: int):
     """Thread function that launches an informer."""
-    print(f"Launching {idx}...")
     # Create logger with idx
     logger = logging.getLogger(f"{idx}")
+    logger.info("Launching...")
     api: ObjectAPI = ClusterAPI()
     if idx % 2 != 0:
         api = JobAPI(namespace='')
