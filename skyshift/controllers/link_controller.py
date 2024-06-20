@@ -122,4 +122,3 @@ class LinkController(Controller):
             self.logger.error(traceback.format_exc())
             self.logger.error("Failed to delete link between clusters.")
             raise error
-
