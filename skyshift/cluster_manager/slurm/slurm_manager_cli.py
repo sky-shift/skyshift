@@ -19,7 +19,8 @@ from skyshift.cluster_manager.slurm.slurm_compatibility_layer import \
     SlurmCompatiblityLayer
 from skyshift.globals import SLURM_CONFIG_DEFAULT_PATH
 from skyshift.templates import Job, ResourceEnum, TaskStatusEnum
-from skyshift.templates.cluster_template import ClusterStatus, ClusterStatusEnum
+from skyshift.templates.cluster_template import (ClusterStatus,
+                                                 ClusterStatusEnum)
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 

@@ -9,12 +9,12 @@ from typing import Dict, List, Optional
 from pydantic import Field, ValidationInfo, field_validator
 
 from skyshift.globals import (APP_NAME, CPU_NUMBER_VALIDATOR, K8_MANAGERS,
-                             KUBE_CONFIG_DEFAULT_PATH,
-                             RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
-                             SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
+                              KUBE_CONFIG_DEFAULT_PATH,
+                              RAY_CLUSTERS_CONFIG_PATH, RAY_MANAGERS,
+                              SLURM_CONFIG_DEFAULT_PATH, SLURM_MANAGERS)
 from skyshift.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
-                                               ObjectSpec, ObjectStatus)
+                                                ObjectList, ObjectMeta,
+                                                ObjectSpec, ObjectStatus)
 from skyshift.templates.resource_template import AcceleratorEnum, ResourceEnum
 from skyshift.utils import sanitize_cluster_name
 

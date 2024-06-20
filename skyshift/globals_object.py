@@ -5,7 +5,7 @@ Generally, every global variable should be defined in globals.py,
 unless that way causes a circular import.
 """
 from skyshift.templates import (Cluster, Endpoints, FilterPolicy, Job, Link,
-                               Namespace, Role, Service)
+                                Namespace, Role, Service)
 
 NAMESPACED_OBJECTS = {
     "jobs": Job,

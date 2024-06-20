@@ -15,22 +15,22 @@ from tqdm import tqdm
 
 from skyshift import utils
 from skyshift.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
-                                JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
-                                ServiceAPI, UserAPI)
+                                 JobAPI, LinkAPI, NamespaceAPI, RoleAPI,
+                                 ServiceAPI, UserAPI)
 # Import API parent class.
 from skyshift.api_client.exec_api import ExecAPI
 from skyshift.api_client.object_api import APIException, ObjectAPI
 from skyshift.globals import DEFAULT_NAMESPACE
 from skyshift.templates import (Cluster, ClusterList, FilterPolicy,
-                               FilterPolicyList, Job, JobList, Link, LinkList,
-                               Namespace, NamespaceList, Object, ObjectList,
-                               Service, ServiceList, TaskStatusEnum)
+                                FilterPolicyList, Job, JobList, Link, LinkList,
+                                Namespace, NamespaceList, Object, ObjectList,
+                                Service, ServiceList, TaskStatusEnum)
 from skyshift.templates.cluster_template import ClusterStatusEnum
 from skyshift.templates.job_template import JobStatusEnum
 from skyshift.templates.resource_template import ResourceEnum
 from skyshift.utils.utils import (API_SERVER_CONFIG_PATH,
-                                 compute_datetime_delta, fetch_datetime,
-                                 load_manager_config, update_manager_config)
+                                  compute_datetime_delta, fetch_datetime,
+                                  load_manager_config, update_manager_config)
 
 NAMESPACED_API_OBJECTS = {
     "job": JobAPI,

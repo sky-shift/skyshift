@@ -16,7 +16,7 @@ import psutil
 from skyshift.api_client import ClusterAPI
 from skyshift.api_client.object_api import APIException
 from skyshift.cluster_lookup import (lookup_kube_config, lookup_ray_config,
-                                    lookup_slurm_config)
+                                     lookup_slurm_config)
 from skyshift.controllers import Controller, controller_error_handler
 from skyshift.controllers.controller_utils import create_controller_logger
 from skyshift.globals import SKYCONF_DIR

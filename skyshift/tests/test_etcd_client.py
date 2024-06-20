@@ -14,8 +14,8 @@ from typing import Set
 import pytest
 
 from skyshift.etcd_client.etcd_client import (ConflictError, ETCDClient,
-                                             KeyNotFoundError,
-                                             get_resource_version)
+                                              KeyNotFoundError,
+                                              get_resource_version)
 
 # NOTE:
 # In the following test, we assume that the key for the value dictionary is always "value_key". This is hard-coded.

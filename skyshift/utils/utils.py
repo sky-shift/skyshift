@@ -15,7 +15,7 @@ import yaml
 from rapidfuzz import process
 
 from skyshift.globals import (ACCELERATOR_KEYWORDS, API_SERVER_CONFIG_PATH,
-                             SKYCONF_DIR)
+                              SKYCONF_DIR)
 from skyshift.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 OBJECT_TEMPLATES = importlib.import_module("skyshift.templates")

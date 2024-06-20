@@ -6,10 +6,11 @@ from typing import Dict, List, Tuple
 
 from skyshift.scheduler.plugins import plugin_utils as utils
 from skyshift.scheduler.plugins.base_plugin import (BasePlugin, PluginStatus,
-                                                   StatusCode)
+                                                    StatusCode)
 from skyshift.templates import Cluster, Job
 from skyshift.templates.job_template import (DEFAULT_MAX_WEIGHT,
-                                            DEFAULT_MIN_WEIGHT, PreferenceSpec)
+                                             DEFAULT_MIN_WEIGHT,
+                                             PreferenceSpec)
 from skyshift.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 

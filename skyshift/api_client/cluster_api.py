@@ -4,7 +4,8 @@ Cluster API.
 import requests
 
 from skyshift import utils
-from skyshift.api_client.object_api import NoNamespaceObjectAPI, verify_response
+from skyshift.api_client.object_api import (NoNamespaceObjectAPI,
+                                            verify_response)
 
 
 class ClusterAPI(NoNamespaceObjectAPI):

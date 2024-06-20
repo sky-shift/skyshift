@@ -10,8 +10,8 @@ from typing import List, Type
 from skyshift.controllers.controller import Controller
 from skyshift.globals import K8_MANAGERS
 from skyshift.skylet import (ClusterController, EndpointsController,
-                            FlowController, JobController, NetworkController,
-                            ProxyController, ServiceController)
+                             FlowController, JobController, NetworkController,
+                             ProxyController, ServiceController)
 from skyshift.templates.cluster_template import Cluster
 
 BASE_CONTROLLERS: List[Type[Controller]] = [

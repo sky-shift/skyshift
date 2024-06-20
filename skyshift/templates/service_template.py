@@ -6,8 +6,8 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from skyshift.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
-                                               ObjectSpec, ObjectStatus)
+                                                ObjectException, ObjectList,
+                                                ObjectSpec, ObjectStatus)
 
 
 class ServiceType(enum.Enum):
