@@ -9,7 +9,7 @@ Interface with Slurm Clusters
 
     /examples/slurm-configuration/slurmconf_example.yaml
 
-2. Copy the example configuration file to SkyFlow configuration directory:
+2. Copy the example configuration file to SkyShift configuration directory:
 
 .. code-block:: shell
 
@@ -42,12 +42,12 @@ to be modified:
 
     slurmcluster2:
         ...
-Modifying the SkyFlow Slurm Configuration File
+Modifying the SkyShift Slurm Configuration File
 ++++++++++++++++++++++++++++++++++++++++++++++
 
-To integrate SkyFlow with Slurm clusters effectively, it's necessary to tailor the 
+To integrate SkyShift with Slurm clusters effectively, it's necessary to tailor the 
 `slurmconf.yaml` configuration file to your environment. The configuration specifies 
-how SkyFlow interacts with your Slurm clusters, including authentication, job management, 
+how SkyShift interacts with your Slurm clusters, including authentication, job management, 
 and container runtime settings. Below is a structured approach to customizing your configuration file.
 
 Configuration Syntax and Definitions
@@ -61,7 +61,7 @@ Defining Clusters
 +++++++++++++++++
 
 Each Slurm cluster configuration is nested under a unique cluster name. This structure allows 
-SkyFlow to manage multiple clusters simultaneously. Here is an example:
+SkyShift to manage multiple clusters simultaneously. Here is an example:
 
 .. code-block:: yaml
 
@@ -69,7 +69,7 @@ SkyFlow to manage multiple clusters simultaneously. Here is an example:
         slurm_interface: cli
 
 You can define as many clusters as needed by repeating the structure under different cluster names. 
-Ensure the cluster name in the SkyFlow CLI command matches the one in the `slurmconf.yaml` file:
+Ensure the cluster name in the SkyShift CLI command matches the one in the `slurmconf.yaml` file:
 
 .. code-block:: shell
 
@@ -85,7 +85,7 @@ recommended.
 
        slurm_interface: {cli|rest}
 
-2. **Container Manager Utility**: Selects the container management tool used by SkyFlow for job 
+2. **Container Manager Utility**: Selects the container management tool used by SkyShift for job 
 execution. If using ContainerD (recommended for rootless containers), set the `$XDG_RUNTIME_DIR`.
 
    .. code-block:: yaml
@@ -128,7 +128,7 @@ The `slurm_interface` option determines the active communication method.
 Required Parameters
 +++++++++++++++++++
 
-Certain parameters are critical for the proper functioning of SkyFlow with your Slurm clusters:
+Certain parameters are critical for the proper functioning of SkyShift with your Slurm clusters:
 
 - **``account``**: Your Slurm account name, as authorized by your cluster's SysAdmin.
 - **``rsa_key_path``**: The local path to your private SSH key for secure connections.
@@ -155,7 +155,7 @@ If using a rootless container management tool such as ContainerD, follow these s
 Interfacing to a Local Slurm Cluster
 ++++++++++++++++++++++++++++++++++++
 
-If SkyFlow is running on the same host machine as the Slurm Cluster controller, commands can be issued 
+If SkyShift is running on the same host machine as the Slurm Cluster controller, commands can be issued 
 directly. Under the Slurm Cluster name inside the slurmconf.yaml configuration file, add the following 
 property to enable direct interfacing:
 
@@ -170,7 +170,7 @@ To switch back to remote cluster support, simply remove the ``testing`` key and 
 Attaching a Slurm Cluster
 ++++++++++++++++++++++++++++++++++++++++++
 
-To attach a Slurm Cluster to SkyFlow, use the following command, ensuring the cluster name matches one defined in your slurmconf.yaml:
+To attach a Slurm Cluster to SkyShift, use the following command, ensuring the cluster name matches one defined in your slurmconf.yaml:
 
 .. code-block:: shell
 
