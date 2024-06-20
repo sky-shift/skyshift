@@ -71,7 +71,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$ALL" = true ] ; then
-    FILES=("api_server" "examples" "skyflow")
+    FILES=("api_server" "examples" "skyshift")
 elif [ -z "${FILES}" ]; then
     MERGEBASE="$(git merge-base origin/main HEAD)"
     FILES="$(git diff --name-only --diff-filter=ACM "$MERGEBASE" -- '*.py' '*.pyi')"
@@ -103,7 +103,7 @@ printf "%s\n" "${FILES[@]}" | xargs -P 5 isort "${ARGS[@]}"
 # Run mypy
 
 echo '[SkyShift] Running mypy'
-mypy --show-traceback api_server skyflow
+mypy --show-traceback api_server skyshift
 
 #==============================================================================#
 # Run Pylint

@@ -1,21 +1,21 @@
 .. _slurm_quickstart:
 
-Quickstart - SkyFlow with Slurm
+Quickstart - SkyShift with Slurm
 ===============================
 
-Congratulations on setting up SkyFlow with Slurm! 
+Congratulations on setting up SkyShift with Slurm! 
 You're on your way to simplifying and enhancing your job management and 
 scheduling on Slurm clusters. Let's dive into how you can add, manage clusters, 
 and submit jobs efficiently.
 
 In this guide, we'll cover the following topics:
 
-- Adding and removing Slurm Clusters from SkyFlow.
-- Creating and running SkyFlow jobs on Slurm.
+- Adding and removing Slurm Clusters from SkyShift.
+- Creating and running SkyShift jobs on Slurm.
 
 Prerequisites
 +++++++++++++++++++++++++++++++
-- SkyFlow API Server and Manager started:  :ref:`Setup Guide <setup>`.
+- SkyShift API Server and Manager started:  :ref:`Setup Guide <setup>`.
 
 - Configured Slurm Cluster configuration file: :ref:`Slurm Configuration guide <slurm_setup>`.
 
@@ -26,15 +26,15 @@ Adding and Removing Clusters
 Attaching a Remote Slurm Cluster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-With SkyFlow, integrating a remote Slurm cluster into your workflow is straightforward. 
+With SkyShift, integrating a remote Slurm cluster into your workflow is straightforward. 
 Start by ensuring the name of the cluster in the `slurmconf.yaml` configuration file matches the 
-name you intend to use. Here's how you can attach it to SkyFlow:
+name you intend to use. Here's how you can attach it to SkyShift:
 
 .. code-block:: shell
 
     skyctl create cluster <slurmclustername> --manager slurm 
 
-Now you're ready to deploy jobs to your Slurm cluster through SkyFlow!
+Now you're ready to deploy jobs to your Slurm cluster through SkyShift!
 
 Checking Cluster Status
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -62,7 +62,7 @@ their status:
 Detaching a Cluster
 ^^^^^^^^^^^^^^^^^^^
 
-If you need to remove a cluster from SkyFlow, the process is just as simple:
+If you need to remove a cluster from SkyShift, the process is just as simple:
 
 .. code-block:: shell
 
@@ -74,13 +74,13 @@ the updated list.
 Submitting Jobs
 +++++++++++++++
 
-Submitting jobs through SkyFlow allows you to leverage the powerful scheduling and management 
-capabilities of Slurm or Kubernetes, with the added benefits of SkyFlow's scheduling capabilities.
+Submitting jobs through SkyShift allows you to leverage the powerful scheduling and management 
+capabilities of Slurm or Kubernetes, with the added benefits of SkyShift's scheduling capabilities.
 
-Creating a SkyFlow Job
+Creating a SkyShift Job
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Here's an example SkyFlow job definition:
+Here's an example SkyShift job definition:
 
 .. code-block:: yaml
 
@@ -110,7 +110,7 @@ To deploy this job, use the `skyctl apply` command with the job definition file:
 Alternative Job Creation Methods
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-SkyFlow also supports job creation via our Python API and the SkyFlow job CLI, offering you 
+SkyShift also supports job creation via our Python API and the SkyShift job CLI, offering you 
 flexibility in how you manage your deployments. For instance, to create a job using the CLI:
 
 .. code-block:: shell
@@ -136,6 +136,6 @@ To check the status of your jobs and ensure they're running as expected:
 You'll see details about each job, including the cluster it's running on, resources allocated, 
 and its current status.
 
-Now that you're equipped with the basics of managing clusters and jobs in SkyFlow using SLURM, 
-you can start harnessing the full potential of your Slurm clusters. SkyFlow is designed to make your 
+Now that you're equipped with the basics of managing clusters and jobs in SkyShift using SLURM, 
+you can start harnessing the full potential of your Slurm clusters. SkyShift is designed to make your 
 computational tasks easier, more efficient, and scalable. Happy computing!
