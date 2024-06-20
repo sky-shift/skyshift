@@ -69,7 +69,7 @@ def process_cluster_status(status_dict: Dict[str, Any],
         if result.get(node_id) is None:
             res = {}
         for resource_name, quant_list in resources.items():
-            quantity = quant_list[1] if usage else quant_list[1] - quant_list[0]
+            quantity = quant_list[1] - quant_list[0] if usage else quant_list[1]
             if "objectStoreMemory" in resource_name:
                 #Disk resources are fetched as bytes, convert to MB
                 res[ResourceEnum.DISK.value] = quantity / (1024**2)
@@ -127,10 +127,7 @@ def fetch_all_job_statuses(
             # Doesn't follow the SkyShift format
             continue
         job_name = extract_job_name(job.submission_id)
-        job_id = job.job_id
-        if not job_id:
-            # Job ID not available
-            continue
+
         job_status = map_ray_status_to_task_status(job.status)
 
         if job_name not in jobs_dict["tasks"]:
@@ -138,8 +135,8 @@ def fetch_all_job_statuses(
             jobs_dict["containers"][job_name] = {}
 
         # Assuming all tasks are in the same container for simplicity
-        jobs_dict["tasks"][job_name][job_id] = job_status
-        jobs_dict["containers"][job_name][job_id] = job_status
+        jobs_dict["tasks"][job_name][job_name] = job_status
+        jobs_dict["containers"][job_name][job_name] = job_status
 
     return jobs_dict
 
