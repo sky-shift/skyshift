@@ -12,9 +12,9 @@ from rapidfuzz import process
 
 from skyshift import utils
 from skyshift.templates.object_template import (NamespacedObjectMeta, Object,
-                                               ObjectException, ObjectList,
-                                               ObjectName, ObjectSpec,
-                                               ObjectStatus)
+                                                ObjectException, ObjectList,
+                                                ObjectName, ObjectSpec,
+                                                ObjectStatus)
 from skyshift.templates.resource_template import AcceleratorEnum, ResourceEnum
 
 DEFAULT_IMAGE = "ubuntu:latest"

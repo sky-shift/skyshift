@@ -10,9 +10,9 @@ from skyshift.cluster_manager.manager import Manager
 from skyshift.cluster_manager.ray.ray_manager import RayManager
 from skyshift.cluster_manager.slurm import SlurmManagerCLI, SlurmManagerREST
 from skyshift.cluster_manager.slurm.slurm_utils import (SlurmConfig,
-                                                       SlurmInterfaceEnum)
+                                                        SlurmInterfaceEnum)
 from skyshift.globals import (K8_MANAGERS, RAY_MANAGERS, SLURM_MANAGERS,
-                             SUPPORTED_MANAGERS)
+                              SUPPORTED_MANAGERS)
 from skyshift.templates import Cluster
 
 logging.basicConfig(

@@ -17,7 +17,7 @@ import requests
 from requests import Timeout
 
 from skyshift.api_client.object_api import (APIException, NamespaceObjectAPI,
-                                           NoNamespaceObjectAPI)
+                                            NoNamespaceObjectAPI)
 from skyshift.tests.tests_utils import setup_skyshift, shutdown_skyshift
 
 # pylint: disable=W0613 (unused-argument)

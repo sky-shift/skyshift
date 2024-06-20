@@ -15,7 +15,7 @@ import pytest
 import requests
 
 from skyshift.api_client.object_api import (NamespaceObjectAPI,
-                                           NoNamespaceObjectAPI)
+                                            NoNamespaceObjectAPI)
 
 # pylint: disable=W0613 (unused-argument)
 

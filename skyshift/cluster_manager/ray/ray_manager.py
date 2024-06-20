@@ -25,10 +25,10 @@ from skyshift.cluster_manager.ray.ray_utils import (
     process_cluster_status)
 from skyshift.globals import APP_NAME, CLUSTER_TIMEOUT
 from skyshift.templates import (ClusterStatus, ClusterStatusEnum, Job,
-                               ResourceEnum)
+                                ResourceEnum)
 # Import the new SSH utility functions and classes
 from skyshift.utils.ssh_utils import (SSHParams, SSHStatusEnum, SSHStruct,
-                                     connect_ssh_client, ssh_send_command)
+                                      connect_ssh_client, ssh_send_command)
 from skyshift.utils.utils import fuzzy_map_gpu
 
 RAY_CLIENT_PORT = 10001
@@ -325,4 +325,3 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
             self.logger.error("Failed to stop job %s: %s", job_id, error)
 
         self.logger.info("Removed job from job registry: %s", job.get_name())
-

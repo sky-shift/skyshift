@@ -11,9 +11,10 @@ import subprocess
 import time
 
 from skyshift.cluster_manager import KubernetesManager
-from skyshift.network.cluster_linkv2 import (create_link, delete_import_service,
-                                            export_service, import_service,
-                                            launch_clusterlink)
+from skyshift.network.cluster_linkv2 import (create_link,
+                                             delete_import_service,
+                                             export_service, import_service,
+                                             launch_clusterlink)
 
 CL1 = "peer1"
 CL2 = "peer2"

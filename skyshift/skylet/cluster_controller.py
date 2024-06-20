@@ -17,7 +17,7 @@ from skyshift.controllers import Controller
 from skyshift.controllers.controller_utils import create_controller_logger
 from skyshift.globals import cluster_dir
 from skyshift.templates.cluster_template import (Cluster, ClusterStatus,
-                                                ClusterStatusEnum)
+                                                 ClusterStatusEnum)
 
 DEFAULT_HEARTBEAT_TIME = 5  # seconds
 DEFAULT_RETRY_LIMIT = 5  # attempts

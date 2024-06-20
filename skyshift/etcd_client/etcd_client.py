@@ -22,11 +22,8 @@ from typing import Generator, List, Optional, Tuple
 
 from etcd3.client import Endpoint, MultiEndpointEtcd3Client
 
-from skyshift.etcd_client.monkey_patch import delete_prefix
 from skyshift.templates.event_template import WatchEventEnum
 
-# Perform Monkey Patch over faulty Etcd3 Delete_Prefix method
-MultiEndpointEtcd3Client.delete_prefix = delete_prefix
 ETCD_PORT = 2379
 DEFAULT_CLIENT_NAME = "/sky_registry/"
 

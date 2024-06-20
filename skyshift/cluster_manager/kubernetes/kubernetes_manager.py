@@ -21,9 +21,9 @@ from skyshift import utils
 from skyshift.cluster_manager.manager import Manager
 from skyshift.globals import CLUSTER_TIMEOUT
 from skyshift.templates import (AcceleratorEnum, ClusterStatus,
-                               ClusterStatusEnum, EndpointObject, Endpoints,
-                               Job, ResourceEnum, RestartPolicyEnum, Service,
-                               TaskStatusEnum)
+                                ClusterStatusEnum, EndpointObject, Endpoints,
+                                Job, ResourceEnum, RestartPolicyEnum, Service,
+                                TaskStatusEnum)
 from skyshift.templates.job_template import ContainerStatusEnum
 from skyshift.utils.utils import parse_resource_cpu, parse_resource_memory
 

@@ -14,7 +14,7 @@ import paramiko
 from scp import SCPClient  # pylint: disable=import-error
 
 from skyshift.utils.ssh_utils import (SSHParams, SSHStatusEnum,
-                                     connect_ssh_client)
+                                      connect_ssh_client)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -249,4 +249,3 @@ def start_scp_threads(ssh_client_instance: paramiko.SSHClient,
         threads.append(thread)
     for thread in threads:
         thread.join()
-

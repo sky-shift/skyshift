@@ -18,7 +18,7 @@ from skyshift.controllers.controller_utils import create_controller_logger
 from skyshift.globals import cluster_dir
 from skyshift.structs import Informer
 from skyshift.templates import (EndpointObject, Endpoints, Job, Service,
-                               WatchEventEnum)
+                                WatchEventEnum)
 from skyshift.templates.cluster_template import Cluster
 
 

@@ -5,7 +5,7 @@ The `filter` plugin checks for clusters that the job is not allowed to be schedu
 """
 from skyshift.api_client import FilterPolicyAPI
 from skyshift.scheduler.plugins.base_plugin import (BasePlugin, PluginStatus,
-                                                   StatusCode)
+                                                    StatusCode)
 from skyshift.templates import Cluster, Job
 
 

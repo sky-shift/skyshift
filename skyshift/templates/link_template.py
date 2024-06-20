@@ -7,8 +7,8 @@ from typing import Optional
 from pydantic import Field, field_validator
 
 from skyshift.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
-                                               ObjectSpec, ObjectStatus)
+                                                ObjectList, ObjectMeta,
+                                                ObjectSpec, ObjectStatus)
 
 
 class LinkException(ObjectException):

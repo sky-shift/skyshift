@@ -1,36 +1,36 @@
+# isort:skip_file
 """
 Init module for SkyShift object templates.
 """
 from skyshift.templates.cluster_template import (Cluster, ClusterException,
-                                                ClusterList, ClusterStatus,
-                                                ClusterStatusEnum)
-from skyshift.templates.endpoints_template import (EndpointObject, Endpoints,
-                                                  EndpointsException,
-                                                  EndpointsList, EndpointsMeta,
-                                                  EndpointsSpec,
-                                                  EndpointsStatus)
+                                                 ClusterList, ClusterStatus,
+                                                 ClusterStatusEnum)
+from skyshift.templates.endpoints_template import (
+    EndpointObject, Endpoints, EndpointsException, EndpointsList,
+    EndpointsMeta, EndpointsSpec, EndpointsStatus)
 from skyshift.templates.event_template import WatchEvent, WatchEventEnum
 from skyshift.templates.filter_policy import (FilterPolicy,
-                                             FilterPolicyException,
-                                             FilterPolicyList)
+                                              FilterPolicyException,
+                                              FilterPolicyList)
 from skyshift.templates.job_template import (Job, JobException, JobList,
-                                            JobStatusEnum,
-                                            LabelSelectorOperatorEnum,
-                                            MatchExpression, RestartPolicyEnum,
-                                            TaskStatusEnum)
+                                             JobStatusEnum,
+                                             LabelSelectorOperatorEnum,
+                                             MatchExpression,
+                                             RestartPolicyEnum, TaskStatusEnum)
 from skyshift.templates.link_template import (Link, LinkException, LinkList,
-                                             LinkStatus, LinkStatusEnum)
+                                              LinkStatus, LinkStatusEnum)
 from skyshift.templates.namespace_template import (Namespace,
-                                                  NamespaceException,
-                                                  NamespaceList, NamespaceMeta)
+                                                   NamespaceException,
+                                                   NamespaceList,
+                                                   NamespaceMeta)
 from skyshift.templates.object_template import (Object, ObjectException,
-                                               ObjectList, ObjectMeta,
-                                               ObjectSpec, ObjectStatus)
+                                                ObjectList, ObjectMeta,
+                                                ObjectSpec, ObjectStatus)
 from skyshift.templates.rbac_template import Role, RoleList
 from skyshift.templates.resource_template import (AcceleratorEnum, CRIEnum,
-                                                 ResourceEnum)
+                                                  ResourceEnum)
 from skyshift.templates.service_template import (Service, ServiceException,
-                                                ServiceList, ServiceMeta)
+                                                 ServiceList, ServiceMeta)
 from skyshift.templates.user_template import User
 
 __all__ = [
