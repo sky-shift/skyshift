@@ -1,15 +1,13 @@
+# isort:skip_file
 """
 Init module for SkyShift object templates.
 """
 from skyshift.templates.cluster_template import (Cluster, ClusterException,
                                                  ClusterList, ClusterStatus,
                                                  ClusterStatusEnum)
-from skyshift.templates.endpoints_template import (EndpointObject, Endpoints,
-                                                   EndpointsException,
-                                                   EndpointsList,
-                                                   EndpointsMeta,
-                                                   EndpointsSpec,
-                                                   EndpointsStatus)
+from skyshift.templates.endpoints_template import (
+    EndpointObject, Endpoints, EndpointsException, EndpointsList,
+    EndpointsMeta, EndpointsSpec, EndpointsStatus)
 from skyshift.templates.event_template import WatchEvent, WatchEventEnum
 from skyshift.templates.filter_policy import (FilterPolicy,
                                               FilterPolicyException,
