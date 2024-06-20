@@ -26,22 +26,22 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from pydantic import ValidationError
 
-from skyflow.cluster_manager.kubernetes.kubernetes_manager import \
+from skyshift.cluster_manager.kubernetes.kubernetes_manager import \
     K8ConnectionError
-from skyflow.cluster_manager.manager_utils import setup_cluster_manager
-from skyflow.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
-                                             ETCDClient, KeyNotFoundError)
-from skyflow.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE,
-                             SKYCONF_DIR)
-from skyflow.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
-                                    NON_NAMESPACED_OBJECTS)
-from skyflow.templates import Namespace, NamespaceMeta, ObjectException
-from skyflow.templates.cluster_template import Cluster, ClusterStatusEnum
-from skyflow.templates.event_template import WatchEvent
-from skyflow.templates.job_template import ContainerStatusEnum, TaskStatusEnum
-from skyflow.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
-from skyflow.templates.user_template import User
-from skyflow.utils import load_object, sanitize_cluster_name
+from skyshift.cluster_manager.manager_utils import setup_cluster_manager
+from skyshift.etcd_client.etcd_client import (ETCD_PORT, ConflictError,
+                                              ETCDClient, KeyNotFoundError)
+from skyshift.globals import (API_SERVER_CONFIG_PATH, DEFAULT_NAMESPACE,
+                              SKYCONF_DIR)
+from skyshift.globals_object import (ALL_OBJECTS, NAMESPACED_OBJECTS,
+                                     NON_NAMESPACED_OBJECTS)
+from skyshift.templates import Namespace, NamespaceMeta, ObjectException
+from skyshift.templates.cluster_template import Cluster, ClusterStatusEnum
+from skyshift.templates.event_template import WatchEvent
+from skyshift.templates.job_template import ContainerStatusEnum, TaskStatusEnum
+from skyshift.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
+from skyshift.templates.user_template import User
+from skyshift.utils import load_object, sanitize_cluster_name
 
 ###  Utility functions for the API server.
 

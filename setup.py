@@ -2,10 +2,10 @@
 from setuptools import setup
 
 setup(
-    name="skyflow",
+    name="skyshift",
     version="0.0",
     description="Sky Manager",
-    packages=["skyflow"],
+    packages=["skyshift"],
     install_requires=[
         "bcrypt==4.0.1",
         "Click",
@@ -54,7 +54,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "skyctl = skyflow.cli.cli:cli",
+            "skyctl = skyshift.cli.cli:cli",
         ],
     },
     zip_safe=False,
