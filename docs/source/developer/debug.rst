@@ -14,7 +14,7 @@ Launch Time Tips
 - For certain bugs it may be useful to launch the API Server with --workers=1. See also :ref:`setup`.. 
 
 .. code-block:: shell
-    nohup python skyflow/api_server/lauch_server.py --workers=1
+    nohup python skyshift/api_server/lauch_server.py --workers=1
 
 - For convenience in general, the API Server and Controller Manager can be launched with a single script, launch_skyshift.sh
 
