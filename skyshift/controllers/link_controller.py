@@ -123,7 +123,3 @@ class LinkController(Controller):
             self.logger.error("Failed to delete link between clusters.")
             raise error
 
-
-if __name__ == "__main__":
-    hc = LinkController()
-    hc.run()
