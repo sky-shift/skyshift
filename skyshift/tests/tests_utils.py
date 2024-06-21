@@ -181,7 +181,7 @@ def create_cluster(name: str, config_file: str = ""):
                                 shell=True,
                                 stderr=subprocess.STDOUT).decode('utf-8')
         logging.debug('Existing contexts:')
-        os.system(f"kubectl config get-contexts")
+        os.system("kubectl config get-contexts")
         return True
     except subprocess.CalledProcessError:
         return False
