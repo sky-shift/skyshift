@@ -174,7 +174,7 @@ def create_cluster(name: str, config_file: str = ""):
             return False
 
     os.system(f"kind create cluster --name={name} {config_def}")
-    
+
     cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
     try:
         subprocess.check_output(cluster_info_cmd,
