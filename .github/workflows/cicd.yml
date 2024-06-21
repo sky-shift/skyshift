@@ -25,4 +25,4 @@ jobs:
       - name: Check Format and Lint
         run: bash format.sh --all --check
       - name: Run Tests
-        run: pytest -rpP skyshift/tests
+        run: pytest skyshift/tests
