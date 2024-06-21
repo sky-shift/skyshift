@@ -173,13 +173,15 @@ def create_cluster(name: str, config_file: str = ""):
             print(f"Provided config file not found: {config_file}.")
             return False
 
-    os.system(f"kind create cluster  --name={name} {config_def}")
-
+    os.system(f"kind create cluster --name={name} {config_def}")
+    
     cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
     try:
         subprocess.check_output(cluster_info_cmd,
                                 shell=True,
                                 stderr=subprocess.STDOUT).decode('utf-8')
+        logging.debug('Existing contexts:')
+        os.system(f"kubectl config get-contexts")
         return True
     except subprocess.CalledProcessError:
         return False
