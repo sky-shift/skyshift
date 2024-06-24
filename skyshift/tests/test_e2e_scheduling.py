@@ -22,14 +22,22 @@ from click.testing import CliRunner
 import skyshift.tests.tests_utils as tests_utils
 from skyshift.cli.cli import cli
 
+KIND_CONFIG_FILE_REL_PATH = "./config/kind-config.yaml"
 LAUNCH_SCRIPT_REL_PATH = "../../launch_skyshift.sh"
 
 
 def _setup_kind_clusters():
     """Setup KIND clusters."""
 
-    assert tests_utils.create_cluster("test-cluster-1") is True
-    assert tests_utils.create_cluster("test-cluster-2") is True
+    current_file_path = os.path.abspath(__file__)
+    current_directory = os.path.dirname(current_file_path)
+    kind_config_file_path = os.path.abspath(
+        os.path.join(current_directory, KIND_CONFIG_FILE_REL_PATH))
+
+    assert tests_utils.create_cluster("test-cluster-1",
+                                      kind_config_file_path) is True
+    assert tests_utils.create_cluster("test-cluster-2",
+                                      kind_config_file_path) is True
 
 
 def _breakdown_kind_clusters():
@@ -50,7 +58,7 @@ def _setup_sky_manager(num_workers: int = 16):
 
     workers_param_str = str(num_workers)
     command = ["bash", install_script_path, "--workers", workers_param_str]
-    print(f"Setup up sky manager command:'{command}'.")
+    print(f"Setup sky manager command:'{command}'.")
 
     subprocess.run(command, check=True)
 
@@ -115,8 +123,7 @@ def setup_and_shutdown():
 
     time.sleep(30)
 
-    print(
-        "Setup up sky manager and kind clusters completed.  Testing begins...")
+    print("Setup sky manager and kind clusters completed.  Testing begins...")
 
     yield  # Test execution happens here
 
@@ -164,6 +171,8 @@ def test_filter_with_match_label(runner):
     result = runner.invoke(cli, cmd)
     print(f'get cluster results\n{result.output}')
     assert result.exit_code == 0
+    assert cluster_1_name in result.output
+    assert cluster_2_name in result.output
 
     # Delete existing cluster 1 without labels in Sky Manager
     print(f'Deleting cluster {cluster_1_name}.')
