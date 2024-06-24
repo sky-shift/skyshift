@@ -193,6 +193,11 @@ class ClusterSpec(ObjectSpec):
     provision: bool = Field(default=False, validate_default=True)
     config_path: str = Field(default="", validate_default=True)
     access_config: Dict[str, str] = Field(default={}, validate_default=True)
+    ssh_key_path: str = Field(default="~/.ssh/id_rsa", validate_default=True)
+    host: str = Field(default="", validate_default=True)
+    username: str = Field(default="", validate_default=True)
+    rke2_ip: Optional[str] = Field(default=None, validate_default=True)
+    rke2_token: Optional[str] = Field(default=None, validate_default=True)
 
     @field_validator('access_config')
     @classmethod

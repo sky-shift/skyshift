@@ -89,8 +89,10 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         self.context_name = utils.unsanitize_cluster_name(self.context_name)
         self.user = self.context["context"]["user"]
         self.namespace = self.context["context"].get("namespace", "default")
+        self.config_path = config_path
         # If Kubeneretes context is identified, create Kubernetes client.
-        api_client = config.new_client_from_config(context=self.context_name)
+        api_client = config.new_client_from_config(context=self.context_name,
+                                                   config_file=config_path)
         self.core_v1 = client.CoreV1Api(api_client=api_client)
         self.apps_v1 = client.AppsV1Api(api_client=api_client)
         self.discovery_v1 = client.DiscoveryV1Api(api_client=api_client)

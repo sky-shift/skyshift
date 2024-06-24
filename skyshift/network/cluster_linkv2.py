@@ -359,10 +359,11 @@ def _deploy_clusterlink_gateway(k8s_api_client: client.ApiClient, cluster_name,
                 raise error
 
 
-def _deploy_clusterlink_k8s(cluster_name, namespace: str):
+def _deploy_clusterlink_k8s(cluster_name, namespace: str, config_file: str):
     """Deploys clusterlink gateway in Kubernetes cluster."""
     k8s_api_client = config.new_client_from_config(
-        context=skyshift_utils.unsanitize_cluster_name(cluster_name))
+        context=skyshift_utils.unsanitize_cluster_name(cluster_name),
+        config_file=config_file)
     _deploy_clusterlink_gateway(k8s_api_client, cluster_name, namespace)
     _wait_for_ready_deployment(k8s_api_client, "cl-controlplane")
     _wait_for_ready_deployment(k8s_api_client, "cl-dataplane")
@@ -374,6 +375,7 @@ def launch_clusterlink(manager: KubernetesManager):
     """Launches clusterlink gateway on a cluster's namespace."""
     namespace = manager.namespace
     cluster_name = manager.cluster_name
+    config_file = manager.config_path
     _install_lock_acquire()
     try:
         cl_logger.info("Acquired Lock %s.. tring to install.", cluster_name)
@@ -408,7 +410,7 @@ def launch_clusterlink(manager: KubernetesManager):
                                 shell=True,
                                 stderr=subprocess.STDOUT,
                                 cwd=CL_DIRECTORY).decode('utf-8')
-        _deploy_clusterlink_k8s(cluster_name, namespace)
+        _deploy_clusterlink_k8s(cluster_name, namespace, config_file)
         _init_clusterlink_gateway(cluster_name, namespace)
 
         return True

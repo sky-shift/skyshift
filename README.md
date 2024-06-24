@@ -20,18 +20,6 @@ pip install -e .
 pip install -e .[server]
 ```
 
-To utilize SkyShift's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running SkyShift and make it executable. For example:  
-```
-wget https://github.com/rancher/rke/releases/download/v1.5.5/rke_linux-amd64 -o rke_linux-amd64
-mv rke_linux-amd64 /usr/bin/rke # /usr/local/bin/rke works too
-chmod +x /usr/bin/rke
-```
-
-You can make sure that the installation was successful by running the following command:
-```
-rke --version
-```
-
 ## Steps to run Sky Manager
 
 ### 1. Check Kubernetes Clusters

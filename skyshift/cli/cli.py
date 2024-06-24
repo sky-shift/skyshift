@@ -394,8 +394,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                 'ssh_key_path': ssh_key_path
             },
             'config_path':
-            config if not provision else
-            f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
+            config
+            if not provision else f"{cloud_cluster_dir(name)}/KUBECONFIG",
         },
     }
     create_cli_object(cluster_dictionary)
