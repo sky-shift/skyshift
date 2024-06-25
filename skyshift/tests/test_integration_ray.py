@@ -6,12 +6,12 @@ import subprocess
 import pytest
 import time
 from typing import Any
-from skyflow.cluster_manager.ray.ray_manager import RayManager
-from skyflow.templates import Job, ResourceEnum
-from skyflow.templates.cluster_template import ClusterStatusEnum
-from skyflow.templates.job_template import TaskStatusEnum
-from base_test_manager import BaseTestManager
-from skyflow.utils.ssh_utils import SSHConnectionError
+from skyshift.cluster_manager.ray.ray_manager import RayManager
+from skyshift.templates import Job, ResourceEnum
+from skyshift.templates.cluster_template import ClusterStatusEnum
+from skyshift.templates.job_template import TaskStatusEnum
+from test_integration_manager import TestManager
+from skyshift.utils.ssh_utils import SSHConnectionError
 
 DOCKER_IMAGE_NAME = "debian-ssh-dind"
 DOCKER_CONTAINER_NAME = "debian-ssh-dind-container"
@@ -126,7 +126,7 @@ def docker_ssh_access_config():
         "port": SSH_PORT
     }
 
-class TestRayManager(BaseTestManager):
+class TestRayManager(TestManager):
 
     def test_manager_initialization(self, docker_ssh_access_config: Any):
         """

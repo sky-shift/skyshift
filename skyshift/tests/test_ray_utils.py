@@ -4,10 +4,7 @@ import tarfile
 import tempfile
 from unittest.mock import patch, MagicMock
 
-import paramiko
-import pytest
-
-from skyflow.cluster_manager.ray.ray_utils import (
+from skyshift.cluster_manager.ray.ray_utils import (
     create_archive,
     copy_file_to_remote,
     process_cluster_status,
@@ -17,7 +14,7 @@ from skyflow.cluster_manager.ray.ray_utils import (
     copy_required_files,
     get_remote_home_directory,
 )
-from skyflow.templates.resource_template import ResourceEnum
+from skyshift.templates.resource_template import ResourceEnum
 
 def test_create_archive():
     """Test creating a tar archive from a directory."""
@@ -40,7 +37,7 @@ def test_copy_file_to_remote():
     local_path = "/local/path/to/file.txt"
     remote_path = "/remote/path/to/file.txt"
     
-    with patch("skyflow.cluster_manager.ray.ray_utils.ssh_send_command") as mock_ssh_send_command:
+    with patch("skyshift.cluster_manager.ray.ray_utils.ssh_send_command") as mock_ssh_send_command:
         with patch("paramiko.SSHClient.open_sftp", return_value=MagicMock()) as mock_open_sftp:
             
             copy_file_to_remote(ssh_client, local_path, remote_path)
@@ -262,10 +259,10 @@ def test_copy_required_files():
     logger = MagicMock()
     remote_dir = "/remote/dir"
     
-    with patch("skyflow.cluster_manager.ray.ray_utils.create_archive") as mock_create_archive:
-        with patch("skyflow.cluster_manager.ray.ray_utils.copy_file_to_remote") as mock_copy_file_to_remote:
-            with patch("skyflow.cluster_manager.ray.ray_utils.extract_archive_on_remote") as mock_extract_archive_on_remote:
-                with patch("skyflow.cluster_manager.ray.ray_utils.os.remove") as mock_os_remove:
+    with patch("skyshift.cluster_manager.ray.ray_utils.create_archive") as mock_create_archive:
+        with patch("skyshift.cluster_manager.ray.ray_utils.copy_file_to_remote") as mock_copy_file_to_remote:
+            with patch("skyshift.cluster_manager.ray.ray_utils.extract_archive_on_remote") as mock_extract_archive_on_remote:
+                with patch("skyshift.cluster_manager.ray.ray_utils.os.remove") as mock_os_remove:
                     copy_required_files(ssh_client, remote_dir, logger)
                     
                     mock_create_archive.assert_called_once()
@@ -278,7 +275,7 @@ def test_get_remote_home_directory():
     """Test fetching the home directory of the remote user."""
     ssh_client = MagicMock()
     
-    with patch("skyflow.cluster_manager.ray.ray_utils.ssh_send_command") as mock_ssh_send_command:
+    with patch("skyshift.cluster_manager.ray.ray_utils.ssh_send_command") as mock_ssh_send_command:
         mock_ssh_send_command.return_value = ("/home/user", None)
         home_dir = get_remote_home_directory(ssh_client)
         
