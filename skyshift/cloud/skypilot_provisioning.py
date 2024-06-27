@@ -8,7 +8,9 @@ from copy import deepcopy
 from typing import Any, Dict
 
 import sky
+import sky.exceptions
 import yaml
+from sky import global_user_state
 
 from skyshift.cloud.utils import cloud_cluster_dir, skypilot_ssh_path
 from skyshift.globals import USER_SSH_PATH
@@ -72,6 +74,7 @@ def _construct_skypilot_task_yaml(cluster_name: str,
         del spec.num_nodes
         del spec.provision
         del spec.config_path
+        del spec.access_config
     except AttributeError:
         pass
     data = {
@@ -106,16 +109,33 @@ def _provision_resources(cluster_name: str, num_nodes: int, run_command: str,
         task = sky.Task.from_yaml(
             f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_task_{cluster_name}_{num}.yml"
         )
+        if not global_user_state.get_enabled_clouds():
+            raise sky.exceptions.NoCloudAccessError(
+                "No cloud is enabled. SkyPilot will not be able to run any task. Run `sky check` for more info."
+            )
         sky.launch(task, f"sky-{cluster_name}-{num}")
 
-    threads: list[threading.Thread] = []
+    class CreateResourceThread(threading.Thread):
+        """A thread that catches any exception and stores it in the `exc` field."""
+
+        def run(self):
+            # pylint: disable=W0201 (attribute-defined-outside-init)
+            self.exc = None
+            try:
+                self.ret = self._target(*self._args, **self._kwargs)
+            except BaseException as exception:  # pylint: disable=W0703 (broad-except)
+                self.exc = exception
+
+    threads: list[CreateResourceThread] = []
     for i in range(num_nodes):
-        thread = threading.Thread(target=_create_resource, args=(i, ))
+        thread = CreateResourceThread(target=_create_resource, args=(i, ))
         thread.start()
         threads.append(thread)
 
     for thread in threads:
         thread.join()
+        if thread.exc is not None:
+            raise thread.exc
 
 
 def _parse_ssh_config(node_name: str):

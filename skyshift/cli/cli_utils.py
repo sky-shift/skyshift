@@ -225,6 +225,48 @@ def colorize_status(status: str) -> str:
     return f"{Fore.YELLOW}{status}{Style.RESET_ALL}"
 
 
+def format_cluster_resources(cluster: Cluster):
+    """Format the cluster resources for display in CLI table."""
+    resources_str = ""
+
+    def gather_resources(data) -> Dict[str, float]:
+        if data is None or len(data) == 0:
+            return {}
+        aggregated_data: Dict[str, float] = {}
+        for inner_dict in data.values():
+            for key, value in inner_dict.items():
+                if key in aggregated_data:
+                    aggregated_data[key] += value
+                else:
+                    aggregated_data[key] = value
+        return aggregated_data
+
+    cluster_resources = cluster.status.capacity
+    cluster_allocatable_resources = cluster.status.allocatable_capacity
+
+    resources = gather_resources(cluster_resources)
+    allocatable_resources = gather_resources(cluster_allocatable_resources)
+
+    for key in resources:
+        if resources[key] == 0:
+            continue
+        if key not in allocatable_resources:
+            available_resources: float = 0
+        else:
+            available_resources = allocatable_resources[key]
+        # Get the first two decimals
+        available_resources = round(available_resources, 2)
+        resources[key] = round(resources[key], 2)
+        if key in [ResourceEnum.MEMORY.value, ResourceEnum.DISK.value]:
+            resources_str += f"{key}: {utils.format_resource_units(available_resources)}/{utils.format_resource_units(resources[key])}\n"  # pylint: disable=line-too-long
+
+        else:
+            resources_str += f"{key}: {available_resources}/{resources[key]}\n"
+    if not resources_str:
+        resources_str = "{}"
+    return resources_str
+
+
 def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: disable=too-many-locals
     """
     Prints out a table of clusters.
@@ -240,48 +282,16 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
     ]
     table_data = []
 
-    def gather_resources(data) -> Dict[str, float]:
-        if data is None or len(data) == 0:
-            return {}
-        aggregated_data: Dict[str, float] = {}
-        for inner_dict in data.values():
-            for key, value in inner_dict.items():
-                if key in aggregated_data:
-                    aggregated_data[key] += value
-                else:
-                    aggregated_data[key] = value
-        return aggregated_data
-
     for entry in cluster_lists:
         name = utils.unsanitize_cluster_name(entry.get_name())
         manager_type = entry.spec.manager
 
-        cluster_resources = entry.status.capacity
-        cluster_allocatable_resources = entry.status.allocatable_capacity
         labels_dict = entry.metadata.labels
         labels_str = "\n".join(
             [f"{key}: {value}" for key, value in labels_dict.items()])
-        resources = gather_resources(cluster_resources)
-        allocatable_resources = gather_resources(cluster_allocatable_resources)
         age = _get_object_age(entry)
-        resources_str = ""
-        for key in resources:
-            if resources[key] == 0:
-                continue
-            if key not in allocatable_resources:
-                available_resources: float = 0
-            else:
-                available_resources = allocatable_resources[key]
-            # Get the first two decimals
-            available_resources = round(available_resources, 2)
-            resources[key] = round(resources[key], 2)
-            if key in [ResourceEnum.MEMORY.value, ResourceEnum.DISK.value]:
-                resources_str += f"{key}: {utils.format_resource_units(available_resources)}/{utils.format_resource_units(resources[key])}\n"  # pylint: disable=line-too-long
+        resources_str = format_cluster_resources(entry)
 
-            else:
-                resources_str += f"{key}: {available_resources}/{resources[key]}\n"
-        if not resources_str:
-            resources_str = "{}"
         status = colorize_status(entry.get_status())
         table_data.append(
             [name, manager_type, labels_str, resources_str, status, age])
@@ -291,6 +301,16 @@ def print_cluster_table(cluster_list: Union[ClusterList, Cluster]):  # pylint: d
     else:
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
+
+    # if there is exactly one cluster selected, print the error message, if any
+    if (len(cluster_lists) == 1
+            and cluster_lists[0].status.status == ClusterStatusEnum.ERROR.value
+            and len(cluster_lists[0].status.error_message) > 0):
+        click.echo("\nREASON")
+        click.echo(
+            f"{Fore.RED}{cluster_lists[0].status.error_message}{Style.RESET_ALL}"
+        )
+
     return table
 
 

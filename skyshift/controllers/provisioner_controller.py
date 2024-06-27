@@ -121,7 +121,8 @@ class ProvisionerController(Controller):
                 self.logger.error(error)
                 delete_unused_cluster_config(cluster_name)
                 self.update_cluster_obj_status(cluster_name,
-                                               ClusterStatusEnum.ERROR)
+                                               ClusterStatusEnum.ERROR,
+                                               str(error).strip())
                 return
             self.update_cluster_obj_status(cluster_name,
                                            ClusterStatusEnum.READY)
@@ -133,6 +134,7 @@ class ProvisionerController(Controller):
     def update_cluster_obj_status(self,
                                   cluster_name: str,
                                   status: ClusterStatusEnum,
+                                  error_message: str = "",
                                   retry_limit: int = 5):
         """Updates the status of a cluster object."""
 
@@ -140,6 +142,7 @@ class ProvisionerController(Controller):
                                        status: ClusterStatusEnum):
             cluster_obj: Cluster = self.cluster_api.get(cluster_name)
             cluster_obj.status.update_status(status.value)
+            cluster_obj.status.update_error_message(error_message)
             self.cluster_api.update(cluster_obj.model_dump(mode='json'))
 
         for _ in range(retry_limit):
