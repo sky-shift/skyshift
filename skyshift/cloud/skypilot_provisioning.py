@@ -98,7 +98,7 @@ def provision_new_kubernetes_cluster(cluster_obj: Cluster):
     # and kubeconfig (/etc/rancher/rke2/rke2.yaml)
     get_scp_async(
         ssh_client, {
-            f"{cloud_cluster_dir(cluster_name)}/KUBECONFIG":
+            f"{cloud_cluster_dir(cluster_name)}/kubeconfig":
             "/etc/rancher/rke2/rke2.yaml",
             f"{cloud_cluster_dir(cluster_name)}/RKE2_TOKEN":
             "/var/lib/rancher/rke2/server/node-token"

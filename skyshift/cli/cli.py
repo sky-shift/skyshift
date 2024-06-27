@@ -395,7 +395,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
             },
             'config_path':
             config
-            if not provision else f"{cloud_cluster_dir(name)}/KUBECONFIG",
+            if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
         },
     }
     create_cli_object(cluster_dictionary)
