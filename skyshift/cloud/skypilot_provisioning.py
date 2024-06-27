@@ -13,8 +13,8 @@ from skyshift.templates.cluster_template import Cluster, ClusterSpec
 from skyshift.utils.scp_utils import get_scp_async, send_scp_sync
 from skyshift.utils.ssh_utils import ssh_send_command
 
-RKE2_SETUP_SCRIPT: str = "./skyflow/cloud/rke2_setup.sh"
-RKE2_ADD_AGENT_SCRIPT: str = "./skyflow/cloud/rke2_add_agent.sh"
+RKE2_SETUP_SCRIPT: str = "./skyshift/cloud/rke2_setup.sh"
+RKE2_ADD_AGENT_SCRIPT: str = "./skyshift/cloud/rke2_add_agent.sh"
 
 
 def _cleanup_config_dir(cluster_name: str, num_nodes: int):
