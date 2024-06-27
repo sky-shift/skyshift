@@ -155,7 +155,7 @@ def is_process_running(process_name: str) -> bool:
         return False
 
 
-def create_cluster(name: str):
+def create_cluster(name: str, config_file: str = ""):
     """
     Creates a KIND Cluster
 
@@ -165,13 +165,23 @@ def create_cluster(name: str):
         KUBECTL
     """
     logging.debug('Creating cluster %s', name)
-    os.system(f"kind create cluster  --name={name}")
+    config_def = ""
+    if len(config_file) > 0:
+        if os.path.exists(config_file):
+            config_def = f'--config {config_file}'
+        else:
+            print(f"Provided config file not found: {config_file}.")
+            return False
+
+    os.system(f"kind create cluster --name={name} {config_def}")
 
     cluster_info_cmd = (f'kubectl cluster-info --context kind-{name}')
     try:
         subprocess.check_output(cluster_info_cmd,
                                 shell=True,
                                 stderr=subprocess.STDOUT).decode('utf-8')
+        logging.debug("Context for cluster '%s':", name)
+        os.system(f"kubectl config get-contexts kind-{name}")
         return True
     except subprocess.CalledProcessError:
         return False
