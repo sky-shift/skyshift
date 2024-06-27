@@ -112,6 +112,6 @@ This will create a native K8 service on the `mluo-onprem` cluster. If there are 
 Thank you for your interest in contributing to SkyShift! 
 
 Here are resources you may find helpful:
-- :ref:`setup`
+- :ref:`debug`
 
 
