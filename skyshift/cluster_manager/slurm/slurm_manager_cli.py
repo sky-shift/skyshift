@@ -38,28 +38,10 @@ JOB_PREPEND_STR = "skyshift2slurm"
 REMOTE_SCRIPT_DIR = "~/.skyconf"
 
 SLURM_NODE_DEAD_STATES = {
-    'DOWN', 
-    'DRAIN',
-    'DRAINED', 
-    'DRAINING', 
-    'FAIL', 
-    'FUTURE', 
-    'FUTR', 
-    'MAINT', 
-    'NO_RESPOND', 
-    'NPC', 
-    'PERFCTRS', 
-    'PLANNED', 
-    'POWER_DOWN', 
-    'POWERING_DOWN', 
-    'POWERED_DOWN', 
-    'POWERING_UP', 
-    'REBOOT_ISSUED', 
-    'REBOOT_REQUESTED',
-    'RESV', 
-    'RESERVED',
-    'UNK',
-    'UNKNOWN'
+    'DOWN', 'DRAIN', 'DRAINED', 'DRAINING', 'FAIL', 'FUTURE', 'FUTR', 'MAINT',
+    'NO_RESPOND', 'NPC', 'PERFCTRS', 'PLANNED', 'POWER_DOWN', 'POWERING_DOWN',
+    'POWERED_DOWN', 'POWERING_UP', 'REBOOT_ISSUED', 'REBOOT_REQUESTED', 'RESV',
+    'RESERVED', 'UNK', 'UNKNOWN'
 }
 
 
@@ -84,7 +66,7 @@ def _override_resources(job: Job) -> Job:
     resources[ResourceEnum.MEMORY.value] = max(32, res_memory)
     job.spec.resources = resources
     return job
-    
+
 # pylint: disable=too-many-locals,too-many-branches
 def convert_slurm_job_table_to_status(
         output: str) -> Dict[str, Dict[str, str]]:
@@ -278,8 +260,8 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                 Cluster Status struct with total and allocatable resources.
         """
         self.slurm_node_dict = {}
-        stdout, stderr = slurm_utils.send_cli_command(self.ssh_client,
-                                                 'scontrol show partitions')
+        stdout, stderr = slurm_utils.send_cli_command(
+            self.ssh_client, 'scontrol show partitions')
         pattern = r'State='
         matches = re.findall(pattern, stdout)
         if matches and not stderr:
@@ -288,7 +270,8 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        self.logger.error(f"Cluster is reachable but scontrol output is invalid. {stdout}")
+        self.logger.error(
+            f"Cluster is reachable but scontrol output is invalid. {stdout}")
         return ClusterStatus(
             status=ClusterStatusEnum.ERROR.value,
             capacity=self.cluster_resources,
