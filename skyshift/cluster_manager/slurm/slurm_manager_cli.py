@@ -37,7 +37,18 @@ JOB_PREPEND_STR = "skyshift2slurm"
 # Remote directory for storing scripts on Slurm node.
 REMOTE_SCRIPT_DIR = "~/.skyconf"
 
-SLURM_NODE_DEAD_STATES = {
+SLURM_NODE_AVAILABLE_STATES = {
+    'ALLOC',
+    'ALLOCATED',
+    'CLOUD',
+    'COMP',
+    'COMPLETING',
+    'IDLE',
+    'MIX',
+    'MIXED',
+}
+
+SLURM_NODE_UNAVAILABLE_STATES = {
     'DOWN', 'DRAIN', 'DRAINED', 'DRAINING', 'FAIL', 'FUTURE', 'FUTR', 'MAINT',
     'NO_RESPOND', 'NPC', 'PERFCTRS', 'PLANNED', 'POWER_DOWN', 'POWERING_DOWN',
     'POWERED_DOWN', 'POWERING_UP', 'REBOOT_ISSUED', 'REBOOT_REQUESTED', 'RESV',
@@ -66,6 +77,28 @@ def _override_resources(job: Job) -> Job:
     resources[ResourceEnum.MEMORY.value] = max(32, res_memory)
     job.spec.resources = resources
     return job
+
+
+def _node_schedulable(node_state: str) -> bool:
+    """
+        Checks the states to ensure it is not an unschedulable node.
+        Arg: 
+            node_state: collected node state string.
+        Returns:
+            Whether the node is schedulable.
+    
+    """
+    seperate_node_states = node_state.split('+')
+    one_valid_state = False
+    for state in seperate_node_states:
+        if any(state in j for j in SLURM_NODE_UNAVAILABLE_STATES):
+            return False
+        if any(state in j for j in SLURM_NODE_AVAILABLE_STATES):
+            one_valid_state = True
+    if one_valid_state:
+        return True
+    return False
+
 
 # pylint: disable=too-many-locals,too-many-branches
 def convert_slurm_job_table_to_status(
@@ -182,13 +215,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         cluster_resources = {}
         for name, node_info in self.slurm_node_dict.items():
             node_state = node_info.get('State', None)
-            seperate_node_states = node_state.split('+')
-            dead_node = False
-            for state in seperate_node_states:
-                if any(state in j for j in SLURM_NODE_DEAD_STATES):
-                    dead_node = True
-                    continue
-            if dead_node:
+            if not _node_schedulable(node_state):
                 continue
             cpu_total = float(node_info.get('CPUTot', 0))
             mem_total = float(node_info.get('RealMemory', 0))
@@ -221,13 +248,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
         avail_resources = {}
         for name, node_info in self.slurm_node_dict.items():
             node_state = node_info.get('State', None)
-            seperate_node_states = node_state.split('+')
-            dead_node = False
-            for state in seperate_node_states:
-                if any(state in j for j in SLURM_NODE_DEAD_STATES):
-                    dead_node = True
-                    continue
-            if dead_node:
+            if not _node_schedulable(node_state):
                 continue
             # Fetch resources from dict.
             cpu_total = float(node_info.get('CPUTot', 0))
