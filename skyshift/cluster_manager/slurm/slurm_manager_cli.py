@@ -82,11 +82,10 @@ def _override_resources(job: Job) -> Job:
 def _node_schedulable(node_state: str) -> bool:
     """
         Checks the states to ensure it is not an unschedulable node.
-        Arg: 
+        Arg:
             node_state: collected node state string.
         Returns:
             Whether the node is schedulable.
-    
     """
     seperate_node_states = node_state.split('+')
     one_valid_state = False
@@ -291,8 +290,7 @@ class SlurmManagerCLI(Manager):  # pylint: disable=too-many-instance-attributes
                 capacity=self.cluster_resources,
                 allocatable_capacity=self.allocatable_resources,
             )
-        self.logger.error(
-            f"Cluster is reachable but scontrol output is invalid. {stdout}")
+        self.logger.error("Scontrol output is invalid: %s", stdout)
         return ClusterStatus(
             status=ClusterStatusEnum.ERROR.value,
             capacity=self.cluster_resources,
