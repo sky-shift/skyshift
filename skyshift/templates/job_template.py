@@ -2,6 +2,7 @@
 Job template for SkyShift.
 """
 import enum
+import json
 import re
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -15,7 +16,8 @@ from skyshift.templates.object_template import (NamespacedObjectMeta, Object,
                                                 ObjectException, ObjectList,
                                                 ObjectName, ObjectSpec,
                                                 ObjectStatus)
-from skyshift.templates.resource_template import AcceleratorEnum, ResourceEnum
+from skyshift.templates.resource_template import (AcceleratorEnum, ResourceEnum,
+                                                 StorageEnum)
 
 DEFAULT_IMAGE = "ubuntu:latest"
 DEFAULT_JOB_RESOURCES = {
@@ -368,6 +370,36 @@ class JobSpec(ObjectSpec):
                 raise ValueError(
                     f"Volume {volume_name} is missing required field `container_dir`."
                 )
+
+            # TODO: check if old PR changes are wanted here
+            if 'storage_type' not in volume:
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field \
+                                 `storage_type`.")
+
+            storage_type = volume['storage_type']
+            if storage_type not in {e.value for e in StorageEnum}:
+                raise ValueError(
+                    f"Volume {volume_name} has invalid `storage_type`. "
+                    f"Must be one of {[e.value for e in StorageEnum]}.")
+
+            if 'config' not in volume:
+                raise ValueError(
+                    f"Volume {volume_name} is missing required field \
+                                 `config`.")
+
+            try:
+                config = json.loads(volume['config']) if isinstance(volume['config'], str) \
+                    else volume['config']
+                if not isinstance(config, dict):
+                    raise ValueError(
+                        f"Volume {volume_name} has invalid `config`. \
+                                     Must be a JSON object.")
+            except json.JSONDecodeError as error:
+                raise ValueError(f"Volume {volume_name} has invalid `config`. \
+                                 Must be a valid JSON string.") from error
+            #####################################################
+                
         return volumes
 
     @field_validator('image')

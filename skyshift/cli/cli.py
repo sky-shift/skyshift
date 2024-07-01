@@ -507,12 +507,21 @@ def delete_cluster(name: str):
               default="Always",
               show_default=True,
               help="Restart policy for job tasks.")
-@click.option("--volumes",
-              "-v",
-              type=(str, str),
-              multiple=True,
-              default=[],
-              help="Volume mounts for the job.")
+#TODO: resolve this being too complex as comment pointed out in old PR
+# @click.option("--volumes",
+#               "-v",
+#               type=(str, str),
+#               multiple=True,
+#               default=[],
+#               help="Volume mounts for the job.")
+@click.option(
+            "--volumes",
+            "-v",
+            type=(str, str, str, str),
+            multiple=True,
+            default=[],
+            help=
+            "Volume mounts for the job. Format: <bucket_name> <container_dir> <storage_type> <config_json>")
 @halo_spinner("Creating job")
 def create_job(
     name,
