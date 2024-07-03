@@ -38,6 +38,8 @@ specifying how jobs are exposed based on label selectors and port mappings.
 This command creates a new service named ``myService`` in the default namespace, 
 targeting jobs labeled `app=myApp`, mapping external port 80 to container port 8080, 
 and exposed on the `myCluster` cluster.
+SkyShift provides a unified service endpoint hosted at  `myCluster`, and manages the `inter-cluster networking <../architecture/networking.rst>`_.
+to load balance the requests to `myApp` regardless of the clusters where its replicas are running.
 
 Retrieving Service Information
 ------------------------------
@@ -94,7 +96,7 @@ removing the defined network access to the selected jobs.
 .. note:: Deleting a service is irreversible and impacts the network accessibility of the associated jobs. Ensure that the service is no longer required before proceeding with deletion.
 
 Understanding SkyShift Services
-------------------------------
+-------------------------------
 
 Services in SkyShift serve as the backbone for network communication within the 
 platform, akin to Kubernetes services. They allow for:
