@@ -1,9 +1,10 @@
 Networking across clusters
 ===========================
-SkyShift builds a network mesh between clusters to allow workloads to communicate between themselves. 
+SkyShift builds a network mesh between clusters to allow jobs/services to communicate between themselves. 
 This is applicable in two scenarios:
 
-1) A service's replicas are scheduled on multiple clusters due to resource constraints, while the frontend is serving from one of the cluster.
+1) A service's replicas are scheduled on multiple clusters due to resource constraints, 
+while the frontend is serving and balancing the load from one of the cluster.
 
 2) Jobs that are deployed across clusters have a need to communicate to fulfil a larger application goal.
 
