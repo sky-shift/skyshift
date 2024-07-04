@@ -115,7 +115,7 @@ def _provision_resources(cluster_name: str, num_nodes: int, run_command: str,
             )
         sky.launch(task, f"sky-{cluster_name}-{num}")
 
-    class CreateResourceThread(threading.Thread):
+    class _CreateResourceThread(threading.Thread):
         """A thread that catches any exception and stores it in the `exc` field."""
 
         def run(self):
@@ -126,9 +126,9 @@ def _provision_resources(cluster_name: str, num_nodes: int, run_command: str,
             except BaseException as exception:  # pylint: disable=W0703 (broad-except)
                 self.exc = exception
 
-    threads: list[CreateResourceThread] = []
+    threads: list[_CreateResourceThread] = []
     for i in range(num_nodes):
-        thread = CreateResourceThread(target=_create_resource, args=(i, ))
+        thread = _CreateResourceThread(target=_create_resource, args=(i, ))
         thread.start()
         threads.append(thread)
 
