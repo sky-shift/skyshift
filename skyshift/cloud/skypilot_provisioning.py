@@ -104,18 +104,20 @@ def provision_new_kubernetes_cluster(cluster_obj: Cluster):
             "/var/lib/rancher/rke2/server/node-token"
         })
 
-    return cluster_ip
+    rke2_token = open(
+        f"{cloud_cluster_dir(cluster_name)}/RKE2_TOKEN").read().strip()
+
+    return cluster_ip, rke2_token
 
 
-def add_node_to_cluster(cluster_obj: Cluster, num: int, cluster_ip: str):
+def add_node_to_cluster(cluster_obj: Cluster, num: int, cluster_ip: str,
+                        rke2_token: str):
     """
     Adds a new node to a Kubernetes cluster.
     """
     cluster_name = cluster_obj.metadata.name
     spec = cluster_obj.spec
     skypilot_node = create_resource(cluster_name, num, spec)
-    rke2_token = open(
-        f"{cloud_cluster_dir(cluster_name)}/RKE2_TOKEN").read().strip()
 
     # Copy over RKE2 add agent script and run it
     (ssh_client, scp_client) = create_ssh_scp_clients(skypilot_node)

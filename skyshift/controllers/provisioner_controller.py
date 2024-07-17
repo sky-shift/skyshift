@@ -117,15 +117,17 @@ class ProvisionerController(Controller):
                                                ClusterStatusEnum.PROVISIONING)
 
                 # Provision initial RKE2 cluster
-                cluster_ip = provision_new_kubernetes_cluster(
+                cluster_ip, rke2_token = provision_new_kubernetes_cluster(
                     cluster_obj=cluster_obj)
+                self.update_cluster_obj_rke2_spec(cluster_name, cluster_ip,
+                                                  rke2_token)
 
                 # Provision and attach additional nodes in parallel
                 threads: list[threading.Thread] = []
                 for i in range(1, cluster_obj.spec.num_nodes):
                     thread = threading.Thread(target=add_node_to_cluster,
-                                              args=(cluster_obj, i,
-                                                    cluster_ip))
+                                              args=(cluster_obj, i, cluster_ip,
+                                                    rke2_token))
                     thread.start()
                     threads.append(thread)
 
@@ -166,6 +168,29 @@ class ProvisionerController(Controller):
             except APIException:
                 pass
         _update_cluster_obj_status(cluster_name, ClusterStatusEnum.ERROR)
+
+    def update_cluster_obj_rke2_spec(self,
+                                     cluster_name: str,
+                                     rke2_ip: str,
+                                     rke2_token: str,
+                                     retry_limit: int = 5):
+        """Updates the status of a cluster object."""
+
+        def _update_cluster_obj_rke2_spec(cluster_name: str, rke2_ip: str,
+                                          rke2_token: str):
+            cluster_obj: Cluster = self.cluster_api.get(cluster_name)
+            cluster_obj.spec.access_config["rke2_ip"] = rke2_ip
+            cluster_obj.spec.access_config["rke2_token"] = rke2_token
+            self.cluster_api.update(cluster_obj.model_dump(mode='json'))
+
+        for _ in range(retry_limit):
+            try:
+                _update_cluster_obj_rke2_spec(cluster_name, rke2_ip,
+                                              rke2_token)
+                return
+            except APIException:
+                pass
+        self.update_cluster_obj_status(cluster_name, ClusterStatusEnum.ERROR)
 
 
 # Testing purposes.

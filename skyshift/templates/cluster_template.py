@@ -193,19 +193,15 @@ class ClusterSpec(ObjectSpec):
     provision: bool = Field(default=False, validate_default=True)
     config_path: str = Field(default="", validate_default=True)
     access_config: Dict[str, str] = Field(default={}, validate_default=True)
-    ssh_key_path: str = Field(default="~/.ssh/id_rsa", validate_default=True)
-    host: str = Field(default="", validate_default=True)
-    username: str = Field(default="", validate_default=True)
-    rke2_ip: Optional[str] = Field(default=None, validate_default=True)
-    rke2_token: Optional[str] = Field(default=None, validate_default=True)
 
     @field_validator('access_config')
     @classmethod
     def verify_access_config(cls, access_config: Dict[str,
                                                       str]) -> Dict[str, str]:
         """Validates the access_config field of a ClusterResources."""
-        # Return if a non ray cluster is used.
-        if not hasattr(cls, 'manager') or cls.manager not in RAY_MANAGERS:
+        # Return if a non ray cluster or kubernetes cluster with provision set to true is used.
+        if not hasattr(cls, 'manager') or (cls.manager not in RAY_MANAGERS
+                                           and not cls.provision):
             return access_config
         if "host" not in access_config:
             raise ValueError("Access config must contain 'host' field.")
