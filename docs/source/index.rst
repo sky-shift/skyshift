@@ -22,7 +22,8 @@ Documentation
    :caption: Core Concepts
 
    Architecture <architecture/architecture.rst>
-
+   Networking <architecture/networking.rst>
+   
 .. toctree::
    :maxdepth: 1
    :caption: Getting Started
