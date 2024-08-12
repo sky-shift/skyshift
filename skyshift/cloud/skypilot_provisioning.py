@@ -33,10 +33,12 @@ def _cleanup_config_dir(cluster_name: str, num_nodes: int):
 def _construct_skypilot_task_yaml(cluster_name: str,
                                   num: int,
                                   spec: ClusterSpec,
-                                  envs: dict = {}):
+                                  envs=None):
     """
     Construct a SkyPilot task YAML for the provided ClusterSpec.
     """
+    if envs is None:
+        envs = {}
     data = {
         "name": f"sky-{cluster_name}-{num}",
         "resources": {
