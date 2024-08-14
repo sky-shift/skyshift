@@ -25,6 +25,7 @@ setup(
         "rich",
         "skypilot==0.5.0",
         "paramiko",
+        "scp",
         "tabulate",
         "types-passlib",
         "types-paramiko",
@@ -37,7 +38,6 @@ setup(
         "tqdm",
         "rapidfuzz",
         "regex",
-        "paramiko",
         "ray",
     ],
     extras_require={

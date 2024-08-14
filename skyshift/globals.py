@@ -9,6 +9,8 @@ SSH_TIMEOUT = 10  # seconds
 
 USER_SSH_PATH = os.path.expanduser("~/.ssh")
 
+SKYPILOT_SSH_PATH = os.path.expanduser("~/.sky/generated/ssh")
+
 SKYCONF_DIR = os.path.expanduser("~/.skyconf")
 
 API_SERVER_CONFIG_PATH = "~/.skyconf/config.yaml"
