@@ -11,10 +11,8 @@ This documents includes planned features for Skyshift in 2024, and early 2025. H
 - [x] General support for job inspection via exec
 
 ### Graphical Dashboard
-Status and availability "at a glance"
-- [ ] Aggregate available/unavailable-resource summarization 
-- [ ] Available-resource summarization by resource-group
-- [ ] Per-job progress (time enqueued, time running, ...) 
+- [ ] UI to view each cluster and the aggregate available/unavailable resources.
+- [ ] Monitor status of jobs and services submitted through Skyshift.
 
 ### Data collection and export
 - [ ] Accumulate usage statistics 
