@@ -69,14 +69,12 @@ We invite the community to contribute to Skyshift's compatibility layer, such as
 ## Resilience
 - [ ] Automated fail-over option based on workload configuration and resource availability.
  
-## Use-Case Demonstrations
-- [ ] Foundation model serving
-- [ ] Foundation model fine-tuning
-- [ ] Foundation model pre-training
-- [ ] Foundation model evaluation
-- [ ] Multi-cluster (multi-site) data pre-processing
-- [ ] Seamless multi-server agent development
-- [ ] GPU-dependent code development 
+## SkyShift Examples
+- [x] Model serving with vLLM
+- [ ] Model fine-tuning with Llama 3
+- [ ] Workspace Deployment with SkyShift
+- [ ] Multi-cluster Data ETL pipeline (potentially with Spark)
+- [ ] Multi-agent Deployment
 
 
 
