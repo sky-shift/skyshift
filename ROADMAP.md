@@ -1,69 +1,81 @@
 # Roadmap
 
-This documents directions of interest, inviting community contributions.
-* It is not comprehensive ( don't hesitate to propose new features or directions !)
-* While some completed features are highlighted, it is not a comprehensive list of all features. 
-* If you have questions or ideas, don't hesitate to create and issue, discussion, (or PR)! 
+This documents includes planned features for Skyshift in 2024, and early 2025. However, this roadmap is not comprehensive (feel free to propose new features/directions by opening a Git issue, discussion or PR!). 
 
 
 ## Observability and Monitoring
 
 ### CLI
-- [x] aggregate resource summarization
-- [x] list jobs
-- [x] general support for job inspection via exec
+- [x] Aggregate resource summarization
+- [x] List jobs
+- [x] General support for job inspection via exec
 
 ### Graphical Dashboard
 Status and availability "at a glance"
-- [ ] aggregate available/unavailable-resource summarization 
-- [ ] available-resource summarization by resource-group
-- [ ] per-job progress (time enqueued, time running, ...) 
+- [ ] Aggregate available/unavailable-resource summarization 
+- [ ] Available-resource summarization by resource-group
+- [ ] Per-job progress (time enqueued, time running, ...) 
 
 ### Data collection and export
-- [ ] usage statistics to-date
-- [ ] historic job completions 
-- [ ] historic wait times by resource-group 
+- [ ] Accumulate usage statistics 
+- [ ] Track jobs over time
+- [ ] Track SkyShift events
+- [ ] Track wait times by resource-group
 
 ## Testing
-- [ ] automatic test generation 
+- [ ] Tests for Skyshift controllers.
+- [ ] Tests for Skyshift compatibility layers (Slurm, Ray).
+- [ ] Tests for Skyshift services.
+- [ ] Automatic test generation 
 - [ ] GitHub action integration
 
+## General Features
+- [ ] Autoscaler controller - provisions Skypilot clusters when jobs are unschedulable
+- [ ] Finegrained `update` operation on all Skyshift objects (i.e. a user modifies image in Skyshift job)
 
 ## Cluster Orchestrator Support
 
-### K8s
-- [x] automatic cluster detection via kubeconfig
-- [x] automatic provisioning option
-- [ ] support and test automation for enterprise-grade flavors (e.g. OpenShift) 
+### Kubernetes
+- [x] Automatic detection of K8 clusters
+- [x] Automatic provisioning option
+- [ ] Support for additional variants of K8, such as Openshift.
+- [ ] Support and test automation for enterprise-grade flavors (e.g. OpenShift) 
 
 ### Slurm
-- [ ] automatic cluster detection 
-- [ ] automatic provisioning option
+- [ ] Automatic cluster detection 
+- [ ] Automatic provisioning option
+- [ ] Support for additional container managers (Podman, Singularity, etc.) on top of Slurm
+- [ ] Service feature/networking layer for Slurm (e.g. using reverse proxy)
+- [ ] Storage feature for Slurm
+- [ ] Exec feature for Slurm
 
 ### Ray
-- [ ] automatic cluster detection 
-- [ ] automatic provisioning option
+- [ ] Automatic cluster detection
+- [ ] Automatic provisioning for Ray cluster (native Skypilot support)
 
 ### More Orhcestrators
 
-Community contribution and use-cases are welcome!
+We invite the community to contribute to Skyshift's compatibility layer, such as one for LSF, Nomad, and Docker Swarm!
 
-## Placement optimization
+## Workload Placement and Scheduling Optimizations
+- [ ] Adaptive scheduling optimizations based on tracked workloads.
+- [ ] Explicit waiting policies for job launch (how long a job waits until it fails over to another cluster).
 - [ ] Leverage usage statistics and/or historic waiting times in placement decisions (see Observability and Monitoring)
 
 ## Storage
-- [ ] local file sync (point-to-point)
-- [ ] remote file sync (point-to-point)
-- [ ] multi-cast (n-to-1) retrieval
-- [ ] multi-cast (1-to-n) storage
+- [ ] Blob storage support (MinIO, GCS, S3) for K8 and Slurm clusters.
+- [ ] Distributed file synchronization across clusters.
+
+## Resilience
+- [ ] Automated fail-over option based on workload configuration and resource availability.
  
 ## Use-Case Demonstrations
-- [ ] foundation model serving
-- [ ] foundation model fine-tuning
-- [ ] foundation model pre-training
-- [ ] foundation model evaluation
-- [ ] multi-cluster (multi-site) data pre-processing
-- [ ] seamless multi-server agent development
+- [ ] Foundation model serving
+- [ ] Foundation model fine-tuning
+- [ ] Foundation model pre-training
+- [ ] Foundation model evaluation
+- [ ] Multi-cluster (multi-site) data pre-processing
+- [ ] Seamless multi-server agent development
 - [ ] GPU-dependent code development 
 
 
