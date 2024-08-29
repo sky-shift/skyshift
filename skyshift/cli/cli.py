@@ -102,7 +102,8 @@ def validate_input_string(value: str) -> bool:
     if value.startswith("kubernetes.io/") or value.startswith("k8s.io/"):
         return False
     pattern = re.compile(
-        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$'  # pylint: disable=line-too-long
+        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$'
+        # pylint: disable=line-too-long
     )
     return bool(pattern.fullmatch(value))
 
@@ -133,7 +134,8 @@ def cluster_exists(name: str) -> bool:
 def validate_image_format(image: str) -> bool:
     """Validates if the given image matches the Docker image format."""
     pattern = re.compile(
-        r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
+        r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'
+        # pylint: disable=line-too-long
     )
     return bool(pattern.fullmatch(image))
 
@@ -306,7 +308,37 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         memory: str, disk_size: str, accelerators: str, ports: List[str],
         num_nodes: int, cloud: str, region: str, provision: bool,
         ssh_key_path: str, config: str, host: str, username: str, spinner):  # pylint: disable=redefined-outer-name
-    """Attaches a new cluster."""
+
+    """
+    Create a new cluster and attach to SkyShift. Once attached, you can manage
+    the cluster via SkyShift and make it available for jobs submitted to SkyShift.
+    This supports clusters managed via Kubernetes, Slurm and Ray.
+
+    Further, this command is highly customizable allowing you to provision custom
+    Nodes, Regions, CPU and Memory requirements. Post creation SkyShift monitors
+    the status and makes it available to the user.
+
+    :param str name: The name of the cluster to create. This is a required argument.
+    :param list labels: Key-value pairs for cluster labels as a list of tuples. Default is an empty list.
+    :param str manager: Cluster manager type (e.g., k8, slurm, ray). Default is 'k8'.
+    :param str cpus: Number of vCPUs per node (e.g., '1', '1+'). Default is None.
+    :param str memory: Amount of memory each instance must have in GB (e.g., '32', '32+'). Default is None.
+    :param int disk_size: OS disk size in GBs. Default is None.
+    :param str accelerators: Type and number of GPU accelerators to use. Default is None.
+    :param list ports: Ports to open on the cluster as a list of strings. Default is an empty list.
+    :param int num_nodes: Number of SkyPilot nodes to allocate to the cluster. Default is 1.
+    :param str cloud: Specifies the cloud provider. Default is None.
+    :param str region: Specifies the cloud region. Default is None.
+    :param str ssh_key_path: SSH key to use for Ray clusters; can be a path to a file or the key itself. Default is an empty string.
+    :param str config: Config file for the cluster. Default is an empty string.
+    :param str host: Host to use for the cluster. Default is an empty string.
+    :param str username: Username to use for the cluster. Default is an empty string.
+    :param bool provision: True if the cluster needs to be provisioned on the cloud; this is a flag. Default is False.
+
+    :return: None
+    :rtype: NoneType
+    """
+
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -394,8 +426,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                 'ssh_key_path': ssh_key_path
             },
             'config_path':
-            config
-            if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
+                config
+                if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
         },
     }
     create_cli_object(cluster_dictionary)
@@ -415,7 +447,24 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
               help="Performs a watch.")
 @halo_spinner("Fetching clusters")
 def get_clusters(name: str, watch: bool):
-    """Gets a cluster (or clusters if None is specified)."""
+    """
+    The get cluster command fetches and displays details for one or all clusters
+    being managed by SkyShift. This provides the names, managers, statuses, and
+    resources (allocated/available) on the cluster.
+    You can view all the clusters and their metadata by not providing a specific
+    cluster.
+
+    :param str name: Optional. The name of the cluster to fetch details for. If not
+     provided, information about all clusters is fetched.
+
+    :param bool watch: If set to True, this continuously watch for changes to the
+     cluster's details. Default is False.
+
+    :return: Prints the cluster information or ongoing updates if watching.
+    :rtype: NoneType
+
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -429,7 +478,18 @@ def get_clusters(name: str, watch: bool):
 @click.argument("name", required=True)
 @halo_spinner("Deleting cluster")
 def delete_cluster(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+    """
+    The ``delete cluster`` command removes a cluster from SkyShift. For a cluster
+    being managed by SkyShift, this command simply detaches the cluster. If the
+    cluster was provided using SkyShift, this command also removes the cluster from
+    the cloud provider.
+
+    :param str name: The name of the cluster to be deleted. This is a required parameter.
+
+    :return: None. Outputs the result of the deletion process to the console.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -530,7 +590,36 @@ def create_job(
     spinner,
     volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
-    """Adds a new job."""
+
+    """
+    The create job command allows submission of a new job to SkyShift. You can
+    also customize the specific job requirements such as Replicas, Memory, CPU
+    and more. SkyShift matches the requirements with the available resources to
+    best run the job. See more in`scheduling`.
+
+    :param str name: The name of the job to create. This is a required parameter.
+    :param str namespace: The Kubernetes namespace where the job will be created.
+     Default is 'default'.
+
+    :param list labels: Key-value pairs as tuples for labeling the job. Default
+     is an empty list.
+    :param str image: The Docker image to use for the job. Default is 'ubuntu:latest'.
+    :param list envs: Environment variables to set in the job, provided as tuples.
+    :param float cpus: Number of CPUs allocated per task. Default is 1.
+    :param int gpus: Number of GPUs allocated per task. Default is 0.
+    :param str accelerators: Type and number of accelerator resources to use. Default
+     is None.
+    :param float memory: Total memory (RAM) allocated per task in MB. Default is 0.
+    :param str run: Command to run in the job container. Default is an empty string.
+    :param int replicas: Number of task replicas to run. Default is 1.
+    :param str restart_policy: Restart policy for the job tasks. Default is 'Always'.
+    :param list volumes: Volume mounts for the job, provided as tuples of
+    (volume_name, mount_path). Default is an empty list.
+
+    :return: None. Outputs the result of the job creation process to the console.
+    :rtype: NoneType
+    """
+
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -620,7 +709,19 @@ def create_job(
               help="Performs a watch.")
 @halo_spinner("Fetching jobs")
 def get_job(name: str, namespace: str, watch: bool):
-    """Fetches a job."""
+    """
+    The get job command fetches and displays any job which was submitted
+    to SkyShift. This provides the metadata associated for the running job.
+    Similar to get clusters, this allows continuously watching for any changes.
+
+    :param str name: The name of the job to fetch details for.
+    If not provided, details for all jobs in the namespace are fetched.
+    :param str namespace: The namespace from which to fetch job details. Default
+     is 'default'.
+    :param bool watch: If set to True, continuously watch for changes to the
+     job's details. Default is False.
+
+    """
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -642,7 +743,19 @@ def get_job(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Fetching job logs")
 def job_logs(name: str, namespace: str):
-    """Fetches a job's logs."""
+    """
+    This command fetches and displays the logs for a specific job within a namespace.
+    This can be useful for debugging or monitoring an on-going job.
+
+    :param str name: The name of the job to fetch logs for.
+    :param str namespace: The namespace of the job whose logs
+     are to be fetched. Default is 'default'.
+
+    :return: Outputs the logs to the console. Does not return any values.
+    :rtype: NoneType
+
+    """
+
     from skyshift.cli.cli_utils import \
         fetch_job_logs  # pylint: disable=import-outside-toplevel
 
@@ -663,7 +776,21 @@ cli.add_command(job_logs)
 )
 @halo_spinner("Deleting job")
 def delete_job(name: str, namespace: str):
-    """Deletes a job."""
+    """
+    Deletes a specified job from the given namespace.
+
+    This command permanently removes the job from the specified namespace.
+    This terminates and de-allocates any resources provisioned to the job.
+
+    :param str name: The name of the job to be deleted. This is a required parameter.
+    :param str namespace: The Kubernetes namespace from which the job will be deleted.
+     Default is 'default'. This throws an error if the job is already terminated or
+     does not exist.
+
+    :return: None. Outputs the result of the deletion process to the console.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -676,7 +803,19 @@ def delete_job(name: str, namespace: str):
 @click.argument("name", required=True)
 @halo_spinner("Creating namespace")
 def create_namespace(name: str, spinner):
-    """Creates a new namespace."""
+    """
+    The create namespace command creates a new namespace within SkyShift.
+    This command initializes a new namespace specified by the 'name' argument.
+    You can use this for resource management, security and resource isolation
+    within SkyShift.
+
+    :param str name: The name of the namespace to create. This is a required
+    parameter.
+
+    :return: None. Outputs the result of the namespace creation to the console.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -703,7 +842,23 @@ def create_namespace(name: str, spinner):
               help="Performs a watch.")
 @halo_spinner("Fetching namespaces")
 def get_namespace(name: str, watch: bool):
-    """Gets all namespaces."""
+    """
+    The ``get namespace`` command allows fetching of details about one or all
+    namespaces being managed by SkyShift. This command provides detailed information
+    about the specified namespace or all namespaces if no name is provided. If the
+    `watch` option is enabled, it will continuously monitor and output updates for
+    the namespace(s).
+
+    :param str name: Optional. The name of the namespace to fetch details for. If
+    not provided, details for all namespaces are fetched.
+    :param bool watch: If set to True, continuously watches for changes to the
+    namespace's details and outputs them in real time. Default is False.
+
+    :return: None. The function outputs the namespace information to the console but
+    does not return any values.
+    :rtype: NoneType
+
+    """
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -717,7 +872,19 @@ def get_namespace(name: str, watch: bool):
 @click.argument("name", required=True)
 @halo_spinner("Deleting namespace")
 def delete_namespace(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+    """
+    Deletes a specified namespace from SkyShift. This command permanently
+    removes the namespace being managed by SkyShift. Returns an error if
+    the namespace does not exist.
+
+    :param str name: The name of the namespace to be deleted. This is a
+     required parameter.
+
+    :return: None. Outputs the result of the deletion process to the console,
+    including any errors or confirmation messages.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -764,7 +931,24 @@ def delete_namespace(name: str):
 def create_filter_policy(  # pylint: disable=too-many-arguments
         name: str, namespace: str, labelselector: List[Tuple[str, str]],
         includecluster: List[str], excludecluster: List[str], spinner):
-    """Adds a new filter policy."""
+    """
+    The ``create filterPolicy`` command introduces a new filter policy into SkyShift, dictating
+    the scheduling eligibility of clusters based on the specified inclusion and exclusion criteria.
+
+    :param str name: The name of the filter policy to create. This is a required parameter.
+    :param str namespace: The namespace where this policy will be applied. Default is 'default'.
+    :param list labelSelector: A list of tuples representing key-value pairs used for selecting
+    labels. These are used to specify which resources the policy should apply to. Defaults to empty list.
+    :param list includeCluster: A list of cluster names that should be included in the scheduling.
+    This list defines where the policy allows deployments or operations. Default is an empty list.
+    :param list excludeCluster: A list of cluster names that should be excluded from scheduling.
+    This list defines where the policy restricts deployments or operations. Default is an empty list.
+
+    :return: None. Outputs the result of the filter policy creation to the console, including any
+    configuration errors or confirmation messages.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -822,7 +1006,23 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching filter policies")
 def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
-    """Fetches a filter policy."""
+    """
+    Fetches details about all or one specific filter policy within a namespace. This
+    command provides detailed information about the specified filter policy or all
+    policies if no name is provided. If the `watch` option is enabled, it continuously
+    monitors and output updates for the policy(s).
+
+    :param str name: Optional. The name of the filter policy to fetch details for.
+    :param str namespace: The namespace from which to fetch filter policy details.
+    Default is 'default'.
+    :param bool watch: If set to True, continuously watches for changes to the filter
+    policy.
+
+    :return: None. The function outputs the filter policy information to the console
+    and does not return any values.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -849,7 +1049,18 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
 )
 @halo_spinner("Deleting filter policy")
 def delete_filter_policy(name: str, namespace: str, spinner):
-    """Deletes a filter policy."""
+    """
+    Deletes the specified filter policy from the given namespace. Use this command
+    to permanently remove the filter policy identified by the given name from the namespace.
+
+    :param str name: The name of the filter policy to be deleted. This is a required parameter.
+    :param str namespace: The namespace from which the filter policy will be deleted. Default
+    is 'default'.
+
+    :return: None. Outputs the result of the deletion to the console, including any errors.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -870,7 +1081,21 @@ def delete_filter_policy(name: str, namespace: str, spinner):
 @click.option("--target", "-t", required=True, help="Target cluster name")
 @halo_spinner("Creating link")
 def create_link(name: str, source: str, target: str, spinner):
-    """Creates a new link between two clusters."""
+    """
+    The ``create link`` command creates a new link between two specified clusters,
+    enabling them to communicate directly with each other.
+
+    :param str name: The name of the link to create. This is a required parameter.
+    :param str source: The name of the source cluster from which the link originates.
+    This is a required parameter.
+    :param str target: The name of the target cluster to which the link points. This
+    is a required parameter.
+
+    :return: None. Outputs the result of the link creation process to the console,
+     including any errors or confirmation messages.
+    :rtype: NoneType
+
+    """
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -919,7 +1144,20 @@ def create_link(name: str, source: str, target: str, spinner):
               help="Performs a watch.")
 @halo_spinner("Fetching links")
 def get_links(name: str, watch: bool):
-    """Gets link (or links if None is specified)."""
+    """
+    The get links command fetches the details about one specific link or all links
+    between clusters which were created by SkyShift, with an optional watch functionality.
+
+    :param str name: Optional. The name of the link to fetch details for. If not provided,
+    details for all links are fetched.
+    :param bool watch: If set to True, continuously watches for changes to the link's details
+    and outputs them in real time. Default is False.
+
+    :return: None. The function outputs the link information to the console but does not
+    return any values.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -931,7 +1169,17 @@ def get_links(name: str, watch: bool):
 @click.argument("name", required=True)
 @halo_spinner("Deleting link")
 def delete_link(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+    """
+    The delete link command permanently removes the link (identified by the given name)
+    from SkyShift.
+
+    :param str name: The name of the link to be deleted. This is a required parameter.
+
+    :return: None. Outputs the result of the deletion process to the console, including
+    any errors messages if the link does not exist.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -985,7 +1233,26 @@ def create_service(
     cluster: str,
     spinner,
 ):  # pylint: disable=too-many-arguments
-    """Creates a new service."""
+    """"
+    The create service command creates a new service within SkyShift. You can customize this
+    for specific namespaces, specific service types, selectors, ports and clusters.
+
+    :param str name: The name of the service to create. This is a required parameter.
+    :param str namespace: The namespace where the service will be created. Default is 'default'.
+    :param str service_type: The type of service to create (such as 'ClusterIP', 'LoadBalancer').
+    Default is 'ClusterIP'.
+    :param list selector: Label selectors used to select the pods that the service should target,
+    given as a list of (key, value) tuples. Default is None.
+    :param list ports: Port mappings for the service, specified as a list of (port, targetPort)
+    service forwards to on the pods. Default is an empty list.
+    :param str cluster: The cluster where the service will be exposed. If set to 'auto',
+    the system chooses the optimal cluster. Default is 'auto'.
+
+    :return: None. Outputs the result of the service creation process to the console, including
+    any errors if the creation was not successful.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
     from skyshift.templates.service_template import \
@@ -1069,7 +1336,25 @@ def create_service(
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching services")
 def get_service(name: str, namespace: str, watch: bool):
-    """Gets all services or fetches a specific service."""
+    """
+    The get service command fetches the details about one specific or all services within
+    a given namespace, with an optional watch functionality.
+
+    :param str name: Optional. The name of the service to fetch details for. If not provided,
+    details for all services in the namespace are fetched.
+    :param str namespace: The namespace from which to fetch service details. Default is 'default'.
+    :param bool watch: If set to True, continuously watches for changes to the service's details
+    and outputs them in real time. Default is False.
+
+    The function outputs detailed information about services directly to the console. This can
+    include data such as service type, connected pods, port configurations, and more, depending on
+    the service definition.
+
+    :return: None. The function outputs the service information to the console but does not return
+    any values.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1091,7 +1376,19 @@ def get_service(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Deleting service")
 def delete_service(name: str, namespace: str):
-    """Removes/detaches a cluster from Sky Manager."""
+    """
+    Deletes a specified service from the given namespace. This command permanently removes
+    the service identified by the given name from the specified namespace.
+
+    :param str name: The name of the service to be deleted. This is a required parameter.
+    :param str namespace: The namespace from which the service will be deleted.
+    Default is 'default'.
+
+    :return: None. Outputs the result of the deletion process to the console, including any
+    errors if the deletion was unsuccessful.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1125,7 +1422,27 @@ def delete_service(name: str, namespace: str):
 def create_endpoints(  # pylint: disable=too-many-arguments
         name, namespace, num_endpoints, exposed, primary_cluster, selector,
         spinner):
-    """Creates a new set of endpoints."""
+    """
+    Creates a new set of endpoints within a specified namespace, customizable via user provided
+    arguments. This command sets up endpoints, which represent network-accessible points
+    associated with a service. These endpoints can be configured to be exposed within a
+    cluster and can target specific resources based on label selectors.
+
+    :param str name: The name of the endpoints set to create. This is a required parameter.
+    :param str namespace: The namespace where the endpoints will be created. Default is 'default'.
+    :param int num_endpoints: The number of endpoints to create. This must be specified.
+    :param bool exposed: Specifies whether the endpoints should be exposed to the cluster.
+    Exposed endpoints can be accessed from other services within the cluster. Default is False.
+    :param str primary_cluster: The primary cluster where the endpoints will be exposed. If set to
+    'auto', the system chooses the optimal cluster. Default is 'auto'.
+    :param list selector: Label selectors used to select the resources that these endpoints will
+    target, given as a list of (key, value) tuples.
+
+    :return: None. Outputs the result of the endpoint creation process to the console, including
+    any errors or confirmation messages.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1190,7 +1507,21 @@ def create_endpoints(  # pylint: disable=too-many-arguments
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching endpoints")
 def get_endpoints(name: str, namespace: str, watch: bool):
-    """Gets all services or fetches a specific service."""
+    """
+    Use the get endpoints command to fetch the details about one specific or all
+    endpoints within a given namespace, with an optional watch functionality.
+
+    :param str name: Optional. The name of the endpoints to fetch details for.
+    If not provided, details for all endpoints in the namespace are fetched.
+    :param str namespace: The namespace from which to fetch endpoint details.
+    Default is 'default'.
+    :param bool watch: If set to True, continuously watches for changes to the
+    endpoints' details and outputs them in real time. Default is False.
+
+    :return: None. The function outputs the endpoint information to the console.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1212,7 +1543,20 @@ def get_endpoints(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Deleting endpoints")
 def delete_endpoints(name: str, namespace: str):
-    """Removes/detaches a cluster from Sky Manager."""
+    """
+    Use the delete endpoints command to permanently remove any endpoint being
+    managed by SkyShift.
+
+    :param str name: The name of the endpoints to be deleted. This is a required
+    parameter.
+    :param str namespace: The namespace from which the endpoints will be deleted.
+    Default is 'default'.
+
+    :return: None. Outputs the result of the deletion process to the console,
+    including any errors or confirmation messages.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1253,7 +1597,23 @@ def delete_endpoints(name: str, namespace: str):
 def create_role(  # pylint: disable=too-many-arguments
         name: str, action: List[str], resource: List[str],
         namespace: List[str], users: List[str], spinner):
-    """Create a new role."""
+    """
+    Creates a new role with specified permissions and access controls within SkyShift.
+    This is highly customizable and allows access management for organizations where
+    multiple users, namespaces and resources are involved.
+
+    :param str name: The name of the role to create. This is a required parameter.
+    :param list action: A list of actions that the role permits.
+    :param list resource: A list of resources that the role has permissions over.
+    :param list namespace: A list of namespaces where the role's permissions are applicable.
+    Default is an empty list.
+    :param list users: A list of user identifiers to whom the role will be assigned. Default
+    is an empty list.
+
+    :return: None. Outputs the result of the role creation process to the console.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1287,7 +1647,19 @@ def create_role(  # pylint: disable=too-many-arguments
               help="Performs a watch.")
 @halo_spinner("Fetching roles")
 def get_roles(name: str, watch: bool, spinner):
-    """Gets a role (or all roles if None is specified)."""
+    """
+    The get roles command fetches the roles created in SkyShift and associated permissions/metadata.
+    This also allows continuous monitoring to the role if watch is enabled.
+
+    :param str name: Optional. The name of the role to fetch details for.
+    :param bool watch: Continuously watches for changes to the role's details and outputs them in
+    real time. Default is False.
+
+    :return: None. The function outputs the role information to the console but does not return any
+    values.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1303,7 +1675,15 @@ def get_roles(name: str, watch: bool, spinner):
 @click.argument("name", required=True)
 @halo_spinner("Deleting role")
 def delete_role(name, spinner):
-    """Removes a role."""
+    """
+    Deletes a specified role from SkyShift. Immediately revokes the role and associated permissions.
+
+    :param str name: The name of the role to be deleted. This is a required parameter.
+
+    :return: None. Outputs the result of the deletion process to the console, including any errors.
+    :rtype: NoneType
+    """
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1359,8 +1739,34 @@ def exec_command_sync(  # pylint: disable=too-many-arguments
         resource: str, command: Tuple[str], namespace: str, tasks: List[str],
         containers: List[str], quiet: bool, tty: bool):
     """
-    Wrapper for exec_command to parse inputs and change variable names.
+    Executes a specified command within a container of a resource.
+
+    This function supports executing commands in various modes, including direct execution
+    and TTY (interactive) mode.
+    It is capable of targeting specific clusters, tasks (pods), and containers, providing
+    flexibility in how commands are executed across the infrastructure. It handles both
+    single and multiple targets with appropriate checks and balances to ensure the command
+    execution context is correctly established.
+
+    :param str resource: The name of the resource within which the command is to be executed.
+    :param tuple command: The command to execute, represented as a tuple of strings.
+    :param str namespace: The Kubernetes namespace where the resource is located. Default
+    is 'default'.
+    :param list tasks: A list of specific tasks (pods) to target for command execution.
+    This option can be repeated to specify multiple pods.
+    :param list containers: A list of container names within the specified tasks where the
+    command should be executed. This option can be repeated to specify multiple containers.
+    :param bool quiet: If True, suppresses output from the command execution to only display
+    result. Default is False.
+    :param bool tty: If True, attaches a TTY to the executing session, making it interactive.
+    This is useful for commands that require user interaction. Default is False.
+
+    :return: None. Outputs the result of the command execution process to the console,
+    including any errors or confirmation messages.
+    :rtype: NoneType
+
     """
+
     # Convert containers from tuple to list if necessary
     specified_container = list(containers) if containers else []
     specified_tasks = list(tasks) if tasks else []
@@ -1466,6 +1872,7 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
 cli.add_command(exec_command_sync)
 
+
 # ==============================================================================
 # User API as CLI
 
@@ -1476,7 +1883,7 @@ Register a new user. \'register USERNAME PASSWORD \'
 Username should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
 Password must be 5 or more characters.
 '''
-               '  \n ')
+                    '  \n ')
 @click.argument('username', required=True)
 @click.argument('password', required=True)
 @click.option('--invite',
@@ -1490,8 +1897,24 @@ Password must be 5 or more characters.
 @halo_spinner("Registering user")
 def register(username, email, password, invite):  # pylint: disable=redefined-outer-name
     """
-    Register a new user.
+    The register command registers a new user in the system within SkyShift based on an invitation.
+    This command allows for the registration of a new user account, which is necessary for accessing
+    and interacting with the system. It requires a username, password, and an invite key, to ensure
+    that only authorized users can register.
+
+    :param str username: The username for the new account.  It should be 4-50 characters long,
+     composed of upper or lower case alphabets, digits, and/or underscores.
+    :param str password: The password for the new account. This is required and must be 5 or more
+    characters.
+    :param str invite: The invite key sent by an admin, used to validate the registration process.
+    This is required.
+    :param str email: The email address of the user, which is optional but recommended for account
+    recovery and notifications.
+
+    :return: None. Outputs the result of the registration process to the console.
+    :rtype: NoneType
     """
+
     from skyshift.cli.cli_utils import \
         register_user  # pylint: disable=import-outside-toplevel
 
@@ -1511,7 +1934,16 @@ cli.add_command(register)
 @halo_spinner("Logging in")
 def login(username, password):
     """
-    Login command with username and password.
+    Logs a user into SkyShift using a username and password. This command authenticates
+    a user based on the provided credentials. It is important to note that this login
+    command does not change the current active user session but merely performs login
+    authentication.
+
+    :param str username: The username of the user attempting to log in. This is a required parameter.
+    :param str password: The password associated with the username. This is a required parameter.
+
+    :return: None. Outputs the result of the login attempt to the console.
+    :rtype: NoneType
     """
     from skyshift.cli.cli_utils import \
         login_user  # pylint: disable=import-outside-toplevel
@@ -1535,8 +1967,20 @@ cli.add_command(login)
 @halo_spinner("Creating invite")
 def invite(json, role):  # pylint: disable=redefined-outer-name
     """
-    Create a new invite.
+    Creates a new invitation key for user registration, allowing outputting in JSON format.
+    This command generates an invitation key that can be used for registering new users
+    into SkyShift. It can be configured to associate specific roles with the invite, which
+    will then be assigned to the user upon registration.
+
+    :param bool json: If True, outputs the invitation key in JSON format.
+    :param list role: A list of role names that will be associated with this invite. This will
+    later be associated with the user, and used for resource management in SkyShift.
+
+    :return: None. Outputs the result of the invite creation process to the console, including the
+    invite key and any errors or confirmation messages.
+    :rtype: NoneType
     """
+
     from skyshift.cli.cli_utils import \
         create_invite  # pylint: disable=import-outside-toplevel
 
@@ -1551,7 +1995,14 @@ cli.add_command(invite)
 @halo_spinner("Revoking invite")
 def revoke_invite(invite):  # pylint: disable=redefined-outer-name
     """
-    Revoke an existing invite.
+    The revoke invite command allows revoking an existing invitation key.
+    This means the user will not be able to use it in the future for registering
+    and account with SkySfhit.
+
+    :param str invite: The invitation key to be revoked. This is a required parameter.
+
+    :return: None. Outputs the result of the invite revocation process to the console.
+    :rtype: NoneType
     """
     from skyshift.cli.cli_utils import \
         revoke_invite_req  # pylint: disable=import-outside-toplevel
@@ -1569,8 +2020,18 @@ cli.add_command(revoke_invite)
 @halo_spinner("Switching context")
 def use_sky_context(name: str, spinner):
     """
-    Switch local CLI active context.
+    Switches the current active context in SkyShift to the specified one. This command
+    allows the user to change the active configuration context to another one as
+    specified in the '.skyconf/config.yaml' file. This is useful for managing different
+    configurations under the same CLI session.
+
+    :param str name: The name of the context to switch to. This is a required parameter.
+
+    :return: None. Outputs the result of the context switch to the console, including any
+    errors or confirmation messages.
+    :rtype: NoneType
     """
+
     from skyshift.cli.cli_utils import \
         use_context  # pylint: disable=import-outside-toplevel
 
@@ -1585,10 +2046,17 @@ def use_sky_context(name: str, spinner):
 @halo_spinner("Fetching status")
 def status():  # pylint: disable=too-many-locals
     """
-    Displays the status of clusters and the total available
-    resources for clusters in the READY state,
-    as well as the newest 10 running jobs.
+    The status command displays the current status of clusters, available resources,
+    and recent jobs in SkyShift.
+
+    This command provides the following:
+    - The total available resources of clusters in the 'READY' state.
+    - A list of the newest 10 running jobs. Useful for monitoring and administration.
+
+    :return: None. Outputs the status information directly to the console.
+    :rtype: NoneType
     """
+
     from skyshift.api_client import (  # pylint: disable=import-outside-toplevel
         ClusterAPI, JobAPI)
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
