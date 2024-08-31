@@ -17,6 +17,7 @@ release = 'v0.0.0'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx_tabs.tabs',
+    'sphinx_click.ext',
 ]
 
 templates_path = ['_templates']
