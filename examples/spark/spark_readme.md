@@ -85,5 +85,5 @@ We can see `Pi is roughly 3.139120` indicating a successful execution, let's tak
 ```
 
 Skyctl confirms that the job was completed successfully, we can now remove this via `skyctl delete job  pyspark`.
-The environment setup and running the same example is also packed with `setup_and_run_spark.sh` if you prefer
-to run this as a standalone script.
+The environment setup and running the same example is also packed with `setup_and_run_spark.sh` along with the 
+application code in `pi.py` if you prefer to run this as a standalone script.
