@@ -2,3 +2,4 @@ pygments
 sphinx
 sphinx-book-theme
 sphinx-tabs
+sphinx-click
