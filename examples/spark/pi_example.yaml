@@ -11,6 +11,6 @@ spec:
     cpus: 1.0
     gpus: 0
     memory: 0.0
-  run: "/opt/entrypoint.sh driver /opt/spark/examples/src/main/python/pi.py"
+  run: "/opt/entrypoint.sh driver /opt/spark/examples/src/main/python/pi_example.py"
   replicas: 1
   restart_policy: Never

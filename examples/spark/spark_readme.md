@@ -6,7 +6,7 @@ Spark jobs can be run via both standalone command and a config file which can be
 Since there can be multiple configs involved, we will go through creating a config file and 
 applying it via SkyShift.
 
-Refer to `spark/pyspark_example.yaml`
+Refer to `spark/pi_example.yaml`
 
 To get started, a Spark docker image is required which bundles the necessary dependencies
 along with the application code.
@@ -42,7 +42,7 @@ spec:
 ### 3. Launching the Job
 
 Once configured, the config can be applied via SkyShift, which will submit this in the cluster pod.
-This can be done using: `skyctl apply -f pyspark_example.yaml`
+This can be done using: `skyctl apply -f pi_example.yaml`
 
 ```
   ⠙ Applying configuration
