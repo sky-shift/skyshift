@@ -49,32 +49,6 @@ def check_and_install_etcd(data_directory: Optional[str] = None) -> bool:
     )
     return False
 
-def get_clusterlink(data_directory: Optional[str] = None):
-    """
-    Checks if ClusterLink is installed. If not, downloads and installs it.
-    """
-    try:
-        # Check if clusterlink is already installed
-        subprocess.run(["clusterlink", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("[Installer] ClusterLink is already installed.")
-        return
-    except subprocess.CalledProcessError:
-        print("[Installer] ClusterLink is not installed. Installing now...")
-
-    # Download and install ClusterLink
-    install_command = (
-        "curl -L https://github.com/clusterlink-net/clusterlink/releases/latest/download/clusterlink.sh | sh -"
-    )
-    if data_directory:
-        install_command += f" {data_directory}"
-
-    subprocess.run(install_command, shell=True, check=True)
-    clusterlink_path = os.path.join(os.getcwd(), "clusterlink")
-
-    if os.path.exists(clusterlink_path):
-        subprocess.run(f"sudo mv {clusterlink_path} /usr/local/bin/", shell=True, check=True)
-        print("[Installer] ClusterLink successfully installed.")
-
 
 def main(
     host: str,
@@ -87,11 +61,6 @@ def main(
     # Check if etcd is installed and running - elsewise, install and launch etcd.
     if not check_and_install_etcd(data_directory):
         return
-
-    try:
-        get_clusterlink(data_directory)
-    except Exception as e:
-        print("Unable to get ClusterLink, please download manually")
 
     generate_manager_config(host, port)
     #Create temperorary directory used for worker sync
