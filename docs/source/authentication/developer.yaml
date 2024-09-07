@@ -1,0 +1,17 @@
+kind: Role
+metadata:
+  name: developer
+  namespaces:
+    - dev
+    - staging
+rules:
+  - name: service-management
+    resources:
+      - services
+    actions:
+      - create
+      - update
+      - delete
+users:
+  - dev_user1
+  - dev_user2
