@@ -221,7 +221,6 @@ cli.add_command(apply_config)
     the status and makes it available to the user.
 
     Examples:
-    
         1. **Create a basic cluster with Kuberntes**:
     
            .. code-block:: bash
@@ -464,12 +463,19 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
     cluster.
 
     Examples:
-    
         1. **Fetch Details for All Clusters**:
     
            .. code-block:: bash
     
-               skyctl get cluster
+               > skyctl get cluster
+               
+               ⠙ Fetching clusters
+                NAME      MANAGER    LABELS    RESOURCES                  STATUS    AGE
+                minikube  k8                   cpus: 15.25/16.0           ERROR     12d
+                                               memory: 15.18 GB/15.35 GB
+                                               disk: 151.13 GB/151.13 GB
+                ✔ Fetching clusters completed successfully.
+
     
            Running this command without specifying a cluster name will fetch and display details
            for all clusters being managed by SkyShift. This includes each cluster's name, manager type,
@@ -490,6 +496,18 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
            .. code-block:: bash
     
                skyctl get cluster my-cluster --watch
+               
+               ⠧ Fetching clusterskind='WatchEvent' event_type='UPDATE' object=Cluster(kind='Cluster',
+                metadata=ClusterMeta(name='minikube', labels={}, annotations={}, creation_timestamp='2024-08-25T07:52:58',
+                resource_version=15163), spec=ClusterSpec(manager='k8', cloud=None, region=None, cpus=None,
+                memory=None, disk_size=None, accelerators=None, ports=[], num_nodes=1, provision=False,
+                config_path='~/.kube/config', access_config={}), status=ClusterStatus(conditions=
+                [{'status': 'INIT', 'transitionTime': '1724572270.4890375'}, {'status': 'READY', 'transitionTime': 
+                '1724572378.7774274'}, {'status': 'ERROR', 'transitionTime': '1725679618.1222773'}], status='ERROR',
+                allocatable_capacity={'minikube': {'cpus': 15.250000000000002, 'memory': 15543.71484375,
+                'disk': 154755.10546875, 'gpus': 0.0}}, capacity={'minikube': {'cpus': 16.0, 'memory': 15713.71484375,
+                'disk': 154755.10546875, 'gpus': 0.0}}, network_enabled=False, accelerator_types={}))
+
     
            By adding the `--watch` flag, this command continuously monitors `my-cluster` for any
            changes. It will provide real-time updates on the cluster's status, resources, and other
@@ -522,17 +540,16 @@ def get_clusters(name: str, watch: bool):
     the cloud provider.
 
     Examples:
-
         **Delete a Cluster Managed by SkyShift**:
     
-           .. code-block:: bash
+        .. code-block:: bash
     
-               skyctl delete cluster my-cluster
+            skyctl delete cluster my-cluster
     
-           This command deletes the cluster named `my-cluster` from SkyShift. If the cluster
-           was only managed (but not provisioned) by SkyShift, it will simply be detached
-           from SkyShift's management. If it was provisioned by SkyShift, the cluster will
-           be deleted from the cloud provider as well.
+        This command deletes the cluster named `my-cluster` from SkyShift. If the cluster
+        was only managed (but not provisioned) by SkyShift, it will simply be detached
+        from SkyShift's management. If it was provisioned by SkyShift, the cluster will
+        be deleted from the cloud provider as well.
 
     """
 )
@@ -556,7 +573,6 @@ def delete_cluster(name: str):
     best run the job. See more in`scheduling`.
 
     Examples:
-    
         1. **Create a Basic Job**:
     
            .. code-block:: bash
@@ -574,7 +590,7 @@ def delete_cluster(name: str):
     
            This command creates a job named `gpu-job` that uses 1 GPU per task, specifically
            an NVIDIA V100. The job will run 4 replicas of `python train.py`, which is useful
-            for parallel training jobs.
+           for parallel training jobs.
     
         3. **Create a Job with Custom Docker Image and Environment Variables**:
     
@@ -584,8 +600,28 @@ def delete_cluster(name: str):
     
            This command creates a job named `custom-job` using a specific Docker image
            (`tensorflow/tensorflow:latest-gpu`). It also sets the environment variable
-            `MY_VAR` to `value` inside the container and runs `bash start.sh` as the
-            job command.
+           `MY_VAR` to `value` inside the container and runs `bash start.sh` as the
+           job command.
+            
+        3. **Create a Long-Running Job with Specific Restart Policy**:
+
+           .. code-block:: bash
+        
+               skyctl create job long-running-job --cpus=4 --memory=2048 --run="python server.py" --restart_policy=Always
+
+           This creates a job named `long-running-job` with 4 CPUs and 2048 MB of memory per task. The job runs the
+           command `python server.py` inside the container. The restart policy is set to `Always`, meaning that the
+           job will be automatically restarted if it fails, which is ideal for long-running jobs like web servers.
+
+        4. **Create a Batch Job with No Restart**:
+        
+           .. code-block:: bash
+        
+               skyctl create job batch-job --cpus=2 --memory=1024 --run="python process_data.py" --restart_policy=Never
+        
+           This creates a job named `batch-job` with 2 CPUs and 1024 MB of memory per task. The job runs the command 
+           python process_data.py` inside the container. The restart policy is set to `Never`, which means the job
+           will not be restarted if it fails, making it suitable for batch jobs that should run once and exit.
 
     """)
 @click.argument("name", required=True)
@@ -761,7 +797,6 @@ def create_job(
     Similar to get clusters, this allows continuously watching for any changes.
 
     Examples:
-    
         1. **Fetch Details for All Jobs in a Namespace**:
     
            .. code-block:: bash
@@ -827,7 +862,6 @@ def get_job(name: str, namespace: str, watch: bool):
      are to be fetched. Default is 'default'.
 
     Examples:
-
         1. **Fetch Logs for a Specific Job**:
     
            .. code-block:: bash
@@ -838,16 +872,6 @@ def get_job(name: str, namespace: str, watch: bool):
            the `default` namespace. The logs will be output directly to the console,
            allowing you to monitor the job's execution or diagnose issues.
     
-        2. **Fetch Logs for a Job in a Different Namespace**:
-    
-           .. code-block:: bash
-    
-               skyctl logs my-job --namespace=production
-    
-           This command retrieves the logs for `my-job` from the `production` namespace,
-           instead of the default. This is useful when your jobs are organized into
-           different namespaces based on environments or other criteria.
-
     """
 )
 @click.argument("name", default=None, required=False)
@@ -877,7 +901,6 @@ cli.add_command(job_logs)
     This terminates and de-allocates any resources provisioned to the job.
 
     Examples:
-
         1. **Delete a Job from the Default Namespace**:
     
            .. code-block:: bash
@@ -887,16 +910,6 @@ cli.add_command(job_logs)
            This command deletes the job named `my-job` from the `default` namespace.
            The job is terminated, and any associated resources are released.
     
-        2. **Delete a Job from a Specific Namespace**:
-    
-           .. code-block:: bash
-    
-               skyctl delete job my-job --namespace=production
-    
-           This command deletes `my-job` from the `production` namespace. This is useful
-           when you need to remove jobs from specific environments, such as production
-           or staging.
-
     """)
 @click.argument("name", required=True)
 @click.option(
@@ -925,7 +938,6 @@ def delete_job(name: str, namespace: str):
     within SkyShift.
 
     Examples:
-
         **Create a New Namespace**:
     
            .. code-block:: bash
@@ -968,7 +980,6 @@ def create_namespace(name: str, spinner):
     the namespace(s).
 
     Examples:
-
         1. **Fetch Details for All Namespaces**:
     
            .. code-block:: bash
@@ -1019,16 +1030,15 @@ def get_namespace(name: str, watch: bool):
     the namespace does not exist.
 
     Example:
+    **Delete a Namespace**:
     
-        **Delete a Namespace**:
+    .. code-block:: bash
     
-           .. code-block:: bash
+        skyctl delete namespace dev-environment
     
-               skyctl delete namespace dev-environment
-    
-           This command deletes the `dev-environment` namespace from SkyShift. Once deleted,
-           all resources within this namespace are also removed, and the namespace cannot
-           be recovered. This is typically used for cleaning up environments that are no longer needed.
+    This command deletes the `dev-environment` namespace from SkyShift. Once deleted,
+    all resources within this namespace are also removed, and the namespace cannot
+    be recovered. This is typically used for cleaning up environments that are no longer needed.
 
     """)
 @click.argument("name", required=True)
@@ -1051,7 +1061,6 @@ def delete_namespace(name: str):
     the scheduling eligibility of clusters based on the specified inclusion and exclusion criteria.
 
     Examples:
-    
         1. **Create a Filter Policy with Specific Label Selectors**:
     
            .. code-block:: bash
@@ -1059,8 +1068,9 @@ def delete_namespace(name: str):
                skyctl create filterPolicy my-policy -l env production -i clusterA -e clusterB
     
            This command creates a filter policy named `my-policy` in the `default` namespace. The
-           policy applies to resources  labeled with `env=production`, includes `clusterA` in scheduling,
-           and excludes `clusterB`.
+           policy applies to resources  labeled with `env=production`, includes clusterA and excludes
+           clusterB during scheduling.
+
     
         2. **Create a Filter Policy in a Custom Namespace**:
     
@@ -1163,7 +1173,6 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
     monitors and output updates for the policy(s).
 
     Examples:
-    
         1. **Fetch Details for All Filter Policies**:
     
            .. code-block:: bash
@@ -1229,8 +1238,8 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
     to permanently remove the filter policy identified by the given name from the namespace.
 
     Examples:
-
         1. **Delete a Filter Policy**:
+
            .. code-block:: bash
     
                skyctl delete filterPolicy my-policy --namespace=default
@@ -1269,9 +1278,8 @@ def delete_filter_policy(name: str, namespace: str, spinner):
 
     The ``create link`` command creates a new link between two specified clusters,
     enabling them to communicate directly with each other.
-
-    Examples:
     
+    Examples:
         1. **Create a Link Between Two Clusters**:
     
            .. code-block:: bash
@@ -1330,42 +1338,41 @@ def create_link(name: str, source: str, target: str, spinner):
 
 @get.command(name="link", aliases=["links"], help="""
 
-    The get links command fetches the details about one specific link or all links
+    The ``get links`` command fetches the details about one specific link or all links
     between clusters which were created by SkyShift, with an optional watch functionality.
 
-    Examples:
-    
+    Examples:    
         1. **Fetch Details for All Links**:
     
            .. code-block:: bash
-    
+        
                skyctl get link
-    
+        
            This command fetches and displays details for all links created by SkyShift between
            clusters. It provides an overview of each link, including the source and target clusters
            and any relevant metadata.
-    
+        
         2. **Fetch Details for a Specific Link**:
     
            .. code-block:: bash
-    
+        
                skyctl get link data-link
-    
+        
            This command fetches and displays detailed information about the `data-link` link.
            The output includes specific details such as the source and target clusters, creation date,
            and current status of the link.
-    
+        
         3. **Watch a Specific Link for Changes**:
     
            .. code-block:: bash
-    
+        
                skyctl get link data-link --watch
-    
+        
            By adding the `--watch` flag, this command continuously monitors the `data-link` for any
            changes in its details. This is useful for real-time monitoring of link updates, allowing
-           you to track changes as they occur.
-       
-       """)
+           you to track changes as they occur.    
+          
+""")
 @click.argument("name", required=False, default=None)
 @click.option("--watch",
               "-w",
@@ -1388,8 +1395,8 @@ def get_links(name: str, watch: bool):
     from SkyShift.
 
     Examples:
-
         1. **Delete a Specific Link**:
+        
            .. code-block:: bash
     
                skyctl delete link data-link
@@ -1417,7 +1424,6 @@ def delete_link(name: str):
     for specific namespaces, specific service types, selectors, ports and clusters.
 
     Examples:
-        
         1. **Create a Basic ClusterIP Service**:
     
            .. code-block:: bash
@@ -1571,7 +1577,6 @@ def create_service(
     a given namespace, with an optional watch functionality.
 
     Examples:
-    
         1. **Fetch Details for All Services**:
     
            .. code-block:: bash
@@ -1631,7 +1636,6 @@ def get_service(name: str, namespace: str, watch: bool):
     the service identified by the given name from the specified namespace.
 
     Examples:
-    
         1. **Delete a Service from the Default Namespace**:
     
            .. code-block:: bash
@@ -1793,7 +1797,6 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     endpoints within a given namespace, with an optional watch functionality.
 
     Examples:
-        
         1. **Fetch Details for All Endpoints**:
     
            .. code-block:: bash
@@ -1851,7 +1854,6 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     managed by SkyShift.
 
     Examples:
-    
         1. **Delete Endpoints from the Default Namespace**:
     
            .. code-block:: bash
@@ -1899,7 +1901,6 @@ def delete_endpoints(name: str, namespace: str):
     multiple users, namespaces and resources are involved.
 
     Examples:
-    
         1. **Create a Role with Specific Actions and Resources**:
     
            .. code-block:: bash
@@ -1987,7 +1988,6 @@ def create_role(  # pylint: disable=too-many-arguments
     This also allows continuous monitoring to the role if watch is enabled.
 
     Examples:
-    
         1. **Fetch Details for All Roles**:
     
            .. code-block:: bash
@@ -2042,7 +2042,6 @@ def get_roles(name: str, watch: bool, spinner):
     Deletes a specified role from SkyShift. Immediately revokes the role and associated permissions.
 
     Examples:
-    
         1. **Delete a Specific Role**:
     
            .. code-block:: bash
@@ -2083,7 +2082,6 @@ def delete_role(name, spinner):
     execution context is correctly established.
 
     Examples:
-    
         1. **Execute a Simple Command in a Resource**:
     
            .. code-block:: bash
@@ -2276,7 +2274,6 @@ cli.add_command(exec_command_sync)
     that only authorized users can register.
 
     Examples:
-    
         1. **Register a New User**:
     
            .. code-block:: bash
@@ -2321,7 +2318,6 @@ cli.add_command(register)
     authentication.
 
     Examples:
-    
         1. **Login as a User**:
     
            .. code-block:: bash
@@ -2355,7 +2351,6 @@ cli.add_command(login)
     will then be assigned to the user upon registration.
     
     Examples:
-    
         1. **Create a Simple Invite**:
         
            .. code-block:: bash
@@ -2411,16 +2406,16 @@ cli.add_command(invite)
     This means the user will not be able to use it in the future for registering
     and account with SkySfhit.
 
-    Examples:
+    Examples:    
+    
+    1. **Revoke an Invitation Key**:
+    
+    .. code-block:: bash
 
-        1. **Revoke an Invitation Key**:
+        skyctl revoke_invite abcd1234
 
-           .. code-block:: bash
-
-               skyctl revoke_invite abcd1234
-
-       This command revokes the invitation key `abcd1234`. After revocation, the
-        key is invalid, and any attempt to use it for registration will fail.
+    This command revokes the invitation key `abcd1234`. After revocation, the
+    key is invalid, and any attempt to use it for registration will fail.
     
     """)
 @click.argument('invite', required=True)
@@ -2445,7 +2440,6 @@ cli.add_command(revoke_invite)
     configurations under the same CLI session.
 
     Examples:
-    
         1. **Switch to a Different Context**:
     
            .. code-block:: bash
@@ -2480,14 +2474,13 @@ def use_sky_context(name: str, spinner):
     - A list of the newest 10 running jobs. Useful for monitoring and administration.
 
     Example:
-    
-       .. code-block:: bash
+    .. code-block:: bash
 
-           skyctl status
+        skyctl status
 
-       This command displays the status of all clusters in SkyShift, including the total
-       available resources in clusters that are in the 'READY' state. It also lists the
-       newest 10 running jobs, giving a snapshot of the system's current activity.
+    This command displays the status of all clusters in SkyShift, including the total
+    available resources in clusters that are in the 'READY' state. It also lists the
+    newest 10 running jobs, giving a snapshot of the system's current activity.
 
     """)
 @halo_spinner("Fetching status")
