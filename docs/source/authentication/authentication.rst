@@ -1,7 +1,7 @@
 Authentication in SkyShift
 ============================================
 
-SkyShift supports authentication and fine-grained access control over
+SkyShift utilizes authentication and fine-grained access control over
 SkyShift objects. The API utilizes a JWT-based authentication and
 role-based access control (RBAC) to ensure secure and efficient access management.
 
@@ -29,7 +29,8 @@ which can be viewed using:
     reader-role   3m
 
 2. Apart from the default roles, additional roles can be created for various
-access controls using:
+access controls. Role creation can only be done by admins or users having
+permissions to create new roles using:
     `skyctl create role my-custom-role --action=create --action=delete --resource=services`
 
 .. code-block:: shell
@@ -48,6 +49,41 @@ We can get roles to verify the new role and associated metadata.
     inviter-role    9m
     my-custom-role  1m // New role shows up
     reader-role     9m
+
+Similarly, more custom rules can be added to a role via YAML. For example:
+
+.. code-block:: shell
+
+    kind: Role
+    metadata:
+      name: my-custom-role
+      namespaces:
+        - default
+        - production
+    rules:
+      - name: my-custom-role-rule
+        resources:
+          - services
+        actions:
+          - create
+          - delete
+    users:
+      - user1
+      - user2
+
+This can be applied using `skyctl apply -f <path_to_yaml>`
+Let's verify the new role creation using YAML.
+    `skyctl get roles`
+
+.. code-block:: shell
+
+    ⠙ Fetching roles
+    NAME              AGE
+    admin-role        2m
+    inviter-role      2m
+    my-custom-role    1m
+    my-custom-role-1  2s
+    reader-role       2m
 
 
 3. Further, authorized users can delete roles specified role from SkyShift which immediately revokes
