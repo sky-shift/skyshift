@@ -39,6 +39,12 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Registration and Login
+
+   authentication/authentication.rst
+
+.. toctree::
+   :maxdepth: 1
    :caption: Slurm Support
    
    slurm_support/overview.rst
