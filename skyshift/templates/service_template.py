@@ -15,6 +15,7 @@ class ServiceType(enum.Enum):
     ClusterIP = "ClusterIP"  # pylint: disable=invalid-name
     LoadBalancer = "LoadBalancer"  # pylint: disable=invalid-name
     ExternalName = "ExternalName"  # pylint: disable=invalid-name
+    NodePort     = "NodePort"      # pylint: disable=invalid-name
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -46,6 +47,7 @@ class ServicePorts(BaseModel):
     """Ports of a Service."""
     port: int = Field(default=None, validate_default=True)
     target_port: int = Field(default=None, validate_default=True)
+    node_port: Optional[int] = Field(default=None, validate_default=True)
     protocol: str = Field(default="TCP", validate_default=True)
 
 
