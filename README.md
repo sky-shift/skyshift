@@ -18,6 +18,9 @@ cd skyshift
 pip install -e .
 # Dependencies for SkyShift's API server.
 pip install -e .[server]
+
+# (Optional) Dependencies for working on SkyShift's Documentation.
+pip install -e .[docs]
 ```
 
 ## Steps to run Sky Manager
