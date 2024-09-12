@@ -64,8 +64,7 @@ To use the ``kubectl`` CLI with the provisioned cluster, you can set the KUBECON
 
 .. code-block:: bash
 
-    $ export KUBECONFIG='~/.skyconf/clusters/cloud-cluster/kubeconfig'
-    $ kubectl get nodes
+    $ export KUBECONFIG='~/.skyconf/clusters/cloud-cluster/kubeconfig' && kubectl get nodes
 
     NAME                                             STATUS   ROLES                       AGE     VERSION
     sky-cloud-cluster-0-4f9a-head-7xi46ifi-compute   Ready    control-plane,etcd,master   4m57s   v1.30.4+rke2r1
