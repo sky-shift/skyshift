@@ -1,5 +1,5 @@
 """User template for SkyShift."""
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -12,3 +12,8 @@ class User(BaseModel):
                           pattern="^[a-zA-Z0-9_]+$")
     email: Optional[EmailStr] = None
     password: str = Field(..., min_length=5)
+
+
+class UserList(BaseModel):
+    kind: str = "UserList"
+    users: List[User]

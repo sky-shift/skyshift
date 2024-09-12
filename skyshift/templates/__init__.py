@@ -31,7 +31,7 @@ from skyshift.templates.resource_template import (AcceleratorEnum, CRIEnum,
                                                   ResourceEnum)
 from skyshift.templates.service_template import (Service, ServiceException,
                                                  ServiceList, ServiceMeta)
-from skyshift.templates.user_template import User
+from skyshift.templates.user_template import User, UserList
 
 __all__ = [
     "AcceleratorEnum",
@@ -82,4 +82,5 @@ __all__ = [
     "WatchEvent",
     "WatchEventEnum",
     "User",
+    "UserList"
 ]
