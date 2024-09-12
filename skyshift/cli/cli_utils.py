@@ -611,12 +611,11 @@ def print_user_table(user_list):
     """
     field_names = ["Username", "Email"]
 
-    # Extract user data into rows
     table_data = []
-    for user in user_list.users:  # user_list.users is a list of User objects
+    for user in user_list.users:
         table_data.append([
-            user.username,  # Access username from the User object
-            user.email if user.email else "N/A"  # Handle None values for email
+            user.username,
+            user.email if user.email else "N/A"
         ])
 
     if not table_data:
