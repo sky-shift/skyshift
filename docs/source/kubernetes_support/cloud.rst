@@ -4,10 +4,42 @@ Provisioning Kubernetes Clusters on the Sky
 SkyShift's cloud feature supports the dynamic provisioning of kubernetes cluster on cloud providers. 
 It uses a combination of SkyPilot and Rancher RKE2 to dynamically provision kubernetes clusters across the cheapest VMs on the sky. 
 
-Setup
+Usage
 -----
 
 Ensure that you have correctly set up access to the relevant clouds by following these `instructions <https://skypilot.readthedocs.io/en/latest/getting-started/installation.html#verifying-cloud-access>`_ from the SkyPilot documentation. 
+
+To provision a cluster, run the create cluster CLI command with the ``--provision`` flag. 
+
+.. code-block:: bash
+
+    $ skyctl create cluster cloud-cluster --provision --cloud gcp --cpus 3+
+
+    ⠴ Creating cluster
+    Created cluster cloud-cluster.
+    ✔ Creating cluster completed successfully.
+
+Track the progress of provisioning clusters using the get cluster CLI command. 
+
+.. code-block:: bash
+
+    # ======== While provisioning ========
+    $ skyctl get clusters
+
+    ⠙ Fetching clusters
+    NAME           MANAGER    LABELS    RESOURCES    STATUS        AGE
+    cloud-cluster  k8                   {}           PROVISIONING  10s
+    ✔ Fetching clusters completed successfully.
+
+    # ======== On completion ========
+    $ skyctl get clusters
+
+    ⠙ Fetching clusters
+    NAME           MANAGER    LABELS    RESOURCES                  STATUS    AGE
+    cloud-cluster  k8                   cpus: 2.01/4.0             READY     4m
+                                        memory: 12.67 GB/15.63 GB
+                                        disk: 239.15 GB/239.15 GB
+    ✔ Fetching clusters completed successfully.
 
 SkyPilot + RKE2
 ---------------
@@ -29,3 +61,11 @@ Utilizing the Cluster
 
 The KUBECONFIG for the provisioned cluster is stored at ``~/.skyconf/clusters/{cluster_name}/kubeconfig``. 
 To use the ``kubectl`` CLI with the provisioned cluster, you can set the KUBECONFIG environment variable to this path. 
+
+.. code-block:: bash
+
+    $ export KUBECONFIG='~/.skyconf/clusters/cloud-cluster/kubeconfig'
+    $ kubectl get nodes
+
+    NAME                                             STATUS   ROLES                       AGE     VERSION
+    sky-cloud-cluster-0-4f9a-head-7xi46ifi-compute   Ready    control-plane,etcd,master   4m57s   v1.30.4+rke2r1
