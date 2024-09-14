@@ -1,4 +1,5 @@
 # pylint: skip-file
+# Disabling lint since the dependency comes from the docker image provided alongside at runtime
 import sys
 from operator import add
 from random import random
