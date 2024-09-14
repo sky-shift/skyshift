@@ -2584,7 +2584,6 @@ def get_users():
     api_response = get_cli_object(object_type="user")
     print_table('user', api_response)
 
-
 @delete.command(name="user", aliases=["users"])
 @click.argument("username", required=True)
 @halo_spinner("Deleting user")
@@ -2595,6 +2594,29 @@ def delete_users(username: str):
 
     delete_user(object_type="user", name=username)
 
+@click.command(name="port-forward", help="Forward ports from a Kubernetes pod or service.")
+@click.argument("resource", required=True)
+@click.argument("ports", required=True, nargs=-1)
+@click.option("--namespace",
+              type=str,
+              default="default",
+              show_default=True,
+              help="Namespace corresponding to the resource's location.")
+@halo_spinner("Started port-forwarding")
+def port_forward(resource: str, ports: Tuple[str], namespace: str, spinner):
+    """
+    Forward one or more local ports to a pod or service.
+    This CLI command is similar to Kubectl's port forward but for SkyShift managed objects.
+    """
+    from skyshift.cli.cli_utils import port_forward_util
+
+    try:
+        port_forward_util(resource, ports, namespace)
+    except Exception as e:
+        spinner.fail(f"Port forwarding failed: {str(e)}")
+        raise click.ClickException(f"Port forwarding failed: {str(e)}")
+
+cli.add_command(port_forward)
 
 if __name__ == '__main__':
     cli()

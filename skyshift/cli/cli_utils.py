@@ -12,6 +12,9 @@ import click
 from colorama import Fore, Style, init
 from tabulate import tabulate
 from tqdm import tqdm
+from typing import Tuple
+import subprocess
+
 
 from skyshift import utils
 from skyshift.api_client import (ClusterAPI, EndpointsAPI, FilterPolicyAPI,
@@ -846,7 +849,6 @@ def list_users():
     except APIException as error:
         raise click.ClickException(f"Failed to list users: {error}")
 
-
 def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
     """
     Deletes a SkyShift User.
@@ -859,3 +861,23 @@ def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
             f"Failed to delete {name}: {api_response.text}")
 
     click.echo(f"\nDeleted {object_type} {name}.")
+
+def port_forward_util(resource: str, ports: Tuple[str], namespace: str):
+    """
+    Utility function to handle the actual port-forwarding using kubectl.
+
+    Args:
+        resource: The resource name (e.g., pod or service) to port-forward from.
+        ports: A tuple of port mappings (e.g., '8080:80').
+        namespace: The namespace where the resource is located.
+
+    This function constructs the kubectl port-forward command and executes it.
+    """
+    # Construct the kubectl command
+    port_forward_cmd = [
+        "kubectl", "port-forward", resource, *ports, "-n", namespace
+    ]
+    try:
+        subprocess.run(port_forward_cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Port-forward command failed: {str(e)}")
