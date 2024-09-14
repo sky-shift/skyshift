@@ -605,6 +605,7 @@ def print_role_table(roles_list):
         table = tabulate(table_data, field_names, tablefmt="plain")
         click.echo(f"\n{table}\r")
 
+
 def print_user_table(user_list):
     """
     Prints out a table of users.
@@ -613,10 +614,7 @@ def print_user_table(user_list):
 
     table_data = []
     for user in user_list.users:
-        table_data.append([
-            user.username,
-            user.email if user.email else "N/A"
-        ])
+        table_data.append([user.username, user.email if user.email else "N/A"])
 
     if not table_data:
         click.echo("\nNo users found.")
@@ -832,7 +830,8 @@ def list_users():
         response = users_api.list()
         if response.status_code != 200:
             error_details = response.json().get("detail", "Unknown error")
-            raise click.ClickException(f"Failed to list users: {error_details}")
+            raise click.ClickException(
+                f"Failed to list users: {error_details}")
 
         data = response.json()
         users = data.get("users", [])
@@ -841,7 +840,8 @@ def list_users():
             click.echo("\nNo users found.")
         else:
             table_data = [(user['username'], user['email']) for user in users]
-            click.echo("\n" + tabulate(table_data, headers=["Username", "Email"], tablefmt="plain"))
+            click.echo("\n" + tabulate(
+                table_data, headers=["Username", "Email"], tablefmt="plain"))
 
     except APIException as error:
         raise click.ClickException(f"Failed to list users: {error}")

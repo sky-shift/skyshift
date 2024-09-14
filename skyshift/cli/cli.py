@@ -1641,6 +1641,7 @@ def status():  # pylint: disable=too-many-locals
 
 cli.add_command(status)
 
+
 @get.command(name="users", aliases=["user"])
 @halo_spinner("Fetching users")
 def get_users():

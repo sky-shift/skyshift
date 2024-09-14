@@ -1048,7 +1048,9 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
-    async def list_users(self, watch: bool = Query(False), user: str = Depends(authenticate_request)):
+    async def list_users(self,
+                         watch: bool = Query(False),
+                         user: str = Depends(authenticate_request)):
         """
         Lists all users.
         """
