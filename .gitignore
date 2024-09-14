@@ -3,9 +3,10 @@
 **/__pycache__/
 *.egg-info/
 *.eggs/
-.idea/
 
 .vscode
+
+.idea/
 
 # SkyShift Documentation
 docs/build
