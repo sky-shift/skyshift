@@ -1057,6 +1057,8 @@ class APIServer:
         self._authenticate_action(ActionEnum.LIST.value, user, "users", "")
 
         link_header = "users"
+        if watch:
+            return await self._watch_key(link_header)
 
         read_response = self.etcd_client.read_prefix(link_header)
         users_list = [User(**user_data) for user_data in read_response]
@@ -1075,8 +1077,6 @@ class APIServer:
         self._authenticate_action(ActionEnum.DELETE.value, user, "users", "")
 
         link_header = "users"
-        if watch:
-            return await self._watch_key(link_header)
         try:
             delete_response = self.etcd_client.delete(f"{link_header}/{user_delete}")
         except KeyNotFoundError as error:
