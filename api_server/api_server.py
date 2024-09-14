@@ -1074,7 +1074,7 @@ class APIServer:
         """
         Deletes a user.
         """
-        self._authenticate_action(ActionEnum.LIST.value, user, "users", "")
+        self._authenticate_action(ActionEnum.DELETE.value, user, "users", "")
 
         link_header = "users"
         if watch:
