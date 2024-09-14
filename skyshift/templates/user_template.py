@@ -15,5 +15,6 @@ class User(BaseModel):
 
 
 class UserList(BaseModel):
+    """Represents a user list for SkyShift."""
     kind: str = "UserList"
     users: List[User]
