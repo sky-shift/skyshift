@@ -1067,6 +1067,30 @@ class APIServer:
 
         return obj_list
 
+    async def delete_user(self,
+                         user_delete: str,
+                         watch: bool = Query(False),
+                         user: str = Depends(authenticate_request)):
+        """
+        Deletes a user.
+        """
+        self._authenticate_action(ActionEnum.LIST.value, user, "users", "")
+
+        link_header = "users"
+        if watch:
+            return await self._watch_key(link_header)
+        try:
+            delete_response = self.etcd_client.delete(f"{link_header}/{user_delete}")
+        except KeyNotFoundError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User '{user_delete}' does not exist.",
+            ) from error
+
+        if delete_response:
+            return User(**delete_response)
+        raise HTTPException(status_code=400)
+
     async def _authenticate_tty_session(
         self, websocket: WebSocket, user: str = Depends(authenticate_request)):
         """
@@ -1377,6 +1401,14 @@ class APIServer:
             endpoint_name="list_users",
             handler=self.list_users,
             methods=["GET"],
+        )
+
+        # Delete user
+        self._add_endpoint(
+            endpoint="/{users}/{user_delete}",
+            endpoint_name=f"delete_user",
+            handler=self.delete_user,
+            methods=["DELETE"],
         )
 
         self._add_websocket(
