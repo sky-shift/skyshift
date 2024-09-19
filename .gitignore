@@ -6,6 +6,8 @@
 
 .vscode
 
+.idea/
+
 # SkyShift Documentation
 docs/build
 slurm/berkrsa

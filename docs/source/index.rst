@@ -39,12 +39,25 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Registration and Login
+
+   authentication/authentication.rst
+
+.. toctree::
+   :maxdepth: 1
    :caption: Slurm Support
    
    slurm_support/overview.rst
    slurm_support/getting_started/slurm_setup.rst
    slurm_support/quickstart/slurm_quickstart.rst
 
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Kubernetes Support
+   
+   kubernetes_support/overview.rst
+   kubernetes_support/cloud.rst
 
 
 .. toctree::

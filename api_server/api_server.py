@@ -40,7 +40,7 @@ from skyshift.templates.cluster_template import Cluster, ClusterStatusEnum
 from skyshift.templates.event_template import WatchEvent
 from skyshift.templates.job_template import ContainerStatusEnum, TaskStatusEnum
 from skyshift.templates.rbac_template import ActionEnum, Role, RoleMeta, Rule
-from skyshift.templates.user_template import User
+from skyshift.templates.user_template import User, UserList
 from skyshift.utils import load_object, sanitize_cluster_name
 
 ###  Utility functions for the API server.
@@ -1048,6 +1048,25 @@ class APIServer:
             detail=f"Object '{link_header}/{object_name}' does not exist.",
         )
 
+    async def list_users(self,
+                         watch: bool = Query(False),
+                         user: str = Depends(authenticate_request)):
+        """
+        Lists all users.
+        """
+        self._authenticate_action(ActionEnum.LIST.value, user, "users", "")
+
+        link_header = "users"
+        if watch:
+            return await self._watch_key(link_header)
+
+        read_response = self.etcd_client.read_prefix(link_header)
+        users_list = [User(**user_data) for user_data in read_response]
+
+        obj_list = UserList(users=users_list)
+
+        return obj_list
+
     async def _authenticate_tty_session(
         self, websocket: WebSocket, user: str = Depends(authenticate_request)):
         """
@@ -1350,6 +1369,14 @@ class APIServer:
             endpoint_name="revoke_invite",
             handler=self.revoke_invite,
             methods=["POST"],
+        )
+
+        # Get user metadata
+        self._add_endpoint(
+            endpoint="/users",
+            endpoint_name="list_users",
+            handler=self.list_users,
+            methods=["GET"],
         )
 
         self._add_websocket(

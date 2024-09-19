@@ -1641,5 +1641,17 @@ def status():  # pylint: disable=too-many-locals
 
 cli.add_command(status)
 
+
+@get.command(name="users", aliases=["user"])
+@halo_spinner("Fetching users")
+def get_users():
+    """Fetches all users."""
+    from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
+        get_cli_object, print_table)
+
+    api_response = get_cli_object(object_type="user")
+    print_table('user', api_response)
+
+
 if __name__ == '__main__':
     cli()
