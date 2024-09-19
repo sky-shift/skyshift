@@ -52,6 +52,13 @@ Documentation
    slurm_support/quickstart/slurm_quickstart.rst
 
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Kubernetes Support
+   
+   kubernetes_support/overview.rst
+   kubernetes_support/cloud.rst
+
 
 .. toctree::
    :maxdepth: 1
