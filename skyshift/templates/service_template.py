@@ -13,7 +13,7 @@ from skyshift.templates.object_template import (NamespacedObjectMeta, Object,
 class ServiceType(enum.Enum):
     """Enum for Service type."""
     ClusterIP = "ClusterIP"  # pylint: disable=invalid-name
-    # Todo: Disable ClusterIP - https://github.com/sky-shift/skyshift/pull/306/files
+    # Disable ClusterIP - https://github.com/sky-shift/skyshift/pull/306/files
     LoadBalancer = "LoadBalancer"  # pylint: disable=invalid-name
     ExternalName = "ExternalName"  # pylint: disable=invalid-name
     NodePort = "NodePort"  # pylint: disable=invalid-name
