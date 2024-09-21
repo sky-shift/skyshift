@@ -54,7 +54,7 @@ class ServicePorts(BaseModel):
 
 class ServiceSpec(ObjectSpec):
     """Spec of a Service."""
-    type: str = Field(default=ServiceType.ClusterIP.value,
+    type: str = Field(default=ServiceType.NodePort.value,
                       validate_default=True)
     selector: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[ServicePorts] = Field(default=[], validate_default=True)
