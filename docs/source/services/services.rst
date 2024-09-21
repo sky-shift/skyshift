@@ -7,6 +7,12 @@ Introduction
 In **SkyShift**, a *Service* is an abstraction that expose jobs/deployments/compute on resource managers
 like K8s, Ray and Slurm.
 
+.. image:: ../_static/skyshift-services.svg
+   :width: 100%
+   :align: center
+   :alt: SkyShift Services
+
+
 This tutorial will guide you through using SkyShift to create, manage, and delete services within your
 SkyShift clusters.
 
@@ -70,21 +76,61 @@ We can create the service using the following specification:
 
 .. code-block:: bash
 
-    kind: Job
+    kind: Service
 
     metadata:
-      name: myservicejob
-      labels:
-        app: nginx
+      name: servicedemo
 
     spec:
-      replicas: 1
-      image: nginx:1.14.2
-      resources:
-        cpus: 0.5
-        memory: 128
+      type: NodePort
+      primary_cluster: auto
+      selector:
+        app: nginx
       ports:
-        - 80
-      restartPolicy: Always
+        - protocol: TCP
+          port: 8080
+          node_port: 30012
+          target_port: 80
 
+This creates a service called `servicedemo` exposed on node port 30012, and forwarding traffic from port 8080
+to the jobs target port 80. This configuration allows us to access the Nginx job running on the cluster.
+Let's create this using `skyctl apply -f <path_to_yaml>`:
 
+.. code-block:: bash
+
+    ⠙ Applying configuration
+    Created service servicedemo.
+    ✔ Applying configuration completed successfully.
+
+**Step 4: Monitoring the Service**
+
+Since the service is created, we can get services to verify the status and it's working.
+This can be done using `skyctl get services`
+
+.. code-block:: bash
+
+    ⠙ Fetching services
+    NAME         TYPE      CLUSTER-IP    EXTERNAL-IP    PORTS    CLUSTER    NAMESPACE    AGE
+    servicedemo  NodePort                               8080:80  auto       default      29m
+    ✔ Fetching services completed successfully.
+
+**Step 5: Deleting the Service**
+
+Similar to creation, SkyShift services can also be deleted. The following command can be used for this:
+`skyctl delete service servicedemo`
+
+.. code-block:: bash
+
+    ⠙ Deleting service
+    Deleted service servicedemo.
+    ✔ Deleting service completed successfully.
+
+Let's finally get the status and verify that the service was deleted. `skyctl get services`
+
+.. code-block:: bash
+
+    ⠙ Fetching services
+    No services found.
+    ✔ Fetching services completed successfully.
+
+We can verify that the service was deleted. Now you start creating your own services in SkyShift!
