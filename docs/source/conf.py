@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'SkyShift'
 copyright = '2024, SkyShift Team'
@@ -16,6 +17,7 @@ author = 'The SkyShift Authors'
 release = 'v0.0.0'
 
 # -- General configuration ---------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 def copy_command(cmd, name):
     import click
@@ -86,6 +88,7 @@ main_doc = 'index'
 language = 'en'
 
 # -- Options for HTML output -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_book_theme'
 html_theme_options = {
