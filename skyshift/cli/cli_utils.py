@@ -846,9 +846,7 @@ def list_users():
     except APIException as error:
         raise click.ClickException(f"Failed to list users: {error}")
 
-def delete_user(object_type: str,
-                      name: str,
-                      namespace: Optional[str] = None):
+def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
     """
     Deletes a SkyShift User.
     """
@@ -856,6 +854,7 @@ def delete_user(object_type: str,
     api_object = fetch_api_client_object(object_type, namespace)
     api_response = api_object.delete(name=name)
     if api_response.status_code != 200:
-        raise click.ClickException(f"Failed to delete {name}: {api_response.text}")
+        raise click.ClickException(
+            f"Failed to delete {name}: {api_response.text}")
 
     click.echo(f"\nDeleted {object_type} {name}.")

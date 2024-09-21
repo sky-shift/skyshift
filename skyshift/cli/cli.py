@@ -1663,5 +1663,6 @@ def delete_users(username: str, spinner):
 
     delete_user(object_type="user", name=username)
 
+
 if __name__ == '__main__':
     cli()

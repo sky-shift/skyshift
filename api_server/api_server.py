@@ -1068,9 +1068,9 @@ class APIServer:
         return obj_list
 
     async def delete_user(self,
-                         user_delete: str,
-                         watch: bool = Query(False),
-                         user: str = Depends(authenticate_request)):
+                          user_delete: str,
+                          watch: bool = Query(False),
+                          user: str = Depends(authenticate_request)):
         """
         Deletes a user.
         """
@@ -1078,7 +1078,8 @@ class APIServer:
 
         link_header = "users"
         try:
-            delete_response = self.etcd_client.delete(f"{link_header}/{user_delete}")
+            delete_response = self.etcd_client.delete(
+                f"{link_header}/{user_delete}")
         except KeyNotFoundError as error:
             raise HTTPException(
                 status_code=404,
