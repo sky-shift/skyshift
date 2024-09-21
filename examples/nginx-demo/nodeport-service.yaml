@@ -1,0 +1,15 @@
+kind: Service
+
+metadata:
+  name: servicedemo
+
+spec:
+  type: NodePort
+  primary_cluster: auto
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 8080
+      nodePort: 30012
+      target_port: 80
