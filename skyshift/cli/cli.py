@@ -1656,7 +1656,7 @@ def get_users():
 @delete.command(name="user", aliases=["users"])
 @click.argument("username", required=True)
 @halo_spinner("Deleting user")
-def delete_users(username: str, spinner):
+def delete_users(username: str):
     """Deletes a user by username."""
     from skyshift.cli.cli_utils import \
         delete_user  # pylint: disable=import-outside-toplevel
