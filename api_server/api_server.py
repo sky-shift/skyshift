@@ -1069,7 +1069,6 @@ class APIServer:
 
     async def delete_user(self,
                           user_delete: str,
-                          watch: bool = Query(False),
                           user: str = Depends(authenticate_request)):
         """
         Deletes a user.
@@ -1405,7 +1404,7 @@ class APIServer:
         # Delete user
         self._add_endpoint(
             endpoint="/{users}/{user_delete}",
-            endpoint_name=f"delete_user",
+            endpoint_name="delete_user",
             handler=self.delete_user,
             methods=["DELETE"],
         )
