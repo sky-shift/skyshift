@@ -16,7 +16,7 @@ class ServiceType(enum.Enum):
     # (Disabling ClusterIP - https://github.com/sky-shift/skyshift/pull/306/files)
     LoadBalancer = "LoadBalancer"  # pylint: disable=invalid-name
     ExternalName = "ExternalName"  # pylint: disable=invalid-name
-    NodePort     = "NodePort"      # pylint: disable=invalid-name
+    NodePort = "NodePort"  # pylint: disable=invalid-name
 
     def __eq__(self, other):
         if isinstance(other, str):
