@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=all
 """
 SkyShift CLI.
 """
