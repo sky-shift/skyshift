@@ -210,7 +210,9 @@ cli.add_command(apply_config)
 
 # ==============================================================================
 # Cluster API as CLI
-@create.command(name="cluster", aliases=["clusters"], help="""
+@create.command(name="cluster",
+                aliases=["clusters"],
+                help="""
 
     Create a new cluster and attach to SkyShift. Once attached, the cluster can be
     managd via SkyShift and made available for jobs submitted to SkyShift.
@@ -354,7 +356,6 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         num_nodes: int, cloud: str, region: str, provision: bool,
         ssh_key_path: str, config: str, host: str, username: str, spinner):  # pylint: disable=redefined-outer-name
 
-
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -442,8 +443,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                 'ssh_key_path': ssh_key_path
             },
             'config_path':
-                config
-                if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
+            config
+            if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
         },
     }
     create_cli_object(cluster_dictionary)
@@ -454,7 +455,9 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                               None)  # No password for now
 
 
-@get.command(name="cluster", aliases=["clusters"], help="""
+@get.command(name="cluster",
+             aliases=["clusters"],
+             help="""
 
     The get cluster command fetches and displays details for one or all clusters
     being managed by SkyShift. This provides the names, managers, statuses, and
@@ -532,7 +535,9 @@ def get_clusters(name: str, watch: bool):
     print_table('cluster', api_response)
 
 
-@delete.command(name="cluster", aliases=["clusters"], help="""
+@delete.command(name="cluster",
+                aliases=["clusters"],
+                help="""
 
     The ``delete cluster`` command removes a cluster from SkyShift. For a cluster
     being managed by SkyShift, this command simply detaches the cluster. If the
@@ -551,8 +556,7 @@ def get_clusters(name: str, watch: bool):
         from SkyShift's management. If it was provisioned by SkyShift, the cluster will
         be deleted from the cloud provider as well.
 
-    """
-)
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting cluster")
 def delete_cluster(name: str):
@@ -565,7 +569,9 @@ def delete_cluster(name: str):
 
 # ==============================================================================
 # Job API as CLI
-@create.command(name="job", aliases=["jobs"], help="""
+@create.command(name="job",
+                aliases=["jobs"],
+                help="""
 
     The create job command allows submission of a new job to SkyShift. You can
     also customize the specific job requirements such as Replicas, Memory, CPU
@@ -716,7 +722,6 @@ def create_job(
     volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
 
-
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -790,7 +795,9 @@ def create_job(
     create_cli_object(job_dictionary)
 
 
-@get.command(name="job", aliases=["jobs"], help="""
+@get.command(name="job",
+             aliases=["jobs"],
+             help="""
 
     The get job command fetches and displays any job which was submitted
     to SkyShift. This provides the metadata associated for the running job.
@@ -852,7 +859,8 @@ def get_job(name: str, namespace: str, watch: bool):
     print_table('job', api_response)
 
 
-@click.command(name="logs", help="""
+@click.command(name="logs",
+               help="""
 
     This command fetches and displays the logs for a specific job within a namespace.
     This can be useful for debugging or monitoring an on-going job.
@@ -872,8 +880,7 @@ def get_job(name: str, namespace: str, watch: bool):
            the `default` namespace. The logs will be output directly to the console,
            allowing you to monitor the job's execution or diagnose issues.
     
-    """
-)
+    """)
 @click.argument("name", default=None, required=False)
 @click.option(
     "--namespace",
@@ -894,7 +901,9 @@ def job_logs(name: str, namespace: str):
 cli.add_command(job_logs)
 
 
-@delete.command(name="job", aliases=["jobs"], help="""
+@delete.command(name="job",
+                aliases=["jobs"],
+                help="""
 
     Deletes a specified job from the given namespace.
     This command permanently removes the job from the specified namespace.
@@ -930,7 +939,9 @@ def delete_job(name: str, namespace: str):
 
 # ==============================================================================
 # Namespace API as CLI
-@create.command(name="namespace", aliases=["namespaces"], help="""
+@create.command(name="namespace",
+                aliases=["namespaces"],
+                help="""
 
     The create namespace command creates a new namespace within SkyShift.
     This command initializes a new namespace specified by the 'name' argument.
@@ -971,7 +982,9 @@ def create_namespace(name: str, spinner):
     create_cli_object(namespace_dictionary)
 
 
-@get.command(name="namespace", aliases=["namespaces"], help="""
+@get.command(name="namespace",
+             aliases=["namespaces"],
+             help="""
 
     The ``get namespace`` command allows fetching of details about one or all
     namespaces being managed by SkyShift. This command provides detailed information
@@ -1023,7 +1036,9 @@ def get_namespace(name: str, watch: bool):
     print_table('namespace', api_response)
 
 
-@delete.command(name="namespace", aliases=["namespaces"], help="""
+@delete.command(name="namespace",
+                aliases=["namespaces"],
+                help="""
 
     Deletes a specified namespace from SkyShift. This command permanently
     removes the namespace being managed by SkyShift. Returns an error if
@@ -1274,7 +1289,9 @@ def delete_filter_policy(name: str, namespace: str, spinner):
 
 # ==============================================================================
 # Link CLI
-@create.command(name="link", aliases=["links"], help="""
+@create.command(name="link",
+                aliases=["links"],
+                help="""
 
     The ``create link`` command creates a new link between two specified clusters,
     enabling them to communicate directly with each other.
@@ -1290,8 +1307,7 @@ def delete_filter_policy(name: str, namespace: str, spinner):
            and `clusterB` (the target cluster). This allows the two clusters to communicate directly,
            facilitating data exchange or other interactions.
 
-    """
-)
+    """)
 @click.argument("name", required=True)
 @click.option("--source", "-s", required=True, help="Source cluster name")
 @click.option("--target", "-t", required=True, help="Target cluster name")
@@ -1336,7 +1352,9 @@ def create_link(name: str, source: str, target: str, spinner):
     create_cli_object(obj_dict)
 
 
-@get.command(name="link", aliases=["links"], help="""
+@get.command(name="link",
+             aliases=["links"],
+             help="""
 
     The ``get links`` command fetches the details about one specific link or all links
     between clusters which were created by SkyShift, with an optional watch functionality.
@@ -1389,7 +1407,9 @@ def get_links(name: str, watch: bool):
     print_table('link', api_response)
 
 
-@delete.command(name="link", aliases=["links"], help="""
+@delete.command(name="link",
+                aliases=["links"],
+                help="""
     
     The delete link command permanently removes the link (identified by the given name)
     from SkyShift.
@@ -1418,7 +1438,9 @@ def delete_link(name: str):
 
 # ==============================================================================
 # Service API as CLI
-@create.command(name="service", aliases=["services", "svc"], help=""""
+@create.command(name="service",
+                aliases=["services", "svc"],
+                help=""""
 
     The create service command creates a new service within SkyShift. You can customize this
     for specific namespaces, specific service types, selectors, ports and clusters.
@@ -1571,7 +1593,9 @@ def create_service(
     create_cli_object(service_dictionary)
 
 
-@get.command(name="service", aliases=["services", "svc"], help="""
+@get.command(name="service",
+             aliases=["services", "svc"],
+             help="""
 
     The get service command fetches the details about one specific or all services within
     a given namespace, with an optional watch functionality.
@@ -1630,7 +1654,9 @@ def get_service(name: str, namespace: str, watch: bool):
     print_table('service', api_response)
 
 
-@delete.command(name="service", aliases=["services", "svc"], help="""
+@delete.command(name="service",
+                aliases=["services", "svc"],
+                help="""
 
     Deletes a specified service from the given namespace. This command permanently removes
     the service identified by the given name from the specified namespace.
@@ -1654,8 +1680,7 @@ def get_service(name: str, namespace: str, watch: bool):
            This command deletes the `my-service` from the `production` namespace. This is useful for cleaning up
            services that are no longer needed in a specific environment or namespace.
 
-    """
-)
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -1675,7 +1700,9 @@ def delete_service(name: str, namespace: str):
 
 # ==============================================================================
 # Endpoints API as CLI
-@create.command(name="endpoints", aliases=["endpoint", "edp", "edps"], help="""
+@create.command(name="endpoints",
+                aliases=["endpoint", "edp", "edps"],
+                help="""
 
     Creates a new set of endpoints within a specified namespace, customizable via user provided
     arguments. This command sets up endpoints, which represent network-accessible points
@@ -1791,7 +1818,9 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     create_cli_object(endpoints_object)
 
 
-@get.command(name="endpoints", aliases=["endpoint", "edp", "edps"], help="""
+@get.command(name="endpoints",
+             aliases=["endpoint", "edp", "edps"],
+             help="""
 
     Use the get endpoints command to fetch the details about one specific or all
     endpoints within a given namespace, with an optional watch functionality.
@@ -1849,7 +1878,9 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     print_table('endpoints', api_response)
 
 
-@delete.command(name="endpoints", aliases=["endpoint", "edp", "edps"], help="""
+@delete.command(name="endpoints",
+                aliases=["endpoint", "edp", "edps"],
+                help="""
     Use the delete endpoints command to permanently remove any endpoint being
     managed by SkyShift.
 
@@ -1894,7 +1925,9 @@ def delete_endpoints(name: str, namespace: str):
 # Role API as CLI
 
 
-@create.command(name="role", aliases=["roles"], help="""
+@create.command(name="role",
+                aliases=["roles"],
+                help="""
 
     Creates a new role with specified permissions and access controls within SkyShift.
     This is highly customizable and allows access management for organizations where
@@ -1983,7 +2016,9 @@ def create_role(  # pylint: disable=too-many-arguments
     create_cli_object(role_object)
 
 
-@get.command(name="role", aliases=["roles"], help="""
+@get.command(name="role",
+             aliases=["roles"],
+             help="""
     The get roles command fetches the roles created in SkyShift and associated permissions/metadata.
     This also allows continuous monitoring to the role if watch is enabled.
 
@@ -2037,7 +2072,9 @@ def get_roles(name: str, watch: bool, spinner):
     print_table('role', api_response)
 
 
-@delete.command(name="role", aliases=["roles"], help="""
+@delete.command(name="role",
+                aliases=["roles"],
+                help="""
 
     Deletes a specified role from SkyShift. Immediately revokes the role and associated permissions.
 
@@ -2051,8 +2088,7 @@ def get_roles(name: str, watch: bool, spinner):
            This command deletes the `admin-role` from SkyShift. Once deleted, all permissions and access
            controls associated with this role are revoked, and the role can no longer be assigned to users.
 
-    """
-)
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting role")
 def delete_role(name, spinner):
@@ -2070,7 +2106,8 @@ def delete_role(name, spinner):
 # SkyShift exec
 
 
-@click.command(name="exec", help="""
+@click.command(name="exec",
+               help="""
 
     Executes a specified command within a container of a resource.
 
@@ -2109,8 +2146,7 @@ def delete_role(name, spinner):
            This command opens an interactive `bash` shell in the `my-pod` resource, enabling user interaction
            with the shell through a TTY (interactive) session.
 
-    """
-)
+    """)
 @click.argument("resource", required=True)
 @click.argument("command", nargs=-1, required=True)
 @click.option(
@@ -2257,12 +2293,12 @@ def exec_command(  # pylint: disable=too-many-arguments disable=too-many-locals 
 
 cli.add_command(exec_command_sync)
 
-
 # ==============================================================================
 # User API as CLI
 
 
-@click.command('register', help="""
+@click.command('register',
+               help="""
     
     The register command registers a new user in the system within SkyShift based on an invitation.
     
@@ -2284,8 +2320,7 @@ cli.add_command(exec_command_sync)
            The user is validated using the invite key `abcd1234` and the email address `newuser@example.com`
            is associated with the account for notifications and recovery.
 
-    """
-)
+    """)
 @click.argument('username', required=True)
 @click.argument('password', required=True)
 @click.option('--invite',
@@ -2308,9 +2343,8 @@ def register(username, email, password, invite):  # pylint: disable=redefined-ou
 cli.add_command(register)
 
 
-@click.command(
-    'login',
-    help="""
+@click.command('login',
+               help="""
     
     Logs a user into SkyShift using a username and password. This command authenticates
     a user based on the provided credentials. It is important to note that this login
@@ -2328,8 +2362,7 @@ cli.add_command(register)
            The user is authenticated based on the provided credentials, but the active user session
            remains unchanged.
 
-    """
-)
+    """)
 @click.argument('username', required=True)
 @click.argument('password', required=True)
 @halo_spinner("Logging in")
@@ -2343,7 +2376,8 @@ def login(username, password):
 cli.add_command(login)
 
 
-@click.command('invite', help="""
+@click.command('invite',
+               help="""
 
     Creates a new invitation key for user registration, allowing outputting in JSON format.
     This command generates an invitation key that can be used for registering new users
@@ -2377,8 +2411,7 @@ cli.add_command(login)
            This command generates an invitation key and outputs it in JSON format. The JSON object will
            include the invite key under the key 'invite'.
 
-    """
-)
+    """)
 @click.option(
     '--json',
     is_flag=True,
@@ -2400,7 +2433,8 @@ def invite(json, role):  # pylint: disable=redefined-outer-name
 cli.add_command(invite)
 
 
-@click.command('revoke_invite', help="""
+@click.command('revoke_invite',
+               help="""
 
     The revoke invite command allows revoking an existing invitation key.
     This means the user will not be able to use it in the future for registering
@@ -2464,7 +2498,8 @@ def use_sky_context(name: str, spinner):
     use_context(name)
 
 
-@click.command(name="status", help="""
+@click.command(name="status",
+               help="""
 
     The status command displays the current status of clusters, available resources,
     and recent jobs in SkyShift.

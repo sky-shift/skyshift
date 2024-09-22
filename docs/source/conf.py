@@ -19,26 +19,27 @@ release = 'v0.0.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+
 def copy_command(cmd, name):
     import click
-    return click.Command(
-        name=name,
-        callback=cmd.callback,
-        params=cmd.params,
-        help=cmd.help,
-        epilog=cmd.epilog,
-        short_help=cmd.short_help,
-        options_metavar=cmd.options_metavar,
-        add_help_option=False,
-        no_args_is_help=cmd.no_args_is_help,
-        hidden=cmd.hidden,
-        deprecated=cmd.deprecated
-    )
+    return click.Command(name=name,
+                         callback=cmd.callback,
+                         params=cmd.params,
+                         help=cmd.help,
+                         epilog=cmd.epilog,
+                         short_help=cmd.short_help,
+                         options_metavar=cmd.options_metavar,
+                         add_help_option=False,
+                         no_args_is_help=cmd.no_args_is_help,
+                         hidden=cmd.hidden,
+                         deprecated=cmd.deprecated)
+
 
 def rearrange_cli_commands():
-    import skyshift.cli.cli as cli_module
-    from click import Group
     import click
+    from click import Group
+
+    import skyshift.cli.cli as cli_module
 
     new_cli = Group(help="SkyShift CLI")
 
@@ -71,6 +72,7 @@ def rearrange_cli_commands():
             new_cli.add_command(cmd, name=cmd_name)
 
     cli_module.cli = new_cli
+
 
 rearrange_cli_commands()
 
