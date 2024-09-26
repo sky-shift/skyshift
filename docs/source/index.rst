@@ -55,7 +55,8 @@ Documentation
    :maxdepth: 1
    :caption: Ray Support
    
-   ray/ray_quickstart.rst
+   ray/quickstart/ray_quickstart.rst
+   ray/overview.rst
 
 
 .. toctree::
