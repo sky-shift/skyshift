@@ -1,0 +1,17 @@
+kind: Role
+metadata:
+  name: admin
+rules:
+  - name: full-access
+    resources:
+      - services
+      - clusters
+      - user
+    actions:
+      - create
+      - update
+      - delete
+      - get
+      - list
+users:
+  - admin_user1

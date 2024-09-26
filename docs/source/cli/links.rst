@@ -3,7 +3,8 @@ Links
 
 SkyShift's CLI, `skyctl`, offers a suite of commands for managing links between 
 clusters, establishing bidirectional connections that enhance inter-cluster 
-communication and service discovery. This section guides you through the creation, 
+communication and service discovery. Details regarding how network communication is established is explained in `networking <../architecture/networking.rst>`_.
+This section guides you through the creation, 
 retrieval, and deletion of links, ensuring seamless connectivity across your clustered 
 environment.
 

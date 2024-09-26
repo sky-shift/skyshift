@@ -1,0 +1,16 @@
+kind: Job
+metadata:
+  name: pyspark
+  namespace: default
+  labels: {}
+spec:
+  image: apache/spark-py:latest
+  volumes: {}
+  envs: {}
+  resources:
+    cpus: 1.0
+    gpus: 0
+    memory: 0.0
+  run: "/opt/entrypoint.sh driver /opt/spark/examples/src/main/python/pi_example.py"
+  replicas: 1
+  restart_policy: Never

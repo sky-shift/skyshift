@@ -50,8 +50,7 @@ spec:
             - "/bin/sh"
             - "-c"
           args:
-            - |         
-              {{run}}
+            - "{{run | trim}}"
           {% endif %}
           resources:
             limits:

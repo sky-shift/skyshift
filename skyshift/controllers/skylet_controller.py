@@ -115,11 +115,11 @@ class SkyletController(Controller):
         for cluster_dictionary in new_clusters:
             try:
                 cluster_obj = ClusterAPI().create(config=cluster_dictionary)
+                self._launch_skylet(cluster_obj)
             except APIException as error:
                 self.logger.error("Failed to create cluster: %s. Error: %s",
                                   cluster_dictionary['metadata']['name'],
                                   error)
-            self._launch_skylet(cluster_obj)
 
         # Start clusters already stored in ETCD by SkyShift.
         for cluster in self.cluster_api.list().objects:

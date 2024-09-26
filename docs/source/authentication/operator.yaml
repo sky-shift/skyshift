@@ -1,0 +1,15 @@
+kind: Role
+metadata:
+  name: operator
+  namespaces:
+    - production
+rules:
+  - name: service-operations
+    resources:
+      - services
+    actions:
+      - get
+      - list
+users:
+  - ops_user1
+  - ops_user2

@@ -394,8 +394,8 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                 'ssh_key_path': ssh_key_path
             },
             'config_path':
-            config if not provision else
-            f"{cloud_cluster_dir(name)}/kube_config_rke_cluster.yml",
+            config
+            if not provision else f"{cloud_cluster_dir(name)}/kubeconfig",
         },
     }
     create_cli_object(cluster_dictionary)
@@ -1640,6 +1640,18 @@ def status():  # pylint: disable=too-many-locals
 
 
 cli.add_command(status)
+
+
+@get.command(name="users", aliases=["user"])
+@halo_spinner("Fetching users")
+def get_users():
+    """Fetches all users."""
+    from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
+        get_cli_object, print_table)
+
+    api_response = get_cli_object(object_type="user")
+    print_table('user', api_response)
+
 
 if __name__ == '__main__':
     cli()
