@@ -52,6 +52,12 @@ Documentation
    slurm_support/getting_started/slurm_setup.rst
    slurm_support/quickstart/slurm_quickstart.rst
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Ray Support
+   
+   ray/ray_quickstart.rst
+
 
 .. toctree::
    :maxdepth: 1
