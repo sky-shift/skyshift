@@ -11,7 +11,7 @@ spec:
   image: docker.io/istio/examples-bookinfo-reviews-v2
   resources:
     cpus: 7
-    memory: 128
+    memory: 512
   ports:
     - 9080
   restartPolicy: Always

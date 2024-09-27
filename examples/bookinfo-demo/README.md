@@ -126,16 +126,17 @@ This example needs atleast two k8s clusters or local KIND clusters
     skyctl create link -s kind-cluster1 -t kind-cluster2 clink
     ```
 
-9) Now, we create reviews service in cluster1, so that it is accessible to productpage. At this point it uses clusterlink to import the reviews service from cluster2 
-
-    ```
-    skyctl apply -f skyshift/examples/bookinfo-demo/reviews_service.yaml
-    ```
+9) Now, we create reviews service in cluster1, so that it is accessible to productpage.
 
     ```
     skyctl apply -f skyshift/examples/bookinfo-demo/ratings_service.yaml
     ```
 
+    ```
+    skyctl apply -f skyshift/examples/bookinfo-demo/reviews_service.yaml
+    ```
+
+     At this point it uses clusterlink to import the reviews service from cluster2 
 
 10) Now, we can try to access the productpage frontend application using
 ```
