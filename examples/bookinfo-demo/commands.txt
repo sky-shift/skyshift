@@ -1,0 +1,103 @@
+kubectl apply -f ../manifests/product/product.yaml
+kubectl get pods
+kubectl apply -f ../manifests/product/details.yaml
+kubectl get pods
+kubectl config use-context peer2/crmr037d0go1b60qg1b0
+kubectl apply -f ../manifests/review/review-v2.yaml
+kubectl apply -f ../manifests/review/rating.yaml
+
+skyctl create link --help -s peer1 -t peer2 link1
+
+gwctl create export --myid peer2 --name reviews --port 9080
+gwctl create import --myid peer1 --name reviews --port 9080 --peer peer2
+http://169.46.32.44:30001/productpage
+
+
+
+KIND deployment
+
+kind create cluster --name=cluster1
+skyctl create cluster --manager k8 kind-cluster1
+
+export BOOKINFO_FILES=https://raw.githubusercontent.com/clusterlink-net/clusterlink/main/demos/bookinfo/manifests
+kubectl config use-context kind-cluster1
+kubectl apply -f $BOOKINFO_FILES/product/product.yaml
+kubectl apply -f $BOOKINFO_FILES/product/details.yaml
+
+
+kind create cluster --name=cluster2
+skyctl create cluster --manager k8 kind-cluster2
+skyctl create link -s kind-cluster1 -t kind-cluster2 link1
+
+kubectl config use-context kind-cluster2
+kubectl apply -f $BOOKINFO_FILES/review/review-v2.yaml
+kubectl apply -f $BOOKINFO_FILES/review/rating.yaml
+
+kubectl config use-context kind-cluster1
+export CLIENT_IP=`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cluster1-control-plane`
+wget http://172.18.0.2:30001/productpage 
+
+gwctl create export --myid kind-cluster2 --name reviews --port 9080
+gwctl create import --myid kind-cluster1 --name reviews --port 9080 --peer kind-cluster2
+
+
+
+
+Skyctl deployment
+
+kind create cluster --name=cluster1
+skyctl create cluster --manager k8 kind-cluster1
+
+skyctl apply -f skyshift/examples/bookinfo-demo/productpage.yaml
+If kind use product page service nodeport
+  kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml
+
+  kubectl apply -f - <<EOF
+  apiVersion: metallb.io/v1beta1
+  kind: IPAddressPool
+  metadata:
+    name: kind-pool
+    namespace: metallb-system
+  spec:
+    addresses:
+      - 172.18.255.1-172.18.255.250  # Choose an IP range that doesn't conflict with your local network
+  ---
+  apiVersion: metallb.io/v1beta1
+  kind: L2Advertisement
+  metadata:
+    name: kind-advertisement
+    namespace: metallb-system
+  EOF
+
+
+ echo "apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: kind-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 172.18.255.1-172.18.255.250  # Choose an IP range that doesn't conflict with your local network
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: kind-advertisement
+  namespace: metallb-system" > metallb.yaml
+
+kubectl apply -f metallb.yaml
+
+otherwise:
+ skyctl apply -f skyshift/examples/bookinfo-demo/productpage_service.yaml 
+
+skyctl apply -f skyshift/examples/bookinfo-demo/details.yaml
+skyctl apply -f skyshift/examples/bookinfo-demo/details_service.yaml
+
+kind create cluster --name=cluster2
+skyctl create cluster --manager k8 kind-cluster2
+skyctl create link -s kind-cluster1 -t kind-cluster2 link1
+skyctl apply -f skyshift/examples/bookinfo-demo/reviews.yaml
+skyctl apply -f skyshift/examples/bookinfo-demo/ratings.yaml
+skyctl apply -f skyshift/examples/bookinfo-demo/ratings_service.yaml
+
+skyctl apply -f skyshift/examples/bookinfo-demo/reviews_service.yaml

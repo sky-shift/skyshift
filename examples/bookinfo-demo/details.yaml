@@ -1,0 +1,19 @@
+kind: Job
+
+metadata: 
+  name: details-v1
+  labels:
+    app: details
+    version: v1
+  annotations:
+    sidecar.istio.io/inject: "true"
+
+spec:
+  replicas: 1
+  image: docker.io/istio/examples-bookinfo-details-v1
+  resources:
+    cpus: 7
+    memory: 128
+  ports:
+    - 9080
+  restartPolicy: Always

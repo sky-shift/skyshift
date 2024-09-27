@@ -1,0 +1,17 @@
+kind: Job
+
+metadata: 
+  name: productpage
+  labels:
+    app: productpage
+    version: v1
+
+spec:
+  replicas: 1
+  image: docker.io/istio/examples-bookinfo-productpage-v1
+  resources:
+    cpus: 7
+    memory: 128
+  ports:
+    - 9080
+  restartPolicy: Always

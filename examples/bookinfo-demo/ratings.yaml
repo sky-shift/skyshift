@@ -1,0 +1,17 @@
+kind: Job
+
+metadata: 
+  name: ratings-v1
+  labels:
+    app: ratings
+    version: v1
+
+spec:
+  replicas: 1
+  image: docker.io/istio/examples-bookinfo-ratings-v1
+  resources:
+    cpus: 7
+    memory: 128
+  ports:
+    - 9080
+  restartPolicy: Always
