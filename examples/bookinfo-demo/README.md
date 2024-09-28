@@ -2,12 +2,10 @@
 # BookInfo  Example
 
 This example demonstrates an how an application like [Istio BookInfo](https://istio.io/latest/docs/examples/bookinfo/) can be deployed using Skyshift
-This demo shows different load-balancing policies like: random, round-robin or static destination.
-This test create three kind clusters:
+This test uses two k8s clusters:
 
-* A Product-Page microservice (application frontend) and details microservice run on the first cluster.
-* The Reviews-V2 (display rating with black stars) and Rating microservices run on the second cluster.
-* The Reviews-V3 (display rating with black stars) and Rating microservices run on the third cluster. (Optional)
+* A Product-Page microservice (application frontend) and details microservice run on the first cluster, which is used as a frontned.
+* The Reviews-V2 (display rating with black stars) and Rating microservices run on the second cluster, used as a backend.
 
 This example needs atleast two k8s clusters or local KIND clusters
 
@@ -19,7 +17,7 @@ This example needs atleast two k8s clusters or local KIND clusters
     ```
     kind create cluster --name=cluster1
     ```
-    Next, enable MetalLB to provision loadbalancer for creating service with external IP
+    Next, enable MetalLB to provision loadbalancer for creating service with external IP, since this will be a frontend cluster
 
     ```
     kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml
@@ -55,9 +53,18 @@ This example needs atleast two k8s clusters or local KIND clusters
     Finally, add this cluster to Skyshift
 
     ```  
-    skyctl create cluster --manager k8 kind-cluster1
+    skyctl create cluster --manager k8 kind-cluster1 --labels type frontend
     ```
-3) Submit the jobs productpage and details microservice to Skyshift
+3) Now, add the second cluster to Skyshift
+    Optionally, Create KIND cluster
+    ```
+    kind create cluster --name=cluster2
+    ```
+
+    ```  
+    skyctl create cluster --manager k8 kind-cluster2 --labels type backend
+    ```
+4) Submit the jobs productpage and details microservice to Skyshift
 
     ```
     skyctl apply -f skyshift/examples/bookinfo-demo/productpage.yaml
@@ -77,23 +84,13 @@ This example needs atleast two k8s clusters or local KIND clusters
                                             memory: 128.00 MB
     ✔ Fetching jobs completed successfully.
     ```
-4) Create a service for the jobs
+5) Create a service for the jobs
     ```
     skyctl apply -f skyshift/examples/bookinfo-demo/productpage_service.yaml 
 
     ```
     ```
     skyctl apply -f skyshift/examples/bookinfo-demo/details_service.yaml 
-    ```
-
-5) Now, add the second cluster to Skyshift
-    Optionally, Create KIND cluster
-    ```
-    kind create cluster --name=cluster2
-    ```
-
-    ```  
-    skyctl create cluster --manager k8 kind-cluster2
     ```
 
 6) Deploy reviews and ratings microservice in cluster2
@@ -126,7 +123,7 @@ This example needs atleast two k8s clusters or local KIND clusters
     skyctl create link -s kind-cluster1 -t kind-cluster2 clink
     ```
 
-9) Now, we create reviews service in cluster1, so that it is accessible to productpage.
+8) Now, we create reviews service in cluster1, so that it is accessible to productpage.
 
     ```
     skyctl apply -f skyshift/examples/bookinfo-demo/ratings_service.yaml
@@ -138,12 +135,12 @@ This example needs atleast two k8s clusters or local KIND clusters
 
      At this point it uses clusterlink to import the reviews service from cluster2 
 
-10) Now, we can try to access the productpage frontend application using
-```
-    export FRONTEND_IP=`kubectl get svc productpage --context kind-cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
-```
-    open http://$FRONTEND_IP/productpage in browser
+9) Now, we can try to access the productpage frontend application using
 
+    ```
+    export FRONTEND_IP=`kubectl get svc productpage --context kind-cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
+    ```
+    open http://$FRONTEND_IP/productpage in browser
 
 
 10) Finally, Cleanup

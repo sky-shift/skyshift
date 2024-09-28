@@ -10,8 +10,13 @@ spec:
   replicas: 1
   image: docker.io/istio/examples-bookinfo-productpage-v1
   resources:
-    cpus: 7
+    cpus: 2
     memory: 512
   ports:
     - 9080
   restartPolicy: Always
+  placement:
+    filters:
+      - name: filter-1
+        match_labels:
+          type: frontend
