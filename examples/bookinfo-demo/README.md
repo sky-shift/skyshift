@@ -140,7 +140,7 @@ This example needs atleast two k8s clusters or local KIND clusters
     ```
     export FRONTEND_IP=`kubectl get svc productpage --context kind-cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
     ```
-    open http://$FRONTEND_IP/productpage in browser
+    open http://$FRONTEND_IP/productpage in browser, and you should be able to view the rating/reviews of the book.
 
 
 10) Finally, Cleanup
