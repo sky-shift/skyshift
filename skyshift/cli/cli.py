@@ -952,7 +952,7 @@ def delete_link(name: str):
 @click.option("--service_type",
               "-t",
               type=str,
-              default="ClusterIP",
+              default="NodePort",
               show_default=True,
               help="Type of service.")
 @click.option("--selector",
