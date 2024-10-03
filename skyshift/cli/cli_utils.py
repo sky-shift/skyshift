@@ -180,7 +180,8 @@ def print_table(table_type, *args, **kwargs):
         'service': print_service_table,
         'link': print_link_table,
         'endpoints': print_endpoints_table,
-        'role': print_role_table
+        'role': print_role_table,
+        'user': print_user_table
     }
     print_function = table_function_map.get(table_type)
     if print_function:
@@ -605,6 +606,23 @@ def print_role_table(roles_list):
         click.echo(f"\n{table}\r")
 
 
+def print_user_table(user_list):
+    """
+    Prints out a table of users.
+    """
+    field_names = ["Username", "Email"]
+
+    table_data = []
+    for user in user_list.users:
+        table_data.append([user.username, user.email if user.email else "N/A"])
+
+    if not table_data:
+        click.echo("\nNo users found.")
+    else:
+        table = tabulate(table_data, headers=field_names, tablefmt="plain")
+        click.echo(f"\n{table}\r")
+
+
 def register_user(username: str, email: str, password: str, invite: str):
     """
     Register user in API Server.
@@ -801,3 +819,43 @@ def display_running_jobs(job_list):
 
     click.echo(f"\n{Fore.BLUE}{Style.BRIGHT}Jobs{Style.RESET_ALL}", nl=False)
     print_table('job', JobList(objects=running_jobs_sorted))
+
+
+def list_users():
+    """
+    List all users from the API Server.
+    """
+    users_api: UserAPI = fetch_api_client_object("user")  # type: ignore
+    try:
+        response = users_api.list()
+        if response.status_code != 200:
+            error_details = response.json().get("detail", "Unknown error")
+            raise click.ClickException(
+                f"Failed to list users: {error_details}")
+
+        data = response.json()
+        users = data.get("users", [])
+
+        if not users:
+            click.echo("\nNo users found.")
+        else:
+            table_data = [(user['username'], user['email']) for user in users]
+            click.echo("\n" + tabulate(
+                table_data, headers=["Username", "Email"], tablefmt="plain"))
+
+    except APIException as error:
+        raise click.ClickException(f"Failed to list users: {error}")
+
+
+def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
+    """
+    Deletes a SkyShift User.
+    """
+
+    api_object = fetch_api_client_object(object_type, namespace)
+    api_response = api_object.delete(name=name)
+    if api_response.status_code != 200:
+        raise click.ClickException(
+            f"Failed to delete {name}: {api_response.text}")
+
+    click.echo(f"\nDeleted {object_type} {name}.")

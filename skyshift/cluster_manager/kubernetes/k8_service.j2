@@ -19,4 +19,7 @@ spec:
     - protocol: {{ port.protocol }}
       port: {{ port.port }}
       targetPort: {{ port.target_port }}
+      {% if port.node_port %}
+      nodePort: {{ port.node_port }}
+      {% endif %}
     {% endfor %}

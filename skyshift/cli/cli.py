@@ -1488,7 +1488,7 @@ def delete_link(name: str):
 @click.option("--service_type",
               "-t",
               type=str,
-              default="ClusterIP",
+              default="NodePort",
               show_default=True,
               help="Type of service.")
 @click.option("--selector",
@@ -2572,6 +2572,29 @@ def status():  # pylint: disable=too-many-locals
 
 
 cli.add_command(status)
+
+
+@get.command(name="users", aliases=["user"])
+@halo_spinner("Fetching users")
+def get_users():
+    """Fetches all users."""
+    from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
+        get_cli_object, print_table)
+
+    api_response = get_cli_object(object_type="user")
+    print_table('user', api_response)
+
+
+@delete.command(name="user", aliases=["users"])
+@click.argument("username", required=True)
+@halo_spinner("Deleting user")
+def delete_users(username: str):
+    """Deletes a user by username."""
+    from skyshift.cli.cli_utils import \
+        delete_user  # pylint: disable=import-outside-toplevel
+
+    delete_user(object_type="user", name=username)
+
 
 if __name__ == '__main__':
     cli()

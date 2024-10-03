@@ -1,0 +1,17 @@
+kind: Service
+
+metadata:
+  name: node-port-service-demo1
+
+spec:
+  type: NodePort
+  # Enter which cluster to deploy service on.
+  # By default, it selects the cluster with most replicas.
+  primary_cluster: kind-kind
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 8080
+      target_port: 80
+      node_port: 30012
