@@ -39,7 +39,7 @@ Copy the following YAML into **~/.skyconf/slurm_config.yaml** file:
     # password: whatever
 
 This defines a cluster with the following components:
-- :code:`SlurmCluster1` : name of the Slurm Cluster, this needs to be unique for each cluster, but can be whatever you choose.
+- **SlurmCluster1** : name of the Slurm Cluster, this needs to be unique for each cluster, but can be whatever you choose.
 
 - **interface** : the method SkyShift will use to access the cluster. Currently only `cli` is supported.
 
