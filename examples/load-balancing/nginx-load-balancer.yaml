@@ -34,8 +34,8 @@ data:
   nginx-lb.conf: |
     http {
         upstream k8s_clusters {
-            server 172.19.0.2:30001;
-            server 172.19.0.3:30001;
+            server <IP1>:30001;
+            server <IP2>:30001;
         }
         server {
             listen 80;

@@ -1,0 +1,14 @@
+kind: Service
+
+metadata:
+  name: nginx-lb-service
+
+spec:
+  type: NodePort
+  primary_cluster: kind-cluster1
+  selector:
+    app: nginx-lb
+  ports:
+    - port: 80
+      node_port: 30002
+      target_port: 80

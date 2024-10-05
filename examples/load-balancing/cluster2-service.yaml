@@ -1,7 +1,7 @@
 kind: Service
 
 metadata:
-  name: nginx-service
+  name: nginx-service2
 
 spec:
   type: NodePort

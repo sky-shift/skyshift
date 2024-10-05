@@ -1,7 +1,7 @@
 kind: Job
 
 metadata:
-  name: nginx
+  name: nginx2
   labels:
     app: nginx
 
@@ -15,3 +15,8 @@ spec:
   ports:
     - 80
   restartPolicy: Always
+  placement:
+    filters:
+      - name: only-kind-cluster2
+        match_labels:
+          name: kind-cluster2
