@@ -1,0 +1,35 @@
+kind: Job
+metadata:
+  name: tpcds-data-generation
+  namespace: default
+spec:
+  image: spark-tpcds-with-dsdgen
+  image_pull_policy: Never
+  envs: {}
+  resources:
+    cpus: 1
+    gpus: 0
+    memory: 2048
+  run: |
+    /opt/spark/bin/spark-submit --class com.databricks.spark.sql.perf.tpcds.GenTPCDSData \
+    --master spark://spark-master:7077 \
+    --conf spark.kubernetes.driver.request.cores=2 \
+    --conf spark.driver.memory=1G \
+    --conf spark.driver.memoryOverhead=256m \
+    --conf spark.driver.cores=2 \
+    --conf spark.executor.instances=2 \
+    --conf spark.executor.memory=2g \
+    --conf spark.executor.cores=2 \
+    --conf spark.kubernetes.container.image=spark-tpcds-with-dsdgen \
+    /opt/spark/jars/TpcdsBenchmark-assembly-0.1.jar \
+    --dsdgenDir tpcds-kit/tools \
+    --location /mnt/hostpath/TPCDS/gen_data \
+    -s 2 \
+    -f parquet
+  volumes:
+    tpcds-volume:
+      container_dir: /mnt/hostpath/TPCDS
+      host_dir: /mnt/hostpath/TPCDS
+  restart_policy: Never
+  backoff_limit: 2
+  replicas: 1

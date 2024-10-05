@@ -346,7 +346,6 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             split_str_ids = k8_job_name.split("-")[:2]
             k8_job_name = f"{split_str_ids[0]}-{split_str_ids[1]}"
             return {"manager_job_id": k8_job_name}
-
         k8_job_name = f"{job_name}-{uuid.uuid4().hex[:8]}"
         api_responses = []
         if job.spec.restart_policy == RestartPolicyEnum.ALWAYS.value:
@@ -422,7 +421,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                         f"Accelerator type {accelerator_type} not found in cluster."
                     )
                 node_set = cluster_acc_types[best_match[0]]
-
+        volumes = job.spec.volumes if job.spec.volumes else {}
         deployment_dict = {
             "deployment_name": job_name,
             "cluster_name": utils.unsanitize_cluster_name(self.cluster_name),
@@ -430,6 +429,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             "sky_namespace": job.get_namespace(),
             "restart_policy": job.spec.restart_policy,
             "image": job.spec.image,
+            "image_pull_policy": job.spec.image_pull_policy,
             "labels": job.metadata.labels,
             "replicas": replicas,
             "env_vars": job.spec.envs,
@@ -439,6 +439,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
             "memory": job.spec.resources.get(ResourceEnum.MEMORY.value, 0),
             "gpu": gpus,
             "node_set": node_set,
+            "volumes": volumes,
         }
         deployment_jinja = deployment_jinja_template.render(deployment_dict)
         deployment_yaml = yaml.safe_load(deployment_jinja)
@@ -488,6 +489,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 node_set = cluster_acc_types[best_match[0]]
 
         for rank_id in range(replicas):
+            volumes = job.spec.volumes if job.spec.volumes else {}
             jinja_dict = {
                 "pod_name": f"{job_name}-{rank_id}",
                 "cluster_name":
@@ -496,6 +498,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 "sky_namespace": job.get_namespace(),
                 "restart_policy": job.spec.restart_policy,
                 "image": job.spec.image,
+                "image_pull_policy": job.spec.image_pull_policy,
                 "labels": job.metadata.labels,
                 "pod_rank": rank_id,
                 "env_vars": job.spec.envs,
@@ -505,6 +508,7 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
                 "memory": job.spec.resources.get(ResourceEnum.MEMORY.value, 0),
                 "gpu": gpus,
                 "node_set": node_set,
+                "volumes": volumes,
             }
             pod_dict = pod_jinja_template.render(jinja_dict)
             pod_dict = yaml.safe_load(pod_dict)

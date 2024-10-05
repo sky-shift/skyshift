@@ -29,9 +29,18 @@ spec:
       containers:
         - name: my-container
           image: {{image}}
+          {% if image_pull_policy%}
+          imagePullPolicy: {{image_pull_policy}}
+          {% endif %}
           volumeMounts:
             - name: scratch-space
               mountPath: /scratch
+            {% if volumes %}
+            {% for volume_name, volume in volumes.items() %}
+            - name: {{ volume_name }}
+              mountPath: {{ volume.container_dir }}
+            {% endfor %}
+            {% endif %}
           {% if ports %}
           ports:
             {% for port in ports %}
@@ -69,6 +78,16 @@ spec:
         - name: scratch-space
           emptyDir:
             medium: Memory
+        {% if volumes %}
+        {% for volume_name, volume in volumes.items() %}
+        - name: {{ volume_name }}
+          hostPath:
+            path: {{ volume.host_dir }}
+            {% if volume.type %}
+            type: {{ volume.type }}
+            {% endif %}
+        {% endfor %}
+        {% endif %}
       {% if node_set %}
       affinity:
         nodeAffinity:

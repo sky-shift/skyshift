@@ -345,6 +345,7 @@ class Placement(ObjectSpec):
 class JobSpec(ObjectSpec):
     """Spec of a job."""
     image: str = Field(default=DEFAULT_IMAGE, validate_default=True)
+    image_pull_policy: str = Field(default={}, validate_default=False)
     resources: Dict[str, float] = Field(default=DEFAULT_JOB_RESOURCES,
                                         validate_default=True)
     volumes: Dict[str, Dict[str, str]] = Field(default={},
