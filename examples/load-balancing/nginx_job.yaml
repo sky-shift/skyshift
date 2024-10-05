@@ -1,0 +1,16 @@
+kind: Job
+
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+
+spec:
+  replicas: 2
+  image: nginx:latest
+  resources:
+    cpus: 0.5
+    memory: 128
+  ports:
+    - 80
+  restartPolicy: Always
