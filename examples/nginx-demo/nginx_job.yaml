@@ -1,13 +1,13 @@
 kind: Job
 
-metadata: 
-  name: myservicejob
+metadata:
+  name: nginx-deployment
   labels:
     app: nginx
 
 spec:
   replicas: 2
-  image: nginx:1.14.2
+  image: nginx:latest
   resources:
     cpus: 0.5
     memory: 128

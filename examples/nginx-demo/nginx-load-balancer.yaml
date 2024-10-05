@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-lb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-lb
+  template:
+    metadata:
+      labels:
+        app: nginx-lb
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-lb-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx-lb.conf
+      volumes:
+      - name: nginx-lb-config
+        configMap:
+          name: nginx-lb-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-lb-config
+data:
+  nginx-lb.conf: |
+    http {
+        upstream k8s_clusters {
+            server 172.19.0.2:30001;
+            server 172.19.0.3:30001;
+        }
+        server {
+            listen 80;
+
+            location / {
+                proxy_pass http://k8s_clusters;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+        }
+    }
+    events {
+    worker_connections 1024;
+    }
