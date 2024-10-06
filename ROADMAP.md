@@ -42,7 +42,7 @@ This documents includes planned features for Skyshift in 2024, and early 2025. H
 ### Slurm
 - [ ] Automatic cluster detection. 
 - [ ] Automatic provisioning option.
-- [ ] Support for additional container managers (Podman, Singularity, etc.) on top of Slurm.
+- [ ] Support for container managers (Docker, Podman, Singularity, etc.) on top of Slurm.
 - [ ] Service feature/networking layer for Slurm (e.g. using reverse proxy).
 - [ ] Storage feature for Slurm.
 - [ ] Exec feature for Slurm.
