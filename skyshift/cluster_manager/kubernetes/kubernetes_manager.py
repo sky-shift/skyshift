@@ -621,7 +621,6 @@ class KubernetesManager(Manager):  # pylint: disable=too-many-instance-attribute
         }
         service_jinja = service_jinja_template.render(service_dict)
         service_yaml = yaml.safe_load(service_jinja)
-
         try:
             self.core_v1.create_namespaced_service(namespace=self.namespace,
                                                    body=service_yaml)

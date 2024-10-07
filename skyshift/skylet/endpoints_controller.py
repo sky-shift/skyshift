@@ -154,7 +154,8 @@ class EndpointsController(Controller):
             if self.name not in end_obj_spec.endpoints or (
                     end_obj_spec.endpoints[self.name].num_endpoints !=
                     num_endpoints):
-                if self.name not in end_obj_spec.endpoints:
+                if self.name not in end_obj_spec.endpoints and service.spec.type.lower(
+                ) != "nodeport":
                     # Create/update existing service on the cluster.
                     self.manager_api.create_or_update_service(service)
                 # Get endpoint object.

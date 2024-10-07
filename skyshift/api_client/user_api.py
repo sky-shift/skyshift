@@ -65,3 +65,8 @@ class UserAPI(NoNamespaceObjectAPI):
                                  json=data,
                                  headers=self.auth_headers)
         return response
+
+    def delete(self, name: str):
+        response = requests.delete(f"{self.url}/{name}",
+                                   headers=self.auth_headers)
+        return response
