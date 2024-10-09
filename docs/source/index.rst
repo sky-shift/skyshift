@@ -74,3 +74,9 @@ Documentation
    cli/roles.rst
    cli/exec.rst
    cli/users.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples
+
+   examples/bookinfo.rst

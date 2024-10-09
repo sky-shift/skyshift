@@ -144,7 +144,7 @@ This test uses two k8s clusters:
     ```
     open http://$FRONTEND_IP/productpage in browser, and you should be able to view the rating/reviews of the book as shown below.
 
-![Bookinfo demo](bookinfo.png)
+![Bookinfo demo](../../docs/source/_static/bookinfo.png)
 10) Finally, Cleanup
 
     ```
