@@ -5,11 +5,10 @@ Utility functions for the Ray cluster manager.
 import logging
 import os
 import tarfile
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import paramiko
 from paramiko import SSHClient
-from ray.job_submission import JobDetails
 
 from skyshift.templates.resource_template import CRIEnum, ResourceEnum
 from skyshift.utils.ssh_utils import ssh_send_command
@@ -110,35 +109,32 @@ def map_ray_status_to_task_status(ray_status: str) -> str:
     return status_mapping.get(ray_status, "UNKNOWN")
 
 
-def fetch_all_job_statuses(
-        jobs_details: List[JobDetails]
-) -> Dict[str, Dict[str, Dict[str, str]]]:
+def fetch_all_job_statuses(job_details):
     """
-    Processes the status of all jobs from the Ray cluster.
-    """
-    jobs_dict: Dict[str, Dict[str, Dict[str, str]]] = {
-        "tasks": {},
-        "containers": {}
-    }
+    Fetches the status of all jobs and organizes them by job name and ID.
 
-    for job in jobs_details:
-        #Only keep track of jobs deployed by SkyShift
-        if not job.submission_id or len(job.submission_id.split('-')) != 3:
-            # Doesn't follow the SkyShift format
-            continue
+    Args:
+        job_details (list): A list of job details, each containing a submission_id, job_id, and status.
+
+    Returns:
+        dict: A dictionary with 'tasks' and 'containers' as keys,
+            each containing job statuses organized by job name and ID.
+    """
+    result = {"tasks": {}, "containers": {}}
+    for job in job_details:
         job_name = extract_job_name(job.submission_id)
+        job_id = job.job_id
+        status = map_ray_status_to_task_status(job.status)
 
-        job_status = map_ray_status_to_task_status(job.status)
+        if job_name not in result["tasks"]:
+            result["tasks"][job_name] = {}
+            result["containers"][job_name] = {}
 
-        if job_name not in jobs_dict["tasks"]:
-            jobs_dict["tasks"][job_name] = {}
-            jobs_dict["containers"][job_name] = {}
+        if job_id:
+            result["tasks"][job_name][job_id] = status
+            result["containers"][job_name][job_id] = status
 
-        # Assuming all tasks are in the same container for simplicity
-        jobs_dict["tasks"][job_name][job_name] = job_status
-        jobs_dict["containers"][job_name][job_name] = job_status
-
-    return jobs_dict
+    return result
 
 
 def copy_required_files(ssh_client: paramiko.SSHClient, remote_dir: str,
