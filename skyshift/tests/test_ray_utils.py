@@ -247,7 +247,8 @@ def test_fetch_all_job_statuses_invalid_submission_ids():
     result = fetch_all_job_statuses(job_details)
     expected = {
         "tasks": {
-            "invalid-1234": {  # Adjusted to match the behavior of extract_job_name
+            "invalid-1234":
+            {  # Adjusted to match the behavior of extract_job_name
                 "job-1-1234": "RUNNING"
             },
             "job2": {
@@ -255,7 +256,8 @@ def test_fetch_all_job_statuses_invalid_submission_ids():
             }
         },
         "containers": {
-            "invalid-1234": {  # Adjusted to match the behavior of extract_job_name
+            "invalid-1234":
+            {  # Adjusted to match the behavior of extract_job_name
                 "job-1-1234": "RUNNING"
             },
             "job2": {
@@ -315,7 +317,8 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
             "job1": {
                 "job1-1-1234": "RUNNING"
             },
-            "invalid-1234": {  # Adjusted to match the behavior of extract_job_name
+            "invalid-1234":
+            {  # Adjusted to match the behavior of extract_job_name
                 "invalid-1234": "FAILED"
             },
             "job2": {
@@ -329,7 +332,8 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
             "job1": {
                 "job1-1-1234": "RUNNING"
             },
-            "invalid-1234": {  # Adjusted to match the behavior of extract_job_name
+            "invalid-1234":
+            {  # Adjusted to match the behavior of extract_job_name
                 "invalid-1234": "FAILED"
             },
             "job2": {
