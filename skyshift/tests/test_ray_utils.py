@@ -263,7 +263,8 @@ def test_fetch_all_job_statuses_invalid_submission_ids():
             }
         }
     }
-    assert json.dumps(result, sort_keys=True) == json.dumps(expected, sort_keys=True)
+    assert json.dumps(result, sort_keys=True) == json.dumps(expected,
+                                                            sort_keys=True)
 
 
 def test_fetch_all_job_statuses_missing_job_ids():
@@ -303,9 +304,10 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
         MagicMock(submission_id="job2-2-5678",
                   job_id="job2-2-5678",
                   status="SUCCEEDED"),
-        MagicMock(submission_id="unknown",  # Provide a default for None
-                  job_id="job3-3-9012",
-                  status="PENDING")
+        MagicMock(
+            submission_id="unknown",  # Provide a default for None
+            job_id="job3-3-9012",
+            status="PENDING")
     ]
     result = fetch_all_job_statuses(job_details)
     expected = {
@@ -338,7 +340,8 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
             }
         }
     }
-    assert json.dumps(result, sort_keys=True) == json.dumps(expected, sort_keys=True)
+    assert json.dumps(result, sort_keys=True) == json.dumps(expected,
+                                                            sort_keys=True)
 
 
 def test_copy_required_files():
