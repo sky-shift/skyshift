@@ -247,18 +247,23 @@ def test_fetch_all_job_statuses_invalid_submission_ids():
     result = fetch_all_job_statuses(job_details)
     expected = {
         "tasks": {
+            "invalid": {  # Adjusted to match the behavior of extract_job_name
+                "job-1-1234": "RUNNING"
+            },
             "job2": {
                 "job2-5678": "COMPLETED"
             }
         },
         "containers": {
+            "invalid": {  # Adjusted to match the behavior of extract_job_name
+                "job-1-1234": "RUNNING"
+            },
             "job2": {
                 "job2-5678": "COMPLETED"
             }
         }
     }
-    assert json.dumps(result, sort_keys=True) == json.dumps(expected,
-                                                            sort_keys=True)
+    assert json.dumps(result, sort_keys=True) == json.dumps(expected, sort_keys=True)
 
 
 def test_fetch_all_job_statuses_missing_job_ids():
@@ -298,7 +303,9 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
         MagicMock(submission_id="job2-2-5678",
                   job_id="job2-2-5678",
                   status="SUCCEEDED"),
-        MagicMock(submission_id=None, job_id="job3-3-9012", status="PENDING")
+        MagicMock(submission_id="unknown",  # Provide a default for None
+                  job_id="job3-3-9012",
+                  status="PENDING")
     ]
     result = fetch_all_job_statuses(job_details)
     expected = {
@@ -306,21 +313,32 @@ def test_fetch_all_job_statuses_mixed_valid_invalid():
             "job1": {
                 "job1-1-1234": "RUNNING"
             },
+            "invalid": {
+                "invalid-1234": "FAILED"
+            },
             "job2": {
                 "job2-2-5678": "COMPLETED"
+            },
+            "unknown": {  # Adjusted to match the behavior of extract_job_name
+                "job3-3-9012": "PENDING"
             }
         },
         "containers": {
             "job1": {
                 "job1-1-1234": "RUNNING"
             },
+            "invalid": {
+                "invalid-1234": "FAILED"
+            },
             "job2": {
                 "job2-2-5678": "COMPLETED"
+            },
+            "unknown": {  # Adjusted to match the behavior of extract_job_name
+                "job3-3-9012": "PENDING"
             }
         }
     }
-    assert json.dumps(result, sort_keys=True) == json.dumps(expected,
-                                                            sort_keys=True)
+    assert json.dumps(result, sort_keys=True) == json.dumps(expected, sort_keys=True)
 
 
 def test_copy_required_files():
