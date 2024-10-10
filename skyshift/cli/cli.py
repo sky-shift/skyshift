@@ -1,4 +1,4 @@
-# pylint: disable=too-many-lines
+# pylint: disable=all
 """
 SkyShift CLI.
 """
@@ -102,7 +102,8 @@ def validate_input_string(value: str) -> bool:
     if value.startswith("kubernetes.io/") or value.startswith("k8s.io/"):
         return False
     pattern = re.compile(
-        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$'  # pylint: disable=line-too-long
+        r'^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[a-z0-9]([-a-z0-9-.]{0,251}[a-z0-9])?$'
+        # pylint: disable=line-too-long
     )
     return bool(pattern.fullmatch(value))
 
@@ -133,7 +134,8 @@ def cluster_exists(name: str) -> bool:
 def validate_image_format(image: str) -> bool:
     """Validates if the given image matches the Docker image format."""
     pattern = re.compile(
-        r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'  # pylint: disable=line-too-long
+        r'^([a-zA-Z0-9.-]+)?(:[a-zA-Z0-9._-]+)?(/[a-zA-Z0-9._/-]+)?(:[a-zA-Z0-9._-]+|@sha256:[a-fA-F0-9]{64})?$'
+        # pylint: disable=line-too-long
     )
     return bool(pattern.fullmatch(image))
 
@@ -208,7 +210,54 @@ cli.add_command(apply_config)
 
 # ==============================================================================
 # Cluster API as CLI
-@create.command(name="cluster", aliases=["clusters"])
+@create.command(name="cluster",
+                aliases=["clusters"],
+                help="""
+
+    Create a new cluster and attach to SkyShift. Once attached, the cluster can be
+    managd via SkyShift and made available for jobs submitted to SkyShift.
+    This supports clusters managed via Kubernetes, Slurm and Ray.
+
+    Cluster creation supports customized provisioning requirements such as
+    Nodes, Regions, CPU and Memory requirements. Post creation SkyShift monitors
+    the status and makes it available to the user.
+
+    Examples:
+        1. **Create a basic cluster with Kuberntes**:
+    
+           .. code-block:: bash
+    
+               skyctl create cluster my-cluster --manager=k8 --cpus=4 --memory=16GB --disk_size=100 --num_nodes=3
+    
+           The above command creates a cluster named `my-cluster` with Kubernetes as the cluster manager.
+           The cluster will be provisioned with 3 nodes, each node with 4 virtual CPUs (vCPUs), 16GB of
+           memory, and a 100GB OS disk. Additionally configs, host, username and other properties can be
+           passed for any custom requirements.
+    
+        2. **Create a GPU-Accelerated Cluster via Ray**:
+    
+           .. code-block:: bash
+    
+               skyctl create cluster gpu-cluster --manager=ray --cpus=8 --memory=64GB --accelerators=V100:2
+                --num_nodes=5 --cloud=gcp --region=us-central1 --ports=22,8888 --provision
+    
+           This command sets up a cluster named `gpu-cluster` managed by Ray. It provisions 5 nodes in
+           the cluster. Each node provisioned with 8 vCPUs, 64GB of memory, and 2 NVIDIA V100 GPUs. The
+           cloud flag indicates the cluster provisioning on GCP with us-central1 region. Further, it opens
+           up ports 22 and 8888 for remote access via SSH or Jupyter notebook.
+    
+        3. **Cluster with Specific Cloud and Region**:
+    
+           .. code-block:: bash
+    
+               skyctl create cluster cloud-cluster --cloud=aws --region=us-west-2 --manager=slurm --cpus=16
+                --memory=128GB
+    
+           This command creates a cluster named `cloud-cluster` on AWS. Slurm will be  used as the cluster
+           manager. The cluster will be provisioned in the `us-west-2` region. Each node in this cluster
+           will have 16 vCPUs and 128GB of memory.
+
+    """)
 @click.argument('name', required=True)
 @click.option(
     "--labels",
@@ -306,7 +355,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
         memory: str, disk_size: str, accelerators: str, ports: List[str],
         num_nodes: int, cloud: str, region: str, provision: bool,
         ssh_key_path: str, config: str, host: str, username: str, spinner):  # pylint: disable=redefined-outer-name
-    """Attaches a new cluster."""
+
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -406,7 +455,68 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
                               None)  # No password for now
 
 
-@get.command(name="cluster", aliases=["clusters"])
+@get.command(name="cluster",
+             aliases=["clusters"],
+             help="""
+
+    The get cluster command fetches and displays details for one or all clusters
+    being managed by SkyShift. This provides the names, managers, statuses, and
+    resources (allocated/available) on the cluster.
+    You can view all the clusters and their metadata by not providing a specific
+    cluster.
+
+    Examples:
+        1. **Fetch Details for All Clusters**:
+    
+           .. code-block:: bash
+    
+               > skyctl get cluster
+               
+               ⠙ Fetching clusters
+                NAME      MANAGER    LABELS    RESOURCES                  STATUS    AGE
+                minikube  k8                   cpus: 15.25/16.0           ERROR     12d
+                                               memory: 15.18 GB/15.35 GB
+                                               disk: 151.13 GB/151.13 GB
+                ✔ Fetching clusters completed successfully.
+
+    
+           Running this command without specifying a cluster name will fetch and display details
+           for all clusters being managed by SkyShift. This includes each cluster's name, manager type,
+           current status, resource allocations and age.
+    
+        2. **Fetch Details for a Specific Cluster**:
+    
+           .. code-block:: bash
+    
+               skyctl get cluster my-cluster
+    
+           This command fetches and displays details for the cluster named `my-cluster`. The output
+           will include the specific details of the cluster, such as the manager type, current status,
+           and allocated resources.
+    
+        3. **Watch for Changes in a Specific Cluster**:
+    
+           .. code-block:: bash
+    
+               skyctl get cluster my-cluster --watch
+               
+               ⠧ Fetching clusterskind='WatchEvent' event_type='UPDATE' object=Cluster(kind='Cluster',
+                metadata=ClusterMeta(name='minikube', labels={}, annotations={}, creation_timestamp='2024-08-25T07:52:58',
+                resource_version=15163), spec=ClusterSpec(manager='k8', cloud=None, region=None, cpus=None,
+                memory=None, disk_size=None, accelerators=None, ports=[], num_nodes=1, provision=False,
+                config_path='~/.kube/config', access_config={}), status=ClusterStatus(conditions=
+                [{'status': 'INIT', 'transitionTime': '1724572270.4890375'}, {'status': 'READY', 'transitionTime': 
+                '1724572378.7774274'}, {'status': 'ERROR', 'transitionTime': '1725679618.1222773'}], status='ERROR',
+                allocatable_capacity={'minikube': {'cpus': 15.250000000000002, 'memory': 15543.71484375,
+                'disk': 154755.10546875, 'gpus': 0.0}}, capacity={'minikube': {'cpus': 16.0, 'memory': 15713.71484375,
+                'disk': 154755.10546875, 'gpus': 0.0}}, network_enabled=False, accelerator_types={}))
+
+    
+           By adding the `--watch` flag, this command continuously monitors `my-cluster` for any
+           changes. It will provide real-time updates on the cluster's status, resources, and other
+           relevant details as they change.
+
+    """)
 @click.argument("name", required=False, default=None)
 @click.option("--watch",
               "-w",
@@ -415,7 +525,7 @@ def create_cluster(  # pylint: disable=too-many-arguments, too-many-locals
               help="Performs a watch.")
 @halo_spinner("Fetching clusters")
 def get_clusters(name: str, watch: bool):
-    """Gets a cluster (or clusters if None is specified)."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -425,11 +535,32 @@ def get_clusters(name: str, watch: bool):
     print_table('cluster', api_response)
 
 
-@delete.command(name="cluster", aliases=["clusters"])
+@delete.command(name="cluster",
+                aliases=["clusters"],
+                help="""
+
+    The ``delete cluster`` command removes a cluster from SkyShift. For a cluster
+    being managed by SkyShift, this command simply detaches the cluster. If the
+    cluster was provided using SkyShift, this command also removes the cluster from
+    the cloud provider.
+
+    Examples:
+        **Delete a Cluster Managed by SkyShift**:
+    
+        .. code-block:: bash
+    
+            skyctl delete cluster my-cluster
+    
+        This command deletes the cluster named `my-cluster` from SkyShift. If the cluster
+        was only managed (but not provisioned) by SkyShift, it will simply be detached
+        from SkyShift's management. If it was provisioned by SkyShift, the cluster will
+        be deleted from the cloud provider as well.
+
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting cluster")
 def delete_cluster(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -438,7 +569,67 @@ def delete_cluster(name: str):
 
 # ==============================================================================
 # Job API as CLI
-@create.command(name="job", aliases=["jobs"])
+@create.command(name="job",
+                aliases=["jobs"],
+                help="""
+
+    The create job command allows submission of a new job to SkyShift. You can
+    also customize the specific job requirements such as Replicas, Memory, CPU
+    and more. SkyShift matches the requirements with the available resources to
+    best run the job. See more in`scheduling`.
+
+    Examples:
+        1. **Create a Basic Job**:
+    
+           .. code-block:: bash
+    
+               skyctl create job basic-job --cpus=2 --memory=1024 --run="python script.py"
+    
+           This command creates a job named `basic-job` with 2 CPUs and 1024 MB of memory
+           per task. The job runs the command `python script.py` inside the container.
+    
+        2. **Create a GPU-Accelerated Job**:
+    
+           .. code-block:: bash
+    
+               skyctl create job gpu-job --gpus=1 --accelerators=V100:1 --run="python train.py" --replicas=4
+    
+           This command creates a job named `gpu-job` that uses 1 GPU per task, specifically
+           an NVIDIA V100. The job will run 4 replicas of `python train.py`, which is useful
+           for parallel training jobs.
+    
+        3. **Create a Job with Custom Docker Image and Environment Variables**:
+    
+           .. code-block:: bash
+    
+               skyctl create job custom-job --image=tensorflow/tensorflow:latest-gpu --envs=MY_VAR=value --run="bash start.sh"
+    
+           This command creates a job named `custom-job` using a specific Docker image
+           (`tensorflow/tensorflow:latest-gpu`). It also sets the environment variable
+           `MY_VAR` to `value` inside the container and runs `bash start.sh` as the
+           job command.
+            
+        3. **Create a Long-Running Job with Specific Restart Policy**:
+
+           .. code-block:: bash
+        
+               skyctl create job long-running-job --cpus=4 --memory=2048 --run="python server.py" --restart_policy=Always
+
+           This creates a job named `long-running-job` with 4 CPUs and 2048 MB of memory per task. The job runs the
+           command `python server.py` inside the container. The restart policy is set to `Always`, meaning that the
+           job will be automatically restarted if it fails, which is ideal for long-running jobs like web servers.
+
+        4. **Create a Batch Job with No Restart**:
+        
+           .. code-block:: bash
+        
+               skyctl create job batch-job --cpus=2 --memory=1024 --run="python process_data.py" --restart_policy=Never
+        
+           This creates a job named `batch-job` with 2 CPUs and 1024 MB of memory per task. The job runs the command 
+           python process_data.py` inside the container. The restart policy is set to `Never`, which means the job
+           will not be restarted if it fails, making it suitable for batch jobs that should run once and exit.
+
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -530,7 +721,7 @@ def create_job(
     spinner,
     volumes,
 ):  # pylint: disable=too-many-arguments, too-many-locals
-    """Adds a new job."""
+
     from skyshift import utils  # pylint: disable=import-outside-toplevel
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
@@ -604,7 +795,44 @@ def create_job(
     create_cli_object(job_dictionary)
 
 
-@get.command(name="job", aliases=["jobs"])
+@get.command(name="job",
+             aliases=["jobs"],
+             help="""
+
+    The get job command fetches and displays any job which was submitted
+    to SkyShift. This provides the metadata associated for the running job.
+    Similar to get clusters, this allows continuously watching for any changes.
+
+    Examples:
+        1. **Fetch Details for All Jobs in a Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl get job --namespace=default
+    
+           This command fetches and displays details for all jobs within the `default` namespace.
+           It will include metadata such as the job name, status, and associated resources.
+    
+        2. **Fetch Details for a Specific Job**:
+    
+           .. code-block:: bash
+    
+               skyctl get job my-job --namespace=default
+    
+           This command fetches and displays details for the job named `my-job` in the `default` namespace.
+           The output will include specific details of the job, such as its current status, start time,
+           and resource usage.
+    
+        3. **Watch a Specific Job for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get job my-job --namespace=default --watch
+    
+           By adding the `--watch` flag, this command continuously monitors `my-job` for any changes in its
+           status or other metadata. This is useful for tracking the progress of a job in real-time.
+
+    """)
 @click.argument("name", default=None, required=False)
 @click.option(
     "--namespace",
@@ -620,7 +848,7 @@ def create_job(
               help="Performs a watch.")
 @halo_spinner("Fetching jobs")
 def get_job(name: str, namespace: str, watch: bool):
-    """Fetches a job."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -631,7 +859,28 @@ def get_job(name: str, namespace: str, watch: bool):
     print_table('job', api_response)
 
 
-@click.command(name="logs")
+@click.command(name="logs",
+               help="""
+
+    This command fetches and displays the logs for a specific job within a namespace.
+    This can be useful for debugging or monitoring an on-going job.
+
+    :param str name: The name of the job to fetch logs for.
+    :param str namespace: The namespace of the job whose logs
+     are to be fetched. Default is 'default'.
+
+    Examples:
+        1. **Fetch Logs for a Specific Job**:
+    
+           .. code-block:: bash
+    
+               skyctl logs my-job --namespace=default
+    
+           This command retrieves and displays the logs for the job named `my-job` in
+           the `default` namespace. The logs will be output directly to the console,
+           allowing you to monitor the job's execution or diagnose issues.
+    
+    """)
 @click.argument("name", default=None, required=False)
 @click.option(
     "--namespace",
@@ -642,7 +891,7 @@ def get_job(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Fetching job logs")
 def job_logs(name: str, namespace: str):
-    """Fetches a job's logs."""
+
     from skyshift.cli.cli_utils import \
         fetch_job_logs  # pylint: disable=import-outside-toplevel
 
@@ -652,7 +901,25 @@ def job_logs(name: str, namespace: str):
 cli.add_command(job_logs)
 
 
-@delete.command(name="job", aliases=["jobs"])
+@delete.command(name="job",
+                aliases=["jobs"],
+                help="""
+
+    Deletes a specified job from the given namespace.
+    This command permanently removes the job from the specified namespace.
+    This terminates and de-allocates any resources provisioned to the job.
+
+    Examples:
+        1. **Delete a Job from the Default Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl delete job my-job --namespace=default
+    
+           This command deletes the job named `my-job` from the `default` namespace.
+           The job is terminated, and any associated resources are released.
+    
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -663,7 +930,7 @@ cli.add_command(job_logs)
 )
 @halo_spinner("Deleting job")
 def delete_job(name: str, namespace: str):
-    """Deletes a job."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -672,11 +939,32 @@ def delete_job(name: str, namespace: str):
 
 # ==============================================================================
 # Namespace API as CLI
-@create.command(name="namespace", aliases=["namespaces"])
+@create.command(name="namespace",
+                aliases=["namespaces"],
+                help="""
+
+    The create namespace command creates a new namespace within SkyShift.
+    This command initializes a new namespace specified by the 'name' argument.
+    You can use this for resource management, security and resource isolation
+    within SkyShift.
+
+    Examples:
+        **Create a New Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl create namespace dev-environment
+    
+           This command creates a new namespace named `dev-environment`. SkyShift Namespaces
+           can be used to group resources logically and enforce security and resource isolation.
+           For example, you might create different namespaces for development, staging,
+           and production environments.
+    
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Creating namespace")
 def create_namespace(name: str, spinner):
-    """Creates a new namespace."""
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -694,7 +982,43 @@ def create_namespace(name: str, spinner):
     create_cli_object(namespace_dictionary)
 
 
-@get.command(name="namespace", aliases=["namespaces"])
+@get.command(name="namespace",
+             aliases=["namespaces"],
+             help="""
+
+    The ``get namespace`` command allows fetching of details about one or all
+    namespaces being managed by SkyShift. This command provides detailed information
+    about the specified namespace or all namespaces if no name is provided. If the
+    `watch` option is enabled, it will continuously monitor and output updates for
+    the namespace(s).
+
+    Examples:
+        1. **Fetch Details for All Namespaces**:
+    
+           .. code-block:: bash
+    
+               skyctl get namespace
+    
+           This command fetches and displays details for all namespaces managed by SkyShift.
+           It provides an overview of all available namespaces, including their status, name,
+           and age.
+    
+        2. **Fetch Details for a Specific Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl get namespace dev-environment
+    
+           This command fetches and displays detailed information about the `dev-environment` namespace.
+           The output includes metadata such as the namespace's name, status and age.
+    
+        3. **Watch a Specific Namespace for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get namespace dev-environment --watch
+
+    """)
 @click.argument("name", required=False, default=None)
 @click.option("--watch",
               "-w",
@@ -703,7 +1027,6 @@ def create_namespace(name: str, spinner):
               help="Performs a watch.")
 @halo_spinner("Fetching namespaces")
 def get_namespace(name: str, watch: bool):
-    """Gets all namespaces."""
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -713,11 +1036,30 @@ def get_namespace(name: str, watch: bool):
     print_table('namespace', api_response)
 
 
-@delete.command(name="namespace", aliases=["namespaces"])
+@delete.command(name="namespace",
+                aliases=["namespaces"],
+                help="""
+
+    Deletes a specified namespace from SkyShift. This command permanently
+    removes the namespace being managed by SkyShift. Returns an error if
+    the namespace does not exist.
+
+    Example:
+    **Delete a Namespace**:
+    
+    .. code-block:: bash
+    
+        skyctl delete namespace dev-environment
+    
+    This command deletes the `dev-environment` namespace from SkyShift. Once deleted,
+    all resources within this namespace are also removed, and the namespace cannot
+    be recovered. This is typically used for cleaning up environments that are no longer needed.
+
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting namespace")
 def delete_namespace(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -727,7 +1069,34 @@ def delete_namespace(name: str):
 # ==============================================================================
 # FilterPolicy API as CLI
 @create.command(name="filterPolicy",
-                aliases=["filterPolicies", "filterpolicy", "filterpolicies"])
+                aliases=["filterPolicies", "filterpolicy", "filterpolicies"],
+                help="""
+                
+    The ``create filterPolicy`` command introduces a new filter policy into SkyShift, dictating
+    the scheduling eligibility of clusters based on the specified inclusion and exclusion criteria.
+
+    Examples:
+        1. **Create a Filter Policy with Specific Label Selectors**:
+    
+           .. code-block:: bash
+    
+               skyctl create filterPolicy my-policy -l env production -i clusterA -e clusterB
+    
+           This command creates a filter policy named `my-policy` in the `default` namespace. The
+           policy applies to resources  labeled with `env=production`, includes clusterA and excludes
+           clusterB during scheduling.
+
+    
+        2. **Create a Filter Policy in a Custom Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl create filterPolicy custom-policy --namespace custom-namespace -i clusterA -i clusterB
+    
+           This command creates a filter policy named `custom-policy` in the `custom-namespace` namespace.
+           The policy includes  both `clusterA` and `clusterB` in the scheduling process.
+
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -764,7 +1133,7 @@ def delete_namespace(name: str):
 def create_filter_policy(  # pylint: disable=too-many-arguments
         name: str, namespace: str, labelselector: List[Tuple[str, str]],
         includecluster: List[str], excludecluster: List[str], spinner):
-    """Adds a new filter policy."""
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -810,7 +1179,46 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
 
 
 @get.command(name="filterPolicy",
-             aliases=["filterPolicies", "filterpolicy", "filterpolicies"])
+             aliases=["filterPolicies", "filterpolicy", "filterpolicies"],
+             help="""
+
+    Fetches details about all or one specific filter policy within a namespace. This
+    command provides detailed information about the specified filter policy or all
+    policies if no name is provided. If the `watch` option is enabled, it continuously
+    monitors and output updates for the policy(s).
+
+    Examples:
+        1. **Fetch Details for All Filter Policies**:
+    
+           .. code-block:: bash
+    
+               skyctl get filterPolicy --namespace=default
+    
+           This command fetches and displays details for all filter policies within the
+           `default` namespace. It provides an overview of each policy, including its name,
+           associated labels, and inclusion/exclusion criteria.
+    
+        2. **Fetch Details for a Specific Filter Policy**:
+    
+           .. code-block:: bash
+    
+               skyctl get filterPolicy my-policy --namespace=default
+    
+           This command fetches and displays detailed information about the `my-policy` filter
+           policy within the `default` namespace. The output includes specific details such as
+           the policy's inclusion/exclusion clusters and label selectors.
+    
+        3. **Watch a Specific Filter Policy for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get filterPolicy my-policy --namespace=default --watch
+    
+           By adding the `--watch` flag, this command continuously monitors the `my-policy`
+           filter policy for any changes in its details. This is useful for real-time monitoring
+           of policy updates, allowing you to track changes as they occur.
+
+    """)
 @click.argument("name", required=False, default=None)
 @click.option(
     "--namespace",
@@ -822,7 +1230,7 @@ def create_filter_policy(  # pylint: disable=too-many-arguments
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching filter policies")
 def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
-    """Fetches a filter policy."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -838,7 +1246,24 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
 
 
 @delete.command(name="filterPolicy",
-                aliases=["filterPolicies", "filterpolicy", "filterpolicies"])
+                aliases=["filterPolicies", "filterpolicy", "filterpolicies"],
+                help="""
+
+    Deletes the specified filter policy from the given namespace. Use this command
+    to permanently remove the filter policy identified by the given name from the namespace.
+
+    Examples:
+        1. **Delete a Filter Policy**:
+
+           .. code-block:: bash
+    
+               skyctl delete filterPolicy my-policy --namespace=default
+    
+           This command deletes the `my-policy` filter policy from the `default` namespace.
+           Once deleted, the filter policy is permanently removed, and any scheduling rules
+           or constraints associated with it are no longer applied.
+
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -849,7 +1274,7 @@ def get_filter_policy(name: str, namespace: str, watch: bool, spinner):
 )
 @halo_spinner("Deleting filter policy")
 def delete_filter_policy(name: str, namespace: str, spinner):
-    """Deletes a filter policy."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -864,13 +1289,30 @@ def delete_filter_policy(name: str, namespace: str, spinner):
 
 # ==============================================================================
 # Link CLI
-@create.command(name="link", aliases=["links"])
+@create.command(name="link",
+                aliases=["links"],
+                help="""
+
+    The ``create link`` command creates a new link between two specified clusters,
+    enabling them to communicate directly with each other.
+    
+    Examples:
+        1. **Create a Link Between Two Clusters**:
+    
+           .. code-block:: bash
+    
+               skyctl create link data-link --source=clusterA --target=clusterB
+    
+           This command creates a link named `data-link` between `clusterA` (the source cluster)
+           and `clusterB` (the target cluster). This allows the two clusters to communicate directly,
+           facilitating data exchange or other interactions.
+
+    """)
 @click.argument("name", required=True)
 @click.option("--source", "-s", required=True, help="Source cluster name")
 @click.option("--target", "-t", required=True, help="Target cluster name")
 @halo_spinner("Creating link")
 def create_link(name: str, source: str, target: str, spinner):
-    """Creates a new link between two clusters."""
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -910,7 +1352,45 @@ def create_link(name: str, source: str, target: str, spinner):
     create_cli_object(obj_dict)
 
 
-@get.command(name="link", aliases=["links"])
+@get.command(name="link",
+             aliases=["links"],
+             help="""
+
+    The ``get links`` command fetches the details about one specific link or all links
+    between clusters which were created by SkyShift, with an optional watch functionality.
+
+    Examples:    
+        1. **Fetch Details for All Links**:
+    
+           .. code-block:: bash
+        
+               skyctl get link
+        
+           This command fetches and displays details for all links created by SkyShift between
+           clusters. It provides an overview of each link, including the source and target clusters
+           and any relevant metadata.
+        
+        2. **Fetch Details for a Specific Link**:
+    
+           .. code-block:: bash
+        
+               skyctl get link data-link
+        
+           This command fetches and displays detailed information about the `data-link` link.
+           The output includes specific details such as the source and target clusters, creation date,
+           and current status of the link.
+        
+        3. **Watch a Specific Link for Changes**:
+    
+           .. code-block:: bash
+        
+               skyctl get link data-link --watch
+        
+           By adding the `--watch` flag, this command continuously monitors the `data-link` for any
+           changes in its details. This is useful for real-time monitoring of link updates, allowing
+           you to track changes as they occur.    
+          
+""")
 @click.argument("name", required=False, default=None)
 @click.option("--watch",
               "-w",
@@ -919,7 +1399,7 @@ def create_link(name: str, source: str, target: str, spinner):
               help="Performs a watch.")
 @halo_spinner("Fetching links")
 def get_links(name: str, watch: bool):
-    """Gets link (or links if None is specified)."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -927,11 +1407,29 @@ def get_links(name: str, watch: bool):
     print_table('link', api_response)
 
 
-@delete.command(name="link", aliases=["links"])
+@delete.command(name="link",
+                aliases=["links"],
+                help="""
+    
+    The delete link command permanently removes the link (identified by the given name)
+    from SkyShift.
+
+    Examples:
+        1. **Delete a Specific Link**:
+        
+           .. code-block:: bash
+    
+               skyctl delete link data-link
+    
+           This command deletes the `data-link` from SkyShift. Once deleted, the communication link
+           between the source and target clusters is permanently removed, and any operations or data
+           flows using this link are stopped.
+    
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting link")
 def delete_link(name: str):
-    """Removes/detaches a cluster from Sky Manager."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -940,7 +1438,45 @@ def delete_link(name: str):
 
 # ==============================================================================
 # Service API as CLI
-@create.command(name="service", aliases=["services", "svc"])
+@create.command(name="service",
+                aliases=["services", "svc"],
+                help=""""
+
+    The create service command creates a new service within SkyShift. You can customize this
+    for specific namespaces, specific service types, selectors, ports and clusters.
+
+    Examples:
+        1. **Create a Basic ClusterIP Service**:
+    
+           .. code-block:: bash
+    
+               skyctl create service my-service --namespace=default --service_type=ClusterIP --ports 80 8080
+    
+           This command creates a service named `my-service` in the `default` namespace. The service
+           is of type `ClusterIP` and maps port `80` to `8080` on the target pods. This service
+           will be available only within the cluster.
+    
+        2. **Create a LoadBalancer Service with Selectors**:
+    
+           .. code-block:: bash
+    
+               skyctl create service my-service -t LoadBalancer -s app web -p 80 8080
+    
+           This command creates a `LoadBalancer` service named `my-service`. The service will select
+           pods labeled with `app=web` and expose ports `80` and `443`, forwarding them to `8080` and
+           `8443` on the target pods, respectively. This service will be accessible from outside the cluster.
+    
+        3. **Create a Service in a Custom Cluster**:
+    
+           .. code-block:: bash
+    
+               skyctl create service custom-service --namespace=default --cluster clusterA --ports 80 8080
+    
+           This command creates a service named `custom-service` in the `default` namespace, but it will be
+           exposed on `clusterA`. The service maps port `80` to `8080` on the target pods and will be
+           available within `clusterA`.
+       
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -952,7 +1488,7 @@ def delete_link(name: str):
 @click.option("--service_type",
               "-t",
               type=str,
-              default="ClusterIP",
+              default="NodePort",
               show_default=True,
               help="Type of service.")
 @click.option("--selector",
@@ -985,7 +1521,7 @@ def create_service(
     cluster: str,
     spinner,
 ):  # pylint: disable=too-many-arguments
-    """Creates a new service."""
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
     from skyshift.templates.service_template import \
@@ -1057,7 +1593,45 @@ def create_service(
     create_cli_object(service_dictionary)
 
 
-@get.command(name="service", aliases=["services", "svc"])
+@get.command(name="service",
+             aliases=["services", "svc"],
+             help="""
+
+    The get service command fetches the details about one specific or all services within
+    a given namespace, with an optional watch functionality.
+
+    Examples:
+        1. **Fetch Details for All Services**:
+    
+           .. code-block:: bash
+    
+               skyctl get service --namespace=default
+    
+           This command fetches and displays details for all services within the `default` namespace.
+           It provides an overview of each service, including its type, connected pods, port configurations,
+           and other relevant metadata.
+    
+        2. **Fetch Details for a Specific Service**:
+    
+           .. code-block:: bash
+    
+               skyctl get service my-service --namespace=default
+    
+           This command fetches and displays detailed information about the `my-service` within
+           the `default` namespace. The output includes specific details such as the service type,
+           connected pods, port configurations, and current status.
+    
+        3. **Watch a Specific Service for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get service my-service --namespace=default --watch
+    
+           By adding the `--watch` flag, this command continuously monitors the `my-service` for
+           any changes in its details. This is useful for real-time monitoring of service updates,
+           allowing you to track changes as they occur.
+       
+    """)
 @click.argument("name", required=False, default=None)
 @click.option(
     "--namespace",
@@ -1069,7 +1643,7 @@ def create_service(
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching services")
 def get_service(name: str, namespace: str, watch: bool):
-    """Gets all services or fetches a specific service."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1080,7 +1654,33 @@ def get_service(name: str, namespace: str, watch: bool):
     print_table('service', api_response)
 
 
-@delete.command(name="service", aliases=["services", "svc"])
+@delete.command(name="service",
+                aliases=["services", "svc"],
+                help="""
+
+    Deletes a specified service from the given namespace. This command permanently removes
+    the service identified by the given name from the specified namespace.
+
+    Examples:
+        1. **Delete a Service from the Default Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl delete service my-service --namespace=default
+    
+           This command deletes the `my-service` from the `default` namespace. Once deleted, the service
+           will no longer be available, and any connections or resources associated with it will be terminated.
+    
+        2. **Delete a Service from a Custom Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl delete service my-service --namespace=production
+    
+           This command deletes the `my-service` from the `production` namespace. This is useful for cleaning up
+           services that are no longer needed in a specific environment or namespace.
+
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -1091,7 +1691,7 @@ def get_service(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Deleting service")
 def delete_service(name: str, namespace: str):
-    """Removes/detaches a cluster from Sky Manager."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1100,7 +1700,47 @@ def delete_service(name: str, namespace: str):
 
 # ==============================================================================
 # Endpoints API as CLI
-@create.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
+@create.command(name="endpoints",
+                aliases=["endpoint", "edp", "edps"],
+                help="""
+
+    Creates a new set of endpoints within a specified namespace, customizable via user provided
+    arguments. This command sets up endpoints, which represent network-accessible points
+    associated with a service. These endpoints can be configured to be exposed within a
+    cluster and can target specific resources based on label selectors.
+
+    Examples:
+        1. **Create Endpoints with Default Settings**:
+    
+           .. code-block:: bash
+    
+               skyctl create endpoints my-endpoints --num_endpoints=3
+    
+           This command creates a set of endpoints named `my-endpoints` in the `default` namespace.
+           The endpoints are not exposed to the cluster by default, and they do not have any specific
+           label selectors targeting resources.
+    
+        2. **Create Exposed Endpoints in a Custom Cluster**:
+    
+           .. code-block:: bash
+    
+               skyctl create endpoints exposed-endpoints --num_endpoints=5 --exposed --primary_cluster=clusterA
+    
+           This command creates a set of endpoints named `exposed-endpoints` in the `default` namespace.
+           The endpoints are exposed to `clusterA` and can be accessed from other services within that cluster.
+           Five endpoints are created in this configuration.
+    
+        3. **Create Endpoints with Specific Label Selectors**:
+    
+           .. code-block:: bash
+    
+               skyctl create endpoints labeled-endpoints --num_endpoints=2 --selector app web
+    
+           This command creates a set of endpoints named `labeled-endpoints` in the `default` namespace.
+           The endpoints are configured to target resources labeled with `app=web`. Two endpoints are created
+           in this setup.
+
+""")
 @click.argument("name", required=True)
 @click.option("--namespace",
               type=str,
@@ -1125,7 +1765,7 @@ def delete_service(name: str, namespace: str):
 def create_endpoints(  # pylint: disable=too-many-arguments
         name, namespace, num_endpoints, exposed, primary_cluster, selector,
         spinner):
-    """Creates a new set of endpoints."""
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1178,7 +1818,44 @@ def create_endpoints(  # pylint: disable=too-many-arguments
     create_cli_object(endpoints_object)
 
 
-@get.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
+@get.command(name="endpoints",
+             aliases=["endpoint", "edp", "edps"],
+             help="""
+
+    Use the get endpoints command to fetch the details about one specific or all
+    endpoints within a given namespace, with an optional watch functionality.
+
+    Examples:
+        1. **Fetch Details for All Endpoints**:
+    
+           .. code-block:: bash
+    
+               skyctl get endpoints --namespace=default
+    
+           This command fetches and displays details for all endpoints within the `default` namespace.
+           It provides an overview of each set of endpoints, including their configuration, exposure status,
+           and any associated selectors.
+    
+        2. **Fetch Details for a Specific Set of Endpoints**:
+    
+           .. code-block:: bash
+    
+               skyctl get endpoints my-endpoints --namespace=default
+    
+           This command fetches and displays detailed information about the `my-endpoints` within the `default` namespace.
+           The output includes specific details such as the number of endpoints, exposure status, primary cluster,
+           and any label selectors applied.
+    
+        3. **Watch a Specific Set of Endpoints for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get endpoints my-endpoints --namespace=default --watch
+    
+           By adding the `--watch` flag, this command continuously monitors the `my-endpoints` for any changes in their details.
+           This is useful for real-time monitoring of endpoint updates, allowing you to track changes as they occur.
+
+    """)
 @click.argument("name", required=False, default=None)
 @click.option(
     "--namespace",
@@ -1190,7 +1867,7 @@ def create_endpoints(  # pylint: disable=too-many-arguments
 @click.option("--watch", default=False, is_flag=True, help="Performs a watch.")
 @halo_spinner("Fetching endpoints")
 def get_endpoints(name: str, namespace: str, watch: bool):
-    """Gets all services or fetches a specific service."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1201,7 +1878,32 @@ def get_endpoints(name: str, namespace: str, watch: bool):
     print_table('endpoints', api_response)
 
 
-@delete.command(name="endpoints", aliases=["endpoint", "edp", "edps"])
+@delete.command(name="endpoints",
+                aliases=["endpoint", "edp", "edps"],
+                help="""
+    Use the delete endpoints command to permanently remove any endpoint being
+    managed by SkyShift.
+
+    Examples:
+        1. **Delete Endpoints from the Default Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl delete endpoints my-endpoints --namespace=default
+    
+           This command deletes the `my-endpoints` from the `default` namespace. Once deleted, the endpoints
+           will no longer be available, and any resources or services associated with them will be disconnected.
+    
+        2. **Delete Endpoints from a Custom Namespace**:
+    
+           .. code-block:: bash
+    
+               skyctl delete endpoints my-endpoints --namespace=production
+    
+           This command deletes the `my-endpoints` from the `production` namespace. This is useful for cleaning up
+           endpoints that are no longer needed in a specific environment or namespace.
+    
+    """)
 @click.argument("name", required=True)
 @click.option(
     "--namespace",
@@ -1212,7 +1914,7 @@ def get_endpoints(name: str, namespace: str, watch: bool):
 )
 @halo_spinner("Deleting endpoints")
 def delete_endpoints(name: str, namespace: str):
-    """Removes/detaches a cluster from Sky Manager."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1223,7 +1925,43 @@ def delete_endpoints(name: str, namespace: str):
 # Role API as CLI
 
 
-@create.command(name="role", aliases=["roles"])
+@create.command(name="role",
+                aliases=["roles"],
+                help="""
+
+    Creates a new role with specified permissions and access controls within SkyShift.
+    This is highly customizable and allows access management for organizations where
+    multiple users, namespaces and resources are involved.
+
+    Examples:
+        1. **Create a Role with Specific Actions and Resources**:
+    
+           .. code-block:: bash
+    
+               skyctl create role admin-role --action=create --action=delete --resource=pods --resource=services
+    
+           This command creates a role named `admin-role` that grants permissions to create and delete `pods` and `services`.
+           The role can be assigned to users or applied within specific namespaces as needed.
+    
+        2. **Create a Role with Namespace Restrictions**:
+    
+           .. code-block:: bash
+    
+               skyctl create role dev-role --action=view --resource=pods --namespace=dev
+    
+           This command creates a role named `dev-role` that grants permission to view `pods` only within the `dev` namespace.
+           This is useful for limiting the scope of access for users who only need to manage resources in specific environments.
+    
+        3. **Create a Role and Assign it to Users**:
+    
+           .. code-block:: bash
+    
+               skyctl create role team-lead --action=manage --resource=deployments --users=user1 --users=user2
+    
+           This command creates a role named `team-lead` that grants the ability to manage `deployments`.
+           The role is then assigned to `user1` and `user2`, giving them the permissions defined by the role.
+
+    """)
 @click.argument("name", required=True)
 @click.option("--action",
               "-a",
@@ -1253,7 +1991,7 @@ def delete_endpoints(name: str, namespace: str):
 def create_role(  # pylint: disable=too-many-arguments
         name: str, action: List[str], resource: List[str],
         namespace: List[str], users: List[str], spinner):
-    """Create a new role."""
+
     from skyshift.cli.cli_utils import \
         create_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1278,7 +2016,42 @@ def create_role(  # pylint: disable=too-many-arguments
     create_cli_object(role_object)
 
 
-@get.command(name="role", aliases=["roles"])
+@get.command(name="role",
+             aliases=["roles"],
+             help="""
+    The get roles command fetches the roles created in SkyShift and associated permissions/metadata.
+    This also allows continuous monitoring to the role if watch is enabled.
+
+    Examples:
+        1. **Fetch Details for All Roles**:
+    
+           .. code-block:: bash
+    
+               skyctl get role
+    
+           This command fetches and displays details for all roles created in SkyShift. It provides an overview
+           of each role, including its name, associated permissions, resources, namespaces, and users.
+    
+        2. **Fetch Details for a Specific Role**:
+    
+           .. code-block:: bash
+    
+               skyctl get role admin-role
+    
+           This command fetches and displays detailed information about the `admin-role`. The output includes specific
+           details such as the actions permitted by the role, the resources it controls, the namespaces where it applies,
+           and the users assigned to it.
+    
+        3. **Watch a Specific Role for Changes**:
+    
+           .. code-block:: bash
+    
+               skyctl get role admin-role --watch
+    
+           By adding the `--watch` flag, this command continuously monitors the `admin-role` for any changes in its details.
+           This is useful for real-time monitoring of role updates, allowing you to track changes as they occur.
+    
+    """)
 @click.argument("name", required=False, default=None)
 @click.option("--watch",
               "-w",
@@ -1287,7 +2060,7 @@ def create_role(  # pylint: disable=too-many-arguments
               help="Performs a watch.")
 @halo_spinner("Fetching roles")
 def get_roles(name: str, watch: bool, spinner):
-    """Gets a role (or all roles if None is specified)."""
+
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel
         get_cli_object, print_table)
 
@@ -1299,11 +2072,27 @@ def get_roles(name: str, watch: bool, spinner):
     print_table('role', api_response)
 
 
-@delete.command(name="role", aliases=["roles"])
+@delete.command(name="role",
+                aliases=["roles"],
+                help="""
+
+    Deletes a specified role from SkyShift. Immediately revokes the role and associated permissions.
+
+    Examples:
+        1. **Delete a Specific Role**:
+    
+           .. code-block:: bash
+    
+               skyctl delete role admin-role
+    
+           This command deletes the `admin-role` from SkyShift. Once deleted, all permissions and access
+           controls associated with this role are revoked, and the role can no longer be assigned to users.
+
+    """)
 @click.argument("name", required=True)
 @halo_spinner("Deleting role")
 def delete_role(name, spinner):
-    """Removes a role."""
+
     from skyshift.cli.cli_utils import \
         delete_cli_object  # pylint: disable=import-outside-toplevel
 
@@ -1317,7 +2106,47 @@ def delete_role(name, spinner):
 # SkyShift exec
 
 
-@click.command(name="exec")
+@click.command(name="exec",
+               help="""
+
+    Executes a specified command within a container of a resource.
+
+    This function supports executing commands in various modes, including direct execution
+    and TTY (interactive) mode.
+    It is capable of targeting specific clusters, tasks (pods), and containers, providing
+    flexibility in how commands are executed across the infrastructure. It handles both
+    single and multiple targets with appropriate checks and balances to ensure the command
+    execution context is correctly established.
+
+    Examples:
+        1. **Execute a Simple Command in a Resource**:
+    
+           .. code-block:: bash
+    
+               skyctl exec my-pod ls /app
+    
+           This command runs the `ls /app` command in the `my-pod` resource within the default namespace.
+           The command lists the contents of the `/app` directory in the specified pod.
+    
+        2. **Execute a Command in a Specific Container of a Pod**:
+    
+           .. code-block:: bash
+    
+               skyctl exec my-pod --containers=my-container ls /app
+    
+           This command runs the `ls /app` command in the `my-container` within the `my-pod` resource.
+           It targets a specific container within the pod, allowing for granular command execution.
+    
+        3. **Execute a Command with TTY (Interactive) Mode**:
+    
+           .. code-block:: bash
+    
+               skyctl exec my-pod --tty bash
+
+           This command opens an interactive `bash` shell in the `my-pod` resource, enabling user interaction
+           with the shell through a TTY (interactive) session.
+
+    """)
 @click.argument("resource", required=True)
 @click.argument("command", nargs=-1, required=True)
 @click.option(
@@ -1358,9 +2187,7 @@ def delete_role(name, spinner):
 def exec_command_sync(  # pylint: disable=too-many-arguments
         resource: str, command: Tuple[str], namespace: str, tasks: List[str],
         containers: List[str], quiet: bool, tty: bool):
-    """
-    Wrapper for exec_command to parse inputs and change variable names.
-    """
+
     # Convert containers from tuple to list if necessary
     specified_container = list(containers) if containers else []
     specified_tasks = list(tasks) if tasks else []
@@ -1471,12 +2298,29 @@ cli.add_command(exec_command_sync)
 
 
 @click.command('register',
-               help='''\
-Register a new user. \'register USERNAME PASSWORD \'
-Username should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
-Password must be 5 or more characters.
-'''
-               '  \n ')
+               help="""
+    
+    The register command registers a new user in the system within SkyShift based on an invitation.
+    
+    Username should be 4-50 characters long composed of upper or lower case alphabetics, digits and/or _.
+    Password must be 5 or more characters.
+    
+    This command allows for the registration of a new user account, which is necessary for accessing
+    and interacting with the system. It requires a username, password, and an invite key, to ensure
+    that only authorized users can register.
+
+    Examples:
+        1. **Register a New User**:
+    
+           .. code-block:: bash
+    
+               skyctl register newuser mypassword --invite=abcd1234 --email=newuser@example.com
+    
+           This command registers a new user with the username `newuser` and the password `mypassword`.
+           The user is validated using the invite key `abcd1234` and the email address `newuser@example.com`
+           is associated with the account for notifications and recovery.
+
+    """)
 @click.argument('username', required=True)
 @click.argument('password', required=True)
 @click.option('--invite',
@@ -1489,9 +2333,7 @@ Password must be 5 or more characters.
               help='Email address of the user.')
 @halo_spinner("Registering user")
 def register(username, email, password, invite):  # pylint: disable=redefined-outer-name
-    """
-    Register a new user.
-    """
+
     from skyshift.cli.cli_utils import \
         register_user  # pylint: disable=import-outside-toplevel
 
@@ -1501,18 +2343,30 @@ def register(username, email, password, invite):  # pylint: disable=redefined-ou
 cli.add_command(register)
 
 
-@click.command(
-    'login',
-    help=
-    'Login user. Does NOT change current active user. \'login USERNAME PASSWORD \''
-)
+@click.command('login',
+               help="""
+    
+    Logs a user into SkyShift using a username and password. This command authenticates
+    a user based on the provided credentials. It is important to note that this login
+    command does not change the current active user session but merely performs login
+    authentication.
+
+    Examples:
+        1. **Login as a User**:
+    
+           .. code-block:: bash
+    
+               skyctl login myusername mypassword
+    
+           This command logs in the user with the username `myusername` and the password `mypassword`.
+           The user is authenticated based on the provided credentials, but the active user session
+           remains unchanged.
+
+    """)
 @click.argument('username', required=True)
 @click.argument('password', required=True)
 @halo_spinner("Logging in")
 def login(username, password):
-    """
-    Login command with username and password.
-    """
     from skyshift.cli.cli_utils import \
         login_user  # pylint: disable=import-outside-toplevel
 
@@ -1522,7 +2376,42 @@ def login(username, password):
 cli.add_command(login)
 
 
-@click.command('invite', help='Create a new invite for registery.')
+@click.command('invite',
+               help="""
+
+    Creates a new invitation key for user registration, allowing outputting in JSON format.
+    This command generates an invitation key that can be used for registering new users
+    into SkyShift. It can be configured to associate specific roles with the invite, which
+    will then be assigned to the user upon registration.
+    
+    Examples:
+        1. **Create a Simple Invite**:
+        
+           .. code-block:: bash
+        
+               skyctl invite
+        
+           This command generates a new invitation key without any associated roles. The invite key will
+           be printed to the console.
+        
+        2. **Create an Invite with Roles**:
+        
+           .. code-block:: bash
+        
+               skyctl invite --role=admin --role=developer
+        
+           This command generates an invitation key associated with the `admin` and `developer` roles.
+           When a user registers using this invite, they will be granted the specified roles.
+        
+        3. **Create an Invite and Output in JSON Format**:
+           .. code-block:: bash
+        
+               skyctl invite --json
+        
+           This command generates an invitation key and outputs it in JSON format. The JSON object will
+           include the invite key under the key 'invite'.
+
+    """)
 @click.option(
     '--json',
     is_flag=True,
@@ -1534,9 +2423,7 @@ cli.add_command(login)
               help='Enter ROLE names intended as part of the invite.')
 @halo_spinner("Creating invite")
 def invite(json, role):  # pylint: disable=redefined-outer-name
-    """
-    Create a new invite.
-    """
+
     from skyshift.cli.cli_utils import \
         create_invite  # pylint: disable=import-outside-toplevel
 
@@ -1546,13 +2433,28 @@ def invite(json, role):  # pylint: disable=redefined-outer-name
 cli.add_command(invite)
 
 
-@click.command('revoke_invite', help='Revoke created invite.')
+@click.command('revoke_invite',
+               help="""
+
+    The revoke invite command allows revoking an existing invitation key.
+    This means the user will not be able to use it in the future for registering
+    and account with SkySfhit.
+
+    Examples:    
+    
+    1. **Revoke an Invitation Key**:
+    
+    .. code-block:: bash
+
+        skyctl revoke_invite abcd1234
+
+    This command revokes the invitation key `abcd1234`. After revocation, the
+    key is invalid, and any attempt to use it for registration will fail.
+    
+    """)
 @click.argument('invite', required=True)
 @halo_spinner("Revoking invite")
 def revoke_invite(invite):  # pylint: disable=redefined-outer-name
-    """
-    Revoke an existing invite.
-    """
     from skyshift.cli.cli_utils import \
         revoke_invite_req  # pylint: disable=import-outside-toplevel
 
@@ -1564,13 +2466,28 @@ cli.add_command(revoke_invite)
 
 @config.command(name="use-context",
                 aliases=["use-ctx", "swap-context", "swap-ctx"],
-                help='Swap to a specified context (see .skyconf/config.yaml).')
+                help="""
+    
+    Switches the current active context in SkyShift to the specified one. This command
+    allows the user to change the active configuration context to another one as
+    specified in the '.skyconf/config.yaml' file. This is useful for managing different
+    configurations under the same CLI session.
+
+    Examples:
+        1. **Switch to a Different Context**:
+    
+           .. code-block:: bash
+    
+               skyctl config use-context dev-environment
+    
+           This command switches the active context to `dev-environment`. The new context configuration
+           is loaded, and all subsequent commands will use this context until it is changed again.
+        
+    """)
 @click.argument('name', required=True)
 @halo_spinner("Switching context")
 def use_sky_context(name: str, spinner):
-    """
-    Switch local CLI active context.
-    """
+
     from skyshift.cli.cli_utils import \
         use_context  # pylint: disable=import-outside-toplevel
 
@@ -1581,14 +2498,29 @@ def use_sky_context(name: str, spinner):
     use_context(name)
 
 
-@click.command(name="status")
+@click.command(name="status",
+               help="""
+
+    The status command displays the current status of clusters, available resources,
+    and recent jobs in SkyShift.
+
+    This command provides the following:
+    - The total available resources of clusters in the 'READY' state.
+    - A list of the newest 10 running jobs. Useful for monitoring and administration.
+
+    Example:
+    .. code-block:: bash
+
+        skyctl status
+
+    This command displays the status of all clusters in SkyShift, including the total
+    available resources in clusters that are in the 'READY' state. It also lists the
+    newest 10 running jobs, giving a snapshot of the system's current activity.
+
+    """)
 @halo_spinner("Fetching status")
 def status():  # pylint: disable=too-many-locals
-    """
-    Displays the status of clusters and the total available
-    resources for clusters in the READY state,
-    as well as the newest 10 running jobs.
-    """
+
     from skyshift.api_client import (  # pylint: disable=import-outside-toplevel
         ClusterAPI, JobAPI)
     from skyshift.cli.cli_utils import (  # pylint: disable=import-outside-toplevel

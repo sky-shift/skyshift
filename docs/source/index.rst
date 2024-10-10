@@ -30,6 +30,7 @@ Documentation
 
    getting_started/installation.rst
    getting_started/setup.rst
+   getting_started/cli_docs.rst
 
 .. toctree::
    :maxdepth: 1
