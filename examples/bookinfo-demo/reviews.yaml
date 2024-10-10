@@ -1,0 +1,22 @@
+kind: Job
+
+metadata: 
+  name: reviews-v2
+  labels:
+    app: reviews
+    version: v2
+
+spec:
+  replicas: 1
+  image: docker.io/istio/examples-bookinfo-reviews-v2
+  resources:
+    cpus: 2
+    memory: 512
+  ports:
+    - 9080
+  restartPolicy: Always
+  placement:
+    filters:
+      - name: filter-1
+        match_labels:
+          type: backend
