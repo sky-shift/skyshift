@@ -1,0 +1,16 @@
+kind: Service
+
+metadata:
+  name: details
+
+spec:
+  type: ClusterIP
+  # Enter which cluster to deploy service on.
+  # By default, it selects the cluster with most replicas.
+  primary_cluster: kind-cluster1
+  selector:
+    app: details
+  ports:
+    - protocol: TCP
+      port: 9080
+      target_port: 9080
