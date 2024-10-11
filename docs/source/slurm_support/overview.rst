@@ -21,20 +21,26 @@ as well as to compute farms maintained by various institutions or individual ent
 of flexibility ensures that your computational research and engineering tasks are executed 
 efficiently, leveraging the best available resources.
 
-Containerization: A Core Principle
------------------------------------
+Uncontainerized Job Submission
+---------------------------------------------
 
-In the current landscape, SkyShift mandates that all jobs submitted to Slurm Clusters be 
-containerized. This approach guarantees compatibility and optimizes the execution across different 
-environments, ensuring that your jobs are run in an isolated, controlled, and reproducible manner. 
-SkyShift automatically identifies the most suitable container management tool available on the Slurm 
-Cluster from its supported list, streamlining the deployment process.
+Currently, due to the nature of scientific workloads that Slurm Clusters are targetted for, SkyShift only supports submitting jobs 
+to Slurm Clusters uncontainerized. This aims to maximize the performance of Slurm Cluster's compute 
+resources, providing an option for workloads that require direct access to hardware for optimal 
+efficiency. 
 
-Supported Container Management Utilities
+Looking Ahead: Supporting Container Management Utilities
 ----------------------------------------
 
-SkyShift proudly supports a diverse array of container management tools, enabling you to choose the 
-one that best fits your project's needs:
+SkyShift is committed to expanding the frontiers of computational job management, making it more 
+accessible, efficient, and flexible for users across various disciplines and industries. Stay tuned 
+for more advancements that will continue to elevate your computational research and engineering 
+endeavors.
+
+SkyShift is committed to supporting a diverse array of container management tools adopted across different actively managed Slurm Clusters, enabling you to choose the 
+one that best fits your project's needs, and will aim to automatically identify the most suitable tool available on the Cluster to streamline the deployment process.
+
+The container manager utilities that are on the feature roadmap are:
 
 - `ContainerD <https://containerd.io/>`_ - A lightweight container runtime that's easy to deploy and manage.
 
@@ -46,15 +52,3 @@ one that best fits your project's needs:
 
 - `Docker <https://www.docker.com/>`_ - The de facto standard in container technology, known for its ease of use and comprehensive feature set.
 
-Looking Ahead: Uncontainerized Job Submission
----------------------------------------------
-
-In anticipation of future enhancements, SkyShift is developing the capability to submit jobs 
-uncontainerized. This innovation aims to maximize the performance of Slurm Cluster's compute 
-resources, providing an option for workloads that require direct access to hardware for optimal 
-efficiency.
-
-SkyShift is committed to expanding the frontiers of computational job management, making it more 
-accessible, efficient, and flexible for users across various disciplines and industries. Stay tuned 
-for more advancements that will continue to elevate your computational research and engineering 
-endeavors.
