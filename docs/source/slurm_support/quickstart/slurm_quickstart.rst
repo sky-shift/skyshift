@@ -1,5 +1,5 @@
 .. _slurm_quickstart:
-
+===============================
 Quickstart - SkyShift with Slurm
 ===============================
 
@@ -14,18 +14,17 @@ In this guide, we'll cover the following topics:
 - Adding and removing Slurm Clusters from SkyShift.
 - Creating and running SkyShift jobs on Slurm.
 
-Prerequisites
-+++++++++++++++++++++++++++++++
+**Prerequisites**:
 - SkyShift API Server and Manager:  :ref:`Setup Guide <setup>`.
 
 Interfacing with Slurm Clusters
-+++++++++++++++++++++++++++++++
+-------------------------------
 
 Setting up the Config File
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+===============================
 
-With SkyShift, integrating a remote Slurm cluster into your workflow is straightforward. 
-Copy the following YAML into **~/.skyconf/slurm_config.yaml** file:
+With SkyShift, integrating a remote Slurm Cluster into your workflow is straightforward. 
+Copy the following YAML into :code:`~/.skyconf/slurm_config.yaml` file:
 
 .. code-block:: yaml
 
@@ -39,43 +38,45 @@ Copy the following YAML into **~/.skyconf/slurm_config.yaml** file:
     # password: whatever
 
 This defines a cluster with the following components:
-- **SlurmCluster1** : name of the Slurm Cluster, this needs to be unique for each cluster, but can be whatever you choose.
 
-- **interface** : the method SkyShift will use to access the cluster. Currently only `cli` is supported.
+- :code:`SlurmCluster1` : name of the Slurm Cluster, this needs to be unique for each cluster, but can be whatever you choose.
 
-- **access_config** : the login/security parameters needed for SkyShift to access the Slurm cluster.
+- :code:`interface` : the method SkyShift will use to access the cluster. Currently only `cli` is supported.
 
-- **hostname** : SSH hostname used on the Slurm node.
+- :code:`access_config` : the login/security parameters needed for SkyShift to access the Slurm cluster.
 
-- **user** : username on the Slurm node.
+- :code:`hostname` : SSH hostname used on the Slurm node.
 
-- **ssh_key** : local absolute path to private SSH key for remote authentiation with the Slurm node.
+- :code:`user` : username on the Slurm node.
 
-- **password** : in the advent the Slurm cluster does not support SSH key authentiation, this password field can be added for password authentication(not recommended).
+- :code:`ssh_key` : local absolute path to private SSH key for remote authentiation with the Slurm node.
+
+- :code:`password` : in the advent the Slurm cluster does not support SSH key authentiation, this password field can be added for password authentication(not recommended).
 
 Once these fields are populated with your Slurm cluster's information, we can now attach it to SkyShift!
 
 Attaching the Remote Slurm Cluster
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-With the configuration file fully populated with the details needed to access the Slurm cluster, let's attach it to SkyShift.
+===============================
 
-Upon launch, SkyShift will automatically discover and attempt to attach all Slurm clusters defined inside of `slurm_config.yaml`.
-To launch SkyShift, run in **skyshift/**:
+With the configuration file fully populated with the details needed to access the Slurm Cluster, let's attach it to SkyShift.
+
+Upon launch, SkyShift will automatically discover and attempt to attach all Slurm Clusters defined inside of `slurm_config.yaml`.
+To launch SkyShift, run in :code:`skyshift/`:
 
 .. code-block:: shell
 
   ./launch_skyshift.sh
 
-If SkyShift is already running, attach the Slurm cluster using the unique name given to it in the configuration step.
+If SkyShift is already running, attach the Slurm Cluster using the unique name given to it in the configuration step.
 
 .. code-block:: shell
 
   skyctl create cluster SlurmCluster1 --manager slurm 
 
 Checking Cluster Status
-^^^^^^^^^^^^^^^^^^^^^^^^
+===============================
 
-Before deploying a job to the Slurm cluster, let's double check the status of your configured clusters, simply run:
+Before deploying a job to the Slurm Cluster, let's double check the status of your configured clusters, simply run:
 
 .. code-block:: shell
 
@@ -93,10 +94,10 @@ their status for job provisioning:
     cluster3        k8s        cpus: 1.83/2.0                     READY
                                memory: 6035.6/7954.6 MiB
 
-Now you're ready to deploy jobs to your Slurm cluster through SkyShift!
+Now you're ready to deploy jobs to your Slurm Cluster through SkyShift!
 
 Submitting Jobs to Slurm
-^^^^^^^^^^^^^^^^^^^^^^^
+===============================
 
 Submitting jobs to Slurm follows the same process as a standard SkyShift job, let's submit a simple test job to the Slurm Cluster.
 
@@ -104,7 +105,7 @@ Submitting jobs to Slurm follows the same process as a standard SkyShift job, le
   skyctl create job --cpus 1 --memory 128 --replicas 2 --run "echo hi; sleep 300; echo bye" my-test-job
 
 Monitoring Your Job
-^^^^^^^^^^^^^^^^^^^^
+===============================
 
 To check the status of your jobs and ensure they're running as expected:
 
@@ -120,7 +121,7 @@ You'll see details about each job, including the cluster it's running on, resour
 and its current status.
 
 Detaching the Cluster
-^^^^^^^^^^^^^^^^^^^
+===============================
 
 If you need to remove a cluster from SkyShift, the process is just as simple:
 
@@ -131,7 +132,8 @@ If you need to remove a cluster from SkyShift, the process is just as simple:
 .. note::
 
   If SkyShift is relaunched, it will automatically discover and attempt to attach all clusters defined in the configuration file. To prevent a cluster from being reattached, it will have to be removed from the configuration file.
-After detaching, you can verify the status of the remaining clusters with **skyctl get clusters** to see 
+
+After detaching, you can verify the status of the remaining clusters with :code:`skyctl get clusters` to see 
 the updated list.
 
 Now that you're equipped with the basics of managing clusters and jobs in SkyShift using Slurm, 
