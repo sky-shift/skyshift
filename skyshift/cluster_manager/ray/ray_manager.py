@@ -10,7 +10,6 @@ import logging
 import os
 import traceback
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
 
 import paramiko
 import requests
@@ -31,7 +30,6 @@ from skyshift.utils.ssh_utils import (SSHParams, SSHStatusEnum, SSHStruct,
                                       connect_ssh_client, ssh_send_command)
 from skyshift.utils.utils import fuzzy_map_gpu
 
-RAY_CLIENT_PORT = 10001
 RAY_JOBS_PORT = 8265
 RAY_DASHBOARD_PORT = 8265
 RAY_NODES_PORT = 6379
@@ -114,10 +112,8 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
 
             self.logger.info("Installing Miniconda & Ray...")
             install_conda_cmd = f"bash {self.remote_dir}/ray_install.sh"
-            _, stderr = ssh_send_command(ssh_client, install_conda_cmd)
-            if stderr:
-                self.logger.error("Error installing Miniconda & Ray: %s",
-                                  stderr)
+            ssh_send_command(ssh_client, install_conda_cmd)
+            if not self._connect_to_ray_cluster():
                 raise RayConnectionError("Error installing Miniconda & Ray.")
             self.logger.info("Ray successfully started.")
         except paramiko.SSHException as error:
@@ -190,7 +186,7 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
         """
         Gets total allocatable resources for each node using Ray, excluding the internal head node.
         """
-        resources = self.fetch_resources_from_dashboard(usage=False)
+        resources = self.fetch_resources_from_dashboard(usage=True)
         logging.debug("Cluster available resources: %s", resources)
         return fuzzy_map_gpu(resources)
 
@@ -233,15 +229,8 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
             logs.append(log)
             self.logger.info("Fetched logs for job %s on the Ray cluster.",
                              job_id)
-        except RuntimeError as error:
-            self.logger.error("Failed to fetch logs for job %s: %s", job_id,
-                              error)
-
-        try:
-            self.client.stop_job(job_id)
-            self.client.delete_job(job_id)
-        except RuntimeError as error:
-            self.logger.error("Failed to stop job %s: %s", job_id, error)
+        except RuntimeError:
+            return []
 
         return logs
 
@@ -262,7 +251,7 @@ class RayManager(Manager):  # pylint: disable=too-many-instance-attributes
             self.logger.error("Ray client not initialized.")
             return {}
 
-        job_id = f"{job.get_name()}-{job.get_namespace()}-{uuid4().hex[:10]}"
+        job_id = f"{job.get_name()}-{job.get_namespace()}-SkyShift"
 
         submission_details = {
             "manager_job_id": job_id,
