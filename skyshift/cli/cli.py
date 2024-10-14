@@ -2595,14 +2595,14 @@ def delete_users(username: str):
     delete_user(object_type="user", name=username)
 
 @click.command(name="port-forward", help="""
-    Forward one or more local ports to a pod or service.
+    Forward one or more local ports to a resource.
     This command allows you to forward local ports to a resource managed by SkyShift,
     similar to the `kubectl port-forward` command, but for SkyShift managed resources.
     You can specify the resource, ports to forward, and optionally the Kubernetes context and namespace.
 
     Examples:
 
-        1. **Forward a Local Port to a Pod in a Specific Context and Namespace**:
+        1. **Forward a Local Port to a Resource in a Specific Context and Namespace**:
 
            .. code-block:: bash
 
