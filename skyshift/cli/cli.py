@@ -2602,8 +2602,15 @@ def delete_users(username: str):
               default="default",
               show_default=True,
               help="Namespace corresponding to the resource's location.")
+@click.option("--manager",
+              required=True,
+              help="Resource manager type (e.g., 'k8'). Only 'k8' is supported.")
+@click.option("--context",
+              type=str,
+              default=None,
+              help="Kubernetes context to use for port forwarding.")
 @halo_spinner("Started port-forwarding")
-def port_forward(resource: str, ports: Tuple[str], namespace: str, spinner):
+def port_forward(resource: str, ports: Tuple[str], namespace: str, manager: str, context: str, spinner):
     """
     Forward one or more local ports to a pod or service.
     This CLI command is similar to Kubectl's port forward but for SkyShift managed objects.
@@ -2611,7 +2618,7 @@ def port_forward(resource: str, ports: Tuple[str], namespace: str, spinner):
     from skyshift.cli.cli_utils import port_forward_util
 
     try:
-        port_forward_util(resource, ports, namespace)
+        port_forward_util(resource, ports, namespace, manager, context)
     except Exception as e:
         spinner.fail(f"Port forwarding failed: {str(e)}")
         raise click.ClickException(f"Port forwarding failed: {str(e)}")

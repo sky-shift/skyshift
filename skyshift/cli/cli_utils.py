@@ -862,7 +862,7 @@ def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
 
     click.echo(f"\nDeleted {object_type} {name}.")
 
-def port_forward_util(resource: str, ports: Tuple[str], namespace: str):
+def port_forward_util(resource: str, ports: Tuple[str], namespace: str, manager: str, context: str):
     """
     Utility function to handle the actual port-forwarding using kubectl.
 
@@ -873,10 +873,19 @@ def port_forward_util(resource: str, ports: Tuple[str], namespace: str):
 
     This function constructs the kubectl port-forward command and executes it.
     """
+
+    if manager.lower() != 'k8':
+        # For now, we only support K8s, in the future more resource managers can be added.
+        raise Exception("Port forwarding is only supported for Kubernetes ('k8') resources.")
+
     # Construct the kubectl command
     port_forward_cmd = [
         "kubectl", "port-forward", resource, *ports, "-n", namespace
     ]
+    if context:
+        port_forward_cmd.insert(1, "--context")
+        port_forward_cmd.insert(2, context)
+
     try:
         subprocess.run(port_forward_cmd, check=True)
     except subprocess.CalledProcessError as e:
