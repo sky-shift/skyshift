@@ -81,15 +81,16 @@ Submit the job.
     ✔ Fetching jobs completed successfully.
 
 5) Create a service for the jobs
+
 .. code-block:: shell
 
     skyctl apply -f $SKYSHIFT/examples/vllm-demo/vllm_service.yaml 
 
-..note:: 
-    
-    The service is created in Cluster1 as the frontend.
+.. note:: 
 
-9) Now, we can try to access the productpage frontend application using
+    The service is created in `Cluster1` as the frontend.
+
+6) Now, we can try to access the productpage frontend application using
 
 .. code-block:: shell
 
@@ -99,7 +100,7 @@ Submit the job.
 
     Use `.status.loadBalancer.ingress[0].hostname` in the above command if the cloud k8s service allocates hostname instead of IP.
 
-10) Now, test it out
+7) Now, test it out
 
 .. code-block:: shell
 
@@ -112,10 +113,8 @@ Submit the job.
 		]
 	}' | jq
 
+8) Finally, Cleanup
 
-
-10) Finally, Cleanup
-
-.. note::
+.. code-block:: shell
 
     ./cleanup.sh

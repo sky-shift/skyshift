@@ -79,7 +79,7 @@ deploy the replicas across two clusters and load balance the requests between th
 
     Note: The service is created in Cluster1 as frontend.
 
-9) Now, we can try to access the productpage frontend application using
+6) Now, we can try to access the productpage frontend application using
 
     ```
     export FRONTEND_IP=`kubectl get svc vllm-service --context cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
@@ -88,7 +88,7 @@ deploy the replicas across two clusters and load balance the requests between th
     Note: Use `.status.loadBalancer.ingress[0].hostname` in the above command if the cloud k8s service allocates hostname instead of IP.
     open http://$FRONTEND_IP/productpage in browser, and you should be able to view the rating/reviews of the book as shown below.
 
-10) Now, test it out
+7) Now, test it out
 
     ```
     curl -X POST "$FRONTEND_IP/v1/chat/completions" \
@@ -101,7 +101,7 @@ deploy the replicas across two clusters and load balance the requests between th
 	}' | jq
     ```
 
-10) Finally, Cleanup
+8) Finally, Cleanup
 
     ```
     ./cleanup.sh
