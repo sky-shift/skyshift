@@ -3,6 +3,7 @@
 **/__pycache__/
 *.egg-info/
 *.eggs/
+**/.mypy_cache/
 
 .vscode
 

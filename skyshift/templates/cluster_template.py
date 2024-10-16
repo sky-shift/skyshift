@@ -47,6 +47,7 @@ class ClusterStatus(ObjectStatus):
     """Status of a Cluster."""
     status: str = Field(default=ClusterStatusEnum.INIT.value,
                         validate_default=True)
+    error_message: str = Field(default="", validate_default=True)
     conditions: List[Dict[str, str]] = Field(default=[], validate_default=True)
     # Allocatable capacity of the cluser.
     allocatable_capacity: Dict[str, Dict[str,
@@ -136,6 +137,17 @@ class ClusterStatus(ObjectStatus):
             raise ValueError(f"Invalid cluster status: {status}.")
         return status
 
+    @field_validator("error_message")
+    @classmethod
+    def verify_error_message(cls, error_message: str, info: ValidationInfo):
+        """Validates the error_message field of a Cluster."""
+        if ("status" not in info.data or info.data["status"] !=
+                ClusterStatusEnum.ERROR.value) and len(error_message) > 0:
+            raise ValueError(
+                f"Cannot have error message when state is {info.data['status']}"
+            )
+        return error_message
+
     def update_conditions(self, conditions):
         """Updates the conditions field of a Cluster."""
         self.conditions = conditions
@@ -164,6 +176,10 @@ class ClusterStatus(ObjectStatus):
                                                                    float]]):
         """Updates the allocatable_capacity field of a Cluster."""
         self.allocatable_capacity = capacity
+
+    def update_error_message(self, error_message: str):
+        """Updates the error message field of a Cluster."""
+        self.error_message = error_message
 
 
 class ClusterMeta(ObjectMeta):
