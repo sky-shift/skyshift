@@ -2,71 +2,46 @@
 SkyPilot + RKE provisioning script for cloud clusters.
 """
 import os
-import subprocess
 import threading
 from copy import deepcopy
-from typing import Any, Dict
 
 import sky
 import sky.exceptions
 import yaml
 from sky import global_user_state
 
-from skyshift.cloud.utils import cloud_cluster_dir, skypilot_ssh_path
-from skyshift.globals import USER_SSH_PATH
+from skyshift.cloud.utils import (RKE_PORTS, cloud_cluster_dir,
+                                  create_ssh_scp_clients, parse_ssh_config)
 from skyshift.templates.cluster_template import Cluster, ClusterSpec
+from skyshift.utils.scp_utils import get_scp_async, send_scp_sync
+from skyshift.utils.ssh_utils import ssh_send_command
 
-BASE_RKE_CLUSTER_YAML: Dict[str, Any] = {
-    "nodes": [],
-    "ssh_key_path": f"{USER_SSH_PATH}/sky-key",
-    "ingress": {
-        "provider": "nginx"
-    },
-    "system_images": {
-        "ingress": "rancher/nginx-ingress-controller:0.21.0-rancher1",
-        "ingress_backend":
-        "rancher/nginx-ingress-controller-defaultbackend:1.4"
-    },
-}
+RKE2_SETUP_SCRIPT: str = "./skyshift/cloud/rke2_setup.sh"
+RKE2_ADD_AGENT_SCRIPT: str = "./skyshift/cloud/rke2_add_agent.sh"
 
-# See here for details: https://rke.docs.rancher.com/os#ports
-RKE_PORTS = [
-    "22",
-    "6443",
-    "2376",
-    "2379",
-    "2380",
-    "8472",
-    "9099",
-    "10250",
-    "443",
-    "379",
-    "6443",
-    "8472",
-    "80",
-    "472",
-    "10254",
-    "3389",
-    "30000-32767",
-    "7946",
-    "179",
-    "6783-6784",
-    "9796",
-    "9443",
-    "9100",
-    "8443",
-    "4789",
-]
+
+def _cleanup_config_dir(cluster_name: str, num_nodes: int):
+    """
+    Cleans up the config directory after provisioning a cluster.
+    """
+    for i in range(num_nodes):
+        try:
+            os.remove(
+                f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_provision_task_{cluster_name}_{i}.yml"
+            )
+        except FileNotFoundError:
+            pass
 
 
 def _construct_skypilot_task_yaml(cluster_name: str,
                                   num: int,
                                   spec: ClusterSpec,
-                                  setup: str = "echo 'setup'",
-                                  run: str = "echo 'run'"):
+                                  envs=None):
     """
     Construct a SkyPilot task YAML for the provided ClusterSpec.
     """
+    if envs is None:
+        envs = {}
     spec = deepcopy(spec)
     spec.ports = list(set(spec.ports + RKE_PORTS))
     try:
@@ -79,155 +54,99 @@ def _construct_skypilot_task_yaml(cluster_name: str,
         pass
     data = {
         "name": f"sky-{cluster_name}-{num}",
-        "resources": dict(spec),
-        "setup": setup,
-        "run": run,
+        "resources": {
+            "cpus": spec.cpus,
+            "memory": spec.memory,
+            "disk_size": spec.disk_size,
+            "accelerators": spec.accelerators,
+            "ports": list(set(spec.ports + RKE_PORTS)),
+            "cloud": spec.cloud,
+            "region": spec.region,
+        },
+        "envs": envs,
     }
     # Create directioy if it does not exist
     provision_dir = f"{cloud_cluster_dir(cluster_name)}/provision"
     os.makedirs(provision_dir, exist_ok=True)
 
-    with open(f"{provision_dir}/skypilot_task_{cluster_name}_{num}.yml",
-              "w") as file:
+    with open(
+            f"{provision_dir}/skypilot_provision_task_{cluster_name}_{num}.yml",
+            "w") as file:
         yaml.dump(data, file)
 
 
-def _provision_resources(cluster_name: str, num_nodes: int, run_command: str,
-                         spec: ClusterSpec):
+def create_resource(cluster_name, num, spec, envs=None):
     """
-    Provision resources for the cluster using SkyPilot Python API.
+    Creates a new node using Skypilot.
     """
-    run_command = run_command or ""
-    spec = spec or ClusterSpec()
-
-    def _create_resource(num):
-        _construct_skypilot_task_yaml(cluster_name,
-                                      num,
-                                      spec,
-                                      setup="",
-                                      run=run_command)
-        task = sky.Task.from_yaml(
-            f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_task_{cluster_name}_{num}.yml"
+    skypilot_cluster_name = f"sky-{cluster_name}-{num}"
+    _construct_skypilot_task_yaml(cluster_name, num, spec, envs)
+    task = sky.Task.from_yaml(
+        f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_provision_task_{cluster_name}_{num}.yml"
+    )
+    if not global_user_state.get_enabled_clouds():
+        raise sky.exceptions.NoCloudAccessError(
+            "No cloud is enabled. SkyPilot will not be able to run any task. Run `sky check` for more info."
         )
-        if not global_user_state.get_enabled_clouds():
-            raise sky.exceptions.NoCloudAccessError(
-                "No cloud is enabled. SkyPilot will not be able to run any task. Run `sky check` for more info."
-            )
-        sky.launch(task, f"sky-{cluster_name}-{num}")
-
-    class _CreateResourceThread(threading.Thread):
-        """A thread that catches any exception and stores it in the `exc` field."""
-
-        def run(self):
-            # pylint: disable=W0201 (attribute-defined-outside-init)
-            self.exc = None
-            try:
-                self.ret = self._target(*self._args, **self._kwargs)
-            except BaseException as exception:  # pylint: disable=W0703 (broad-except)
-                self.exc = exception
-
-    threads: list[_CreateResourceThread] = []
-    for i in range(num_nodes):
-        thread = _CreateResourceThread(target=_create_resource, args=(i, ))
-        thread.start()
-        threads.append(thread)
-
-    for thread in threads:
-        thread.join()
-        if thread.exc is not None:
-            raise thread.exc
+    sky.launch(task, skypilot_cluster_name)
+    return skypilot_cluster_name
 
 
-def _parse_ssh_config(node_name: str):
-    """
-    Parse the SSH config file and return a dictionary mapping hosts to their users.
-    """
-    with open(skypilot_ssh_path(node_name), 'r') as file:
-        lines = file.readlines()
-
-    hostname = None
-    user = None
-
-    for line in lines:
-        line = line.strip()
-        if line.startswith('HostName '):
-            hostname = line.split()[1]
-        elif line.startswith('User '):
-            user = line.split()[1]
-
-    return (hostname, user)
-
-
-def _construct_rke_cluster_yaml(cluster_name: str, num_nodes: int):
-    """
-    Construct the {cloud_cluster_dir(cluster_name)}/rke_cluster.yml file for RKE.
-    """
-    data = BASE_RKE_CLUSTER_YAML
-    data["cluster_name"] = cluster_name
-
-    for i in range(num_nodes):
-        hostname, user = _parse_ssh_config(f"sky-{cluster_name}-{i}")
-        node = {
-            "address": hostname,
-            "user": user,
-            "ssh_port": 22,
-            "role": ["worker"]
-        }
-
-        if i == 0:
-            node["role"] += ["etcd", "controlplane"]
-
-        data["nodes"].append(node)
-
-    with open(f"{cloud_cluster_dir(cluster_name)}/rke_cluster.yml",
-              'w') as file:
-        yaml.dump(data, file)
-
-
-def _cleanup_config_dir(cluster_name: str, num_nodes: int):
-    """
-    Cleans up the config directory after provisioning a cluster.
-    """
-    for i in range(num_nodes):
-        try:
-            os.remove(
-                f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_task_{cluster_name}_{i}.yml"
-            )
-        except FileNotFoundError:
-            pass
-
-
-def provision_new_kubernetes_cluster(
-    cluster_obj: Cluster,
-    run: str = "",
-):
+def provision_new_kubernetes_cluster(cluster_obj: Cluster):
     """
     Provisions a new Kubernetes cluster using Skypilot and RKE.
     """
     cluster_name = cluster_obj.metadata.name
-    num_nodes = cluster_obj.spec.num_nodes
     spec = cluster_obj.spec
 
+    # Provision the SkyPilot node
     os.makedirs(cloud_cluster_dir(cluster_name))
-    # Provision Skypilot cloud resources.
-    _provision_resources(cluster_name, num_nodes, run, spec)
-    # Create RKE YAML to run on the Skypilot-provisioned cluster.
-    _construct_rke_cluster_yaml(cluster_name, num_nodes)
-    # Launch RKE on Skypilot cluster.
-    # Assumes RKE is already installed
-    # Installation instructions: https://rke.docs.rancher.com/installation#download-the-rke-binary
-    try:
-        subprocess.run(
-            f"rke up --config {cloud_cluster_dir(cluster_name)}/rke_cluster.yml",
-            check=True,
-            shell=True)
-    except subprocess.CalledProcessError as error:
-        raise Exception(
-            "RKE cluster creation failed. Perhaps RKE is not installed or the command failed."
-        ) from error
-    except Exception as error:
-        raise Exception(
-            f"An unexpected error occurred: {str(error)}") from error
+    skypilot_node = create_resource(cluster_name, 0, spec)
+    cluster_ip = parse_ssh_config(skypilot_node)
+
+    # Copy over RKE2 setup script and run it
+    (ssh_client, scp_client) = create_ssh_scp_clients(skypilot_node)
+    send_scp_sync(scp_client, {RKE2_SETUP_SCRIPT: "/tmp/rke2_setup.sh"})
+    ssh_send_command(ssh_client, "sudo chmod +x /tmp/rke2_setup.sh")
+    envs = {"PUBLIC_IP": cluster_ip, "CLUSTER_NAME": cluster_name}
+    env_command = ' '.join(f"{key}='{value}'" for key, value in envs.items())
+    ssh_send_command(ssh_client,
+                     f"sudo -E bash -c '{env_command} /tmp/rke2_setup.sh'")
+
+    # Copy over RKE2 cluster token (/var/lib/rancher/rke2/server/node-token)
+    # and kubeconfig (/etc/rancher/rke2/rke2.yaml)
+    get_scp_async(
+        ssh_client, {
+            f"{cloud_cluster_dir(cluster_name)}/kubeconfig":
+            "/etc/rancher/rke2/rke2.yaml",
+            f"{cloud_cluster_dir(cluster_name)}/RKE2_TOKEN":
+            "/var/lib/rancher/rke2/server/node-token"
+        })
+
+    rke2_token = open(
+        f"{cloud_cluster_dir(cluster_name)}/RKE2_TOKEN").read().strip()
+
+    return cluster_ip, rke2_token
+
+
+def add_node_to_cluster(cluster_obj: Cluster, num: int, cluster_ip: str,
+                        rke2_token: str):
+    """
+    Adds a new node to a Kubernetes cluster.
+    """
+    cluster_name = cluster_obj.metadata.name
+    spec = cluster_obj.spec
+    skypilot_node = create_resource(cluster_name, num, spec)
+
+    # Copy over RKE2 add agent script and run it
+    (ssh_client, scp_client) = create_ssh_scp_clients(skypilot_node)
+    send_scp_sync(scp_client,
+                  {RKE2_ADD_AGENT_SCRIPT: "/tmp/rke2_add_agent.sh"})
+    ssh_send_command(ssh_client, "sudo chmod +x /tmp/rke2_add_agent.sh")
+    envs = {"PUBLIC_IP": cluster_ip, "RKE2_TOKEN": rke2_token}
+    env_command = ' '.join(f"{key}='{value}'" for key, value in envs.items())
+    ssh_send_command(
+        ssh_client, f"sudo -E bash -c '{env_command} /tmp/rke2_add_agent.sh'")
 
 
 def delete_kubernetes_cluster(cluster_name: str, num_nodes: int):

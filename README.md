@@ -18,18 +18,9 @@ cd skyshift
 pip install -e .
 # Dependencies for SkyShift's API server.
 pip install -e .[server]
-```
 
-To utilize SkyShift's cloud features, install the applicable [RKE v1.5.5](https://github.com/rancher/rke/releases/tag/v1.5.5) to your operating system and architecture to the same machine that is running SkyShift and make it executable. For example:  
-```
-wget https://github.com/rancher/rke/releases/download/v1.5.5/rke_linux-amd64 -o rke_linux-amd64
-mv rke_linux-amd64 /usr/bin/rke # /usr/local/bin/rke works too
-chmod +x /usr/bin/rke
-```
-
-You can make sure that the installation was successful by running the following command:
-```
-rke --version
+# (Optional) Dependencies for working on SkyShift's Documentation.
+pip install -e .[docs]
 ```
 
 ## Steps to run Sky Manager
@@ -106,9 +97,3 @@ skyctl create service my-nginx-service --type LoadBalancer --selector app nginx 
 ```
 
 This will create a native K8 service on the `mluo-onprem` cluster. If there are replicas, the K8 service will automatically loadbalance across both local and remote pods (in other clusters).
-
-
-
-
-
-

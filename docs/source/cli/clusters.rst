@@ -96,3 +96,4 @@ By executing this command, the cluster named ``myCluster`` is detached from SkyS
 and expunged from the cloud provider, contingent on its SkyShift-provisioned status.
 
 .. note:: Exercise caution when invoking the ``delete`` command; it irrevocably disassociates the cluster from SkyShift’s management and, if applicable, eradicates it from the cloud.
+   

@@ -25,6 +25,7 @@ setup(
         "rich",
         "skypilot==0.5.0",
         "paramiko",
+        "scp",
         "tabulate",
         "types-passlib",
         "types-paramiko",
@@ -37,7 +38,6 @@ setup(
         "tqdm",
         "rapidfuzz",
         "regex",
-        "paramiko",
         "ray",
     ],
     extras_require={
@@ -51,6 +51,13 @@ setup(
             "yapf==0.32.0", "pylint==2.8.2", "pylint-quotes==0.2.3",
             "mypy==1.8.0"
         ],
+        "docs": [
+            "pygments",
+            "sphinx",
+            "sphinx-book-theme",
+            "sphinx-tabs",
+            "sphinx-click"
+        ]
     },
     entry_points={
         "console_scripts": [

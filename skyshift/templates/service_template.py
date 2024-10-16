@@ -13,8 +13,10 @@ from skyshift.templates.object_template import (NamespacedObjectMeta, Object,
 class ServiceType(enum.Enum):
     """Enum for Service type."""
     ClusterIP = "ClusterIP"  # pylint: disable=invalid-name
+    # Disable ClusterIP - https://github.com/sky-shift/skyshift/pull/306/files
     LoadBalancer = "LoadBalancer"  # pylint: disable=invalid-name
     ExternalName = "ExternalName"  # pylint: disable=invalid-name
+    NodePort = "NodePort"  # pylint: disable=invalid-name
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -46,12 +48,13 @@ class ServicePorts(BaseModel):
     """Ports of a Service."""
     port: int = Field(default=None, validate_default=True)
     target_port: int = Field(default=None, validate_default=True)
+    node_port: Optional[int] = Field(default=None, validate_default=True)
     protocol: str = Field(default="TCP", validate_default=True)
 
 
 class ServiceSpec(ObjectSpec):
     """Spec of a Service."""
-    type: str = Field(default=ServiceType.ClusterIP.value,
+    type: str = Field(default=ServiceType.NodePort.value,
                       validate_default=True)
     selector: Dict[str, str] = Field(default={}, validate_default=True)
     ports: List[ServicePorts] = Field(default=[], validate_default=True)

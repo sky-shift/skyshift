@@ -1,3 +1,9 @@
+"""
+Job launcher script to run a container job from a JSON specification.
+The script mounts the required GCS buckets to the local system and  \
+runs the Docker container with the specified parameters.
+Designed for usage in Ray clusters.
+"""
 import argparse
 import json
 import os
@@ -47,15 +53,15 @@ def unmount_bucket(local_mapping: str) -> None:
         sys.exit(1)
 
 
-def run_docker_container(job: Dict) -> int:
+def run_docker_container(job_dict: Dict) -> int:  #pylint: disable=too-many-locals
     """
     Run the specified Docker container with the required parameters and output the logs.
     """
-    image = job['spec']['image']
-    envs = job['spec']['envs']
-    ports = job['spec']['ports']
-    run_command = job['spec']['run']
-    volumes: dict = job['spec']['volumes']
+    image = job_dict['spec']['image']
+    envs = job_dict['spec']['envs']
+    ports = job_dict['spec']['ports']
+    run_command = job_dict['spec']['run']
+    volumes: dict = job_dict['spec']['volumes']
 
     env_vars = ' '.join([f"-e {key}={value}" for key, value in envs.items()])
     port_mappings = ' '.join([f"-p {port}:{port}" for port in ports])
@@ -63,31 +69,30 @@ def run_docker_container(job: Dict) -> int:
 
     for bucket_name, volume in volumes.items():
         local_dir = f"{os.environ['HOME']}/.skyshift/{bucket_name}"
-        subprocess.run(f"mkdir -p {local_dir}", shell=True)
+        subprocess.run(f"mkdir -p {local_dir}", shell=True, check=True)
         volume_mappings += f" -v {local_dir}:{volume['container_dir']}"
         mount_bucket(bucket_name, local_dir)
 
-    command = f"""docker run {'--gpus all' if check_nvidia_smi() else ''} \
+    command = f"docker run {'--gpus all' if check_nvidia_smi() else ''} \
                 {env_vars} \
                 {port_mappings} \
                 {volume_mappings} \
                 {image} \
-                {run_command}
-                """
+                {run_command} \
+                "
 
-    process = subprocess.Popen(command,
-                               shell=True,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               text=True)
-
-    # Print the output in real-time
-    while True:
-        output = process.stdout.readline() if process.stdout else None
-        if output == "" and process.poll() is not None:
-            break
-        if output:
-            print(output.strip())
+    with subprocess.Popen(command,
+                          shell=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE,
+                          text=True) as process:
+        # Print the output in real-time
+        while True:
+            output = process.stdout.readline() if process.stdout else None
+            if output == "" and process.poll() is not None:
+                break
+            if output:
+                print(output.strip())
 
     # Wait for the process to finish and get the exit code
     return_code = process.wait()
@@ -101,7 +106,9 @@ def run_docker_container(job: Dict) -> int:
     if return_code != 0:
         print(f"Container exited with error code: {return_code}")
 
-    unmount_bucket(local_dir)
+    for bucket_name, volume in volumes.items():
+        local_dir = f"{os.environ['HOME']}/.skyshift/{bucket_name}"
+        unmount_bucket(local_dir)
 
     return return_code
 
@@ -117,9 +124,8 @@ if __name__ == "__main__":
 
     try:
         job = json.loads(args.job_json)
-    except json.JSONDecodeError as e:
-        print(f"Invalid JSON format: {e}")
+    except json.JSONDecodeError as error:
+        print(f"Invalid JSON format: {error}")
         sys.exit(1)
 
-    exit_code = run_docker_container(job)
-    sys.exit(exit_code)
+    sys.exit(run_docker_container(job))
