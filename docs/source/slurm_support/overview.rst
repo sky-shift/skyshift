@@ -32,11 +32,6 @@ efficiency.
 Looking Ahead: Supporting Container Management Utilities
 ----------------------------------------
 
-SkyShift is committed to expanding the frontiers of computational job management, making it more 
-accessible, efficient, and flexible for users across various disciplines and industries. Stay tuned 
-for more advancements that will continue to elevate your computational research and engineering 
-endeavors.
-
 SkyShift is committed to supporting a diverse array of container management tools adopted across different actively managed Slurm Clusters, enabling you to choose the 
 one that best fits your project's needs, and will aim to automatically identify the most suitable tool available on the Cluster to streamline the deployment process.
 
