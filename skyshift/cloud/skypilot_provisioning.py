@@ -3,9 +3,12 @@ SkyPilot + RKE provisioning script for cloud clusters.
 """
 import os
 import threading
+from copy import deepcopy
 
 import sky
+import sky.exceptions
 import yaml
+from sky import global_user_state
 
 from skyshift.cloud.utils import (RKE_PORTS, cloud_cluster_dir,
                                   create_ssh_scp_clients, parse_ssh_config)
@@ -39,6 +42,16 @@ def _construct_skypilot_task_yaml(cluster_name: str,
     """
     if envs is None:
         envs = {}
+    spec = deepcopy(spec)
+    spec.ports = list(set(spec.ports + RKE_PORTS))
+    try:
+        del spec.manager
+        del spec.num_nodes
+        del spec.provision
+        del spec.config_path
+        del spec.access_config
+    except AttributeError:
+        pass
     data = {
         "name": f"sky-{cluster_name}-{num}",
         "resources": {
@@ -71,6 +84,10 @@ def create_resource(cluster_name, num, spec, envs=None):
     task = sky.Task.from_yaml(
         f"{cloud_cluster_dir(cluster_name)}/provision/skypilot_provision_task_{cluster_name}_{num}.yml"
     )
+    if not global_user_state.get_enabled_clouds():
+        raise sky.exceptions.NoCloudAccessError(
+            "No cloud is enabled. SkyPilot will not be able to run any task. Run `sky check` for more info."
+        )
     sky.launch(task, skypilot_cluster_name)
     return skypilot_cluster_name
 
