@@ -79,7 +79,17 @@ deploy the replicas across two clusters and load balance the requests between th
 
     Note: The service is created in Cluster1 as frontend.
 
-6) Now, we can try to access the productpage frontend application using
+6) Now, retrieve the vllm-service's IP
+
+    ```
+    skyctl get svc vllm-service
+    ```
+
+    ```
+    export VLLM_SERVICE='Use the IP address from the above command'
+    ```
+    
+    Alternatively, use the following command to get the IP/host:
 
     ```
     export FRONTEND_IP=`kubectl get svc vllm-service --context cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`

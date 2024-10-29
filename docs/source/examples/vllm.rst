@@ -3,7 +3,7 @@ vLLM Serving Example
 ==================
 
 This example demonstrates how an application like LLM serving using [vLLM](https://vllm.ai/) can be deployed and scaled using Skyshift
-This example uses two k8s clusters with a single node with 1 GPU. We will be deploying two replicas of meta-llama model over vLLM, and Skyshift will 
+This example uses two k8s clusters with a single node with 1 GPU. We will be deploying two replicas of Llama 3.1 8B model over vLLM, and Skyshift will 
 deploy the replicas across two clusters and load balance the requests between the two replicas.
 
 ## Pre-requisite
@@ -80,23 +80,29 @@ Submit the job.
                                    gpus: 1.0
     ✔ Fetching jobs completed successfully.
 
-5) Create a service for the jobs
+5) Create a service for the vllm job
 
 .. code-block:: shell
 
     skyctl apply -f $SKYSHIFT/examples/vllm-demo/vllm_service.yaml 
 
-.. note:: 
-
-    The service is created in `Cluster1` as the frontend.
-
-6) Now, we can try to access the productpage frontend application using
+6) Now, retrieve the vllm-service's IP
 
 .. code-block:: shell
 
-    export FRONTEND_IP=`kubectl get svc vllm-service --context cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
+    skyctl get svc vllm-service
+
+.. code-block:: shell
+    
+    export VLLM_SERVICE='Use the IP address from the above command'
 
 .. note::
+    
+    Alternatively, use the following command to get the IP/host:
+
+    .. code-block:: shell
+
+        export VLLM_SERVICE=`kubectl get svc vllm-service --context cluster1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`
 
     Use `.status.loadBalancer.ingress[0].hostname` in the above command if the cloud k8s service allocates hostname instead of IP.
 
@@ -104,7 +110,7 @@ Submit the job.
 
 .. code-block:: shell
 
-    curl -X POST "$FRONTEND_IP/v1/chat/completions" \
+    curl -X POST "$VLLM_SERVICE/v1/chat/completions" \
 	-H "Content-Type: application/json" \
 	--data '{
 		"model": "meta-llama/Llama-3.1-8B-Instruct",
