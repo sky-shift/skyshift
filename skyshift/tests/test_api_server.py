@@ -719,6 +719,11 @@ class TestAPIServer(unittest.TestCase):
                     "value": -1,
                     "exception": ValidationError
                 },
+                {
+                    "path": ["status", "error_message"],
+                    "value": "Shouldn't be here since status != ERROR",
+                    "exception": ValidationError
+                },
                 # Valid case
                 {
                     "path": [],
