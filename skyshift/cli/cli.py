@@ -2584,6 +2584,7 @@ def get_users():
     api_response = get_cli_object(object_type="user")
     print_table('user', api_response)
 
+
 @delete.command(name="user", aliases=["users"])
 @click.argument("username", required=True)
 @halo_spinner("Deleting user")
@@ -2594,7 +2595,9 @@ def delete_users(username: str):
 
     delete_user(object_type="user", name=username)
 
-@click.command(name="port-forward", help="""
+
+@click.command(name="port-forward",
+               help="""
     Forward one or more local ports to a resource.
     This command allows you to forward local ports to a resource managed by SkyShift,
     similar to the `kubectl port-forward` command, but for SkyShift managed resources.
@@ -2637,15 +2640,17 @@ def delete_users(username: str):
               default="default",
               show_default=True,
               help="Namespace corresponding to the resource's location.")
-@click.option("--manager",
-              required=True,
-              help="Resource manager type (e.g., 'k8'). Only 'k8' is supported.")
+@click.option(
+    "--manager",
+    required=True,
+    help="Resource manager type (e.g., 'k8'). Only 'k8' is supported.")
 @click.option("--context",
               type=str,
               default=None,
               help="Kubernetes context to use for port forwarding.")
 @halo_spinner("Started port-forwarding")
-def port_forward(resource: str, ports: Tuple[str], namespace: str, manager: str, context: str, spinner):
+def port_forward(resource: str, ports: Tuple[str], namespace: str,
+                 manager: str, context: str, spinner):
     """
     Forward one or more local ports to a pod or service.
     This CLI command is similar to Kubectl's port forward but for SkyShift managed objects.
@@ -2657,6 +2662,7 @@ def port_forward(resource: str, ports: Tuple[str], namespace: str, manager: str,
     except Exception as e:
         spinner.fail(f"Port forwarding failed: {str(e)}")
         raise click.ClickException(f"Port forwarding failed: {str(e)}")
+
 
 cli.add_command(port_forward)
 
