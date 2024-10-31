@@ -24,11 +24,9 @@ efficiently, leveraging the best available resources.
 Uncontainerized Job Submission
 ---------------------------------------------
 
-Note: due to the nature of scientific workloads that Slurm Clusters are targetted for, SkyShift's initial Slurm
-support enables submitting jobs to uncontainerized Slurm Clusters. This initial support aims to maximize the 
-performance of Slurm Cluster's compute resources, providing an option for workloads that require direct access
-to hardware for optimal efficiency. *(See roadmap information below for future support of containerized 
-Slurm Clusters.)*
+.. note::
+
+    Due to the nature of scientific workloads that Slurm Clusters are targetted for, SkyShift's initial Slurm support enables submitting jobs to uncontainerized Slurm Clusters. This initial support aims to maximize the performance of Slurm Cluster's compute resources, providing an option for workloads that require direct access to hardware for optimal efficiency. *(See roadmap information below for future support of containerized Slurm Clusters.)*
 
 Looking Ahead: Supporting Container Management Utilities
 ----------------------------------------
