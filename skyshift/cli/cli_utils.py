@@ -912,4 +912,5 @@ def port_forward_util(resource: str, ports: Tuple[str], namespace: str,
     try:
         subprocess.run(port_forward_cmd, check=True)
     except subprocess.CalledProcessError as error:
-        raise Exception(f"Port-forward command failed: {str(error)}") from error
+        raise Exception(
+            f"Port-forward command failed: {str(error)}") from error
