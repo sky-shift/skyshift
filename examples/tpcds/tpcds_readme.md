@@ -40,42 +40,47 @@ Let's run this using the following:
 we can proceed with building a docker image and loading it for the Spark applications.
 
 
-### 2. Building the docker image:
-
-For this tutorial, we use the official Apache PySpark Image `apache/spark-py:latest`
-and add the required dependencies and jars for the benchmarks.
-We also need to setup and build some external dependencies sich as tpcds-kit and spark-sql-perf.
-This is beyond the scope of this tutorial, we have provided a pre-compiled jar for convenience.
-
-Let's build the image using `docker build -t spark-tpcds-with-dsdgen .`
-(From the tpcds folder in examples).
-
-```
-Sending build context to Docker daemon  13.82kB
-Step 1/6 : FROM apache/spark:latest
- ---> d3ea4aeb842b
-Step 2/6 : USER root
- ---> Using cache
- ---> c0215e24177e
-Step 3/6 : RUN apt-get update &&     apt-get install -y gcc make git bison flex
- ---> Using cache
- ---> e35dcf756b53
-Step 4/6 : RUN git clone https://github.com/databricks/tpcds-kit.git &&     cd tpcds-kit/tools &&     make OS=LINUX
- ---> Using cache
- ---> 8606e1f328a0
-Step 5/6 : COPY TpcdsBenchmark-assembly-0.1.jar /opt/spark/jars/
- ---> Using cache
- ---> 52c2da2bd5c3
-Step 6/6 : USER 185
- ---> Using cache
- ---> e83b4ffab7ac
-Successfully built e83b4ffab7ac
-Successfully tagged spark-tpcds-with-dsdgen:latest
-```
-
-Finally the image can be loaded into the cluster: `kind load docker-image spark-tpcds-with-dsdgen`
-Alternatively, the image can be pushed to a registry and pulled into the nodes later.
-
+> ### Tip: Building the Docker Image
+>
+> For this tutorial, we use the official Apache PySpark Image `apache/spark-py:latest` and add the required dependencies and jars for the benchmarks.  
+> We also need to set up and build some external dependencies such as `tpcds-kit` and `spark-sql-perf`.  
+> This is beyond the scope of this tutorial, so we have provided a pre-compiled jar for convenience.
+> 
+> Let's build the image using:
+> ```shell
+> docker build -t spark-tpcds-with-dsdgen .
+> ```
+> (From the `tpcds` folder in examples).
+>
+> ```
+> Sending build context to Docker daemon  13.82kB
+> Step 1/6 : FROM apache/spark:latest
+>  ---> d3ea4aeb842b
+> Step 2/6 : USER root
+>  ---> Using cache
+>  ---> c0215e24177e
+> Step 3/6 : RUN apt-get update &&     apt-get install -y gcc make git bison flex
+>  ---> Using cache
+>  ---> e35dcf756b53
+> Step 4/6 : RUN git clone https://github.com/databricks/tpcds-kit.git &&     cd tpcds-kit/tools &&     make OS=LINUX
+>  ---> Using cache
+>  ---> 8606e1f328a0
+> Step 5/6 : COPY TpcdsBenchmark-assembly-0.1.jar /opt/spark/jars/
+>  ---> Using cache
+>  ---> 52c2da2bd5c3
+> Step 6/6 : USER 185
+>  ---> Using cache
+>  ---> e83b4ffab7ac
+> Successfully built e83b4ffab7ac
+> Successfully tagged spark-tpcds-with-dsdgen:latest
+> ```
+> 
+> Finally, the image can be loaded into the cluster using:
+> ```shell
+> kind load docker-image spark-tpcds-with-dsdgen
+> ```
+> Alternatively, the image can be pushed to a registry and pulled into the nodes later.
+> 
 ### 3. Setting up master/worker deployments
 
 Let's setup the Spark master and workers on which the Spark application will run.
