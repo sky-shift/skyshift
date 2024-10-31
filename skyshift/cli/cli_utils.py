@@ -4,9 +4,10 @@ Utils for SkyShift CLI.
 import enum
 import io
 import json as json_lib
+import subprocess
 import time
 from contextlib import redirect_stdout
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import click
 from colorama import Fore, Style, init
@@ -879,3 +880,37 @@ def delete_user(object_type: str, name: str, namespace: Optional[str] = None):
             f"Failed to delete {name}: {api_response.text}")
 
     click.echo(f"\nDeleted {object_type} {name}.")
+
+
+def port_forward_util(resource: str, ports: Tuple[str], namespace: str,
+                      manager: str, context: str):
+    """
+    Utility function to handle the actual port-forwarding using kubectl.
+
+    Args:
+        resource: The resource name (e.g., pod or service) to port-forward from.
+        ports: A tuple of port mappings (e.g., '8080:80').
+        namespace: The namespace where the resource is located.
+
+    This function constructs the kubectl port-forward command and executes it.
+    """
+
+    if manager.lower() != 'k8':
+        # For now, we only support K8s, in the future more resource managers can be added.
+        raise Exception(
+            "Port forwarding is only supported for Kubernetes ('k8') resources."
+        )
+
+    # Construct the kubectl command
+    port_forward_cmd = [
+        "kubectl", "port-forward", resource, *ports, "-n", namespace
+    ]
+    if context:
+        port_forward_cmd.insert(1, "--context")
+        port_forward_cmd.insert(2, context)
+
+    try:
+        subprocess.run(port_forward_cmd, check=True)
+    except subprocess.CalledProcessError as error:
+        raise Exception(
+            f"Port-forward command failed: {str(error)}") from error
