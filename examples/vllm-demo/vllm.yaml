@@ -8,7 +8,7 @@ spec:
   image: vllm/vllm-openai:latest
   resources:
     cpus: 4
-    gpus: 1
+    L4: 1
     memory: 12G
   ports:
     - 8000
