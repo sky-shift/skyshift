@@ -23,7 +23,7 @@ setup(
         "pyyaml",
         "requests>=2.31.0",
         "rich",
-        "skypilot[gcp]==0.5.0",
+        "skypilot==0.5.0",
         "paramiko",
         "scp",
         "tabulate",
