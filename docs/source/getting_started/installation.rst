@@ -22,10 +22,10 @@ SkyShift requires SkyPilot to be installed and configured with at least one clou
     conda activate skyshift
 
     # Choose your cloud provider(s):
-    pip install "skypilot[aws]==0.5.0"     # For AWS
-    pip install "skypilot[gcp]==0.5.0"     # For Google Cloud
-    pip install "skypilot[azure]==0.5.0"   # For Azure
-    pip install "skypilot[all]==0.5.0"     # For all supported clouds
+    pip install "skypilot[aws]"     # For AWS
+    pip install "skypilot[gcp]"     # For Google Cloud
+    pip install "skypilot[azure]"   # For Azure
+    pip install "skypilot[all]"     # For all supported clouds
 
     # Verify cloud access is properly configured
     sky check
@@ -46,23 +46,6 @@ SkyShift requires SkyPilot to be installed and configured with at least one clou
 
     # For development
     pip install -e .[dev]
-
-Docker Installation
------------------
-
-As a quick alternative, we provide a Docker image with SkyShift and its dependencies pre-installed:
-
-.. code-block:: shell
-
-    # NOTE: '--platform linux/amd64' is needed for Apple silicon Macs
-    docker run --platform linux/amd64 \\
-      -td --rm --name skyshift \\
-      -v "$HOME/.sky:/root/.sky:rw" \\
-      -v "$HOME/.aws:/root/.aws:rw" \\
-      -v "$HOME/.config/gcloud:/root/.config/gcloud:rw" \\
-      skyshift/skyshift:latest
-
-    docker exec -it skyshift /bin/bash
 
 Cloud Setup
 ----------
