@@ -11,7 +11,7 @@ deploy the replicas across two clusters and load balance the requests between th
 1) Two K8s clusters:
     - Cluster1 with 1 nvidia GPU
     - Cluster2 with 1 nvidia GPU
-    For instance, lets assume the GPU is nvidia L4
+    For instance, lets assume the GPU type is nvidia L4
 
 .. code-block:: shell
 
