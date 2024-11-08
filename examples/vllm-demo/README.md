@@ -11,6 +11,7 @@ deploy the replicas across two clusters and load balance the requests between th
     - Cluster1 with 1 nvidia GPU
     - Cluster2 with 1 nvidia GPU
 
+    For instance, lets assume the GPU type is nvidia L4
     ```
     $ skyctl get clusters
     ⠙ Fetching clusters
@@ -18,11 +19,11 @@ deploy the replicas across two clusters and load balance the requests between th
     cluster1   k8                   cpus: 14.29/15.88          READY     49s
                                     memory: 70.09 GB/71.92 GB
                                     disk: 87.05 GB/87.05 GB
-                                    gpus: 1.0/1.0
+                                    L4: 1.0/1.0
     cluster2   k8                   cpus: 14.29/15.88          READY     49s
                                     memory: 70.09 GB/71.92 GB
                                     disk: 87.05 GB/87.05 GB
-                                    gpus: 1.0/1.0
+                                    L4: 1.0/1.0
     ```                              
 1) Start Skyshift using the commands listed in [README.md](../../README.md).
 
@@ -65,10 +66,10 @@ deploy the replicas across two clusters and load balance the requests between th
     NAME    CLUSTER    REPLICAS    RESOURCES         NAMESPACE    STATUS    AGE
     vllm    cluster1   1/1         cpus: 4.0         default      RUNNING   5s
                                    memory: 12.00 GB
-                                   gpus: 1.0
+                                   L4: 1.0
     vllm    cluster2   1/1         cpus: 4.0         default      RUNNING   5s
                                    memory: 12.00 GB
-                                   gpus: 1.0
+                                   L4: 1.0
     ✔ Fetching jobs completed successfully.
     ```
 5) Create a service for the jobs
