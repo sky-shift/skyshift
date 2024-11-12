@@ -101,7 +101,7 @@ Let's verify if the jobs are running as expected using `skyctl get jobs`
 
 We can see both the jobs are now running and nginx2 in cluster2 is running with 2 replicas.
 
-**Step 3: Creating NodePort Services**
+**Step 3: Creating Services**
 
 Now that the nginx deployments and clusters are running, we can expose them using nodeport services,
 which will allow traffic to reach the deployments.
