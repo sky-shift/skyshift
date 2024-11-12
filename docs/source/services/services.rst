@@ -144,41 +144,62 @@ We can see everything is running as expected, let's move to the next steps.
 Since we have two applications running in both the clusters, let's setup a load balancer on cluster1
 which will redirect traffic to the 2 deployments across multiple replicas in cluster1 and cluster2.
 
-Let's configure another job which will be the load balancer. We must configure certain fields to instruct
-nginx to redirect traffic to the appropriate destinations. (Refer to load-balancing/nginx-load-balancer.yaml).
-
-Let's add the IP address of the destinations we have just configured. This can be obtained using:
-`docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cluster2-control-plane`
-and `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cluster1-control-plane`
-
-This will give the IP addresses that the load balancer needs to forward the traffic to. Feel free to configure
-more addresses if your usecases has more clusters/replicas.
-
-Once this is done, we can apply the config using: `kubectl apply -f nginx-load-balancer.yaml --context kind-cluster1`
+Let's launch a SkyShift job to setup nginx to serve as reverse proxy to both clusters
 
 .. code-block:: bash
 
-    deployment.apps/nginx-lb created
-    configmap/nginx-lb-config configured
+    CLUSTER2_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cluster2-control-plane) && \
+    CLUSTER1_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' cluster1-control-plane) && \
+    sed -i "s/__CLUSTER2_IP__/${CLUSTER2_IP}/g" nginx-load-balancer.yaml && \
+    sed -i "s/__CLUSTER1_IP__/${CLUSTER1_IP}/g" nginx-load-balancer.yaml && \
+    skyctl apply -f nginx-load-balancer.yaml
 
-This will create a deployment and a configmap to support it. Finally, we can expose a service which will be the
-entrypoint to all the traffic to the load-balancer.
-This can be done using: `skyctl apply -f <path to nginx-lb-service.yaml>`
+    ⠙ Applying configuration
+    Created job nginx-lb.
+    ✔ Applying configuration completed successfully.
+
+Finally, we can create a loadbalancer service which will allow traffic to reach the job.
+
+Let's enable MetalLb to provision load balancer which will allow creating loadbalancer service type in kind using:
+   `kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml --context kind-cluster1`
+
+Check the status of pods managed by metallb using:
 
 .. code-block:: bash
 
+    kubectl get pods -n metallb-system
+    NAME                          READY   STATUS    RESTARTS   AGE
+    controller-595f88d88f-rqg68   1/1     Running   0          123m
+    speaker-6cwth                 1/1     Running   0          123m
+    speaker-mjzz2                 1/1     Running   0          123m
+    speaker-qczch                 1/1     Running   0          123m
+
+Once the pods are up and running, we can apply the following configuration to provide available IP range to MetalLB.
+`skyctl apply -f <path to cluster1-metallb-config.yaml>`
+
+.. code-block:: bash
+    kubectl apply -f cluster1-metallb-config.yaml  --context kind-cluster1
+    ipaddresspool.metallb.io/ip-pool-cluster1 unchanged
+    l2advertisement.metallb.io/l2-advertisement-cluster1 unchanged
+
+Finally, we can setup a LoadBalancer type service to allow traffic to reach the nginx job.
+
+.. code-block:: bash
+    $ skyctl apply -f nginx-lb-service.yaml
     ⠙ Applying configuration
     Created service nginx-lb-service.
     ✔ Applying configuration completed successfully.
 
-    //Checking all the services running as expected.
+Let's verify the status of all services:
+
+.. code-block:: bash
 
     $ skyctl get services
     ⠙ Fetching services
-    NAME              TYPE      CLUSTER-IP     EXTERNAL-IP    PORTS    CLUSTER        NAMESPACE    AGE
-    nginx-lb-service  NodePort  10.96.216.132                 80:80    kind-cluster1  default      1h
-    nginx-service     NodePort  10.96.34.141                  80:80    kind-cluster1  default      1h
-    nginx-service2    NodePort  10.96.144.59                  80:80    kind-cluster2  default      1h
+    NAME              TYPE          CLUSTER-IP    EXTERNAL-IP    PORTS    CLUSTER        NAMESPACE    AGE
+    nginx-lb-service  LoadBalancer                               80:80    kind-cluster1  default      1m
+    nginx-service     NodePort      10.96.66.20                  80:80    kind-cluster1  default      2h
+    nginx-service2    NodePort      10.96.186.91                 80:80    kind-cluster2  default      2h
     ✔ Fetching services completed successfully.
 
 Now the the service is deployed, we can send traffic to it. To verify it, let's update the index page for
@@ -190,8 +211,7 @@ Similarly let's use a different title for cluster2 using `kubectl exec -it <pod_
 
 **Step 5: Monitoring and Sending Traffic**
 
-Now that everything is setup, let's send some traffic and test it out. Let's portfoward localhost to the
-load-balancer service using: `kubectl port-forward service/nginx-lb-service 8080:80 --context kind-cluster1`
+Let's send some traffic and test it out. Let's portfoward localhost to the load-balancer service using: `kubectl port-forward service/nginx-lb-service 8080:80 --context kind-cluster1`
 
 Now the localhost:8080 will be accessable and route traffic to the 2 clusters randomly. Le'ts refresh the
 page couple of times to verify the traffic to both clusters.
