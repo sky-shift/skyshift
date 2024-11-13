@@ -2596,5 +2596,75 @@ def delete_users(username: str):
     delete_user(object_type="user", name=username)
 
 
+@click.command(name="port-forward",
+               help="""
+    Forward one or more local ports to a resource.
+    This command allows you to forward local ports to a resource managed by SkyShift,
+    similar to the `kubectl port-forward` command, but for SkyShift managed resources.
+    You can specify the resource, ports to forward, and optionally the Kubernetes context and namespace.
+
+    Examples:
+
+        1. **Forward a Local Port to a Resource in a Specific Context and Namespace**:
+
+           .. code-block:: bash
+
+               skyctl port-forward pod/my-pod 8080:80 --namespace my-namespace --manager=k8 --context my-k8s-context
+                Forwarding from 127.0.0.1:8080 -> 8080
+                Forwarding from [::1]:8080 -> 8080
+                ⠹ Started port-forwarding
+
+           This command forwards local port `8080` to port `80` on the pod `my-pod` in the `my-namespace` namespace,
+           using the Kubernetes context `my-k8s-context`.
+
+        2. **Forward Multiple Ports to a Service Without Specifying Context**:
+
+           .. code-block:: bash
+
+               skyctl port-forward service/my-service 8080:80 8443:443 --manager=k8
+
+           This command forwards local ports `8080` and `8443` to ports `80` and `443` on the service `my-service`
+           in the default namespace, using the default Kubernetes context.
+
+    Note:
+
+    - The `--manager` option is required and must be set for Kubernetes resources.
+    - The `--context` option is optional. If provided, it specifies the Kubernetes context to use for port forwarding.
+    - The `--namespace` option specifies the namespace of the resource. Defaults to `'default'` if not provided.
+
+    """)
+@click.argument("resource", required=True)
+@click.argument("ports", required=True, nargs=-1)
+@click.option("--namespace",
+              type=str,
+              default="default",
+              show_default=True,
+              help="Namespace corresponding to the resource's location.")
+@click.option(
+    "--manager",
+    required=True,
+    help="Resource manager type (e.g., 'k8'). Only 'k8' is supported.")
+@click.option("--context",
+              type=str,
+              default=None,
+              help="Kubernetes context to use for port forwarding.")
+@halo_spinner("Started port-forwarding")
+def port_forward(resource: str, ports: Tuple[str], namespace: str,
+                 manager: str, context: str, spinner):
+    """
+    Forward one or more local ports to a pod or service.
+    This CLI command is similar to Kubectl's port forward but for SkyShift managed objects.
+    """
+    from skyshift.cli.cli_utils import port_forward_util
+
+    try:
+        port_forward_util(resource, ports, namespace, manager, context)
+    except Exception as e:
+        spinner.fail(f"Port forwarding failed: {str(e)}")
+        raise click.ClickException(f"Port forwarding failed: {str(e)}")
+
+
+cli.add_command(port_forward)
+
 if __name__ == '__main__':
     cli()

@@ -30,6 +30,7 @@ This documents includes planned features for Skyshift in 2024, and early 2025. H
 ## General Features
 - [ ] Autoscaler controller - provisions Skypilot clusters when jobs are unschedulable.
 - [ ] Finegrained `update` operation on all Skyshift objects (i.e. a user modifies image in Skyshift job).
+- [ ] Key and secrets management.
 
 ## Cluster Orchestrator Support
 

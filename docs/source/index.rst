@@ -52,6 +52,13 @@ Documentation
    slurm_support/getting_started/slurm_setup.rst
    slurm_support/quickstart/slurm_quickstart.rst
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Ray Support
+   
+   ray/quickstart/ray_quickstart.rst
+   ray/overview.rst
+
 
 .. toctree::
    :maxdepth: 1
@@ -75,3 +82,9 @@ Documentation
    cli/roles.rst
    cli/exec.rst
    cli/users.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples
+
+   examples/bookinfo.rst
