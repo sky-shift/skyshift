@@ -30,6 +30,7 @@ Documentation
 
    getting_started/installation.rst
    getting_started/setup.rst
+   getting_started/cli_docs.rst
 
 .. toctree::
    :maxdepth: 1
@@ -39,12 +40,32 @@ Documentation
 
 .. toctree::
    :maxdepth: 1
+   :caption: Registration and Login
+
+   authentication/authentication.rst
+
+.. toctree::
+   :maxdepth: 1
    :caption: Slurm Support
    
    slurm_support/overview.rst
    slurm_support/getting_started/slurm_setup.rst
    slurm_support/quickstart/slurm_quickstart.rst
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Ray Support
+   
+   ray/quickstart/ray_quickstart.rst
+   ray/overview.rst
+
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Kubernetes Support
+   
+   kubernetes_support/overview.rst
+   kubernetes_support/cloud.rst
 
 
 .. toctree::
@@ -61,3 +82,9 @@ Documentation
    cli/roles.rst
    cli/exec.rst
    cli/users.rst
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples
+
+   examples/bookinfo.rst
