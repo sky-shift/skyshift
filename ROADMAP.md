@@ -14,11 +14,14 @@ This documents includes planned features for Skyshift in 2024, and early 2025. H
 - [ ] UI to view each cluster and the aggregate available/unavailable resources.
 - [ ] Monitor status of jobs and services submitted through Skyshift.
 
-### Data collection and export
+### Data Collection and Export
 - [ ] Accumulate usage statistics.
 - [ ] Track jobs over time.
 - [ ] Track SkyShift events.
 - [ ] Track wait times by resource-group.
+
+### General UI/UX Improvements
+- [ ] Clean transparent install, start, stop, and uninstall (https://github.com/sky-shift/skyshift/issues/84).
 
 ## Testing
 - [ ] Tests for Skyshift controllers.
