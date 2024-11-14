@@ -88,3 +88,4 @@ Documentation
    :caption: Examples
 
    examples/bookinfo.rst
+   examples/vllm.rst

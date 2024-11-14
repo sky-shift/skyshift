@@ -1,0 +1,19 @@
+kind: Job
+metadata:
+  name: vllm
+  labels:
+    app: vllm
+spec:
+  replicas: 2
+  image: vllm/vllm-openai:latest
+  resources:
+    cpus: 4
+    L4: 1
+    memory: 12G
+  ports:
+    - 8000
+  envs:
+    HUGGING_FACE_HUB_TOKEN: ""
+  run: |
+    vllm serve meta-llama/Llama-3.1-8B-Instruct --max_model_len 8000
+  restartPolicy: Always
