@@ -77,6 +77,10 @@ class AcceleratorEnum(enum.Enum):
     M6: str = "M6"
     M4: str = "M4"
 
+    # L Series
+    L4: str = "L4"
+    L40S: str = "L40S"
+
     # GeForce 10 Series
     GTX_1080: str = "GTX 1080"
     GTX_1080_TI: str = "GTX 1080 Ti"

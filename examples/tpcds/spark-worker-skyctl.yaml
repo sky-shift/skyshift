@@ -1,0 +1,17 @@
+kind: Job
+metadata:
+  name: spark-worker-job
+  namespace: default
+  labels:
+    component: spark-worker
+spec:
+  image: spark-tpcds-with-dsdgen
+  image_pull_policy: Never
+  envs: {}
+  resources:
+    cpus: 1
+    gpus: 0
+    memory: 1024.0
+  run: "/bin/bash -c 'unset SPARK_WORKER_PORT; unset SPARK_WORKER_HOST; /opt/spark/sbin/start-worker.sh spark://spark-master:7077 && sleep infinity'"
+  replicas: 2
+  restart_policy: Always

@@ -28,7 +28,7 @@ SLURM_CONFIG_DEFAULT_PATH = '~/.skyconf/slurm_config.yaml'
 
 SUPPORTED_MANAGERS = K8_MANAGERS + SLURM_MANAGERS + RAY_MANAGERS
 
-ACCELERATOR_KEYWORDS = ["accelerator", "nvidia"]
+ACCELERATOR_KEYWORDS = ["accelerator", "nvidia", "gpu-type"]
 
 CPU_NUMBER_VALIDATOR = r'^([+-]?)(\d+)([+-]?)'
 

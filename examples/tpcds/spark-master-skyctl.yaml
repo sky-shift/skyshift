@@ -1,0 +1,20 @@
+kind: Job
+metadata:
+  name: spark-master-job
+  namespace: default
+  labels:
+    component: spark-master
+spec:
+  image: spark-tpcds-with-dsdgen
+  image_pull_policy: Never
+  envs: {}
+  resources:
+      cpus: 1
+      gpus: 0
+      memory: 1024
+  ports:
+    - 7077
+    - 8080
+  run: "/bin/bash -c 'unset SPARK_MASTER_PORT; unset SPARK_MASTER_HOST; /opt/spark/sbin/start-master.sh && sleep infinity'"
+  replicas: 1
+  restart_policy: Always
