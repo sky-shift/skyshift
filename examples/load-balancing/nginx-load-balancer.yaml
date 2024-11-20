@@ -1,0 +1,22 @@
+kind: Job
+
+metadata:
+  name: nginx-lb
+  labels:
+    app: nginx-lb
+
+spec:
+  replicas: 1
+  image: nginx:latest
+  resources:
+    cpus: 0.5
+    memory: 128
+  ports:
+    - 80
+  restartPolicy: Always
+  run: echo 'http { upstream k8s_clusters { server __CLUSTER1_IP__:3001; server __CLUSTER2_IP__:3001; } server { listen 80; location / { proxy_pass http://k8s_clusters; } } } events { worker_connections 1024; }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+  placement:
+    filters:
+      - name: only-kind-cluster1
+        match_labels:
+          name: kind-cluster1

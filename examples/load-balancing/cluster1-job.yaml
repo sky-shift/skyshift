@@ -1,0 +1,21 @@
+kind: Job
+
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+
+spec:
+  replicas: 1
+  image: nginx:latest
+  resources:
+    cpus: 0.5
+    memory: 128
+  ports:
+    - 80
+  restartPolicy: Always
+  placement:
+    filters:
+      - name: only-kind-cluster1
+        match_labels:
+          name: kind-cluster1

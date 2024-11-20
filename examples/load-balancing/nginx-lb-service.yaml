@@ -1,0 +1,13 @@
+kind: Service
+
+metadata:
+  name: nginx-lb-service
+
+spec:
+  type: LoadBalancer
+  primary_cluster: kind-cluster1
+  selector:
+    app: nginx-lb
+  ports:
+    - port: 80
+      target_port: 80
