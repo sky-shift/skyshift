@@ -30,7 +30,7 @@ You can find the cluster configs and other configs for this tutorial in `example
 
 **Step 1: Create the Cluster**
 First, create a Cluster1 with an appropriate label which will later be used for deployments:
-
+If you already have kind clusters running, SkyShift will automatically detect live kind clusters when launched.
 Let's create the cluster using: `kind create cluster --name cluster1`
 
 .. code-block:: bash
@@ -71,7 +71,30 @@ Let's get the current clusters to check if everything is running as expected usi
                                                    memory: 30.36 GB/30.69 GB
                                                    disk: 302.26 GB/302.26 GB
 
-Great! Now we have both the clusters up and running with the expected labels. Let's now deploy the nginx jobs.
+Great! Now we have both the clusters up and running with the expected labels. Let's setup MetalLB load balancer using:
+
+  `kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml --context kind-cluster1`
+
+Check the status of pods managed by metallb using:
+
+.. code-block:: bash
+
+    kubectl get pods -n metallb-system
+    NAME                          READY   STATUS    RESTARTS   AGE
+    controller-595f88d88f-rqg68   1/1     Running   0          123m
+    speaker-6cwth                 1/1     Running   0          123m
+    speaker-mjzz2                 1/1     Running   0          123m
+    speaker-qczch                 1/1     Running   0          123m
+
+Once the pods are up and running, we can apply the following configuration to provide available IP range to MetalLB.
+`kubectl apply -f <path to cluster1-metallb-config.yaml>`
+
+.. code-block:: bash
+
+    kubectl apply -f cluster1-metallb-config.yaml  --context kind-cluster1
+    ipaddresspool.metallb.io/ip-pool-cluster1 unchanged
+    l2advertisement.metallb.io/l2-advertisement-cluster1 unchanged
+
 
 **Step 2: Deploying Nginx jobs**
 
@@ -158,33 +181,11 @@ Let's launch a SkyShift job to setup nginx to serve as reverse proxy to both clu
     Created job nginx-lb.
     ✔ Applying configuration completed successfully.
 
-Finally, we can create a loadbalancer service which will allow traffic to reach the job.
-
-Let's enable MetalLb to provision load balancer which will allow creating loadbalancer service type in kind using:
-   `kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.10/config/manifests/metallb-native.yaml --context kind-cluster1`
-
-Check the status of pods managed by metallb using:
-
-.. code-block:: bash
-
-    kubectl get pods -n metallb-system
-    NAME                          READY   STATUS    RESTARTS   AGE
-    controller-595f88d88f-rqg68   1/1     Running   0          123m
-    speaker-6cwth                 1/1     Running   0          123m
-    speaker-mjzz2                 1/1     Running   0          123m
-    speaker-qczch                 1/1     Running   0          123m
-
-Once the pods are up and running, we can apply the following configuration to provide available IP range to MetalLB.
-`skyctl apply -f <path to cluster1-metallb-config.yaml>`
-
-.. code-block:: bash
-    kubectl apply -f cluster1-metallb-config.yaml  --context kind-cluster1
-    ipaddresspool.metallb.io/ip-pool-cluster1 unchanged
-    l2advertisement.metallb.io/l2-advertisement-cluster1 unchanged
-
 Finally, we can setup a LoadBalancer type service to allow traffic to reach the nginx job.
+Note: This relies on the MetalLB setup done in the beginning of this guide.
 
 .. code-block:: bash
+
     $ skyctl apply -f nginx-lb-service.yaml
     ⠙ Applying configuration
     Created service nginx-lb-service.
