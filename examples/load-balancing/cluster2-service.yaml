@@ -1,0 +1,15 @@
+kind: Service
+
+metadata:
+  name: nginx-service2
+
+spec:
+  type: NodePort
+  primary_cluster: kind-cluster2
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      node_port: 30001
+      target_port: 80
