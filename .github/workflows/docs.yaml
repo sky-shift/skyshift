@@ -27,13 +27,13 @@ jobs:
           # e.g., if you have a docs requirements file:
           pip install -r docs/requirements-docs.txt
           # or if you have a setup.py/pyproject:
-          # pip install -e .
+          pip install -e .
 
       - name: Build your docs/site
         working-directory: docs  # or wherever your build script is
         run: |
           # Remove the build and docs directories
-          rm -rf build
+          rm -rf build/
           # Execute make html command
           make html
 
