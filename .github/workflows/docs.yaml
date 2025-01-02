@@ -1,22 +1,21 @@
-name: Build and Deploy Sphinx Docs
+name: Build and Deploy to sky-shift.github.io
 
 on:
   push:
     branches:
-      - main  # or your default branch
+      - main  # or whichever branch you use
 
-# Give the workflow permission to push to gh-pages
 permissions:
   contents: write
 
 jobs:
-  build-docs:
+  build-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out the repo
+      - name: Check out skyshift repo
         uses: actions/checkout@v3
-        
+
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
@@ -24,26 +23,37 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e .
-          pip install --upgrade pip
-          # If you have a requirements file for docs:
+          pip install --upgrade pip setuptools wheel
+          # e.g., if you have a docs requirements file:
           pip install -r docs/requirements-docs.txt
-          # Otherwise, just install Sphinx:
-          # pip install sphinx
+          # or if you have a setup.py/pyproject:
+          # pip install -e .
 
-      - name: Build docs
-        # This runs your build.sh inside docs/
-        working-directory: docs
+      - name: Build your docs/site
+        working-directory: docs  # or wherever your build script is
         run: |
+          # For Sphinx with a makefile:
+          # make html
+          #
+          # or if you have a custom script:
           bash build.sh
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to sky-shift.github.io
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          # By default, it will push to gh-pages branch, but being explicit doesn't hurt:
-          publish_branch: gh-pages
-          # Adjust the path if your Sphinx output differs
+          # Use your PAT secret here (NOT the default GITHUB_TOKEN)
+          github_token: ${{ secrets.ACTIONS_DEPLOY_TOKEN }}
+
+          # This is the external repo to push to
+          external_repository: sky-shift/sky-shift.github.io
+
+          # The branch in sky-shift.github.io where you want final files
+          # Usually "main" or "master" for a user/organization site
+          publish_branch: main
+
+          # The folder with the built HTML (relative to the *skyshift* repo root)
           publish_dir: docs/build/html
-          # If your docs build is at docs/build/html, *relative to repository root*,
-          # then keep the above. If your 'build.sh' is set up differently, adjust as needed.
+
+          # (Optional) Customize commit author
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
