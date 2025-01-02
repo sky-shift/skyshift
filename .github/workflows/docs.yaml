@@ -24,6 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install -e .
           pip install --upgrade pip
           # If you have a requirements file for docs:
           pip install -r docs/requirements-docs.txt
