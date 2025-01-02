@@ -10,7 +10,7 @@
 
 ----
 📰 **News** 📰
-
+- [Dec 2024] Run LLM inference with [vLLM](https://sky-shift.github.io/examples/vllm.html) and large scale data processing with  [Spark](https://github.com/sky-shift/skyshift/tree/main/examples/tpcds).
 
 ----
 ## ⚡Quick Install
