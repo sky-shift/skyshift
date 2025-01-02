@@ -7,7 +7,7 @@ SCRIPT_DIR=$(dirname "$0")
 cd "$SCRIPT_DIR"
 
 # Remove the build and docs directories
-rm -rf build docs
+rm -rf build
 
 # Execute make html command
 make html

@@ -3,7 +3,11 @@ name: Build and Deploy Sphinx Docs
 on:
   push:
     branches:
-      - main  # or whatever your primary branch is
+      - main  # or your default branch
+
+# Give the workflow permission to push to gh-pages
+permissions:
+  contents: write
 
 jobs:
   build-docs:
@@ -12,29 +16,33 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
-
+        
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: "3.10"  # or any version you prefer
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          # If you have a requirements.txt in the root
+          # If you have a requirements file for docs:
           pip install -r docs/requirements-docs.txt
-          # OR if you only need sphinx:
+          # Otherwise, just install Sphinx:
           # pip install sphinx
 
       - name: Build docs
+        # This runs your build.sh inside docs/
+        working-directory: docs
         run: |
-          cd docs
           bash build.sh
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/build/html
-          # The above path is important: it points to the Sphinx build artifacts (HTML)
-          # If you used `make html` and it ends up in docs/build/html, keep that path.
+          # By default, it will push to gh-pages branch, but being explicit doesn't hurt:
+          publish_branch: gh-pages
+          # Adjust the path if your Sphinx output differs
+          publish_dir: docs/build/html
+          # If your docs build is at docs/build/html, *relative to repository root*,
+          # then keep the above. If your 'build.sh' is set up differently, adjust as needed.
