@@ -32,11 +32,10 @@ jobs:
       - name: Build your docs/site
         working-directory: docs  # or wherever your build script is
         run: |
-          # For Sphinx with a makefile:
-          # make html
-          #
-          # or if you have a custom script:
-          bash build.sh
+          # Remove the build and docs directories
+          rm -rf build
+          # Execute make html command
+          make html
 
       - name: Deploy to sky-shift.github.io
         uses: peaceiris/actions-gh-pages@v3
