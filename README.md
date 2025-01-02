@@ -1,99 +1,133 @@
-# SkyShift - Container Orchestration across the Sky.
+# ✈️ SkyShift
+<h3 align="left">
+    Run Any Workload on Any Compute 🌐
+</h3>
 
-SkyShift orchestrates container-based workloads across the Sky. Our goal is to abstract away the notion of many clusters into one super-cluster. It current supports automatic spreading jobs/deployments across clusters and its new feature - a network mesh - that allows for K8 services to natively load balance across pods in local and remote clusters.
+[![Up to Date](https://github.com/ikatyang/emoji-cheat-sheet/workflows/Up%20to%20Date/badge.svg)](https://github.com/ikatyang/emoji-cheat-sheet/actions?query=workflow%3A%22Up+to+Date%22)
+<a href="https://sky-shift.github.io/">
+<img alt="Documentation" src="https://img.shields.io/badge/🗏-Docs-orange">
+</a>
 
-## Installing Sky Manager
+----
+📰 **News** 📰
 
-(Recommended) Create new conda environment
 
-```
-conda create -n skyshift python=3.10
-conda activate skyshift 
-```
+----
+## ⚡Quick Install
 
-Install dependencies, Sky Manager packages, and setup cli
-(assuming the repo has been cloned to ./skyshift)
-```
-cd skyshift
+Install with pip:
+```bash
+# Clone SkyShift to local repo
+git clone https://github.com/sky-shift/skyshift.git && cd skyshift
+# Install SkyShift dependencies for clients.
 pip install -e .
-# Dependencies for SkyShift's API server.
+# (Optional) SkyShift dependencies for admins.
 pip install -e .[server]
-
-# (Optional) Dependencies for working on SkyShift's Documentation.
-pip install -e .[docs]
 ```
 
-## Steps to run Sky Manager
+## 🤔 What is SkyShift?
 
-### 1. Check Kubernetes Clusters
+**SkyShift** is a unified framework for running workloads anywhere—from on-premises compute to edge devices and cloud instances. 
 
-Sky Manager supports Kubernetes clusters that are listed in `kubectl config get-contexts`:
+SkyShift **abstracts away many clusters into one contiuuum of compute**, achieving [the Sky](https://arxiv.org/abs/2205.07147):
+- Unify Kubernetes, Slurm, and Ray clusters + any cloud instance into one singular cluster.
+- Automatically manages job and services.
+- Transparently handles networking and communication across clusters.
 
-```
->>> kubectl config get-contexts
+SkyShift **simplifies workload and compute management**:
+- Supports one unified job/service API across clusters.
+- Automatically autoscale cloud clusters and manually add/remove existing clusters.
 
-CURRENT   NAME          CLUSTER                                   AUTHINFO                               
-          mluo-cloud    gke_sky-burst_us-central1-c_mluo-cloud    gke_sky-burst_us-central1-c_mluo-cloud    
-*         mluo-onprem   gke_sky-burst_us-central1-c_mluo-onprem   gke_sky-burst_us-central1-c_mluo-onprem   
-```
+## 🚀 Launch SkyShift 
 
-### 2. Launch API server.
+SkyShift requires at least one cluster to run. This example will use [Kind](https://kind.sigs.k8s.io/), which provisions local Kubernetes (K8) clusters on your local laptop:
 
-Launch the API server on a separate tmux or screen window (or nohup). This will automatically install and run ETCD on your machine and launch the API server.
-
-```
-# In skyshift/ base folder
-python api_server/launch_server.py
-```
-
-### 3. Launch Controller Manager.
-
-Launch the Controller Manager (which manages Skylet controller + Scheduler controller) on a separate tmux or screen window:
-
-```
-# In skyshift/ base folder
-python skyshift/launch_sky_manager.py
+```bash
+# Launch two K8 clusters.
+for i in {1..2};
+do
+kind create cluster --name cluster$i
+done
 ```
 
-### 4. Add Kubernetes Clusters on Sky Manager
+Once the K8 clusters are provisioned, launch SkyShift:
 
-Check the status of the clusters using `skyctl get clusters`. The output should look like:
-```
-Name                                    Manager    Resources                          Status
-mluo-cloud                              k8         cpus: 1.93/2.0                     READY
-                                                   memory: 6035.6796875/7954.6796875
-mluo-onprem                             k8         cpus: 1.93/2.0                     READY
-                                                   memory: 6035.6796875/7954.6796875
+```bash
+# In skyshift root path
+./launch_skyshift.sh
 ```
 
-If there are no clusters, add more clusters into your `~/.kube/config` file and run:
-```
-skyctl create cluster --manager k8 [K8_CONTEXT_NAME]
-```
-
-### 5. Congrats. Submit jobs!
-
-Jobs an be submitted with `skyctl create jobs`:
-
-```
-skyctl create job [name] --replicas [REPLICA_COUNT] --run '[RUN_COMMAND]' --cpus [CPU_COUNT_PER_REPLICA] --labels app nginx
-```
-All argument can be found in `skyctl create jobs --help`.
-
-Check the status of the jobs using `skyctl get jobs`. The output should look like:
-
-```
-Name     Cluster      Replicas    Resources    Namespace    Status
-hello    mluo-cloud   1/1         cpus: 1.0    default      RUNNING
-hello    mluo-onprem  1/1         cpus: 1.0    default      RUNNING
+Check SkyShift's status:
+```bash
+> skyctl get clusters
+NAME               MANAGER    RESOURCES                          STATUS
+cluster1             k8       cpus: 1.83/2.0                     READY
+                              memory: 6035.6/7954.6 MiB
+cluster2             k8       cpus: 1.83/2.0                     READY
+                              memory: 6035.6/7954.6 MiB
 ```
 
-### 6. Create SkyShift services!
+Congrats! SkyShift is now ready to submit jobs with its [simplified interface](https://sky-shift.github.io/getting_started/cli_docs.html#skyshift-job). Provided below is an example YAML for a simple Nginx deployment:
 
-Services can be submitted with `skyctl create services`:
+```yaml
+kind: Job
+
+metadata:
+  name: example-job
+  labels:
+    app: nginx
+
+spec:
+  replicas: 2
+  image: nginx:1.14.2
+  resources:
+    cpus: 1
+    memory: 128
+  ports:
+    - 80
+  # Always restart a job's tasks, regardless of exit code.
+  restartPolicy: Always
+```
+
+To create a SkyShift job, run the following command:
+
+```bash
+skyctl apply -f [PATH_TO_JOB].yaml
+```
+
+Since one cluster does not have sufficient resources, SkyShift automatically schedules and launches the job across two clusters:
 
 ```
-skyctl create service my-nginx-service --type LoadBalancer --selector app nginx --ports 8008 80 --cluster mluo-onprem
+> skyctl get jobs
+NAME          CLUSTER    REPLICAS    RESOURCES               NAMESPACE    STATUS
+exmple-job    cluster1   2/2         cpus: 1                 default      RUNNING
+              cluster2               memory: 128.0 MiB
+
+> skyctl get clusters
+NAME               MANAGER    RESOURCES                          STATUS
+cluster1             k8       cpus: 0.83/2.0                     READY
+                              memory: 5907.6/7954.6 MiB
+cluster2             k8       cpus: 0.83/2.0                     READY
+                              memory: 5907.6/7954.6 MiB
 ```
 
-This will create a native K8 service on the `mluo-onprem` cluster. If there are replicas, the K8 service will automatically loadbalance across both local and remote pods (in other clusters).
+Finally, clean up SkyShift and the two K8 clusters:
+```
+# Kill SkyShift service
+./launch_skyshift.sh --kill
+# Terminate Kind clusters
+for i in {1..2};
+do
+kind delete cluster --name cluster$i
+done
+```
+
+Refer to [Quickstart](https://sky-shift.github.io/quickstart/quickstart.html) to get started with SkyShift.
+
+## 📖 Documentation
+
+The above tutorial describe a small subset of features SkyShift supports. Refer to the documentation
+
+## 🙋 Contributions
+
+As an open-source project, we gladly welcome all contributions, whether it be a new feature, better documentation, or simple bug fixes. For more information, see [here](https://github.com/sky-shift/skyshift/blob/main/CONTRIBUTING.md).
