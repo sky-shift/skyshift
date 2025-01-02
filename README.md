@@ -100,7 +100,7 @@ Since one cluster does not have sufficient resources, SkyShift automatically sch
 ```
 > skyctl get jobs
 NAME          CLUSTER    REPLICAS    RESOURCES               NAMESPACE    STATUS
-exmple-job    cluster1   2/2         cpus: 1                 default      RUNNING
+example-job   cluster1   2/2         cpus: 1                 default      RUNNING
               cluster2               memory: 128.0 MiB
 
 > skyctl get clusters
@@ -126,7 +126,12 @@ Refer to [Quickstart](https://sky-shift.github.io/quickstart/quickstart.html) to
 
 ## 📖 Documentation
 
-The above tutorial describe a small subset of features SkyShift supports. Refer to the documentation
+The above tutorial describes a small subset of features SkyShift supports. Refer to the documentation for a more complete set. For example, SkyShift supports:
+- [Slurm](https://sky-shift.github.io/slurm_support/overview.html)  and [Ray](https://sky-shift.github.io/ray/overview.html) clusters.
+- Automatic management of [services](https://sky-shift.github.io/cli/services.html) via [ClusterLink](https://clusterlink.net/).
+- Fine-grained [Role-based Access Control (RBAC)](https://sky-shift.github.io/cli/roles.html) for [regular users](https://sky-shift.github.io/authentication/authentication.html).
+- [Advanced scheduling](https://sky-shift.github.io/architecture/scheduler.html), including custom priorities, preferences, and filters.
+- Advanced examples, incl. but not limited to LLM serving with [vLLM](https://sky-shift.github.io/examples/vllm.html), large-scale data processing with [SparkSQL](https://github.com/sky-shift/skyshift/tree/main/examples/tpcds), and general [microservices](https://sky-shift.github.io/examples/bookinfo.html). 
 
 ## 🙋 Contributions
 
