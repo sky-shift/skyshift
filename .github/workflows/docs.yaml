@@ -42,7 +42,8 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           # Use your PAT secret here (NOT the default GITHUB_TOKEN)
-          github_token: ${{ secrets.ACTIONS_DEPLOY_TOKEN }}
+          #github_token: ${{ secrets.ACTIONS_DEPLOY_TOKEN }}
+          personal_token: ${{ secrets.ACTIONS_DEPLOY_TOKEN }}  # <-- Use personal_token here
 
           # This is the external repo to push to
           external_repository: sky-shift/sky-shift.github.io
