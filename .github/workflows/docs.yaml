@@ -1,0 +1,40 @@
+name: Build and Deploy Sphinx Docs
+
+on:
+  push:
+    branches:
+      - main  # or whatever your primary branch is
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.9"  # or any version you prefer
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # If you have a requirements.txt in the root
+          pip install -r docs/requirements-docs.txt
+          # OR if you only need sphinx:
+          # pip install sphinx
+
+      - name: Build docs
+        run: |
+          cd docs
+          bash build.sh
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/build/html
+          # The above path is important: it points to the Sphinx build artifacts (HTML)
+          # If you used `make html` and it ends up in docs/build/html, keep that path.
