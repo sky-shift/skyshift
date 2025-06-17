@@ -14,7 +14,7 @@ setup(
         "fastapi",
         "kubernetes",
         "passlib",
-        "protobuf==3.20.2",
+        "protobuf==4.25.8",
         "python-jose",
         "pydantic>=2.5.0",
         "pydantic[email]>=2.5.0",
